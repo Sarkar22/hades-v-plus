@@ -64,16 +64,18 @@ module fetch_stage (
     //   Example: PC = 0x40000  →  adr = 0x40000 >> 2 = 0x10000
     assign wb.adr = pc >> 2;
 
-    // cyc = "I am currently in a Wishbone bus cycle (I want to talk to the bus)"
-    // We should NOT start a new fetch when Decode says STALL — it is still
-    // processing the instruction we already gave it, and we have nowhere to
-    // store a new one. During READY and JUMP we DO want to fetch, so cyc = 1.
-    // The expression evaluates to 1 when not stalling, 0 when stalling.
-    assign wb.cyc = (status_backwards_in != STALL);
+    // cyc = "I am currently in a Wishbone bus cycle"
+    // We ALWAYS keep cyc=1. During STALL, the PC doesn't change, so we keep
+    // requesting the SAME address from RAM. The async RAM holds the data stable
+    // as long as cyc/stb are high — we just choose not to capture it (outputs
+    // hold their value in the STALL branch of always_ff below).
+    // Dropping cyc during STALL would be wrong: it would terminate an in-progress
+    // wishbone transaction before the data has been consumed.
+    assign wb.cyc = 1'b1;
 
     // stb = "this specific cycle has a valid request on the bus"
-    // We tie it directly to cyc — whenever we open a bus cycle we request immediately.
-    assign wb.stb = wb.cyc;
+    // Tied to cyc — we always have a request active.
+    assign wb.stb = 1'b1;
 
     // =========================================================================
     // PART 2: PC update (sequential — runs on every rising clock edge)
