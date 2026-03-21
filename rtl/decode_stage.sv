@@ -149,12 +149,20 @@ module decode_stage (
     logic [31:0] rs1_data;
     logic [31:0] rs2_data;
 
+    // Internal register: holds the last committed value of status_forwards_out.
+    // Used to implement "hold" during STALL while keeping status_forwards_out
+    // combinationally driven (so hazard state is visible immediately, not one
+    // cycle late).
+    pipeline_status::forwards_t status_forwards_out_reg;
+
     // =========================================================================
-    // Part 3+4a: Hazard detection, forwarding, and backwards status — ONE block
+    // Part 3+4a: Hazard detection, forwarding, backwards status, and
+    //            status_forwards_out — ALL combinational in ONE block.
     // =========================================================================
-    // Merged into a single always_comb to avoid any Verilator inter-block
-    // scheduling issues where pipeline_hazard might be stale when the
-    // backwards-status block evaluates.
+    // status_forwards_out is driven combinationally so that a hazard is
+    // immediately visible to the downstream Execute stage (matches reference
+    // combo_update behaviour).  The internal status_forwards_out_reg register
+    // is used only to remember the held value across a STALL cycle.
     always_comb begin
         // --- Load-use hazard: Execute has data_valid=0 for rs1 or rs2 ---
         load_use_hazard =
@@ -202,14 +210,31 @@ module decode_stage (
             status_backwards_out = STALL;
         else
             status_backwards_out = READY;
+
+        // --- Forwards status: combinational, immediate hazard visibility ---
+        // STALL  → hold the registered value (Execute hasn't consumed it yet)
+        // JUMP / pipeline_hazard → BUBBLE immediately
+        // Normal → decode from incoming status + instruction op
+        if (status_backwards_in == STALL)
+            status_forwards_out = status_forwards_out_reg;
+        else if (status_backwards_in == JUMP || pipeline_hazard)
+            status_forwards_out = BUBBLE;
+        else begin
+            if (status_forwards_in != VALID)
+                status_forwards_out = status_forwards_in;
+            else
+                case (decoded.op)
+                    op::ILLEGAL: status_forwards_out = ILLEGAL_INSTRUCTION;
+                    op::ECALL:   status_forwards_out = pipeline_status::ECALL;
+                    op::EBREAK:  status_forwards_out = pipeline_status::EBREAK;
+                    default:     status_forwards_out = VALID;
+                endcase
+        end
     end
 
     // =========================================================================
     // Part 4b: Output registers (to Execute) — SEQUENTIAL, updated on clock edge
     // =========================================================================
-    // These outputs are what Execute reads. They are registered — they hold
-    // their value until explicitly updated.
-    //
     // Rules:
     //   - rst            → output NOP/BUBBLE, reset everything
     //   - STALL from Exe → hold all outputs (Execute is still busy)
@@ -219,47 +244,31 @@ module decode_stage (
 
     always_ff @(posedge clk) begin
         if (rst) begin
-            rs1_data_reg_out       <= 32'b0;
-            rs2_data_reg_out       <= 32'b0;
+            rs1_data_reg_out        <= 32'b0;
+            rs2_data_reg_out        <= 32'b0;
             program_counter_reg_out <= 32'b0;
-            instruction_reg_out    <= instruction::NOP;
-            status_forwards_out    <= BUBBLE;
-
-        end else if (status_backwards_in == STALL) begin
-            // Execute is stalled — hold everything, do not update outputs
-            // (empty block — registers hold their value automatically)
-
-        end else if (status_backwards_in == JUMP || pipeline_hazard) begin
-            // JUMP: throw away whatever instruction we have, it's on the wrong path
-            // load-use: insert a bubble so Execute gets a NOP while we wait
-            status_forwards_out    <= BUBBLE;
-            instruction_reg_out    <= instruction::NOP;
-            // (rs1/rs2/PC don't matter when status is BUBBLE — Execute ignores them)
+            instruction_reg_out     <= instruction::NOP;
+            status_forwards_out_reg <= BUBBLE;
 
         end else begin
-            // Normal operation: register everything for Execute
-            rs1_data_reg_out        <= rs1_data;
-            rs2_data_reg_out        <= rs2_data;
-            program_counter_reg_out <= program_counter_in;
-            instruction_reg_out     <= decoded;
+            // Always register the current combinational status_forwards_out
+            // so the STALL-hold path has the right value next cycle.
+            status_forwards_out_reg <= status_forwards_out;
 
-            // Determine the outgoing status:
-            //   - FETCH errors (FETCH_FAULT, FETCH_MISALIGNED) propagate as-is
-            //   - BUBBLE from Fetch propagates as-is
-            //   - VALID from Fetch: check the decoded instruction
-            //       ILLEGAL op  → ILLEGAL_INSTRUCTION (catches bad opcode, funct, or CSR addr)
-            //       ECALL       → ECALL  (Writeback handles the trap)
-            //       EBREAK      → EBREAK (Writeback handles the trap)
-            //       anything else → VALID
-            if (status_forwards_in != VALID)
-                status_forwards_out <= status_forwards_in;
-            else
-                case (decoded.op)
-                    op::ILLEGAL: status_forwards_out <= ILLEGAL_INSTRUCTION;
-                    op::ECALL:   status_forwards_out <= pipeline_status::ECALL;
-                    op::EBREAK:  status_forwards_out <= pipeline_status::EBREAK;
-                    default:     status_forwards_out <= VALID;
-                endcase
+            if (status_backwards_in == STALL) begin
+                // Execute is stalled — hold all other outputs (registers retain value)
+
+            end else if (status_backwards_in == JUMP || pipeline_hazard) begin
+                // JUMP: throw away current instruction; load-use: insert bubble
+                instruction_reg_out <= instruction::NOP;
+
+            end else begin
+                // Normal operation: register everything for Execute
+                rs1_data_reg_out        <= rs1_data;
+                rs2_data_reg_out        <= rs2_data;
+                program_counter_reg_out <= program_counter_in;
+                instruction_reg_out     <= decoded;
+            end
         end
     end
 
