@@ -1,12 +1,12 @@
 # Testcase Results 
 
 **Repository:** hades-v_9_Sarkar22  
-**Test Run:** 21.03.2026 17:01  
+**Test Run:** 21.03.2026 18:31  
 **Test Deadline:** 01.06.2026 00:00  
 ### Tested Commit Information
-**Date:** 21.03.2026 11:55  
-**Hash:** fa48686  
-**Message:** decode_stage: make status_forwards_out combinationally driven  
+**Date:** 21.03.2026 13:29  
+**Hash:** 23c6c9e  
+**Message:** fix(decode): suppress STALL propagation on BUBBLE, register status_forwards_out  
 **Committer Email:** esarkar@RF-LT05.eng.uwaterloo.ca  
 
 # Module Under Test:  Fetch Stage  
