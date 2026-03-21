@@ -166,12 +166,10 @@ module decode_stage (
              ((exe_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0) && !exe_forwarding_in.data_valid))
             && (status_forwards_in == VALID);
 
-        // --- CSR-use hazard: Memory has data_valid=0, and Execute doesn't override ---
+        // --- CSR-use hazard: Memory has data_valid=0 for rs1 or rs2 ---
         csr_use_hazard =
-            ((((mem_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0) && !mem_forwarding_in.data_valid)
-                && !((exe_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0) && exe_forwarding_in.data_valid)) ||
-             (((mem_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0) && !mem_forwarding_in.data_valid)
-                && !((exe_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0) && exe_forwarding_in.data_valid)))
+            (((mem_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0) && !mem_forwarding_in.data_valid) ||
+             ((mem_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0) && !mem_forwarding_in.data_valid))
             && (status_forwards_in == VALID);
 
         pipeline_hazard = load_use_hazard || csr_use_hazard;
@@ -210,9 +208,9 @@ module decode_stage (
             status_backwards_out = READY;
 
         // --- Forwards status: combinational with registered-state default ---
-        // JUMP or pipeline_hazard → BUBBLE immediately (visible before posedge)
-        // All other cases (STALL hold and normal) → return last registered value
-        if (status_backwards_in == JUMP || pipeline_hazard)
+        // JUMP or pipeline_hazard (but NOT during STALL) → BUBBLE immediately
+        // During STALL, always hold sf_out_reg (Execute is stalling, don't change sf_out)
+        if (status_backwards_in != STALL && (status_backwards_in == JUMP || pipeline_hazard))
             status_forwards_out = BUBBLE;
         else
             status_forwards_out = status_forwards_out_reg;
