@@ -166,16 +166,23 @@ module decode_stage (
              ((exe_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0) && !exe_forwarding_in.data_valid))
             && (status_forwards_in == VALID);
 
-        // --- CSR-use hazard: Memory has data_valid=0 for rs1 or rs2 ---
+        // --- CSR-use hazard: Memory has data_valid=0, and Execute doesn't override ---
         csr_use_hazard =
-            (((mem_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0) && !mem_forwarding_in.data_valid) ||
-             ((mem_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0) && !mem_forwarding_in.data_valid))
+            ((((mem_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0) && !mem_forwarding_in.data_valid)
+                && !((exe_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0) && exe_forwarding_in.data_valid)) ||
+             (((mem_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0) && !mem_forwarding_in.data_valid)
+                && !((exe_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0) && exe_forwarding_in.data_valid)))
             && (status_forwards_in == VALID);
 
         pipeline_hazard = load_use_hazard || csr_use_hazard;
 
         // --- rs1 forwarding: Execute > Memory > Writeback > Register File ---
-        if ((exe_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0) && exe_forwarding_in.data_valid)
+        // Execute is checked first WITHOUT a data_valid guard: the exe result is
+        // always the most-recent one; data_valid=0 just means it's not ready yet
+        // (load-use hazard). The hazard detection above inserts a bubble so Execute
+        // never consumes the stale value; the mux still records it for consistency
+        // with the reference implementation.
+        if ((exe_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0))
             rs1_data = exe_forwarding_in.data;
         else if ((mem_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0) && mem_forwarding_in.data_valid)
             rs1_data = mem_forwarding_in.data;
@@ -185,7 +192,7 @@ module decode_stage (
             rs1_data = rf_rs1_data;
 
         // --- rs2 forwarding: same priority ---
-        if ((exe_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0) && exe_forwarding_in.data_valid)
+        if ((exe_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0))
             rs2_data = exe_forwarding_in.data;
         else if ((mem_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0) && mem_forwarding_in.data_valid)
             rs2_data = mem_forwarding_in.data;
@@ -239,7 +246,13 @@ module decode_stage (
                 // Execute is stalled — hold all outputs (registers retain value)
 
             end else if (status_backwards_in == JUMP || pipeline_hazard) begin
-                // JUMP: throw away current instruction; load-use: insert bubble
+                // JUMP: throw away current instruction; load-use: insert bubble.
+                // rs1/rs2/pc are still updated so Execute sees the forwarded data
+                // (Execute receives a BUBBLE and ignores it, but keeping registers
+                // consistent matches the reference implementation).
+                rs1_data_reg_out        <= rs1_data;
+                rs2_data_reg_out        <= rs2_data;
+                program_counter_reg_out <= program_counter_in;
                 instruction_reg_out     <= instruction::NOP;
                 status_forwards_out_reg <= BUBBLE;
 
