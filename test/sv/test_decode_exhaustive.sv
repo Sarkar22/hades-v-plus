@@ -649,6 +649,235 @@ module test_decode_exhaustive;
         end
 
         // ================================================================
+        // SWEEP 13: Mixed independent exe.addr × mem.addr combinations
+        //   exe and mem point to DIFFERENT registers simultaneously.
+        //   Covers "real pipeline" scenarios: different stages hold
+        //   results for different registers.
+        //   Also tests sequential state (NO do_reset between sub-tests).
+        // ================================================================
+        $display("=== SWEEP 13: mixed independent exe × mem addr (cross-register) ===");
+        for (int ii = 0; ii < 7; ii++) begin
+            for (int ea = 0; ea <= 7; ea++) begin     // exe addr
+                for (int edv = 0; edv <= 1; edv++) begin // exe dv
+                    for (int ma = 0; ma <= 7; ma++) begin  // mem addr (different from exe typically)
+                        for (int mdv = 0; mdv <= 1; mdv++) begin // mem dv
+                            do_reset();
+                            program_counter_in  = 32'h4_0030;
+                            instruction_in      = instrs[ii];
+                            status_forwards_in  = VALID;
+                            status_backwards_in = READY;
+                            exe_forwarding_in   = '{data_valid:edv[0], data:32'hAAAA_0000 | ea, address:ea[4:0]};
+                            mem_forwarding_in   = '{data_valid:mdv[0], data:32'hBBBB_0000 | ma, address:ma[4:0]};
+                            wb_forwarding_in    = '{data_valid:0, data:0, address:0};
+                            #1;
+                            check_comb($sformatf("%s-mix-ea%0d-edv%0d-ma%0d-mdv%0d",
+                                inames[ii], ea, edv, ma, mdv));
+                            @(posedge clk); #1;
+                            check_reg_full($sformatf("%s-mix-ea%0d-edv%0d-ma%0d-mdv%0d-reg",
+                                inames[ii], ea, edv, ma, mdv));
+                        end
+                    end
+                end
+            end
+        end
+
+        // ================================================================
+        // SWEEP 14: Sequential test (NO do_reset) — state-dependent checks
+        //   Runs several instructions without reset to check that internal
+        //   state (sf_out_reg) evolves correctly across cycles matching ref.
+        // ================================================================
+        $display("=== SWEEP 14: sequential no-reset state evolution ===");
+        begin
+            do_reset();
+            // Sub-test A: normal instruction → sf_out_reg should become VALID
+            apply(SLT, VALID, READY,
+                '{data_valid:0, data:0, address:0},
+                '{data_valid:0, data:0, address:0},
+                '{data_valid:0, data:0, address:0},
+                "seq-A-normal-SLT");
+
+            // Sub-test B: immediately SW with exe hazard (no reset, state carries)
+            apply(SW, VALID, READY,
+                '{data_valid:0, data:32'hDEAD, address:5'd6},  // rs1=x6 of SW
+                '{data_valid:0, data:0, address:0},
+                '{data_valid:0, data:0, address:0},
+                "seq-B-SW-exe-hazard-a6");
+
+            // Sub-test C: SW again with mem hazard (no reset)
+            apply(SW, VALID, READY,
+                '{data_valid:0, data:0, address:0},
+                '{data_valid:0, data:32'hBEEF, address:5'd6},  // rs1=x6 of SW
+                '{data_valid:0, data:0, address:0},
+                "seq-C-SW-mem-hazard-a6");
+
+            // Sub-test D: SLT with exe hazard (rs1=x2)
+            apply(SLT, VALID, READY,
+                '{data_valid:0, data:32'hDEAD, address:5'd2},  // rs1=x2 of SLT
+                '{data_valid:0, data:0, address:0},
+                '{data_valid:0, data:0, address:0},
+                "seq-D-SLT-exe-hazard-rs1");
+
+            // Sub-test E: SLT with rs2 exe hazard
+            apply(SLT, VALID, READY,
+                '{data_valid:0, data:32'hDEAD, address:5'd3},  // rs2=x3 of SLT
+                '{data_valid:0, data:0, address:0},
+                '{data_valid:0, data:0, address:0},
+                "seq-E-SLT-exe-hazard-rs2");
+
+            // Sub-test F: STALL then READY — exact Persephone scenario
+            // Step 1: sb_in=STALL while exe has hazard
+            instruction_in      = SLT;
+            status_forwards_in  = VALID;
+            status_backwards_in = STALL;
+            exe_forwarding_in   = '{data_valid:0, data:32'hDEAD, address:5'd2};
+            mem_forwarding_in   = '{data_valid:0, data:0, address:0};
+            wb_forwarding_in    = '{data_valid:0, data:0, address:0};
+            @(posedge clk); #1;
+            // Step 2: READY, exe.dv=0 still (same addr)
+            apply(SLT, VALID, READY,
+                '{data_valid:0, data:32'hDEAD, address:5'd2},
+                '{data_valid:0, data:0, address:0},
+                '{data_valid:0, data:0, address:0},
+                "seq-F-SLT-STALL-READY-exe-dv0");
+
+            // Sub-test G: sb_in=STALL then READY — exe.dv transitions 0→1, mem has hazard
+            // Step 1: sb_in=READY with exe.dv=0 → we detect hazard ourselves
+            instruction_in      = SLT;
+            status_forwards_in  = VALID;
+            status_backwards_in = READY;
+            exe_forwarding_in   = '{data_valid:0, data:32'hDEAD, address:5'd2};
+            mem_forwarding_in   = '{data_valid:0, data:0, address:0};
+            wb_forwarding_in    = '{data_valid:0, data:0, address:0};
+            @(posedge clk); #1;
+            // Step 2: READY, load moved to mem (exe.dv=0 but addr=0 now, mem has old load)
+            apply(SLT, VALID, READY,
+                '{data_valid:0, data:0, address:5'd0},  // NOP/BUBBLE in Execute
+                '{data_valid:0, data:32'hDEAD, address:5'd2},  // load in Memory
+                '{data_valid:0, data:0, address:0},
+                "seq-G-SLT-self-stall-then-mem-hazard");
+
+            // Sub-test H: same but exe now has dv=1 for same addr
+            // Step 1: sb=READY, exe.dv=0 → self-stall
+            instruction_in      = SLT;
+            status_forwards_in  = VALID;
+            status_backwards_in = READY;
+            exe_forwarding_in   = '{data_valid:0, data:32'hDEAD, address:5'd2};
+            mem_forwarding_in   = '{data_valid:0, data:0, address:0};
+            wb_forwarding_in    = '{data_valid:0, data:0, address:0};
+            @(posedge clk); #1;
+            // Step 2: READY, exe now valid for same addr, mem has old load invalid
+            apply(SLT, VALID, READY,
+                '{data_valid:1, data:32'h1111, address:5'd2},  // exe completed, dv=1
+                '{data_valid:0, data:32'hDEAD, address:5'd2},  // load in Memory, dv=0
+                '{data_valid:0, data:0, address:0},
+                "seq-H-SLT-self-stall-then-exe1-mem0");
+
+            // Sub-test I: SW rs1=x6 hazard with exe for rs2 (x7) valid
+            // exe has x7 (rs2 of SW) valid, mem has x6 (rs1 of SW) invalid
+            apply(SW, VALID, READY,
+                '{data_valid:1, data:32'hABCD, address:5'd7},  // rs2=x7 exe valid
+                '{data_valid:0, data:32'hBEEF, address:5'd6},  // rs1=x6 mem invalid
+                '{data_valid:0, data:0, address:0},
+                "seq-I-SW-exe-rs2-valid-mem-rs1-invalid");
+
+            // Sub-test J: SW rs2=x7 hazard with exe for rs1 (x6) valid
+            apply(SW, VALID, READY,
+                '{data_valid:1, data:32'hABCD, address:5'd6},  // rs1=x6 exe valid
+                '{data_valid:0, data:32'hBEEF, address:5'd7},  // rs2=x7 mem invalid
+                '{data_valid:0, data:0, address:0},
+                "seq-J-SW-exe-rs1-valid-mem-rs2-invalid");
+        end
+
+        // ================================================================
+        // SWEEP 15: WB forwarding hazard (wb.dv=0, addr matches rs1/rs2)
+        //   Tests whether the reference stalls when wb_forwarding_in has
+        //   data_valid=0 and address matches a source register.
+        // ================================================================
+        $display("=== SWEEP 15: wb forwarding hazard (wb.dv=0) ===");
+        begin
+            // 15a: SLT rs1=x2, wb.addr=2, wb.dv=0, exe/mem no match
+            do_reset();
+            apply(SLT, VALID, READY,
+                '{data_valid:0, data:0, address:0},
+                '{data_valid:0, data:0, address:0},
+                '{data_valid:0, data:32'hCCCC_0000, address:5'd2},  // wb.addr=2=rs1, dv=0
+                "wb-hazard-SLT-rs1");
+
+            // 15b: SLT rs2=x3, wb.addr=3, wb.dv=0
+            do_reset();
+            apply(SLT, VALID, READY,
+                '{data_valid:0, data:0, address:0},
+                '{data_valid:0, data:0, address:0},
+                '{data_valid:0, data:32'hCCCC_0000, address:5'd3},  // wb.addr=3=rs2, dv=0
+                "wb-hazard-SLT-rs2");
+
+            // 15c: SW rs1=x6, wb.addr=6, wb.dv=0
+            do_reset();
+            apply(SW, VALID, READY,
+                '{data_valid:0, data:0, address:0},
+                '{data_valid:0, data:0, address:0},
+                '{data_valid:0, data:32'hCCCC_0000, address:5'd6},  // wb.addr=6=rs1, dv=0
+                "wb-hazard-SW-rs1");
+
+            // 15d: SW rs2=x7, wb.addr=7, wb.dv=0
+            do_reset();
+            apply(SW, VALID, READY,
+                '{data_valid:0, data:0, address:0},
+                '{data_valid:0, data:0, address:0},
+                '{data_valid:0, data:32'hCCCC_0000, address:5'd7},  // wb.addr=7=rs2, dv=0
+                "wb-hazard-SW-rs2");
+
+            // 15e: wb.dv=1 should NOT stall
+            do_reset();
+            apply(SLT, VALID, READY,
+                '{data_valid:0, data:0, address:0},
+                '{data_valid:0, data:0, address:0},
+                '{data_valid:1, data:32'hCCCC_0000, address:5'd2},  // wb.addr=2=rs1, dv=1
+                "wb-no-hazard-SLT-dv1");
+
+            // 15f: wb.addr=0 should NOT stall
+            do_reset();
+            apply(SLT, VALID, READY,
+                '{data_valid:0, data:0, address:0},
+                '{data_valid:0, data:0, address:0},
+                '{data_valid:0, data:32'hCCCC_0000, address:5'd0},  // wb.addr=0 (x0)
+                "wb-no-hazard-SLT-addr0");
+
+            // 15g: exe overrides wb (exe.addr=rs1, exe.dv=1)
+            do_reset();
+            apply(SLT, VALID, READY,
+                '{data_valid:1, data:32'hAAAA_0000, address:5'd2},  // exe.addr=2=rs1, dv=1
+                '{data_valid:0, data:0, address:0},
+                '{data_valid:0, data:32'hCCCC_0000, address:5'd2},   // wb.addr=2=rs1, dv=0
+                "wb-hazard-exe-override");
+
+            // 15h: mem overrides wb (mem.addr=rs1, mem.dv=1)
+            do_reset();
+            apply(SLT, VALID, READY,
+                '{data_valid:0, data:0, address:0},
+                '{data_valid:1, data:32'hBBBB_0000, address:5'd2},  // mem.addr=2=rs1, dv=1
+                '{data_valid:0, data:32'hCCCC_0000, address:5'd2},   // wb.addr=2=rs1, dv=0
+                "wb-hazard-mem-override");
+
+            // 15i: STALL→READY with wb.dv=0 (Persephone scenario 3/4)
+            do_reset();
+            // Step 1: STALL cycle
+            instruction_in      = SLT;
+            status_forwards_in  = VALID;
+            status_backwards_in = STALL;
+            exe_forwarding_in   = '{data_valid:0, data:0, address:0};
+            mem_forwarding_in   = '{data_valid:0, data:0, address:0};
+            wb_forwarding_in    = '{data_valid:0, data:32'hCCCC_0000, address:5'd2};
+            @(posedge clk); #1;
+            // Step 2: READY — wb still dv=0
+            apply(SLT, VALID, READY,
+                '{data_valid:0, data:0, address:0},
+                '{data_valid:0, data:0, address:0},
+                '{data_valid:0, data:32'hCCCC_0000, address:5'd2},
+                "wb-hazard-STALL-READY-SLT");
+        end
+
+        // ================================================================
         // Done
         // ================================================================
         if (errors == 0)

@@ -145,6 +145,7 @@ module decode_stage (
 
     logic load_use_hazard;
     logic csr_use_hazard;
+    logic wb_use_hazard;
     logic pipeline_hazard;
     logic [31:0] rs1_data;
     logic [31:0] rs2_data;
@@ -174,7 +175,17 @@ module decode_stage (
                 && !((exe_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0) && exe_forwarding_in.data_valid)))
             && (status_forwards_in == VALID);
 
-        pipeline_hazard = load_use_hazard || csr_use_hazard;
+        // --- WB-use hazard: Writeback has data_valid=0, and neither Execute nor Memory overrides ---
+        wb_use_hazard =
+            ((((wb_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0) && !wb_forwarding_in.data_valid)
+                && !((exe_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0))
+                && !((mem_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0))) ||
+             (((wb_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0) && !wb_forwarding_in.data_valid)
+                && !((exe_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0))
+                && !((mem_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0))))
+            && (status_forwards_in == VALID);
+
+        pipeline_hazard = load_use_hazard || csr_use_hazard || wb_use_hazard;
 
         // --- rs1 forwarding: Execute > Memory > Writeback > Register File ---
         // Execute and Memory are checked WITHOUT a data_valid guard: they always
@@ -186,7 +197,7 @@ module decode_stage (
             rs1_data = exe_forwarding_in.data;
         else if ((mem_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0))
             rs1_data = mem_forwarding_in.data;
-        else if ((wb_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0) && wb_forwarding_in.data_valid)
+        else if ((wb_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0))
             rs1_data = wb_forwarding_in.data;
         else
             rs1_data = rf_rs1_data;
@@ -196,7 +207,7 @@ module decode_stage (
             rs2_data = exe_forwarding_in.data;
         else if ((mem_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0))
             rs2_data = mem_forwarding_in.data;
-        else if ((wb_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0) && wb_forwarding_in.data_valid)
+        else if ((wb_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0))
             rs2_data = wb_forwarding_in.data;
         else
             rs2_data = rf_rs2_data;
