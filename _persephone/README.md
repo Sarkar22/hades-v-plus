@@ -1,12 +1,12 @@
 # Testcase Results 
 
 **Repository:** hades-v_9_Sarkar22  
-**Test Run:** 21.03.2026 08:01  
+**Test Run:** 21.03.2026 08:31  
 **Test Deadline:** 01.06.2026 00:00  
 ### Tested Commit Information
-**Date:** 21.03.2026 03:17  
-**Hash:** f477369  
-**Message:** instruction_decoder: validate CSR address and check read-only access  
+**Date:** 21.03.2026 03:22  
+**Hash:** edb3f18  
+**Message:** instruction_decoder: temporarily use golden reference for isolation testing  
 **Committer Email:** esarkar@RF-LT05.eng.uwaterloo.ca  
 
 # Module Under Test:  Fetch Stage  
