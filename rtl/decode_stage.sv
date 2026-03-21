@@ -149,20 +149,9 @@ module decode_stage (
     logic [31:0] rs1_data;
     logic [31:0] rs2_data;
 
-    // Internal register: holds the last committed value of status_forwards_out.
-    // Used to implement "hold" during STALL while keeping status_forwards_out
-    // combinationally driven (so hazard state is visible immediately, not one
-    // cycle late).
-    pipeline_status::forwards_t status_forwards_out_reg;
-
     // =========================================================================
-    // Part 3+4a: Hazard detection, forwarding, backwards status, and
-    //            status_forwards_out — ALL combinational in ONE block.
+    // Part 3+4a: Hazard detection, forwarding, backwards status — combinational.
     // =========================================================================
-    // status_forwards_out is driven combinationally so that a hazard is
-    // immediately visible to the downstream Execute stage (matches reference
-    // combo_update behaviour).  The internal status_forwards_out_reg register
-    // is used only to remember the held value across a STALL cycle.
     always_comb begin
         // --- Load-use hazard: Execute has data_valid=0 for rs1 or rs2 ---
         load_use_hazard =
@@ -201,35 +190,17 @@ module decode_stage (
             rs2_data = rf_rs2_data;
 
         // --- Backwards status: pass through or override with STALL for hazard ---
+        // Do NOT propagate STALL backwards when there is no real instruction in
+        // Decode (status_forwards_in == BUBBLE) — Fetch can keep running.
         jump_address_backwards_out = jump_address_backwards_in;
         if (status_backwards_in == JUMP)
             status_backwards_out = JUMP;
-        else if (status_backwards_in == STALL)
+        else if (status_backwards_in == STALL && status_forwards_in != BUBBLE)
             status_backwards_out = STALL;
         else if (pipeline_hazard)
             status_backwards_out = STALL;
         else
             status_backwards_out = READY;
-
-        // --- Forwards status: combinational, immediate hazard visibility ---
-        // STALL  → hold the registered value (Execute hasn't consumed it yet)
-        // JUMP / pipeline_hazard → BUBBLE immediately
-        // Normal → decode from incoming status + instruction op
-        if (status_backwards_in == STALL)
-            status_forwards_out = status_forwards_out_reg;
-        else if (status_backwards_in == JUMP || pipeline_hazard)
-            status_forwards_out = BUBBLE;
-        else begin
-            if (status_forwards_in != VALID)
-                status_forwards_out = status_forwards_in;
-            else
-                case (decoded.op)
-                    op::ILLEGAL: status_forwards_out = ILLEGAL_INSTRUCTION;
-                    op::ECALL:   status_forwards_out = pipeline_status::ECALL;
-                    op::EBREAK:  status_forwards_out = pipeline_status::EBREAK;
-                    default:     status_forwards_out = VALID;
-                endcase
-        end
     end
 
     // =========================================================================
@@ -248,19 +219,16 @@ module decode_stage (
             rs2_data_reg_out        <= 32'b0;
             program_counter_reg_out <= 32'b0;
             instruction_reg_out     <= instruction::NOP;
-            status_forwards_out_reg <= BUBBLE;
+            status_forwards_out     <= BUBBLE;
 
         end else begin
-            // Always register the current combinational status_forwards_out
-            // so the STALL-hold path has the right value next cycle.
-            status_forwards_out_reg <= status_forwards_out;
-
             if (status_backwards_in == STALL) begin
-                // Execute is stalled — hold all other outputs (registers retain value)
+                // Execute is stalled — hold all outputs (registers retain value)
 
             end else if (status_backwards_in == JUMP || pipeline_hazard) begin
                 // JUMP: throw away current instruction; load-use: insert bubble
                 instruction_reg_out <= instruction::NOP;
+                status_forwards_out <= BUBBLE;
 
             end else begin
                 // Normal operation: register everything for Execute
@@ -268,6 +236,15 @@ module decode_stage (
                 rs2_data_reg_out        <= rs2_data;
                 program_counter_reg_out <= program_counter_in;
                 instruction_reg_out     <= decoded;
+                if (status_forwards_in != VALID)
+                    status_forwards_out <= status_forwards_in;
+                else
+                    case (decoded.op)
+                        op::ILLEGAL: status_forwards_out <= ILLEGAL_INSTRUCTION;
+                        op::ECALL:   status_forwards_out <= pipeline_status::ECALL;
+                        op::EBREAK:  status_forwards_out <= pipeline_status::EBREAK;
+                        default:     status_forwards_out <= VALID;
+                    endcase
             end
         end
     end
