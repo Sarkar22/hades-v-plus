@@ -177,14 +177,14 @@ module decode_stage (
         pipeline_hazard = load_use_hazard || csr_use_hazard;
 
         // --- rs1 forwarding: Execute > Memory > Writeback > Register File ---
-        // Execute is checked first WITHOUT a data_valid guard: the exe result is
-        // always the most-recent one; data_valid=0 just means it's not ready yet
-        // (load-use hazard). The hazard detection above inserts a bubble so Execute
-        // never consumes the stale value; the mux still records it for consistency
-        // with the reference implementation.
+        // Execute and Memory are checked WITHOUT a data_valid guard: they always
+        // hold the most-recent result for that register.  data_valid=0 means the
+        // value isn't ready yet (hazard detected above → Execute gets BUBBLE and
+        // ignores the stale value); we still record it here for consistency with
+        // the reference implementation.
         if ((exe_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0))
             rs1_data = exe_forwarding_in.data;
-        else if ((mem_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0) && mem_forwarding_in.data_valid)
+        else if ((mem_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0))
             rs1_data = mem_forwarding_in.data;
         else if ((wb_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0) && wb_forwarding_in.data_valid)
             rs1_data = wb_forwarding_in.data;
@@ -194,7 +194,7 @@ module decode_stage (
         // --- rs2 forwarding: same priority ---
         if ((exe_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0))
             rs2_data = exe_forwarding_in.data;
-        else if ((mem_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0) && mem_forwarding_in.data_valid)
+        else if ((mem_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0))
             rs2_data = mem_forwarding_in.data;
         else if ((wb_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0) && wb_forwarding_in.data_valid)
             rs2_data = wb_forwarding_in.data;
@@ -214,13 +214,12 @@ module decode_stage (
         else
             status_backwards_out = READY;
 
-        // --- Forwards status: combinational with registered-state default ---
-        // JUMP or pipeline_hazard (but NOT during STALL) → BUBBLE immediately
-        // During STALL, always hold sf_out_reg (Execute is stalling, don't change sf_out)
-        if (status_backwards_in != STALL && (status_backwards_in == JUMP || pipeline_hazard))
-            status_forwards_out = BUBBLE;
-        else
-            status_forwards_out = status_forwards_out_reg;
+        // --- Forwards status: purely registered (no combinational override) ---
+        // status_forwards_out always reflects status_forwards_out_reg, which is
+        // updated on the clock edge (BUBBLE on reset/hazard/JUMP, VALID otherwise).
+        // Execute samples this at the clock edge, so a same-cycle preview is not
+        // needed — this matches the reference implementation.
+        status_forwards_out = status_forwards_out_reg;
     end
 
     // =========================================================================
