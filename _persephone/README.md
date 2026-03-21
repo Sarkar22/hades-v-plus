@@ -1,12 +1,12 @@
 # Testcase Results 
 
 **Repository:** hades-v_9_Sarkar22  
-**Test Run:** 21.03.2026 22:31  
+**Test Run:** 21.03.2026 23:01  
 **Test Deadline:** 01.06.2026 00:00  
 ### Tested Commit Information
-**Date:** 21.03.2026 17:24  
-**Hash:** 24408f7  
-**Message:** decode_stage: add wb forwarding hazard detection  
+**Date:** 21.03.2026 18:00  
+**Hash:** 72681bc  
+**Message:** Imeplement instruction_decoder.sv  
 **Committer Email:** esarkar@RF-LT05.eng.uwaterloo.ca  
 
 # Module Under Test:  Fetch Stage  
