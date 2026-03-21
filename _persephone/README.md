@@ -1,12 +1,12 @@
 # Testcase Results 
 
 **Repository:** hades-v_9_Sarkar22  
-**Test Run:** 21.03.2026 21:31  
+**Test Run:** 21.03.2026 22:31  
 **Test Deadline:** 01.06.2026 00:00  
 ### Tested Commit Information
-**Date:** 21.03.2026 16:48  
-**Hash:** 7256a7f  
-**Message:** decode_stage: fix mem forwarding mux and remove comb sf_out override  
+**Date:** 21.03.2026 17:24  
+**Hash:** 24408f7  
+**Message:** decode_stage: add wb forwarding hazard detection  
 **Committer Email:** esarkar@RF-LT05.eng.uwaterloo.ca  
 
 # Module Under Test:  Fetch Stage  
@@ -21,35 +21,9 @@
 # Module Under Test:  Decode Stage  
 <details><summary>Details for the  Decode Stage</summary>
 
-**Points:**   3.95 /  4  
+**Points:**   4.00 /  4  
 
-## FORWARDING NOT VALID => insert BUBBLE  
-  
-Test input: SW with status_backwards_in = READY and status_forwards_in = VALID  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| status_backwards_out | 0 | 1 | 
-| status_forwards_out | 0 | 1 | 
-  
-Test input: SLT with status_backwards_in = READY and status_forwards_in = VALID  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| status_backwards_out | 0 | 1 | 
-| status_forwards_out | 0 | 1 | 
-### now status_backwards_in = READY, but forwarding.data_valid = 0 => insert BUBBLE  
-  
-Test input: SLT with status_backwards_in = READY and status_forwards_in = VALID  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| status_backwards_out | 0 | 1 | 
-| status_forwards_out | 0 | 1 | 
-### now status_backwards_in = READY and forwarding.data_valid = 0 => insert BUBBLE  
-  
-Test input: SLT with status_backwards_in = READY and status_forwards_in = VALID  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| status_backwards_out | 0 | 1 | 
-| status_forwards_out | 0 | 1 | 
+
 </details>
 
 
