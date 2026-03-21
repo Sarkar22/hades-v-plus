@@ -38,32 +38,30 @@ module instruction_decoder (
     output instruction::t instruction_out
 );
 
-    ref_instruction_decoder golden(.*);
+  //  ref_instruction_decoder golden(.*);
 
-/* IMPLEMENTATION COMMENTED OUT — using golden reference for isolation testing
+// IMPLEMENTATION COMMENTED OUT — using golden reference for isolation testing
 
     // Import package names so we can write e.g. ADDI instead of op::ADDI
     import op::*;
     import csr::*;
 
     // =========================================================================
-    // CSR address validation helper
+    // CSR address validation — is instruction_in[31:20] a known CSR?
     // =========================================================================
-    // Returns 1 if the given 12-bit CSR address is in the csr::t enum.
     // Ranges are based on csr.sv — note 0xB01 and 0xB81 are intentionally absent.
-    function automatic logic is_valid_csr(logic [11:0] addr);
-        return addr inside {
-            [12'h300:12'h306],       // MSTATUS, MISA, MEDELEG, MIDELEG, MIE, MTVEC, MCOUNTEREN
-            12'h310,                  // MSTATUSH
-            [12'h323:12'h33F],       // MHPMEVENT3..31
-            [12'h340:12'h344],       // MSCRATCH, MEPC, MCAUSE, MTVAL, MIP
-            12'hB00, 12'hB02,        // MCYCLE, MINSTRET (0xB01 not defined)
-            [12'hB03:12'hB1F],       // MHPMCOUNTER3..31
-            12'hB80, 12'hB82,        // MCYCLEH, MINSTRETH (0xB81 not defined)
-            [12'hB83:12'hB9F],       // MHPMCOUNTER3H..31H
-            [12'hF11:12'hF15]        // MVENDORID, MARCHID, MIMPID, MHARTID, MCONFIGPTR
-        };
-    endfunction
+    logic valid_csr;
+    assign valid_csr = instruction_in[31:20] inside {
+        [12'h300:12'h306],       // MSTATUS, MISA, MEDELEG, MIDELEG, MIE, MTVEC, MCOUNTEREN
+        12'h310,                  // MSTATUSH
+        [12'h323:12'h33F],       // MHPMEVENT3..31
+        [12'h340:12'h344],       // MSCRATCH, MEPC, MCAUSE, MTVAL, MIP
+        12'hB00, 12'hB02,        // MCYCLE, MINSTRET (0xB01 not defined)
+        [12'hB03:12'hB1F],       // MHPMCOUNTER3..31
+        12'hB80, 12'hB82,        // MCYCLEH, MINSTRETH (0xB81 not defined)
+        [12'hB83:12'hB9F],       // MHPMCOUNTER3H..31H
+        [12'hF11:12'hF15]        // MVENDORID, MARCHID, MIMPID, MHARTID, MCONFIGPTR
+    };
 
     // =========================================================================
     // Step 1: Extract raw bit fields
@@ -318,17 +316,17 @@ module instruction_decoder (
                     //        CSRRS/CSRRC:  write if rs1 != 0 → ILLEGAL if read-only & rs1≠0
                     //        CSRRSI/CSRRCI: write if uimm != 0 → ILLEGAL if read-only & uimm≠0
                     //      uimm = instruction_in[19:15] (rs1 field reused as 5-bit zero-extended imm)
-                    3'b001: instruction_out.op = (!is_valid_csr(instruction_in[31:20]) ||
+                    3'b001: instruction_out.op = (!valid_csr ||
                                                    instruction_in[31:30] == 2'b11) ? ILLEGAL : CSRRW;
-                    3'b010: instruction_out.op = (!is_valid_csr(instruction_in[31:20]) ||
+                    3'b010: instruction_out.op = (!valid_csr ||
                                                   (instruction_in[31:30] == 2'b11 && instruction_in[19:15] != 5'b0)) ? ILLEGAL : CSRRS;
-                    3'b011: instruction_out.op = (!is_valid_csr(instruction_in[31:20]) ||
+                    3'b011: instruction_out.op = (!valid_csr ||
                                                   (instruction_in[31:30] == 2'b11 && instruction_in[19:15] != 5'b0)) ? ILLEGAL : CSRRC;
-                    3'b101: instruction_out.op = (!is_valid_csr(instruction_in[31:20]) ||
+                    3'b101: instruction_out.op = (!valid_csr ||
                                                    instruction_in[31:30] == 2'b11) ? ILLEGAL : CSRRWI;
-                    3'b110: instruction_out.op = (!is_valid_csr(instruction_in[31:20]) ||
+                    3'b110: instruction_out.op = (!valid_csr ||
                                                   (instruction_in[31:30] == 2'b11 && instruction_in[19:15] != 5'b0)) ? ILLEGAL : CSRRSI;
-                    3'b111: instruction_out.op = (!is_valid_csr(instruction_in[31:20]) ||
+                    3'b111: instruction_out.op = (!valid_csr ||
                                                   (instruction_in[31:30] == 2'b11 && instruction_in[19:15] != 5'b0)) ? ILLEGAL : CSRRCI;
                     default: instruction_out.op = ILLEGAL;
                 endcase
@@ -340,6 +338,6 @@ module instruction_decoder (
         endcase
     end
 
-IMPLEMENTATION COMMENTED OUT */
+//IMPLEMENTATION COMMENTED OUT
 
 endmodule
