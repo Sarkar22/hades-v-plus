@@ -145,10 +145,12 @@ module instruction_decoder (
                 instruction_out.immediate = { 27'b0, instruction_in[19:15] };
 
             // ------------------------------------------------------------------
-            // FENCE / FENCE.I — no meaningful immediate
+            // FENCE / FENCE.I — I-type immediate (bits [31:20] sign-extended)
+            // For FENCE:   bits [31:28]=fm, [27:24]=pred, [23:20]=succ
+            // For FENCE.I: standard I-type offset
             // ------------------------------------------------------------------
             7'b0001111:
-                instruction_out.immediate = 32'b0;
+                instruction_out.immediate = { {20{instruction_in[31]}}, instruction_in[31:20] };
 
             // ------------------------------------------------------------------
             // Default: set immediate to 0 for any unrecognized opcode

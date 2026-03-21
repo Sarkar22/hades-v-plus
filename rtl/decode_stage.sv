@@ -150,10 +150,16 @@ module decode_stage (
     // Example: csrr t1, mscratch followed by addi t2, t1, ...
     // CSR reads resolve in Writeback (not Memory), so Memory also has data_valid=0.
     // A regular lw in Memory has data_valid=1, so it never triggers this.
+    //
+    // IMPORTANT: Only stall if Execute does NOT already provide a valid result for
+    // the same register. If exe has data_valid=1 for the same register (exe is newer),
+    // we use exe's value — no stall needed.
     logic csr_use_hazard;
     assign csr_use_hazard = (
-        (fwd_match(mem_forwarding_in, decoded.rs1_address) && !mem_forwarding_in.data_valid) ||
-        (fwd_match(mem_forwarding_in, decoded.rs2_address) && !mem_forwarding_in.data_valid)
+        (fwd_match(mem_forwarding_in, decoded.rs1_address) && !mem_forwarding_in.data_valid
+            && !(fwd_match(exe_forwarding_in, decoded.rs1_address) && exe_forwarding_in.data_valid)) ||
+        (fwd_match(mem_forwarding_in, decoded.rs2_address) && !mem_forwarding_in.data_valid
+            && !(fwd_match(exe_forwarding_in, decoded.rs2_address) && exe_forwarding_in.data_valid))
     ) && (status_forwards_in == VALID);
 
     // Combined: any hazard that requires inserting a pipeline bubble
@@ -250,9 +256,23 @@ module decode_stage (
             program_counter_reg_out <= program_counter_in;
             instruction_reg_out     <= decoded;
 
-            // Pass status forward — could be VALID, BUBBLE, or an error from Fetch
-            // (e.g. FETCH_FAULT propagates all the way to Writeback)
-            status_forwards_out     <= status_forwards_in;
+            // Determine the outgoing status:
+            //   - FETCH errors (FETCH_FAULT, FETCH_MISALIGNED) propagate as-is
+            //   - BUBBLE from Fetch propagates as-is
+            //   - VALID from Fetch: check the decoded instruction
+            //       ILLEGAL op  → ILLEGAL_INSTRUCTION (catches bad opcode, funct, or CSR addr)
+            //       ECALL       → ECALL  (Writeback handles the trap)
+            //       EBREAK      → EBREAK (Writeback handles the trap)
+            //       anything else → VALID
+            if (status_forwards_in != VALID)
+                status_forwards_out <= status_forwards_in;
+            else
+                case (decoded.op)
+                    op::ILLEGAL: status_forwards_out <= ILLEGAL_INSTRUCTION;
+                    op::ECALL:   status_forwards_out <= pipeline_status::ECALL;
+                    op::EBREAK:  status_forwards_out <= pipeline_status::EBREAK;
+                    default:     status_forwards_out <= VALID;
+                endcase
         end
     end
 
