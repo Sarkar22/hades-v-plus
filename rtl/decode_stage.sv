@@ -149,14 +149,20 @@ module decode_stage (
     logic [31:0] rs1_data;
     logic [31:0] rs2_data;
 
+    // =========================================================================
+    // Part 3+4a: Hazard detection, forwarding, and backwards status — ONE block
+    // =========================================================================
+    // Merged into a single always_comb to avoid any Verilator inter-block
+    // scheduling issues where pipeline_hazard might be stale when the
+    // backwards-status block evaluates.
     always_comb begin
-        // --- Load-use hazard ---
+        // --- Load-use hazard: Execute has data_valid=0 for rs1 or rs2 ---
         load_use_hazard =
             (((exe_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0) && !exe_forwarding_in.data_valid) ||
              ((exe_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0) && !exe_forwarding_in.data_valid))
             && (status_forwards_in == VALID);
 
-        // --- CSR-use hazard ---
+        // --- CSR-use hazard: Memory has data_valid=0, and Execute doesn't override ---
         csr_use_hazard =
             ((((mem_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0) && !mem_forwarding_in.data_valid)
                 && !((exe_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0) && exe_forwarding_in.data_valid)) ||
@@ -185,29 +191,15 @@ module decode_stage (
             rs2_data = wb_forwarding_in.data;
         else
             rs2_data = rf_rs2_data;
-    end
 
-    // =========================================================================
-    // Part 4a: Backwards status (to Fetch) — COMBINATIONAL, no clock delay
-    // =========================================================================
-    // The PDF says backwards status must be purely combinational — it must
-    // propagate without any clock delay so Fetch can react in the same cycle.
-    //
-    // Rules (later stage takes priority — PDF Section 6.1.2):
-    //   - If Execute says JUMP  → pass JUMP to Fetch
-    //   - If Execute says STALL → pass STALL to Fetch
-    //   - If load-use hazard    → send STALL to Fetch (we're inserting a bubble)
-    //   - Otherwise             → send READY to Fetch
-
-    always_comb begin
-        jump_address_backwards_out = jump_address_backwards_in; // always pass through
-
+        // --- Backwards status: pass through or override with STALL for hazard ---
+        jump_address_backwards_out = jump_address_backwards_in;
         if (status_backwards_in == JUMP)
             status_backwards_out = JUMP;
         else if (status_backwards_in == STALL)
             status_backwards_out = STALL;
         else if (pipeline_hazard)
-            status_backwards_out = STALL; // hold Fetch, we need one more cycle
+            status_backwards_out = STALL;
         else
             status_backwards_out = READY;
     end
