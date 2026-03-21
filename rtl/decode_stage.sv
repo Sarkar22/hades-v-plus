@@ -149,8 +149,15 @@ module decode_stage (
     logic [31:0] rs1_data;
     logic [31:0] rs2_data;
 
+    // Internal register for status_forwards_out.
+    // status_forwards_out is driven combinationally but behaves like a register:
+    //   - immediately outputs BUBBLE on JUMP or pipeline_hazard (hazard override)
+    //   - returns the last registered value for all other cases (STALL hold + normal)
+    // This matches the reference's combo_update behaviour.
+    pipeline_status::forwards_t status_forwards_out_reg;
+
     // =========================================================================
-    // Part 3+4a: Hazard detection, forwarding, backwards status — combinational.
+    // Part 3+4a: Hazard detection, forwarding, backwards+forwards status — comb.
     // =========================================================================
     always_comb begin
         // --- Load-use hazard: Execute has data_valid=0 for rs1 or rs2 ---
@@ -201,6 +208,14 @@ module decode_stage (
             status_backwards_out = STALL;
         else
             status_backwards_out = READY;
+
+        // --- Forwards status: combinational with registered-state default ---
+        // JUMP or pipeline_hazard → BUBBLE immediately (visible before posedge)
+        // All other cases (STALL hold and normal) → return last registered value
+        if (status_backwards_in == JUMP || pipeline_hazard)
+            status_forwards_out = BUBBLE;
+        else
+            status_forwards_out = status_forwards_out_reg;
     end
 
     // =========================================================================
@@ -208,7 +223,7 @@ module decode_stage (
     // =========================================================================
     // Rules:
     //   - rst            → output NOP/BUBBLE, reset everything
-    //   - STALL from Exe → hold all outputs (Execute is still busy)
+    //   - STALL from Exe → hold all outputs (registers retain value)
     //   - JUMP from Exe  → output BUBBLE (throw away current instruction)
     //   - load-use stall → output BUBBLE (don't give Execute the stalled instruction)
     //   - Normal (READY) → register decoded instruction, forwarded rs1/rs2, PC, status
@@ -219,7 +234,7 @@ module decode_stage (
             rs2_data_reg_out        <= 32'b0;
             program_counter_reg_out <= 32'b0;
             instruction_reg_out     <= instruction::NOP;
-            status_forwards_out     <= BUBBLE;
+            status_forwards_out_reg <= BUBBLE;
 
         end else begin
             if (status_backwards_in == STALL) begin
@@ -227,8 +242,8 @@ module decode_stage (
 
             end else if (status_backwards_in == JUMP || pipeline_hazard) begin
                 // JUMP: throw away current instruction; load-use: insert bubble
-                instruction_reg_out <= instruction::NOP;
-                status_forwards_out <= BUBBLE;
+                instruction_reg_out     <= instruction::NOP;
+                status_forwards_out_reg <= BUBBLE;
 
             end else begin
                 // Normal operation: register everything for Execute
@@ -237,13 +252,13 @@ module decode_stage (
                 program_counter_reg_out <= program_counter_in;
                 instruction_reg_out     <= decoded;
                 if (status_forwards_in != VALID)
-                    status_forwards_out <= status_forwards_in;
+                    status_forwards_out_reg <= status_forwards_in;
                 else
                     case (decoded.op)
-                        op::ILLEGAL: status_forwards_out <= ILLEGAL_INSTRUCTION;
-                        op::ECALL:   status_forwards_out <= pipeline_status::ECALL;
-                        op::EBREAK:  status_forwards_out <= pipeline_status::EBREAK;
-                        default:     status_forwards_out <= VALID;
+                        op::ILLEGAL: status_forwards_out_reg <= ILLEGAL_INSTRUCTION;
+                        op::ECALL:   status_forwards_out_reg <= pipeline_status::ECALL;
+                        op::EBREAK:  status_forwards_out_reg <= pipeline_status::EBREAK;
+                        default:     status_forwards_out_reg <= VALID;
                     endcase
             end
         end
