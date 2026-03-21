@@ -81,6 +81,11 @@ module decode_stage (
         .instruction_out (decoded)
     );
 
+    // In RISC-V, rs1 and rs2 are always at the same bit positions regardless of format.
+    // Read them directly from instruction_in to avoid any sub-module update delay.
+    logic [4:0] rs1_addr; assign rs1_addr = instruction_in[19:15];
+    logic [4:0] rs2_addr; assign rs2_addr = instruction_in[24:20];
+
     // =========================================================================
     // Part 2: Instantiate register_file
     // =========================================================================
@@ -130,63 +135,53 @@ module decode_stage (
     //   result won't be available until the Memory stage next cycle.
     //   We must insert a bubble (STALL for one cycle).
 
-    // Helper function: does a forwarding signal match a given register address?
-    // Match only if: forwarding address equals register address AND address != 0
-    // (address=0 means "no forwarding" — x0 is always 0 anyway)
-    function automatic logic fwd_match(forwarding::t fwd, logic [4:0] reg_addr);
-        return (fwd.address == reg_addr) && (reg_addr != 5'b0);
-    endfunction
-
-    // Detect load-use hazard: Execute has our register but data isn't ready yet.
-    // Example: lw t1, 0(t2) followed immediately by add t3, t1, ...
-    // Execute sets data_valid=0 (load result comes from Memory next cycle).
-    logic load_use_hazard;
-    assign load_use_hazard = (
-        (fwd_match(exe_forwarding_in, decoded.rs1_address) && !exe_forwarding_in.data_valid) ||
-        (fwd_match(exe_forwarding_in, decoded.rs2_address) && !exe_forwarding_in.data_valid)
-    ) && (status_forwards_in == VALID);
-
-    // Detect CSR-use hazard: Memory stage has our register but data still isn't ready.
-    // Example: csrr t1, mscratch followed by addi t2, t1, ...
-    // CSR reads resolve in Writeback (not Memory), so Memory also has data_valid=0.
-    // A regular lw in Memory has data_valid=1, so it never triggers this.
+    // Hazard detection and forwarding selection — all in one always_comb block.
+    // Inlined to avoid Verilator sensitivity issues with function calls on packed structs.
     //
-    // IMPORTANT: Only stall if Execute does NOT already provide a valid result for
-    // the same register. If exe has data_valid=1 for the same register (exe is newer),
-    // we use exe's value — no stall needed.
+    // LOAD-USE HAZARD: Execute has data_valid=0 for rs1 or rs2 → stall 1 cycle.
+    // CSR-USE HAZARD:  Memory has data_valid=0 for rs1 or rs2 AND Execute doesn't
+    //                  already provide a valid (newer) result for the same register.
+    // FORWARDING: Execute > Memory > Writeback > Register File (most recent wins).
+
+    logic load_use_hazard;
     logic csr_use_hazard;
-    assign csr_use_hazard = (
-        (fwd_match(mem_forwarding_in, decoded.rs1_address) && !mem_forwarding_in.data_valid
-            && !(fwd_match(exe_forwarding_in, decoded.rs1_address) && exe_forwarding_in.data_valid)) ||
-        (fwd_match(mem_forwarding_in, decoded.rs2_address) && !mem_forwarding_in.data_valid
-            && !(fwd_match(exe_forwarding_in, decoded.rs2_address) && exe_forwarding_in.data_valid))
-    ) && (status_forwards_in == VALID);
-
-    // Combined: any hazard that requires inserting a pipeline bubble
     logic pipeline_hazard;
-    assign pipeline_hazard = load_use_hazard || csr_use_hazard;
-
-    // Select rs1 value: Execute > Memory > Writeback > Register File
     logic [31:0] rs1_data;
+    logic [31:0] rs2_data;
+
     always_comb begin
-        if (fwd_match(exe_forwarding_in, decoded.rs1_address) && exe_forwarding_in.data_valid)
+        // --- Load-use hazard ---
+        load_use_hazard =
+            (((exe_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0) && !exe_forwarding_in.data_valid) ||
+             ((exe_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0) && !exe_forwarding_in.data_valid))
+            && (status_forwards_in == VALID);
+
+        // --- CSR-use hazard ---
+        csr_use_hazard =
+            ((((mem_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0) && !mem_forwarding_in.data_valid)
+                && !((exe_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0) && exe_forwarding_in.data_valid)) ||
+             (((mem_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0) && !mem_forwarding_in.data_valid)
+                && !((exe_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0) && exe_forwarding_in.data_valid)))
+            && (status_forwards_in == VALID);
+
+        pipeline_hazard = load_use_hazard || csr_use_hazard;
+
+        // --- rs1 forwarding: Execute > Memory > Writeback > Register File ---
+        if ((exe_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0) && exe_forwarding_in.data_valid)
             rs1_data = exe_forwarding_in.data;
-        else if (fwd_match(mem_forwarding_in, decoded.rs1_address) && mem_forwarding_in.data_valid)
+        else if ((mem_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0) && mem_forwarding_in.data_valid)
             rs1_data = mem_forwarding_in.data;
-        else if (fwd_match(wb_forwarding_in, decoded.rs1_address) && wb_forwarding_in.data_valid)
+        else if ((wb_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0) && wb_forwarding_in.data_valid)
             rs1_data = wb_forwarding_in.data;
         else
-            rs1_data = rf_rs1_data; // use register file value
-    end
+            rs1_data = rf_rs1_data;
 
-    // Select rs2 value: same priority as rs1
-    logic [31:0] rs2_data;
-    always_comb begin
-        if (fwd_match(exe_forwarding_in, decoded.rs2_address) && exe_forwarding_in.data_valid)
+        // --- rs2 forwarding: same priority ---
+        if ((exe_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0) && exe_forwarding_in.data_valid)
             rs2_data = exe_forwarding_in.data;
-        else if (fwd_match(mem_forwarding_in, decoded.rs2_address) && mem_forwarding_in.data_valid)
+        else if ((mem_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0) && mem_forwarding_in.data_valid)
             rs2_data = mem_forwarding_in.data;
-        else if (fwd_match(wb_forwarding_in, decoded.rs2_address) && wb_forwarding_in.data_valid)
+        else if ((wb_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0) && wb_forwarding_in.data_valid)
             rs2_data = wb_forwarding_in.data;
         else
             rs2_data = rf_rs2_data;
