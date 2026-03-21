@@ -1,13 +1,13 @@
 # Testcase Results 
 
 **Repository:** hades-v_9_Sarkar22  
-**Test Run:** 21.03.2026 20:31  
+**Test Run:** 21.03.2026 21:31  
 **Test Deadline:** 01.06.2026 00:00  
 ### Tested Commit Information
-**Date:** N/A  
-**Hash:** N/A  
-**Message:** N/A  
-**Committer Email:** N/A  
+**Date:** 21.03.2026 16:48  
+**Hash:** 7256a7f  
+**Message:** decode_stage: fix mem forwarding mux and remove comb sf_out override  
+**Committer Email:** esarkar@RF-LT05.eng.uwaterloo.ca  
 
 # Module Under Test:  Fetch Stage  
 <details><summary>Details for the  Fetch Stage</summary>
