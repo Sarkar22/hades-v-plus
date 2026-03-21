@@ -1,12 +1,12 @@
 # Testcase Results 
 
 **Repository:** hades-v_9_Sarkar22  
-**Test Run:** 21.03.2026 16:31  
+**Test Run:** 21.03.2026 17:01  
 **Test Deadline:** 01.06.2026 00:00  
 ### Tested Commit Information
-**Date:** 21.03.2026 11:37  
-**Hash:** 10559a7  
-**Message:** Revert "decode_stage: remove status_forwards_in==VALID guard from hazard detection"  
+**Date:** 21.03.2026 11:55  
+**Hash:** fa48686  
+**Message:** decode_stage: make status_forwards_out combinationally driven  
 **Committer Email:** esarkar@RF-LT05.eng.uwaterloo.ca  
 
 # Module Under Test:  Fetch Stage  
