@@ -158,17 +158,15 @@ module decode_stage (
     always_comb begin
         // --- Load-use hazard: Execute has data_valid=0 for rs1 or rs2 ---
         load_use_hazard =
-            (((exe_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0) && !exe_forwarding_in.data_valid) ||
-             ((exe_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0) && !exe_forwarding_in.data_valid))
-            && (status_forwards_in == VALID);
+            ((exe_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0) && !exe_forwarding_in.data_valid) ||
+            ((exe_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0) && !exe_forwarding_in.data_valid);
 
         // --- CSR-use hazard: Memory has data_valid=0, and Execute doesn't override ---
         csr_use_hazard =
-            ((((mem_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0) && !mem_forwarding_in.data_valid)
+            (((mem_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0) && !mem_forwarding_in.data_valid)
                 && !((exe_forwarding_in.address == rs1_addr) && (rs1_addr != 5'b0) && exe_forwarding_in.data_valid)) ||
-             (((mem_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0) && !mem_forwarding_in.data_valid)
-                && !((exe_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0) && exe_forwarding_in.data_valid)))
-            && (status_forwards_in == VALID);
+            (((mem_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0) && !mem_forwarding_in.data_valid)
+                && !((exe_forwarding_in.address == rs2_addr) && (rs2_addr != 5'b0) && exe_forwarding_in.data_valid));
 
         pipeline_hazard = load_use_hazard || csr_use_hazard;
 
