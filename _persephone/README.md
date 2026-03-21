@@ -1,12 +1,12 @@
 # Testcase Results 
 
 **Repository:** hades-v_9_Sarkar22  
-**Test Run:** 21.03.2026 07:31  
+**Test Run:** 21.03.2026 08:01  
 **Test Deadline:** 01.06.2026 00:00  
 ### Tested Commit Information
-**Date:** 21.03.2026 02:36  
-**Hash:** 33359bf  
-**Message:** Fix decode stage and instruction decoder based on Persephone feedback  
+**Date:** 21.03.2026 03:17  
+**Hash:** 6318000  
+**Message:** instruction_decoder: validate CSR address and check read-only access  
 **Committer Email:** esarkar@RF-LT05.eng.uwaterloo.ca  
 
 # Module Under Test:  Fetch Stage  
@@ -21,7 +21,7 @@
 # Module Under Test:  Decode Stage  
 <details><summary>Details for the  Decode Stage</summary>
 
-**Points:**   3.88 /  4  
+**Points:**   3.95 /  4  
 
 ## FORWARDING NOT VALID => insert BUBBLE  
   
@@ -50,39 +50,6 @@ Test input: SLT with status_backwards_in = READY and status_forwards_in = VALID
 | - | - | - |  
 | status_backwards_out | 0 | 1 | 
 | status_forwards_out | 0 | 1 | 
-## raise ILLEGAL_INSTRUCTION  
-### invalid CSR-address  
-  
-Test input: CSRRW with status_backwards_in = READY and status_forwards_in = VALID  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| status_forwards_out | 0 | 4 | 
-  
-Test input: CSRRS with status_backwards_in = READY and status_forwards_in = VALID  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| status_forwards_out | 0 | 4 | 
-  
-Test input: CSRRC with status_backwards_in = READY and status_forwards_in = VALID  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| status_forwards_out | 0 | 4 | 
-  
-Test input: CSRRW with status_backwards_in = READY and status_forwards_in = VALID  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| status_forwards_out | 0 | 4 | 
-### invalid CSR access  
-  
-Test input: CSRRS with status_backwards_in = READY and status_forwards_in = VALID  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| status_forwards_out | 0 | 4 | 
-  
-Test input: CSRRCI with status_backwards_in = READY and status_forwards_in = VALID  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| status_forwards_out | 0 | 4 | 
 </details>
 
 
