@@ -1,12 +1,12 @@
 # Testcase Results 
 
 **Repository:** hades-v_9_Sarkar22  
-**Test Run:** 21.03.2026 08:31  
+**Test Run:** 21.03.2026 09:01  
 **Test Deadline:** 01.06.2026 00:00  
 ### Tested Commit Information
-**Date:** 21.03.2026 03:22  
-**Hash:** 002f1fa  
-**Message:** instruction_decoder: temporarily use golden reference for isolation testing  
+**Date:** 21.03.2026 04:12  
+**Hash:** 28fa9a4  
+**Message:** decode_stage: inline hazard detection, use instruction_in bits directly  
 **Committer Email:** esarkar@RF-LT05.eng.uwaterloo.ca  
 
 # Module Under Test:  Fetch Stage  
