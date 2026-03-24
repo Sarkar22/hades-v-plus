@@ -200,7 +200,7 @@ module execute_stage (
     // =========================================================================
     // Part 3b: Jump target computation (separate from ALU)
     // =========================================================================
-    // JALR: rs1 + immediate (no alignment mask — alignment is checked below)
+    // JALR: (rs1 + immediate) & ~1  (RISC-V spec: clear LSB of target)
     // Everything else: PC + immediate
     // This is always computed; the backwards pipeline control decides whether
     // to actually use it as the jump address.
@@ -209,7 +209,7 @@ module execute_stage (
 
     always_comb begin
         if (instruction_in.op == JALR)
-            jump_target = rs1_data_in + instruction_in.immediate;
+            jump_target = (rs1_data_in + instruction_in.immediate) & 32'hFFFFFFFE;
         else
             jump_target = program_counter_in + instruction_in.immediate;
     end
@@ -337,8 +337,14 @@ module execute_stage (
     //             data_valid=0 causes Decode to stall on address match.
 
     always_comb begin
-        forwarding_out.data    = rd_data;
-        forwarding_out.address = instruction_in.rd_address;
+        forwarding_out.data = rd_data;
+
+        // Suppress forwarding address when instruction is not VALID
+        // (BUBBLE / exception — no register write will occur)
+        if (status_forwards_in != VALID)
+            forwarding_out.address = 5'b0;
+        else
+            forwarding_out.address = instruction_in.rd_address;
 
         // data_valid = 0 when:
         //   - data not ready (loads: from Memory, CSR: from Writeback)
@@ -376,8 +382,8 @@ module execute_stage (
             rd_data_reg_out              <= 32'b0;
             source_data_reg_out          <= 32'b0;
             instruction_reg_out          <= instruction::NOP;
-            program_counter_reg_out      <= 32'b0;
-            next_program_counter_reg_out <= 32'b0;
+            program_counter_reg_out      <= constants::RESET_ADDRESS;
+            next_program_counter_reg_out <= constants::RESET_ADDRESS;
             status_forwards_out          <= BUBBLE;
 
         end else if (status_backwards_in == STALL) begin
