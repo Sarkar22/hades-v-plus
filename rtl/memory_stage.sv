@@ -394,6 +394,9 @@ module memory_stage (
 
         end else if (mem_stall) begin
             // Waiting for Wishbone response — hold all registered outputs
+            // BUT tell writeback this instruction isn't ready yet (BUBBLE)
+            // so writeback doesn't try to commit an incomplete transaction
+            status_forwards_out <= BUBBLE;
 
         end else if (status_backwards_in == STALL) begin
             // WB is stalling — hold all registered outputs
