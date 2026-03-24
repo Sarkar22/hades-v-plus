@@ -1,12 +1,12 @@
 # Testcase Results 
 
 **Repository:** hades-v_9_Sarkar22  
-**Test Run:** 24.03.2026 05:36  
+**Test Run:** 24.03.2026 14:36  
 **Test Deadline:** 02.06.2026 00:00  
 ### Tested Commit Information
-**Date:** 24.03.2026 00:35  
-**Hash:** 25ea0af  
-**Message:** Implement memory_stage.sv  
+**Date:** 24.03.2026 09:14  
+**Hash:** 0e4668d  
+**Message:** Fix memory stage: output BUBBLE during multi-cycle Wishbone stall  
 **Committer Email:** esarkar@RF-LT05.eng.uwaterloo.ca  
 
 # Module Under Test:  Fetch Stage  
@@ -57,19 +57,8 @@
 # Module Under Test:  Memory Stage  
 <details><summary>Details for the  Memory Stage</summary>
 
-**Points:**   9.47 / 10  
+**Points:**  10.00 / 10  
 
-## delayed wishbone acknowledge  
-### ack 2 cycles delayed  
-  
-Test input: SH with status_backwards_in = READY and status_forwards_in = VALID  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| status_forwards_out | 0 | 1 | 
-  
-Test input: SH with status_backwards_in = READY and status_forwards_in = VALID  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| status_forwards_out | 0 | 1 | 
+
 </details>
 
