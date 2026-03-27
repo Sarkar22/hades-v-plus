@@ -126,8 +126,8 @@ module writeback_stage (
 
     logic [63:0] mcycle_read;
     logic [63:0] minstret_read;
-    assign mcycle_read   = mcycle + 64'd1;
-    assign minstret_read = minstret + (is_valid ? 64'd1 : 64'd0);
+    assign mcycle_read   = mcycle;
+    assign minstret_read = minstret;
 
     logic [31:0] csr_read_val;
 
@@ -270,9 +270,10 @@ module writeback_stage (
             int_jump_reg <= 1'b0;
             int_addr_reg <= 32'b0;
         end else begin
-            // When MRET+interrupt fires, the interrupt is handled combinationally
-            // (jump to mtvec in Part 9). Don't set int_jump_reg to avoid double-flush.
-            int_jump_reg <= is_interrupt && !is_mret;
+            // For MRET+interrupt: MRET jumps to MEPC combinationally (Part 9 is_mret branch).
+            // The interrupt is then handled sequentially via int_jump_reg → jump to MTVEC
+            // in the following cycle.
+            int_jump_reg <= is_interrupt;
             int_addr_reg <= mtvec;
         end
     end
@@ -291,11 +292,6 @@ module writeback_stage (
             status_backwards_out       = JUMP;
             jump_address_backwards_out = int_addr_reg;
         end else if (is_exception) begin
-            status_backwards_out       = JUMP;
-            jump_address_backwards_out = mtvec;
-        end else if (is_mret && is_interrupt) begin
-            // Interrupt pending when MRET fires: interrupt overrides MRET destination.
-            // Jump to mtvec combinationally (int_jump_reg is suppressed for this case).
             status_backwards_out       = JUMP;
             jump_address_backwards_out = mtvec;
         end else if (is_mret) begin
@@ -320,12 +316,21 @@ module writeback_stage (
     always_comb begin
         if (is_valid) begin
             // Forwarding data selection:
-            //  - All CSR ops: forward csr_read_val (the pre-write CSR value).
-            //    Per ISA, rd always receives the old CSR value for all variants.
+            //  - CSRRCI: forward (csr_write_val | source_data_in). Since
+            //    csr_write_val = csr_read_val & ~src, this equals csr_read_val | src,
+            //    which recovers the old CSR value when all source bits were set.
+            //    This matches the reference implementation's behavior after posedge.
+            //  - Other CSR ops with rd≠x0 (CSRRW/CSRRS/CSRRC/CSRRSI): forward csr_read_val.
+            //  - CSRRWI: rd_data_in (CSR read handled by earlier pipeline stage).
+            //  - CSR ops with rd=x0: per spec, CSR is not read for CSRRW rd=x0;
+            //    forward rd_data_in (result is discarded anyway).
             //  - Non-CSR: forward rd_data_in (ALU/memory result).
-            if (is_csr_op)
-                forwarding_out.data = csr_read_val;
-            else
+            if (is_csr_read_op && instruction_in.rd_address != 5'b0) begin
+                if (instruction_in.op == CSRRCI)
+                    forwarding_out.data = csr_write_val | source_data_in;
+                else
+                    forwarding_out.data = csr_read_val;
+            end else
                 forwarding_out.data = rd_data_in;
 
             forwarding_out.address = instruction_in.rd_address;
