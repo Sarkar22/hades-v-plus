@@ -120,6 +120,14 @@ module writeback_stage (
     // Part 3: CSR Read — current value of addressed CSR
     // =========================================================================
     // MIP uses REGISTERED interrupt inputs (latched on previous posedge).
+    // MCYCLE/MCYCLEH and MINSTRET/MINSTRETH forward the post-increment value:
+    // the counter increments at posedge, so the value visible to the retiring
+    // instruction must include that increment ("increment first, then write").
+
+    logic [63:0] mcycle_read;
+    logic [63:0] minstret_read;
+    assign mcycle_read   = mcycle + 64'd1;
+    assign minstret_read = minstret + (is_valid ? 64'd1 : 64'd0);
 
     logic [31:0] csr_read_val;
 
@@ -132,10 +140,10 @@ module writeback_stage (
             csr::MEPC:      csr_read_val = mepc;
             csr::MCAUSE:    csr_read_val = mcause;
             csr::MSCRATCH:  csr_read_val = mscratch;
-            csr::MCYCLE:    csr_read_val = mcycle[31:0];
-            csr::MCYCLEH:   csr_read_val = mcycle[63:32];
-            csr::MINSTRET:  csr_read_val = minstret[31:0];
-            csr::MINSTRETH: csr_read_val = minstret[63:32];
+            csr::MCYCLE:    csr_read_val = mcycle_read[31:0];
+            csr::MCYCLEH:   csr_read_val = mcycle_read[63:32];
+            csr::MINSTRET:  csr_read_val = minstret_read[31:0];
+            csr::MINSTRETH: csr_read_val = minstret_read[63:32];
             default:        csr_read_val = 32'b0;
         endcase
     end
@@ -245,7 +253,7 @@ module writeback_stage (
     always_comb begin
         if (is_interrupt && is_mret)
             trap_mepc = mepc;
-        else if (is_interrupt && is_valid)
+        else if (is_interrupt)
             trap_mepc = next_program_counter_in;
         else
             trap_mepc = program_counter_in;
@@ -262,7 +270,9 @@ module writeback_stage (
             int_jump_reg <= 1'b0;
             int_addr_reg <= 32'b0;
         end else begin
-            int_jump_reg <= is_interrupt;
+            // When MRET+interrupt fires, the interrupt is handled combinationally
+            // (jump to mtvec in Part 9). Don't set int_jump_reg to avoid double-flush.
+            int_jump_reg <= is_interrupt && !is_mret;
             int_addr_reg <= mtvec;
         end
     end
@@ -281,6 +291,11 @@ module writeback_stage (
             status_backwards_out       = JUMP;
             jump_address_backwards_out = int_addr_reg;
         end else if (is_exception) begin
+            status_backwards_out       = JUMP;
+            jump_address_backwards_out = mtvec;
+        end else if (is_mret && is_interrupt) begin
+            // Interrupt pending when MRET fires: interrupt overrides MRET destination.
+            // Jump to mtvec combinationally (int_jump_reg is suppressed for this case).
             status_backwards_out       = JUMP;
             jump_address_backwards_out = mtvec;
         end else if (is_mret) begin
@@ -305,16 +320,10 @@ module writeback_stage (
     always_comb begin
         if (is_valid) begin
             // Forwarding data selection:
-            //  - CSRRW with rd=0: per ISA don't read CSR; forward rd_data_in
-            //  - CSRRSI/CSRRCI (immediate set/clear): forward csr_read_val | source_data_in
-            //    This recovers the pre-write CSR value after posedge, because:
-            //    CSRRCI: new = old & ~src, so new | src = old (when src bits were set in old)
-            //    CSRRSI: new = old | src, so new | src = new = old | src (harmless)
-            //  - All other CSR read ops: forward csr_read_val
-            //  - Non-CSR: forward rd_data_in
-            if (instruction_in.op == CSRRSI || instruction_in.op == CSRRCI)
-                forwarding_out.data = csr_read_val | source_data_in;
-            else if (is_csr_read_op && !(instruction_in.op == CSRRW && instruction_in.rd_address == 5'b0))
+            //  - All CSR ops: forward csr_read_val (the pre-write CSR value).
+            //    Per ISA, rd always receives the old CSR value for all variants.
+            //  - Non-CSR: forward rd_data_in (ALU/memory result).
+            if (is_csr_op)
                 forwarding_out.data = csr_read_val;
             else
                 forwarding_out.data = rd_data_in;
