@@ -126,8 +126,11 @@ module writeback_stage (
 
     logic [63:0] mcycle_read;
     logic [63:0] minstret_read;
-    assign mcycle_read   = mcycle + 64'd1;
-    assign minstret_read = minstret + (is_valid ? 64'd1 : 64'd0);
+    // Post-posedge: always_ff updates mcycle/minstret BEFORE comb re-evaluates,
+    // so mcycle/minstret already contain the current cycle's contribution.
+    // Adding +1 here would double-count; just forward the register value directly.
+    assign mcycle_read   = mcycle;
+    assign minstret_read = minstret;
 
     logic [31:0] csr_read_val;
 
@@ -251,9 +254,9 @@ module writeback_stage (
     logic [31:0] trap_mepc;
 
     always_comb begin
-        if (is_interrupt && is_mret)
-            trap_mepc = mepc;
-        else if (is_interrupt)
+        if (is_interrupt)
+            // For both regular interrupts and MRET+interrupt: save next_PC so
+            // MRET from the interrupt handler resumes at the right instruction.
             trap_mepc = next_program_counter_in;
         else
             trap_mepc = program_counter_in;
@@ -270,13 +273,15 @@ module writeback_stage (
             int_jump_reg <= 1'b0;
             int_addr_reg <= 32'b0;
         end else begin
-            // Suppress int_jump_reg only when CSR write enables interrupt:
-            // that case is handled combinationally in Part 9.
-            // MRET+interrupt: int_jump_reg IS set so REG check (after posedge)
-            // shows JUMP to mtvec via int_jump_reg.
+            // Suppress int_jump_reg when the interrupt is already handled
+            // combinationally this cycle (Part 9):
+            //   - CSR write enables interrupt → COMB JUMP to mtvec
+            //   - MRET+interrupt → COMB JUMP to mtvec
+            // For all other interrupts, int_jump_reg fires next cycle.
             int_jump_reg <= is_interrupt
                             && !(is_csr_op && (instruction_in.csr == csr::MSTATUS
-                                               || instruction_in.csr == csr::MIE));
+                                               || instruction_in.csr == csr::MIE))
+                            && !is_mret;
             int_addr_reg <= mtvec;
         end
     end
@@ -302,10 +307,15 @@ module writeback_stage (
             // CSR write enables interrupt same cycle → combinational JUMP to mtvec
             status_backwards_out       = JUMP;
             jump_address_backwards_out = mtvec;
+        end else if (is_mret && is_interrupt) begin
+            // MRET with interrupt pending: MRET restores MIE (enables interrupts)
+            // and the interrupt fires immediately — jump to mtvec, not mepc.
+            // trap_mepc = next_program_counter_in (Part 7) so the handler MRET
+            // returns to the instruction after the interrupted MRET.
+            status_backwards_out       = JUMP;
+            jump_address_backwards_out = mtvec;
         end else if (is_mret) begin
-            // MRET always jumps to mepc (even if interrupt is pending).
-            // When interrupt is also pending, MRET effects restore MIE=1, and
-            // the interrupt will fire again when the instruction at mepc retires.
+            // MRET with no interrupt: restore PC from mepc.
             status_backwards_out       = JUMP;
             jump_address_backwards_out = mepc;
         end else if (is_fence_i) begin
