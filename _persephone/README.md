@@ -1,12 +1,12 @@
 # Testcase Results 
 
 **Repository:** hades-v_9_Sarkar22  
-**Test Run:** 28.03.2026 00:05  
-**Test Deadline:** 04.06.2026 00:00  
+**Test Run:** 28.03.2026 07:06  
+**Test Deadline:** 02.06.2026 00:00  
 ### Tested Commit Information
-**Date:** 27.03.2026 16:55  
-**Hash:** f4f1e01  
-**Message:** bug fix of writeback  
+**Date:** 28.03.2026 01:39  
+**Hash:** 7335bbd  
+**Message:** more fix for writeback  
 **Committer Email:** esarkar@RF-LT05.eng.uwaterloo.ca  
 
 # Module Under Test:  Fetch Stage  
@@ -66,45 +66,8 @@
 # Module Under Test:  Writeback Stage  
 <details><summary>Details for the  Writeback Stage</summary>
 
-**Points:**  15.03 / 16  
+**Points:**  15.61 / 16  
 
-## CSR-operations  
-### MSTATUS - do only consider MPIE and MIE  
-  
-Test input: CSRRWI with status_forwards_in = VALID and external/timer interrupt = 0/0, csr = MSTATUS  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| forwarding_out.data | 0x11112222 | 0x00000080 | 
-  
-Test input: CSRRCI with status_forwards_in = VALID and external/timer interrupt = 0/0, csr = MSTATUS  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| forwarding_out.data | 0x00000018 | 0x00000008 | 
-### MTVEC - set LSBs = 0  
-  
-Test input: CSRRWI with status_forwards_in = VALID and external/timer interrupt = 0/0, csr = MTVEC  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| forwarding_out.data | 0xaaaabbbb | 0xdabbad00 | 
-### MSCRATCH  
-  
-Test input: CSRRWI with status_forwards_in = VALID and external/timer interrupt = 0/0, csr = MSCRATCH  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| forwarding_out.data | 0xaaaabbbb | 0xbaadf00d | 
-### MEPC - set LSBs = 0!  
-  
-Test input: CSRRWI with status_forwards_in = VALID and external/timer interrupt = 0/0, csr = MEPC  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| forwarding_out.data | 0x11112222 | 0xfaceb00c | 
-## CSR-operation with rd=x0/src=0/imm=0  
-### immediate = 0  
-  
-Test input: CSRRWI with status_forwards_in = VALID and external/timer interrupt = 0/0, csr = MEPC  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| forwarding_out.data | 0xeeeeffff | 0xfaceb00c | 
 ## trigger Interrupt (already enabled)  
 ### check CSRs  
   
@@ -118,21 +81,6 @@ Test input: CSRRW with status_forwards_in = VALID and external/timer interrupt =
 | Signal | Is Value | Expected Value |   
 | - | - | - |  
 | forwarding_out.data | 0x00040060 | 0x00040064 | 
-## trigger Interrupt immediatly (enable when already pending)  
-### MSTATUS[MIE] = 1  
-  
-Test input: CSRRS with status_forwards_in = VALID and external/timer interrupt = 1/0, csr = MSTATUS  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| status_backwards_out | 0 | 2 | 
-| jump_address_backwards_out | 0x00000000 | 0xdabbad00 | 
-### MIE[MTIE] = 1  
-  
-Test input: CSRRS with status_forwards_in = VALID and external/timer interrupt = 0/1, csr = MIE  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| status_backwards_out | 0 | 2 | 
-| jump_address_backwards_out | 0x00000000 | 0xdabbad00 | 
 ## MRET after Interrupt with MSTATUS[MIE] = 1  
 ### MRET  
   
@@ -178,40 +126,25 @@ Test input: CSRRC with status_forwards_in = VALID and external/timer interrupt =
 | Signal | Is Value | Expected Value |   
 | - | - | - |  
 | forwarding_out.data | 0x00000001 | 0x8000000b | 
-## check MCYCLE and MINSTRET  
+## check MCYCLE: increment first, then write  
 ### check MCYCLE  
   
 Test input: CSRRC with status_forwards_in = VALID and external/timer interrupt = 0/0, csr = MCYCLE  
 | Signal | Is Value | Expected Value |   
 | - | - | - |  
-| forwarding_out.data | 0x76543215 | 0x76543216 | 
-### check MINSTRET  
-  
-Test input: CSRRC with status_forwards_in = VALID and external/timer interrupt = 0/0, csr = MINSTRET  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| forwarding_out.data | 0x76543212 | 0x76543213 | 
-## check MCYCLE: increment first, then write  
-### write to MCYCLE  
-  
-Test input: CSRRW with status_forwards_in = VALID and external/timer interrupt = 0/0, csr = MCYCLE  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| forwarding_out.data | 0xfffffffe | 0xffffffff | 
-### check MCYCLE  
+| forwarding_out.data | 0xbaaaaaae | 0xbaaaaaad | 
   
 Test input: CSRRC with status_forwards_in = VALID and external/timer interrupt = 0/0, csr = MCYCLEH  
 | Signal | Is Value | Expected Value |   
 | - | - | - |  
 | forwarding_out.data | 0xbadc0ded | 0xbadc0dee | 
 ## check MINSTRET  
-### write to MINSTRET  
+### check MINSTRET  
   
-Test input: CSRRW with status_forwards_in = VALID and external/timer interrupt = 0/0, csr = MINSTRET  
+Test input: CSRRC with status_forwards_in = VALID and external/timer interrupt = 0/0, csr = MINSTRET  
 | Signal | Is Value | Expected Value |   
 | - | - | - |  
-| forwarding_out.data | 0xfffffffe | 0xffffffff | 
-### check MINSTRET  
+| forwarding_out.data | 0xbaaaaaae | 0xbaaaaaad | 
   
 Test input: CSRRC with status_forwards_in = VALID and external/timer interrupt = 0/0, csr = MINSTRETH  
 | Signal | Is Value | Expected Value |   
