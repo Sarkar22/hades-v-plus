@@ -1,12 +1,12 @@
 # Testcase Results 
 
 **Repository:** hades-v_9_Sarkar22  
-**Test Run:** 29.03.2026 00:05  
-**Test Deadline:** 04.06.2026 00:00  
+**Test Run:** 29.03.2026 16:06  
+**Test Deadline:** 02.06.2026 00:00  
 ### Tested Commit Information
-**Date:** 28.03.2026 14:31  
-**Hash:** b9cf0ce  
-**Message:** more bug fix - will it work?  
+**Date:** 29.03.2026 09:55  
+**Hash:** 3f86835  
+**Message:** all 3 asm test passed  
 **Committer Email:** esarkar@RF-LT05.eng.uwaterloo.ca  
 
 # Module Under Test:  Fetch Stage  
@@ -66,41 +66,42 @@
 # Module Under Test:  Writeback Stage  
 <details><summary>Details for the  Writeback Stage</summary>
 
-**Points:**  15.57 / 16  
+**Points:**  15.30 / 16  
 
-## trigger Interrupt (already enabled)  
+## trigger Interrupt immediatly (enable when already pending)  
+### MSTATUS[MIE] = 1  
+  
+Test input: CSRRS with status_forwards_in = VALID and external/timer interrupt = 1/0, csr = MSTATUS  
+| Signal | Is Value | Expected Value |   
+| - | - | - |  
+| status_backwards_out | 0 | 2 | 
+| jump_address_backwards_out | 0x00000000 | 0xdabbad00 | 
 ### check CSRs  
   
 Test input: CSRRW with status_forwards_in = VALID and external/timer interrupt = 0/0, csr = MEPC  
 | Signal | Is Value | Expected Value |   
 | - | - | - |  
-| forwarding_out.data | 0x00040010 | 0x00040014 | 
+| forwarding_out.data | 0xfaceb00c | 0x00040014 | 
+### MIE[MTIE] = 1  
+  
+Test input: CSRRS with status_forwards_in = VALID and external/timer interrupt = 0/1, csr = MIE  
+| Signal | Is Value | Expected Value |   
+| - | - | - |  
+| status_backwards_out | 0 | 2 | 
+| jump_address_backwards_out | 0x00000000 | 0xdabbad00 | 
 ### check CSRs  
   
 Test input: CSRRW with status_forwards_in = VALID and external/timer interrupt = 0/0, csr = MEPC  
 | Signal | Is Value | Expected Value |   
 | - | - | - |  
-| forwarding_out.data | 0x00040060 | 0x00040064 | 
-## MRET after Interrupt with MSTATUS[MIE] = 1  
-### MRET  
-  
-Test input: MRET with status_forwards_in = VALID and external/timer interrupt = 0/0  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| jump_address_backwards_out | 0x00040034 | 0x00040038 | 
+| forwarding_out.data | 0x00040018 | 0x00040038 | 
 ## MRET while Interrupt pending  
-### check MEPC (no change)  
+### MRET -> directly trigger Interrupt again  
   
-Test input: CSRRC with status_forwards_in = VALID and external/timer interrupt = 1/0, csr = MEPC  
+Test input: MRET with status_forwards_in = VALID and external/timer interrupt = 1/0  
 | Signal | Is Value | Expected Value |   
 | - | - | - |  
-| forwarding_out.data | 0x00040068 | 0x0004005c | 
-### MRET -> jump to old MEPC  
-  
-Test input: MRET with status_forwards_in = VALID and external/timer interrupt = 0/0  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| jump_address_backwards_out | 0x00040068 | 0x0004005c | 
+| jump_address_backwards_out | 0x0004005c | 0xdabbad00 | 
 ## special Interrupt cases  
 ### check CSRs  
   
