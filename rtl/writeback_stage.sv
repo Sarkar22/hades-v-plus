@@ -120,13 +120,13 @@ module writeback_stage (
     // Part 3: CSR Read — current value of addressed CSR
     // =========================================================================
     // MIP uses REGISTERED interrupt inputs (latched on previous posedge).
-    // MCYCLE/MCYCLEH and MINSTRET/MINSTRETH forward the pre-increment value:
-    // the counter reads the current register value (before this cycle's increment).
+    // MCYCLE/MINSTRET use "increment first, then read" semantics: the value
+    // visible to the retiring instruction includes this cycle's increment.
 
     logic [63:0] mcycle_read;
     logic [63:0] minstret_read;
-    assign mcycle_read   = mcycle;
-    assign minstret_read = minstret;
+    assign mcycle_read   = mcycle + 64'd1;
+    assign minstret_read = minstret + (is_valid ? 64'd1 : 64'd0);
 
     logic [31:0] csr_read_val;
 
@@ -209,14 +209,30 @@ module writeback_stage (
     // =========================================================================
     // Uses LIVE interrupt inputs (not registered) and EFFECTIVE enable flags.
     // Interrupt fires when instruction completes (VALID or ERROR, not BUBBLE).
-    // Gated by !int_jump_reg to prevent re-detection during stale cycle.
+    //
+    // TWO interrupt modes:
+    //   is_interrupt_imm: current instruction ENABLES the interrupt (CSR write to
+    //     MSTATUS/MIE, or MRET) → fire as immediate/combinational JUMP same cycle.
+    //   is_interrupt_seq: interrupt was already enabled, becomes pending on a normal
+    //     instruction → fire sequentially via int_jump_reg (JUMP next cycle).
 
     logic ext_int_pending, timer_int_pending;
-    logic is_interrupt, is_trap;
+    logic is_interrupt, is_interrupt_imm, is_interrupt_seq, is_trap;
 
     assign ext_int_pending   = external_interrupt_in && meie_eff && mie_eff;
-    assign timer_int_pending = timer_interrupt_in && mtie_eff && mie_eff;
-    assign is_interrupt = !int_jump_reg && !is_bubble && (ext_int_pending || timer_int_pending);
+    assign timer_int_pending = timer_interrupt_in    && mtie_eff && mie_eff;
+
+    // is_enable_changed: current instruction modifies interrupt enable flags.
+    // Only MSTATUS/MIE CSR writes and MRET change these flags.
+    logic is_enable_changed;
+    assign is_enable_changed =
+        (!int_jump_reg && is_valid && is_csr_op &&
+         (instruction_in.csr == csr::MSTATUS || instruction_in.csr == csr::MIE)) ||
+        (!int_jump_reg && is_mret);
+
+    assign is_interrupt     = !int_jump_reg && !is_bubble && (ext_int_pending || timer_int_pending);
+    assign is_interrupt_imm = is_interrupt && is_enable_changed;
+    assign is_interrupt_seq = is_interrupt && !is_enable_changed;
     assign is_trap = is_exception || is_interrupt;
 
     // =========================================================================
@@ -269,63 +285,56 @@ module writeback_stage (
     // Interrupts generate JUMP sequentially (visible after posedge).
     // Exceptions/MRET/FENCE.I generate JUMP combinationally (immediate).
 
-    // int_was_mret: remember that the interrupt which set int_jump_reg was MRET+interrupt.
-    // Used to suppress the deferred mepc update in the stale cycle (mepc was already saved).
-    logic int_was_mret;
-
-    // int_next_pc_reg: next_program_counter_in saved at the cycle when is_interrupt fires.
-    // = next_PC(I_k) = PC of the first stale instruction.
-    // Used as fallback mepc when the stale instruction is a BUBBLE: a BUBBLE after a taken
-    // branch has a garbage next_PC (it points to the squashed instruction + 4, outside
-    // the loop), so we use next_PC(I_k) = next_PC of the last committed instruction.
+    // int_next_pc_reg: saves next_program_counter_in when sequential interrupt fires.
+    // Used for deferred mepc: at int_jump_reg cycle, stale may be BUBBLE (after taken
+    // branch) with a garbage next_PC; fall back to this saved value instead.
     logic [31:0] int_next_pc_reg;
 
     always_ff @(posedge clk) begin
         if (rst) begin
             int_jump_reg    <= 1'b0;
             int_addr_reg    <= 32'b0;
-            int_was_mret    <= 1'b0;
             int_next_pc_reg <= 32'b0;
         end else begin
-            // Both regular interrupts and MRET+interrupt are handled sequentially.
-            // For MRET+interrupt: MRET issues a COMB JUMP to old mepc; one cycle later
-            // int_jump_reg fires and redirects to mtvec, completing the interrupt.
-            int_jump_reg    <= is_interrupt;
+            // Only sequential interrupts use int_jump_reg to issue the JUMP.
+            // Immediate interrupts (CSR/MRET enable change) produce JUMP combinationally.
+            int_jump_reg    <= is_interrupt_seq;
             int_addr_reg    <= mtvec;
-            int_was_mret    <= is_interrupt && is_mret;
-            // Always capture next_PC(I_k). When int_jump_reg fires next cycle,
-            // int_next_pc_reg holds the value from the cycle is_interrupt fired.
             int_next_pc_reg <= next_program_counter_in;
         end
     end
 
     // =========================================================================
-    // Part 9: Pipeline backwards control (COMBINATIONAL with seq interrupt)
+    // Part 9: Pipeline backwards control
     // =========================================================================
-    // Priority: int_jump_reg > exception > MRET > FENCE.I > READY
-    // int_jump_reg has highest priority because it represents a pipeline control
-    // decision from the previous posedge. The stale instruction's combinational
-    // signals (exception/MRET/FENCE.I) should not override it.
+    // Priority: int_jump_reg > exception > interrupt_imm > MRET > FENCE.I > READY
+    //
+    // int_jump_reg: sequential interrupt JUMP (fires cycle after detection).
+    // is_interrupt_imm: immediate JUMP when current instruction enables interrupt.
+    // is_mret (without interrupt): return to mepc.
 
     always_comb begin
         if (int_jump_reg) begin
-            // Interrupt detected at previous posedge — sequential JUMP to mtvec
+            // Sequential interrupt JUMP: pipeline was NOT flushed last cycle.
+            // Stale instruction arrives; redirect to mtvec.
             status_backwards_out       = JUMP;
             jump_address_backwards_out = int_addr_reg;
         end else if (is_exception) begin
-            // Synchronous exception — immediate JUMP to mtvec
+            status_backwards_out       = JUMP;
+            jump_address_backwards_out = mtvec;
+        end else if (is_interrupt_imm) begin
+            // Immediate interrupt: current instruction (CSR write/MRET) enables
+            // a pending interrupt — redirect to mtvec this cycle.
             status_backwards_out       = JUMP;
             jump_address_backwards_out = mtvec;
         end else if (is_mret) begin
-            // MRET: return to mepc (whether or not an interrupt is pending).
-            // If interrupt is pending, int_jump_reg will redirect next cycle.
+            // MRET with no pending interrupt — return to mepc.
             status_backwards_out       = JUMP;
             jump_address_backwards_out = mepc;
         end else if (is_fence_i) begin
             status_backwards_out       = JUMP;
             jump_address_backwards_out = next_program_counter_in;
         end else begin
-            // Regular instruction or interrupt-pending (handled by int_jump_reg).
             status_backwards_out       = READY;
             jump_address_backwards_out = 32'b0;
         end
@@ -385,6 +394,11 @@ module writeback_stage (
     assign csr_writes_minstret_lo = is_valid && is_csr_explicit_write_op && (instruction_in.csr == csr::MINSTRET);
     assign csr_writes_minstret_hi = is_valid && is_csr_explicit_write_op && (instruction_in.csr == csr::MINSTRETH);
 
+    // Pre-computed incremented values for "increment first, then write" semantics.
+    logic [63:0] mcycle_inc, minstret_inc;
+    assign mcycle_inc   = mcycle   + 64'd1;
+    assign minstret_inc = minstret + 64'd1;
+
     // =========================================================================
     // Part 12: CSR Register Updates (SEQUENTIAL — posedge clk)
     // =========================================================================
@@ -419,21 +433,24 @@ module writeback_stage (
             mip_meip_reg <= external_interrupt_in;
             mip_mtip_reg <= timer_interrupt_in;
 
-            // ---- MCYCLE: auto-increment unless written ----
+            // ---- MCYCLE: "increment first, then write" ----
+            // The counter always increments; a CSR write overrides only the
+            // targeted half, while the other half reflects the incremented value
+            // (preserving carry across the 32-bit boundary).
             if (!int_jump_reg && csr_writes_mcycle_lo)
-                mcycle <= {mcycle[63:32], csr_write_val};
+                mcycle <= {mcycle_inc[63:32], csr_write_val};
             else if (!int_jump_reg && csr_writes_mcycle_hi)
-                mcycle <= {csr_write_val, mcycle[31:0]};
+                mcycle <= {csr_write_val, mcycle_inc[31:0]};
             else
-                mcycle <= mcycle + 64'd1;
+                mcycle <= mcycle_inc;
 
-            // ---- MINSTRET: increment on valid instruction unless written ----
+            // ---- MINSTRET: "increment first, then write" (only for VALID) ----
             if (!int_jump_reg && csr_writes_minstret_lo)
-                minstret <= {minstret[63:32], csr_write_val};
+                minstret <= {minstret_inc[63:32], csr_write_val};
             else if (!int_jump_reg && csr_writes_minstret_hi)
-                minstret <= {csr_write_val, minstret[31:0]};
+                minstret <= {csr_write_val, minstret_inc[31:0]};
             else if (is_valid)
-                minstret <= minstret + 64'd1;  // NOT gated: REF counts stale instructions too
+                minstret <= minstret + 64'd1;
 
             // ---- CSR writes by instruction (suppressed during stale cycle) ----
             if (!int_jump_reg && is_valid && is_csr_op) begin
@@ -461,42 +478,27 @@ module writeback_stage (
             end
 
             // ---- Trap effects (highest priority, suppressed during stale) ----
-            // Exception: save all trap state immediately.
-            if (!int_jump_reg && is_exception) begin
+            // Exception or immediate interrupt: save all trap state this cycle.
+            //   trap_mepc for exception      = program_counter_in       (faulting PC)
+            //   trap_mepc for MRET+int_imm   = mepc                     (MRET return addr)
+            //   trap_mepc for CSR+int_imm    = next_program_counter_in
+            if (!int_jump_reg && (is_exception || is_interrupt_imm)) begin
                 mcause       <= trap_cause;
                 mepc         <= {trap_mepc[31:2], 2'b00};
                 mstatus_mpie <= mie_eff;
                 mstatus_mie  <= 1'b0;
             end
-            // MRET+interrupt: save all trap state immediately (mepc = old mepc).
-            // mstatus_mie=0 overrides MRET's MIE restoration, ensuring MIE is
-            // cleared as the interrupt handler is entered.
-            if (!int_jump_reg && is_interrupt && is_mret) begin
-                mcause       <= trap_cause;
-                mepc         <= {trap_mepc[31:2], 2'b00};  // trap_mepc = old mepc
-                mstatus_mpie <= mie_eff;
-                mstatus_mie  <= 1'b0;
-            end
-            // Regular interrupt (not MRET): save mcause/mstatus immediately,
-            // but defer mepc to the next cycle (when int_jump_reg fires).
-            // At that point, the last-committed instruction is in WB and
-            // next_program_counter_in is the correct MRET return address.
-            if (!int_jump_reg && is_interrupt && !is_mret) begin
+            // Sequential interrupt: save mcause/mstatus now; defer mepc to next cycle.
+            if (!int_jump_reg && is_interrupt_seq) begin
                 mcause       <= trap_cause;
                 mstatus_mpie <= mie_eff;
                 mstatus_mie  <= 1'b0;
             end
-            // Save interrupt mepc one cycle after detection (when int_jump_reg fires),
-            // but only for regular interrupts (MRET+interrupt already saved mepc above).
-            //
-            // Stale instruction I_{k+1} may be VALID or BUBBLE:
-            //   VALID: a real instruction that commits its register write in this stale
-            //          cycle. MRET must skip it → use next_PC(I_{k+1}).
-            //   BUBBLE: pipeline bubble (e.g., after a taken branch). Its next_PC is
-            //          the squashed instruction's PC + 4, which is garbage (outside the
-            //          loop). Use int_next_pc_reg = next_PC(I_k) instead, which is the
-            //          correct resume address (branch target, or I_k+4).
-            if (int_jump_reg && !int_was_mret) begin
+            // Deferred mepc for sequential interrupt (int_jump_reg cycle).
+            // Stale may be VALID (committed) or BUBBLE (after taken branch).
+            //   VALID → skip it, use next_PC of stale.
+            //   BUBBLE → its next_PC is garbage; use saved int_next_pc_reg instead.
+            if (int_jump_reg) begin
                 if (is_valid)
                     mepc <= {next_program_counter_in[31:2], 2'b00};
                 else
