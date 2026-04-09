@@ -1,12 +1,12 @@
 # Testcase Results 
 
 **Repository:** hades-v_9_Sarkar22  
-**Test Run:** 09.04.2026 03:06  
+**Test Run:** 09.04.2026 05:36  
 **Test Deadline:** 02.06.2026 00:00  
 ### Tested Commit Information
-**Date:** 08.04.2026 21:00  
-**Hash:** f2d2ccf  
-**Message:** Fix writeback: counter reads, interrupt timing, minstret stale  
+**Date:** 08.04.2026 23:26  
+**Hash:** d08f423  
+**Message:** Fix writeback: revert imm-int removal, add exc+int guard  
 **Committer Email:** esarkar@RF-LT05.eng.uwaterloo.ca  
 
 # Module Under Test:  Fetch Stage  
@@ -66,35 +66,8 @@
 # Module Under Test:  Writeback Stage  
 <details><summary>Details for the  Writeback Stage</summary>
 
-**Points:**  15.52 / 16  
+**Points:**  15.91 / 16  
 
-## trigger Interrupt immediatly (enable when already pending)  
-### MSTATUS[MIE] = 1  
-  
-Test input: CSRRS with status_forwards_in = VALID and external/timer interrupt = 1/0, csr = MSTATUS  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| status_backwards_out | 0 | 2 | 
-| jump_address_backwards_out | 0x00000000 | 0xdabbad00 | 
-### check CSRs  
-  
-Test input: CSRRW with status_forwards_in = VALID and external/timer interrupt = 0/0, csr = MEPC  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| forwarding_out.data | 0xfaceb00c | 0x00040014 | 
-### MIE[MTIE] = 1  
-  
-Test input: CSRRS with status_forwards_in = VALID and external/timer interrupt = 0/1, csr = MIE  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| status_backwards_out | 0 | 2 | 
-| jump_address_backwards_out | 0x00000000 | 0xdabbad00 | 
-### check CSRs  
-  
-Test input: CSRRW with status_forwards_in = VALID and external/timer interrupt = 0/0, csr = MEPC  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| forwarding_out.data | 0x00040018 | 0x00040038 | 
 ## special Interrupt cases  
 ### check CSRs  
   
