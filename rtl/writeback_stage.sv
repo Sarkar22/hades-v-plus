@@ -223,17 +223,20 @@ module writeback_stage (
     assign ext_int_pending   = external_interrupt_in && meie_eff && mie_eff;
     assign timer_int_pending = timer_interrupt_in    && mtie_eff && mie_eff;
 
-    // is_enable_changed: fires ONLY for MRET, which atomically restores MIE=MPIE.
-    // CSR writes to MSTATUS/MIE that enable interrupts do NOT generate an
-    // immediate jump — they fire via is_interrupt_seq (int_jump_reg next cycle).
-    // This matches the RISC-V spec: interrupts enabled by a CSR write fire on
-    // the NEXT instruction boundary, not the same instruction.
+    // is_enable_changed: current instruction modifies interrupt enable flags.
+    // Only MSTATUS/MIE CSR writes and MRET change these flags.
     logic is_enable_changed;
-    assign is_enable_changed = (!int_jump_reg && is_mret);
+    assign is_enable_changed =
+        (!int_jump_reg && is_valid && is_csr_op &&
+         (instruction_in.csr == csr::MSTATUS || instruction_in.csr == csr::MIE)) ||
+        (!int_jump_reg && is_mret);
 
     assign is_interrupt     = !int_jump_reg && !is_bubble && (ext_int_pending || timer_int_pending);
     assign is_interrupt_imm = is_interrupt && is_enable_changed;
-    assign is_interrupt_seq = is_interrupt && !is_enable_changed;
+    // When exception + interrupt fire together, the exception JUMP handles both
+    // (trap_cause/trap_mepc already use interrupt priority). Suppress sequential
+    // path to avoid a spurious int_jump_reg double-JUMP next cycle.
+    assign is_interrupt_seq = is_interrupt && !is_enable_changed && !is_exception;
     assign is_trap = is_exception || is_interrupt;
 
     // =========================================================================
