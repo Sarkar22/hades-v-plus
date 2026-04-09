@@ -120,13 +120,14 @@ module writeback_stage (
     // Part 3: CSR Read — current value of addressed CSR
     // =========================================================================
     // MIP uses REGISTERED interrupt inputs (latched on previous posedge).
-    // MCYCLE/MINSTRET use "increment first, then read" semantics: the value
-    // visible to the retiring instruction includes this cycle's increment.
+    // MCYCLE/MINSTRET: forward the CURRENT counter value (no pre-increment).
+    // The "increment first, then write" semantics apply only to the write path
+    // (high half uses mcycle_inc for carry), not to reads.
 
     logic [63:0] mcycle_read;
     logic [63:0] minstret_read;
-    assign mcycle_read   = mcycle + 64'd1;
-    assign minstret_read = minstret + (is_valid ? 64'd1 : 64'd0);
+    assign mcycle_read   = mcycle;
+    assign minstret_read = minstret;
 
     logic [31:0] csr_read_val;
 
@@ -222,13 +223,13 @@ module writeback_stage (
     assign ext_int_pending   = external_interrupt_in && meie_eff && mie_eff;
     assign timer_int_pending = timer_interrupt_in    && mtie_eff && mie_eff;
 
-    // is_enable_changed: current instruction modifies interrupt enable flags.
-    // Only MSTATUS/MIE CSR writes and MRET change these flags.
+    // is_enable_changed: fires ONLY for MRET, which atomically restores MIE=MPIE.
+    // CSR writes to MSTATUS/MIE that enable interrupts do NOT generate an
+    // immediate jump — they fire via is_interrupt_seq (int_jump_reg next cycle).
+    // This matches the RISC-V spec: interrupts enabled by a CSR write fire on
+    // the NEXT instruction boundary, not the same instruction.
     logic is_enable_changed;
-    assign is_enable_changed =
-        (!int_jump_reg && is_valid && is_csr_op &&
-         (instruction_in.csr == csr::MSTATUS || instruction_in.csr == csr::MIE)) ||
-        (!int_jump_reg && is_mret);
+    assign is_enable_changed = (!int_jump_reg && is_mret);
 
     assign is_interrupt     = !int_jump_reg && !is_bubble && (ext_int_pending || timer_int_pending);
     assign is_interrupt_imm = is_interrupt && is_enable_changed;
@@ -449,7 +450,7 @@ module writeback_stage (
                 minstret <= {minstret_inc[63:32], csr_write_val};
             else if (!int_jump_reg && csr_writes_minstret_hi)
                 minstret <= {csr_write_val, minstret_inc[31:0]};
-            else if (is_valid)
+            else if (!int_jump_reg && is_valid)
                 minstret <= minstret + 64'd1;
 
             // ---- CSR writes by instruction (suppressed during stale cycle) ----
