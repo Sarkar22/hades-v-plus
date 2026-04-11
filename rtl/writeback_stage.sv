@@ -174,7 +174,8 @@ module writeback_stage (
     // Gated by !int_jump_reg: when a sequential interrupt JUMP is pending,
     // the stale instruction's CSR effects do not apply to flag computation.
 
-    logic int_jump_reg;         // registered: interrupt JUMP pending
+    logic int_jump_reg;         // registered: sequential interrupt JUMP pending
+    logic imm_jump_reg;         // registered: combinational JUMP issued last cycle (suppress stale)
     logic [31:0] int_addr_reg;  // registered: interrupt jump address
 
     logic mie_eff, meie_eff, mtie_eff, mpie_eff;
@@ -185,7 +186,7 @@ module writeback_stage (
         mtie_eff = mie_mtie;
         mpie_eff = mstatus_mpie;
 
-        if (!int_jump_reg && is_valid && is_csr_op) begin
+        if (!int_jump_reg && !imm_jump_reg && is_valid && is_csr_op) begin
             case (instruction_in.csr)
                 csr::MSTATUS: begin
                     mie_eff  = csr_write_val[3];
@@ -199,7 +200,7 @@ module writeback_stage (
             endcase
         end
 
-        if (!int_jump_reg && is_mret) begin
+        if (!int_jump_reg && !imm_jump_reg && is_mret) begin
             mie_eff  = mpie_eff;
             mpie_eff = 1'b1;
         end
@@ -227,11 +228,11 @@ module writeback_stage (
     // Only MSTATUS/MIE CSR writes and MRET change these flags.
     logic is_enable_changed;
     assign is_enable_changed =
-        (!int_jump_reg && is_valid && is_csr_op &&
+        (!int_jump_reg && !imm_jump_reg && is_valid && is_csr_op &&
          (instruction_in.csr == csr::MSTATUS || instruction_in.csr == csr::MIE)) ||
-        (!int_jump_reg && is_mret);
+        (!int_jump_reg && !imm_jump_reg && is_mret);
 
-    assign is_interrupt     = !int_jump_reg && !is_bubble && (ext_int_pending || timer_int_pending);
+    assign is_interrupt     = !int_jump_reg && !imm_jump_reg && !is_bubble && (ext_int_pending || timer_int_pending);
     assign is_interrupt_imm = is_interrupt && is_enable_changed;
     // When exception + interrupt fire together, the exception JUMP handles both
     // (trap_cause/trap_mepc already use interrupt priority). Suppress sequential
@@ -297,12 +298,17 @@ module writeback_stage (
     always_ff @(posedge clk) begin
         if (rst) begin
             int_jump_reg    <= 1'b0;
+            imm_jump_reg    <= 1'b0;
             int_addr_reg    <= 32'b0;
             int_next_pc_reg <= 32'b0;
         end else begin
             // Only sequential interrupts use int_jump_reg to issue the JUMP.
             // Immediate interrupts (CSR/MRET enable change) produce JUMP combinationally.
             int_jump_reg    <= is_interrupt_seq;
+            // After an immediate interrupt JUMP, suppress the stale instruction
+            // arriving next cycle (it could be an exception that would overwrite
+            // the interrupt's trap state).
+            imm_jump_reg    <= !int_jump_reg && !imm_jump_reg && is_interrupt_imm;
             int_addr_reg    <= mtvec;
             int_next_pc_reg <= next_program_counter_in;
         end
@@ -311,9 +317,10 @@ module writeback_stage (
     // =========================================================================
     // Part 9: Pipeline backwards control
     // =========================================================================
-    // Priority: int_jump_reg > exception > interrupt_imm > MRET > FENCE.I > READY
+    // Priority: int_jump_reg > imm_jump_reg > exception > interrupt_imm > MRET > FENCE.I > READY
     //
     // int_jump_reg: sequential interrupt JUMP (fires cycle after detection).
+    // imm_jump_reg: stale suppression after combinational JUMP (output READY).
     // is_interrupt_imm: immediate JUMP when current instruction enables interrupt.
     // is_mret (without interrupt): return to mepc.
 
@@ -323,6 +330,10 @@ module writeback_stage (
             // Stale instruction arrives; redirect to mtvec.
             status_backwards_out       = JUMP;
             jump_address_backwards_out = int_addr_reg;
+        end else if (imm_jump_reg) begin
+            // Stale after combinational JUMP: suppress all effects.
+            status_backwards_out       = READY;
+            jump_address_backwards_out = 32'b0;
         end else if (is_exception) begin
             status_backwards_out       = JUMP;
             jump_address_backwards_out = mtvec;
@@ -441,23 +452,23 @@ module writeback_stage (
             // The counter always increments; a CSR write overrides only the
             // targeted half, while the other half reflects the incremented value
             // (preserving carry across the 32-bit boundary).
-            if (!int_jump_reg && csr_writes_mcycle_lo)
+            if (!int_jump_reg && !imm_jump_reg && csr_writes_mcycle_lo)
                 mcycle <= {mcycle_inc[63:32], csr_write_val};
-            else if (!int_jump_reg && csr_writes_mcycle_hi)
+            else if (!int_jump_reg && !imm_jump_reg && csr_writes_mcycle_hi)
                 mcycle <= {csr_write_val, mcycle_inc[31:0]};
             else
                 mcycle <= mcycle_inc;
 
             // ---- MINSTRET: "increment first, then write" (only for VALID) ----
-            if (!int_jump_reg && csr_writes_minstret_lo)
+            if (!int_jump_reg && !imm_jump_reg && csr_writes_minstret_lo)
                 minstret <= {minstret_inc[63:32], csr_write_val};
-            else if (!int_jump_reg && csr_writes_minstret_hi)
+            else if (!int_jump_reg && !imm_jump_reg && csr_writes_minstret_hi)
                 minstret <= {csr_write_val, minstret_inc[31:0]};
-            else if (!int_jump_reg && is_valid)
+            else if (!int_jump_reg && !imm_jump_reg && is_valid)
                 minstret <= minstret + 64'd1;
 
             // ---- CSR writes by instruction (suppressed during stale cycle) ----
-            if (!int_jump_reg && is_valid && is_csr_op) begin
+            if (!int_jump_reg && !imm_jump_reg && is_valid && is_csr_op) begin
                 case (instruction_in.csr)
                     csr::MSTATUS: begin
                         mstatus_mie  <= csr_write_val[3];
@@ -476,7 +487,7 @@ module writeback_stage (
             end
 
             // ---- MRET effects on MSTATUS (suppressed during stale cycle) ----
-            if (!int_jump_reg && is_mret) begin
+            if (!int_jump_reg && !imm_jump_reg && is_mret) begin
                 mstatus_mie  <= mstatus_mpie;
                 mstatus_mpie <= 1'b1;
             end
@@ -486,14 +497,14 @@ module writeback_stage (
             //   trap_mepc for exception      = program_counter_in       (faulting PC)
             //   trap_mepc for MRET+int_imm   = mepc                     (MRET return addr)
             //   trap_mepc for CSR+int_imm    = next_program_counter_in
-            if (!int_jump_reg && (is_exception || is_interrupt_imm)) begin
+            if (!int_jump_reg && !imm_jump_reg && (is_exception || is_interrupt_imm)) begin
                 mcause       <= trap_cause;
                 mepc         <= {trap_mepc[31:2], 2'b00};
                 mstatus_mpie <= mie_eff;
                 mstatus_mie  <= 1'b0;
             end
             // Sequential interrupt: save mcause/mstatus now; defer mepc to next cycle.
-            if (!int_jump_reg && is_interrupt_seq) begin
+            if (!int_jump_reg && !imm_jump_reg && is_interrupt_seq) begin
                 mcause       <= trap_cause;
                 mstatus_mpie <= mie_eff;
                 mstatus_mie  <= 1'b0;
