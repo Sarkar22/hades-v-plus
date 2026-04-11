@@ -1,12 +1,12 @@
 # Testcase Results 
 
 **Repository:** hades-v_9_Sarkar22  
-**Test Run:** 11.04.2026 02:36  
+**Test Run:** 11.04.2026 11:36  
 **Test Deadline:** 02.06.2026 00:00  
 ### Tested Commit Information
-**Date:** 10.04.2026 20:23  
-**Hash:** 1c8a095  
-**Message:** more fixes for writeback stage...  
+**Date:** 11.04.2026 05:36  
+**Hash:** 4e43683  
+**Message:** more fixess for writeback stage...imm_jump_reg & MRET sequential interrupt  
 **Committer Email:** esarkar@RF-LT05.eng.uwaterloo.ca  
 
 # Module Under Test:  Fetch Stage  
@@ -66,8 +66,15 @@
 # Module Under Test:  Writeback Stage  
 <details><summary>Details for the  Writeback Stage</summary>
 
-**Points:**  15.91 / 16  
+**Points:**  15.87 / 16  
 
+## MRET while Interrupt pending  
+### MRET -> directly trigger Interrupt again  
+  
+Test input: MRET with status_forwards_in = VALID and external/timer interrupt = 1/0  
+| Signal | Is Value | Expected Value |   
+| - | - | - |  
+| jump_address_backwards_out | 0x0004005c | 0xdabbad00 | 
 ## special Interrupt cases  
 ### check CSRs  
   
