@@ -224,13 +224,14 @@ module writeback_stage (
     assign ext_int_pending   = external_interrupt_in && meie_eff && mie_eff;
     assign timer_int_pending = timer_interrupt_in    && mtie_eff && mie_eff;
 
-    // is_enable_changed: current instruction modifies interrupt enable flags.
-    // Only MSTATUS/MIE CSR writes and MRET change these flags.
+    // is_enable_changed: current instruction modifies interrupt enable flags
+    // via a CSR write. Only MSTATUS/MIE CSR writes trigger immediate interrupt.
+    // MRET also changes flags (MIE←MPIE) but fires sequential interrupt instead,
+    // so MRET always jumps to MEPC first, then int_jump_reg redirects to MTVEC.
     logic is_enable_changed;
     assign is_enable_changed =
         (!int_jump_reg && !imm_jump_reg && is_valid && is_csr_op &&
-         (instruction_in.csr == csr::MSTATUS || instruction_in.csr == csr::MIE)) ||
-        (!int_jump_reg && !imm_jump_reg && is_mret);
+         (instruction_in.csr == csr::MSTATUS || instruction_in.csr == csr::MIE));
 
     assign is_interrupt     = !int_jump_reg && !imm_jump_reg && !is_bubble && (ext_int_pending || timer_int_pending);
     assign is_interrupt_imm = is_interrupt && is_enable_changed;
@@ -294,21 +295,27 @@ module writeback_stage (
     // Used for deferred mepc: at int_jump_reg cycle, stale may be BUBBLE (after taken
     // branch) with a garbage next_PC; fall back to this saved value instead.
     logic [31:0] int_next_pc_reg;
+    logic int_mret_reg;  // MRET triggered the sequential interrupt — skip deferred mepc
 
     always_ff @(posedge clk) begin
         if (rst) begin
             int_jump_reg    <= 1'b0;
             imm_jump_reg    <= 1'b0;
+            int_mret_reg    <= 1'b0;
             int_addr_reg    <= 32'b0;
             int_next_pc_reg <= 32'b0;
         end else begin
             // Only sequential interrupts use int_jump_reg to issue the JUMP.
-            // Immediate interrupts (CSR/MRET enable change) produce JUMP combinationally.
+            // Immediate interrupts (CSR enable change) produce JUMP combinationally.
             int_jump_reg    <= is_interrupt_seq;
             // After an immediate interrupt JUMP, suppress the stale instruction
             // arriving next cycle (it could be an exception that would overwrite
             // the interrupt's trap state).
             imm_jump_reg    <= !int_jump_reg && !imm_jump_reg && is_interrupt_imm;
+            // When MRET triggers a sequential interrupt, MEPC already holds the
+            // correct return address (the MRET destination). Skip the deferred
+            // mepc write on the int_jump_reg cycle to preserve it.
+            int_mret_reg    <= !int_jump_reg && !imm_jump_reg && is_interrupt_seq && is_mret;
             int_addr_reg    <= mtvec;
             int_next_pc_reg <= next_program_counter_in;
         end
@@ -510,10 +517,12 @@ module writeback_stage (
                 mstatus_mie  <= 1'b0;
             end
             // Deferred mepc for sequential interrupt (int_jump_reg cycle).
+            // Skip when MRET triggered the interrupt — mepc already has the
+            // correct return address (the MRET destination).
             // Stale may be VALID (committed) or BUBBLE (after taken branch).
-            //   VALID → skip it, use next_PC of stale.
+            //   VALID → use next_PC of stale.
             //   BUBBLE → its next_PC is garbage; use saved int_next_pc_reg instead.
-            if (int_jump_reg) begin
+            if (int_jump_reg && !int_mret_reg) begin
                 if (is_valid)
                     mepc <= {next_program_counter_in[31:2], 2'b00};
                 else
