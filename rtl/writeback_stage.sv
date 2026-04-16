@@ -294,17 +294,29 @@ module writeback_stage (
     // branch) with a garbage next_PC; fall back to this saved value instead.
     logic [31:0] int_next_pc_reg;
 
+    // imm_jump_reg: set after any combinational JUMP from WB (exception, immediate
+    // interrupt, MRET, FENCE.I). Used to suppress trap-effects on a stale ERROR
+    // instruction that arrives the cycle after an imm JUMP (e.g., FETCH_FAULT stale
+    // would otherwise overwrite MCAUSE/MEPC/MPIE from the just-taken trap).
+    // Only the trap block is gated: CSR/MRET/MINSTRET require is_valid, which a
+    // stale ERROR instruction does not have, so they are unaffected anyway.
+    logic imm_jump_reg;
+
     always_ff @(posedge clk) begin
         if (rst) begin
             int_jump_reg    <= 1'b0;
             int_addr_reg    <= 32'b0;
             int_next_pc_reg <= 32'b0;
+            imm_jump_reg    <= 1'b0;
         end else begin
             // Only sequential interrupts use int_jump_reg to issue the JUMP.
             // Immediate interrupts (CSR/MRET enable change) produce JUMP combinationally.
             int_jump_reg    <= is_interrupt_seq;
             int_addr_reg    <= mtvec;
             int_next_pc_reg <= next_program_counter_in;
+            // Capture any combinational JUMP that fired this cycle (not int_jump_reg).
+            imm_jump_reg    <= !int_jump_reg &&
+                               (is_exception || is_interrupt_imm || is_mret || is_fence_i);
         end
     end
 
@@ -475,12 +487,20 @@ module writeback_stage (
                 endcase
             end
 
-            // ---- Trap effects (suppressed during stale cycle) ----
+            // ---- MRET effects on MSTATUS (suppressed during stale cycle) ----
+            if (!int_jump_reg && is_mret) begin
+                mstatus_mie  <= mstatus_mpie;
+                mstatus_mpie <= 1'b1;
+            end
+
+            // ---- Trap effects (highest priority, suppressed during stale) ----
             // Exception or immediate interrupt: save all trap state this cycle.
             //   trap_mepc for exception      = program_counter_in       (faulting PC)
             //   trap_mepc for MRET+int_imm   = mepc                     (MRET return addr)
             //   trap_mepc for CSR+int_imm    = next_program_counter_in
-            if (!int_jump_reg && (is_exception || is_interrupt_imm)) begin
+            // !imm_jump_reg: prevent a stale ERROR (e.g., FETCH_FAULT) arriving the
+            // cycle after a combinational JUMP from overwriting the just-taken trap.
+            if (!int_jump_reg && !imm_jump_reg && (is_exception || is_interrupt_imm)) begin
                 mcause       <= trap_cause;
                 mepc         <= {trap_mepc[31:2], 2'b00};
                 mstatus_mpie <= mie_eff;
@@ -491,14 +511,6 @@ module writeback_stage (
                 mcause       <= trap_cause;
                 mstatus_mpie <= mie_eff;
                 mstatus_mie  <= 1'b0;
-            end
-
-            // ---- MRET effects on MSTATUS (AFTER trap effects so NBA last-write wins) ----
-            // In MRET+interrupt, both trap and MRET blocks fire. MRET must come last
-            // so mstatus_mie <= mstatus_mpie wins over trap's mstatus_mie <= 0.
-            if (!int_jump_reg && is_mret) begin
-                mstatus_mie  <= mstatus_mpie;
-                mstatus_mpie <= 1'b1;
             end
             // Deferred mepc for sequential interrupt (int_jump_reg cycle).
             // Stale may be VALID (committed) or BUBBLE (after taken branch).
