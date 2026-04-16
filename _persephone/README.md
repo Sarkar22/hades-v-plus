@@ -1,12 +1,12 @@
 # Testcase Results 
 
 **Repository:** hades-v_9_Sarkar22  
-**Test Run:** 13.04.2026 00:05  
-**Test Deadline:** 04.06.2026 00:00  
+**Test Run:** 16.04.2026 21:06  
+**Test Deadline:** 02.06.2026 00:00  
 ### Tested Commit Information
-**Date:** 12.04.2026 13:12  
-**Hash:** 33d02e9  
-**Message:** another round of fix for writeback  
+**Date:** 16.04.2026 15:02  
+**Hash:** 11ed557  
+**Message:** please writeback work  
 **Committer Email:** esarkar@RF-LT05.eng.uwaterloo.ca  
 
 # Module Under Test:  Fetch Stage  
@@ -66,27 +66,8 @@
 # Module Under Test:  Writeback Stage  
 <details><summary>Details for the  Writeback Stage</summary>
 
-**Points:**  15.81 / 16  
+**Points:**  15.91 / 16  
 
-## MRET while Interrupt pending  
-### check MSTATUS (MIE == 0)  
-  
-Test input: CSRRC with status_forwards_in = VALID and external/timer interrupt = 1/0, csr = MSTATUS  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| forwarding_out.data | 0x00000088 | 0x00000080 | 
-### check MEPC (no change)  
-  
-Test input: CSRRC with status_forwards_in = VALID and external/timer interrupt = 1/0, csr = MEPC  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| forwarding_out.data | 0x0004006c | 0x0004005c | 
-### MRET -> jump to old MEPC  
-  
-Test input: MRET with status_forwards_in = VALID and external/timer interrupt = 0/0  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| jump_address_backwards_out | 0x0004006c | 0x0004005c | 
 ## special Interrupt cases  
 ### check CSRs  
   
