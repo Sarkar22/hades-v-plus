@@ -1,12 +1,12 @@
 # Testcase Results 
 
 **Repository:** hades-v_9_Sarkar22  
-**Test Run:** 17.04.2026 00:05  
-**Test Deadline:** 04.06.2026 00:00  
+**Test Run:** 19.04.2026 01:06  
+**Test Deadline:** 02.06.2026 00:00  
 ### Tested Commit Information
-**Date:** 16.04.2026 15:02  
-**Hash:** 11ed557  
-**Message:** please writeback work  
+**Date:** 18.04.2026 18:44  
+**Hash:** db3b414  
+**Message:** writeback: convert imm→seq interrupts, defer MRET+int mepc  
 **Committer Email:** esarkar@RF-LT05.eng.uwaterloo.ca  
 
 # Module Under Test:  Fetch Stage  
@@ -66,8 +66,42 @@
 # Module Under Test:  Writeback Stage  
 <details><summary>Details for the  Writeback Stage</summary>
 
-**Points:**  15.91 / 16  
+**Points:**  15.49 / 16  
 
+## trigger Interrupt immediatly (enable when already pending)  
+### MSTATUS[MIE] = 1  
+  
+Test input: CSRRS with status_forwards_in = VALID and external/timer interrupt = 1/0, csr = MSTATUS  
+| Signal | Is Value | Expected Value |   
+| - | - | - |  
+| status_backwards_out | 0 | 2 | 
+| jump_address_backwards_out | 0x00000000 | 0xdabbad00 | 
+### check CSRs  
+  
+Test input: CSRRW with status_forwards_in = VALID and external/timer interrupt = 0/0, csr = MEPC  
+| Signal | Is Value | Expected Value |   
+| - | - | - |  
+| forwarding_out.data | 0xfaceb00c | 0x00040014 | 
+### MIE[MTIE] = 1  
+  
+Test input: CSRRS with status_forwards_in = VALID and external/timer interrupt = 0/1, csr = MIE  
+| Signal | Is Value | Expected Value |   
+| - | - | - |  
+| status_backwards_out | 0 | 2 | 
+| jump_address_backwards_out | 0x00000000 | 0xdabbad00 | 
+### check CSRs  
+  
+Test input: CSRRW with status_forwards_in = VALID and external/timer interrupt = 0/0, csr = MEPC  
+| Signal | Is Value | Expected Value |   
+| - | - | - |  
+| forwarding_out.data | 0x00040018 | 0x00040038 | 
+## MRET while Interrupt pending  
+### MRET -> directly trigger Interrupt again  
+  
+Test input: MRET with status_forwards_in = VALID and external/timer interrupt = 1/0  
+| Signal | Is Value | Expected Value |   
+| - | - | - |  
+| jump_address_backwards_out | 0x0004005c | 0xdabbad00 | 
 ## special Interrupt cases  
 ### check CSRs  
   
