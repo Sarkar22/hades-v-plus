@@ -232,11 +232,11 @@ module writeback_stage (
         (!int_jump_reg && is_mret);
 
     assign is_interrupt     = !int_jump_reg && !is_bubble && (ext_int_pending || timer_int_pending);
-    assign is_interrupt_imm = is_interrupt && is_enable_changed;
-    // When exception + interrupt fire together, the exception JUMP handles both
-    // (trap_cause/trap_mepc already use interrupt priority). Suppress sequential
-    // path to avoid a spurious int_jump_reg double-JUMP next cycle.
-    assign is_interrupt_seq = is_interrupt && !is_enable_changed && !is_exception;
+    // Match REF: fire ALL interrupts sequentially (one cycle after detection),
+    // even when the current instruction changes enables (MRET or MSTATUS/MIE CSR write).
+    // is_enable_changed still gates trap_mepc selection and MCAUSE/MPIE commit timing.
+    assign is_interrupt_imm = 1'b0;
+    assign is_interrupt_seq = is_interrupt && !is_exception;
     assign is_trap = is_exception || is_interrupt;
 
     // =========================================================================
@@ -294,6 +294,14 @@ module writeback_stage (
     // branch) with a garbage next_PC; fall back to this saved value instead.
     logic [31:0] int_next_pc_reg;
 
+    // int_trap_mepc_reg: captures trap_mepc at MRET+int detection cycle (the *old*
+    // mepc that MRET was about to return to). int_was_mret_reg indicates whether the
+    // deferred mepc commit should use this captured value (MRET+int) or the normal
+    // stale-based logic (regular seq int, where the stale VALID instruction also
+    // commits via forwarding so MEPC must point past it).
+    logic [31:0] int_trap_mepc_reg;
+    logic        int_was_mret_reg;
+
     // imm_jump_reg: set after any combinational JUMP from WB (exception, immediate
     // interrupt, MRET, FENCE.I). Used to suppress trap-effects on a stale ERROR
     // instruction that arrives the cycle after an imm JUMP (e.g., FETCH_FAULT stale
@@ -304,19 +312,22 @@ module writeback_stage (
 
     always_ff @(posedge clk) begin
         if (rst) begin
-            int_jump_reg    <= 1'b0;
-            int_addr_reg    <= 32'b0;
-            int_next_pc_reg <= 32'b0;
-            imm_jump_reg    <= 1'b0;
+            int_jump_reg      <= 1'b0;
+            int_addr_reg      <= 32'b0;
+            int_next_pc_reg   <= 32'b0;
+            int_trap_mepc_reg <= 32'b0;
+            int_was_mret_reg  <= 1'b0;
+            imm_jump_reg      <= 1'b0;
         end else begin
-            // Only sequential interrupts use int_jump_reg to issue the JUMP.
-            // Immediate interrupts (CSR/MRET enable change) produce JUMP combinationally.
-            int_jump_reg    <= is_interrupt_seq;
-            int_addr_reg    <= mtvec;
-            int_next_pc_reg <= next_program_counter_in;
-            // Capture any combinational JUMP that fired this cycle (not int_jump_reg).
-            imm_jump_reg    <= !int_jump_reg &&
-                               (is_exception || is_interrupt_imm || is_mret || is_fence_i);
+            int_jump_reg      <= is_interrupt_seq;
+            int_addr_reg      <= mtvec;
+            int_next_pc_reg   <= next_program_counter_in;
+            if (is_interrupt_seq) begin
+                int_trap_mepc_reg <= trap_mepc;
+                int_was_mret_reg  <= is_mret;
+            end
+            imm_jump_reg      <= !int_jump_reg &&
+                                 (is_exception || is_interrupt_imm || is_mret || is_fence_i);
         end
     end
 
@@ -513,11 +524,15 @@ module writeback_stage (
                 mstatus_mie  <= 1'b0;
             end
             // Deferred mepc for sequential interrupt (int_jump_reg cycle).
-            // Stale may be VALID (committed) or BUBBLE (after taken branch).
-            //   VALID → skip it, use next_PC of stale.
-            //   BUBBLE → its next_PC is garbage; use saved int_next_pc_reg instead.
+            //   MRET+int: captured old mepc (the return address MRET was about to use).
+            //   Normal seq int: the stale instruction that arrives this cycle will
+            //     commit its rd via forwarding if VALID, so MEPC must point past
+            //     it (next_program_counter_in of that stale). If BUBBLE, nothing
+            //     commits, so MEPC should point at the instruction we saved aside.
             if (int_jump_reg) begin
-                if (is_valid)
+                if (int_was_mret_reg)
+                    mepc <= {int_trap_mepc_reg[31:2], 2'b00};
+                else if (is_valid)
                     mepc <= {next_program_counter_in[31:2], 2'b00};
                 else
                     mepc <= {int_next_pc_reg[31:2], 2'b00};
