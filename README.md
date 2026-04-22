@@ -28,6 +28,206 @@ Key topics covered:
 - **FPGA Development**: Using the AMD [Vivado][vivado] toolchain and the [Basys3][basys] development board.
 - **Hardware/Software Co-design**: Combining hardware description and software programming skills.
 
+## The HaDes-V Core
+
+HaDes-V is a **32-bit, in-order, classic five-stage RISC-V soft core** written in SystemVerilog. It is small enough to read end-to-end, yet complete enough to boot a bare-metal C program, take interrupts, and drive real peripherals on a Basys3 FPGA.
+
+### Instruction Set
+
+| Class | Support |
+|---|---|
+| Base ISA | **RV32I** — all 37 integer instructions (LUI/AUIPC, arithmetic/logic reg–reg & reg–imm, loads/stores for byte/half/word with signed & unsigned variants, conditional branches, JAL/JALR) |
+| Control & Status | **Zicsr** — CSRRW / CSRRS / CSRRC and their immediate variants |
+| Instruction fence | **Zifencei** — FENCE.I to resynchronise the fetch path after self-modifying writes |
+| Privilege | **Machine mode only** (M-mode) with a full trap model: ECALL, EBREAK, MRET, and all synchronous exceptions |
+| Interrupts | **External** and **timer** (`mie.MEIE`, `mie.MTIE`); gated by `mstatus.MIE`; save/restore via `MPIE` |
+
+Implemented M-mode CSRs include `MSTATUS`, `MISA`, `MIE`, `MIP`, `MTVEC`, `MSCRATCH`, `MEPC`, `MCAUSE`, `MCYCLE`/`MCYCLEH`, and `MINSTRET`/`MINSTRETH` — see [defines/csr.sv](defines/csr.sv) for the full map.
+
+### Pipeline
+
+Instructions flow through five stages, each a dedicated module in [rtl/](rtl/), stitched together in [cpu.sv](rtl/cpu.sv):
+
+```
+  ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌───────────┐
+  │  FETCH  │──▶│ DECODE  │──▶│ EXECUTE │──▶│ MEMORY  │──▶│ WRITEBACK │
+  └─────────┘   └─────────┘   └─────────┘   └─────────┘   └───────────┘
+       ▲             ▲             ▲             ▲              │
+       └─────────────┴─────────────┴─────────────┴──────────────┘
+                    backwards control (READY / STALL / JUMP)
+```
+
+| Stage | File | Responsibility |
+|---|---|---|
+| **Fetch** | [fetch_stage.sv](rtl/fetch_stage.sv) | Drives the instruction-side Wishbone port, keeps the program counter, and reports `FETCH_MISALIGNED` / `FETCH_FAULT` to the downstream pipeline. |
+| **Decode** | [decode_stage.sv](rtl/decode_stage.sv) + [instruction_decoder.sv](rtl/instruction_decoder.sv) | Expands the raw 32-bit word into a typed `instruction::t`, reads rs1/rs2 from the [register_file](rtl/register_file.sv), and runs the forwarding mux. Raises `ILLEGAL_INSTRUCTION` for unknown encodings. |
+| **Execute** | [execute_stage.sv](rtl/execute_stage.sv) | ALU, branch comparison, and jump-target computation. Branches and JAL/JALR are **resolved here** and flushed backwards as a `JUMP`. |
+| **Memory** | [memory_stage.sv](rtl/memory_stage.sv) | Data-side Wishbone loads and stores with alignment checking. Stalls the pipeline until the bus acks. Emits `LOAD/STORE_MISALIGNED` and `LOAD/STORE_FAULT`. |
+| **Writeback** | [writeback_stage.sv](rtl/writeback_stage.sv) | Commits `rd` to the register file, services all CSR reads/writes, and is the single point where **exceptions and interrupts trap** into `MTVEC`. Also implements MRET and FENCE.I. |
+
+Pipeline direction is encoded in two packed packages in [defines/pipeline_status.sv](defines/pipeline_status.sv):
+
+- **forwards** — `VALID`, `BUBBLE`, or one of the exception codes, flowing Fetch → Writeback.
+- **backwards** — `READY`, `STALL`, or `JUMP` (with an accompanying target address), flowing Writeback → Fetch.
+
+### Hazards and How They're Handled
+
+Being in-order and single-issue keeps the control story small, but every classical hazard still has to be covered:
+
+- **Data hazards (RAW).** A three-level **forwarding network** bypasses results from Execute, Memory, and Writeback back into Decode, with *most-recent-wins* priority (E > M > WB). The ordinary arithmetic case is resolved with zero bubbles.
+- **Load-use hazard.** A load's result isn't available until after Memory. If Decode sees Execute forwarding with `data_valid = 0` for a register it needs, it asserts `STALL` backwards for one cycle and a `BUBBLE` forwards — exactly one stall slot, no more.
+- **CSR-use hazard.** A CSR read resolves in Writeback, so its forwarding is tagged `data_valid = 0` in earlier stages; the same stall mechanism as load-use covers it.
+- **Control hazards (branches / JAL / JALR).** Resolved in Execute. On a taken jump, the younger instructions already in Fetch/Decode are squashed by driving `JUMP` with the target address backwards; Fetch reloads from the target next cycle.
+- **Structural hazards on the bus.** The fetch and data paths each have their own Wishbone port, so loads/stores never collide with instruction fetches. When the data bus is slow, Memory holds the rest of the pipeline with `STALL`.
+- **Exceptions.** Flow forwards through the pipeline as the instruction's status code and trap at Writeback — the faulting PC is saved to `MEPC`, the cause encoded into `MCAUSE`, and control jumps to `MTVEC`.
+- **Interrupts.** External and timer lines are sampled at Writeback. They trap on the completion boundary of a `VALID` or `ERROR` instruction (never on a `BUBBLE`), honour `mstatus.MIE` / `mie.MEIE` / `mie.MTIE`, and save/restore the global enable via `MPIE`. MRET returning with a pending enabled interrupt traps in the same cycle.
+- **Pipeline flushes on trap.** The trap's `JUMP` propagates backwards exactly like a branch, draining younger instructions without architectural side effects.
+
+### Memory Subsystem
+
+The core has **two completely independent memory ports** — an instruction-side port for Fetch and a data-side port for Memory — each a separate Wishbone master. This is a classic Harvard-style split at the boundary of the core:
+
+- On-chip RAM is implemented by [lib/wishbone/wishbone_ram.sv](lib/wishbone/wishbone_ram.sv) as a **true dual-port block RAM**: `port_a` is bound to the fetch bus and `port_b` to the data bus, so an instruction fetch and a load/store land on the same cycle without arbitration. An `init.mem` hex image is loaded into the array at elaboration via `$readmemh`, which is how bootloader and test programs are pre-seeded.
+- Because the fetch and data buses never share a master, there is **no structural contention** between the pipeline's fetch stream and its load/store traffic — the only stall the bus can introduce on HaDes-V is a slow-ack from a peripheral, which propagates through Memory's `STALL`.
+- Writes are byte-enabled: the 4-bit `sel` strobe on Wishbone is driven by Memory to match SB / SH / SW widths, and the RAM honours each lane individually.
+- Reset vector is derived from the RAM base in [defines/constants.sv](defines/constants.sv): `RESET_ADDRESS = MEMORY_START << 2 = 0x0004_0000` (byte address). Fetch powers up on that PC.
+
+### System-Level Memory Map
+
+All masters share a single 32-bit word-addressed address space decoded by [lib/wishbone/wishbone_interconnect.sv](lib/wishbone/wishbone_interconnect.sv). The numbers below come straight from [defines/constants.sv](defines/constants.sv):
+
+| Region | Base (word) | Base (byte) | Size | Backed by |
+|---|---|---|---|---|
+| **RAM** (code + data) | `0x0001_0000` | `0x0004_0000` | 8 KiW ≈ 32 KiB | [wishbone_ram.sv](lib/wishbone/wishbone_ram.sv) |
+| **LEDs** | `0x0008_0000` | `0x0020_0000` | 1 word | [wishbone_leds.sv](lib/wishbone/wishbone_leds.sv) |
+| **Buttons** | `0x0008_1000` | `0x0020_4000` | 1 word | [wishbone_buttons.sv](lib/wishbone/wishbone_buttons.sv) |
+| **Switches** | `0x0008_2000` | `0x0020_8000` | 1 word | [wishbone_switches.sv](lib/wishbone/wishbone_switches.sv) |
+| **7-seg display** | `0x0008_3000` | `0x0020_C000` | 1 word | [wishbone_segments.sv](lib/wishbone/wishbone_segments.sv) |
+| **UART** | `0x0008_4000` | `0x0021_0000` | 1 word | [wishbone_uart.sv](lib/wishbone/wishbone_uart.sv) |
+| **Timer** | `0x0008_5000` | `0x0021_4000` | 5 words | [wishbone_timer.sv](lib/wishbone/wishbone_timer.sv) |
+| **VGA framebuffer** | `0x0009_0000` | `0x0024_0000` | 38 400 words (640×480 @ 4bpp) | [wishbone_vga.sv](lib/wishbone/wishbone_vga.sv) |
+| **Test device** | `0x0012_0000` | `0x0048_0000` | 5 words | [wishbone_test.sv](lib/wishbone/wishbone_test.sv) |
+
+Any access that misses every window raises a bus `err` — which surfaces in the CPU as a `LOAD_FAULT` or `STORE_FAULT` trap.
+
+### The Wishbone Fabric
+
+HaDes-V speaks the **Wishbone B4 classic (non-pipelined) handshake** throughout — small, synchronous, and easy to reason about.
+
+**Bus signals** — defined as a SystemVerilog interface in [lib/wishbone/wishbone_interface.sv](lib/wishbone/wishbone_interface.sv). Master drives `cyc`, `stb`, `we`, `adr`, `sel`, `dat_mosi`; slave drives `ack`, `err`, `dat_miso`. `cyc` marks an active bus cycle, `stb` marks the specific beat, `ack` closes a successful transfer, and `err` aborts one. The `.master` / `.slave` modports make the direction explicit at every instantiation.
+
+**Interconnect.** The shared data bus is fanned out to 9 slaves by [wishbone_interconnect.sv](lib/wishbone/wishbone_interconnect.sv), which:
+
+1. Decodes the master's address against each slave's `{BASE, SIZE}` window.
+2. Routes `stb` only to the selected slave, OR-reduces `ack`/`err`, and muxes `dat_miso` back.
+3. Flags `invalid_address` as a bus error if no window matches.
+4. Runs a **255-cycle timeout counter** that asserts `err` if a slave never acknowledges — preventing a stuck peripheral from hanging the pipeline forever.
+
+The fetch bus is simpler: it talks directly to RAM's port A, no interconnect needed.
+
+### Peripherals
+
+Every peripheral is a Wishbone slave living in [lib/wishbone/](lib/wishbone/). All of them sit on the CPU's data bus; three of them generate interrupts that the core sees as either *external* or *timer*.
+
+| Peripheral | File | Registers / Behaviour | Interrupt |
+|---|---|---|---|
+| **RAM** | [wishbone_ram.sv](lib/wishbone/wishbone_ram.sv) | Dual-port byte-enabled BRAM, `init.mem`-preloaded. | — |
+| **LEDs** | [wishbone_leds.sv](lib/wishbone/wishbone_leds.sv) | Single register driving the 16 Basys3 LEDs. | — |
+| **Buttons** | [wishbone_buttons.sv](lib/wishbone/wishbone_buttons.sv) | Read-only register with the 5 debounced push-buttons (center button is reset). | — |
+| **Switches** | [wishbone_switches.sv](lib/wishbone/wishbone_switches.sv) | Read-only register with the 16 slide switches. | — |
+| **7-Segment** | [wishbone_segments.sv](lib/wishbone/wishbone_segments.sv) | Write a 32-bit word → rendered as 4 hex digits with anode multiplexing. | — |
+| **UART** | [wishbone_uart.sv](lib/wishbone/wishbone_uart.sv) + [uart_tx.sv](lib/peripherals/uart_tx.sv) / [uart_rx.sv](lib/peripherals/uart_rx.sv) | 115200 8-N-1 by default; parametrised by `BAUD_RATE` and `CLK_FREQUENCY_MHZ`. TX/RX FIFOs exposed through the register file. | **External** (RX ready) |
+| **Timer** | [wishbone_timer.sv](lib/wishbone/wishbone_timer.sv) | Programmable down-counter clocked off the CPU clock; reload, enable, and current-value registers. | **Timer** |
+| **VGA** | [wishbone_vga.sv](lib/wishbone/wishbone_vga.sv) + [vga_memory.sv](lib/wishbone/vga_memory.sv) | 640×480 @ 60 Hz framebuffer, 4-bit packed colour (8 pixels per word), clocked off a dedicated `clk_vga`. | — |
+| **Test device** | [wishbone_test.sv](lib/wishbone/wishbone_test.sv) | Simulation-only: pass/fail/halt reporting, a cycle counter, a deliberately-stalling register, and a down-counter interrupt for testbenches. | **External** |
+
+In [mcu.sv](rtl/mcu.sv), the `external_interrupt` line into the CPU is the logical OR of the UART and test-device interrupts, while the timer peripheral is wired straight into `timer_interrupt_in`. Every async input (buttons, switches, UART RX) passes through [lib/synchronizer.sv](lib/synchronizer.sv) before entering the clock domain, keeping the design metastability-safe at the FPGA pads.
+
+### Clocks & Reset
+
+HaDes-V is a three-clock design, all generated on the FPGA from a single crystal — see [defines/clk_params.sv](defines/clk_params.sv) and [mcu.sv](rtl/mcu.sv):
+
+| Clock | Used by | Note |
+|---|---|---|
+| `clk` | CPU core, most peripherals | Main system clock. |
+| `clk_mem` | [wishbone_ram.sv](lib/wishbone/wishbone_ram.sv) | **Inverted** copy of `clk`. Lets the RAM read and deliver data within the same `clk` cycle, giving single-cycle loads without pipeline stalls. (Explicitly flagged as "do not replicate" elsewhere in the design.) |
+| `clk_vga` | [wishbone_vga.sv](lib/wishbone/wishbone_vga.sv) | 25 MHz VGA pixel clock, asynchronous to `clk`. |
+
+Reset is driven from the Basys3 center button, synchronised into `clk`, and distributed to every module as a synchronous `rst`. A power-on `initial rst = 1` in [mcu.sv](rtl/mcu.sv) guarantees a clean reset after FPGA configuration.
+
+## Software Runtime
+
+A bare-metal C program targets HaDes-V by linking against the runtime in [std/](std/) with the RISC-V GCC toolchain at `/opt/riscv32i/bin/riscv32-unknown-elf-gcc`. The build is driven by the top-level [Makefile](Makefile).
+
+### Linker Script & Memory Layout
+
+[std/hades-v.ld](std/hades-v.ld) defines a single `RAM` region (`ORIGIN = 0x40000`, `LENGTH = 32K`) matching the Wishbone RAM window, and arranges the image as:
+
+```
+┌─────────────────────────────────┐ 0x40000  ← RESET_ADDRESS
+│ .reset      — __reset entry    │
+├─────────────────────────────────┤
+│ .text       — program code     │
+│ .rodata                        │
+│ .data       — initial data     │
+│ .sdata / .sbss                 │
+│ .bss                           │
+│ …stack grows down…             │
+├─────────────────────────────────┤ __ram_end − 4 K
+│ .boot       — bootloader       │
+│ .reserved                      │
+└─────────────────────────────────┘ 0x48000  = __ram_end
+```
+
+The linker exports `__ram_start`, `__ram_end`, `__boot_start`, `__boot_end`, `__boot_load`, and `__global_pointer$` — the last one is loaded into `gp` in the startup code to enable GCC's linker relaxation (±2 KB small-data accesses). `NOCROSSREFS_TO` directives prevent the bootloader from accidentally touching the application sections it's busy replacing.
+
+### C Startup
+
+[std/src/start.c](std/src/start.c) is the first C code executed after `__reset`: it sets up `gp` and `sp`, zeroes `.bss`, copies `.data` into RAM if needed, and calls `main()`. [std/src/boot.c](std/src/boot.c) and [std/src/boot_internal.c](std/src/boot_internal.c) implement a UART-based bootloader that can receive a new image over the serial line and overwrite the application region at runtime — `run_bootloader()` from [std/include/boot.h](std/include/boot.h) is what the Basys3 demo calls when you hold a button at reset.
+
+### Peripheral & Helper Headers
+
+[std/include/peripherals.h](std/include/peripherals.h) exposes every MMIO region as typed `volatile` pointer macros — for example, `*LEDS_ADDRESS = value;` drives the 16 LEDs, `*UART_BUFFER_ADDRESS` is the UART FIFO, `TIMER_MTIMECMP_ADDRESS` sets a timer compare. Bit indices for button positions and UART status flags are also provided.
+
+[std/include/helperfunctions.h](std/include/helperfunctions.h) layers ergonomic helpers on top: 7-segment digit encoding (`number2segment`), VGA primitives (`setPixel`, `clearPixel`, a `vga_color_t` palette of 16 colours, `rowCol2pxIdx` for 640×480 addressing), and machine/external/timer/UART interrupt enable wrappers (`enableDisable_machineInterrupts`, etc.). [test/c/basys3_demo.c](test/c/basys3_demo.c) is the canonical example that exercises every peripheral using these helpers.
+
+## Reference-Library ("Jigsaw Puzzle") Flow
+
+The reason you can build HaDes-V stage-by-stage without ever having a broken pipeline is the [ref/](ref/) directory. Every pipeline module ships in two forms:
+
+- **Your implementation** in [rtl/](rtl/) — plain SystemVerilog you edit.
+- **A golden reference** in [ref/](ref/) — a pair of `ref_<stage>.sv` / `ref_<stage>_inner.sv` wrappers plus a precompiled `libref_<stage>_inner.so` produced by Verilator with `--protect-lib`. The `.so` is the actual implementation; the `.sv` wrapper is a DPI-C shim that makes it look like a normal SystemVerilog module to the simulator.
+
+Testbenches in [test/sv/](test/sv/) instantiate **both** — student DUT and golden REF — in parallel, clock them with the same stimulus, and flag any cycle where their outputs diverge. Because each stage has the same port list as its reference, you can freely mix: use your fetch + reference decode + your execute + reference memory + reference writeback, and the processor still runs a real program. That is what makes the "solve the puzzle one piece at a time" workflow possible.
+
+## Building, Running, and Debugging
+
+All flows are driven by [Makefile](Makefile) targets (`make help` prints this list):
+
+```
+make test/asm/<name>     # assemble, simulate, and run an asm program
+make test/c/<name>       # compile C + runtime, simulate, and run
+make test/sv/<name>      # build and run a SystemVerilog testbench
+make show                # open the FST waveform of the most recent test in GTKWave
+make bootloader          # build the UART bootloader image
+make synthesis           # synthesise the full MCU for Basys3 via Vivado
+make clean               # wipe build artefacts
+```
+
+The simulator is [Verilator][verilator]; synthesis uses [Vivado][vivado] 2023.2 (default path `/opt/Xilinx/Vivado/2023.2/`). Wave dumps land in the repository root as `*.fst` files and can be inspected with [GTKWave][gtkwave].
+
+### Test Hierarchy
+
+The [test/](test/) tree has three progressively integrative tiers:
+
+| Tier | Location | What it exercises | Invocation |
+|---|---|---|---|
+| **Assembly** | [test/asm/](test/asm/) | Small hand-written `.s` programs targeting a specific ISA feature — e.g. [trap.s](test/asm/trap.s) for the full exception/interrupt path, [ops.s](test/asm/ops.s) for every RV32I instruction, [forwarding.s](test/asm/forwarding.s) for the data-hazard network. | `make test/asm/trap` |
+| **C** | [test/c/](test/c/) | Full C programs linked against [std/](std/). [bootloader.c](test/c/bootloader.c) is the UART loader; [basys3_demo.c](test/c/basys3_demo.c) wiggles every on-board peripheral. | `make test/c/basys3_demo` |
+| **SystemVerilog** | [test/sv/](test/sv/) | Module-level benches that run DUT vs. REF side-by-side and compare every cycle. Examples: [test_writeback_compare.sv](test/sv/test_writeback_compare.sv), [test_execute_compare.sv](test/sv/test_execute_compare.sv), [test_decode_hazard.sv](test/sv/test_decode_hazard.sv). | `make test/sv/test_writeback_compare` |
+
+Together these give coverage at the instruction level, the system level, and the per-module bit-level — catch a bug as early as possible in whichever tier first exposes it.
+
 ## Why HaDes-V?
 
 - **Learn by Building**: Design a pipelined RISC-V processor from scratch.
