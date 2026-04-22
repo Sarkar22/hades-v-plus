@@ -498,9 +498,10 @@ module writeback_stage (
             //   trap_mepc for exception      = program_counter_in       (faulting PC)
             //   trap_mepc for MRET+int_imm   = mepc                     (MRET return addr)
             //   trap_mepc for CSR+int_imm    = next_program_counter_in
-            // !imm_jump_reg: prevent a stale ERROR (e.g., FETCH_FAULT) arriving the
-            // cycle after a combinational JUMP from overwriting the just-taken trap.
-            if (!int_jump_reg && !imm_jump_reg && (is_exception || is_interrupt_imm)) begin
+            // Spec 5.5.2: "Every exception causes an immediate trap once it reaches
+            // the Writeback Stage." A stale ERROR arriving after a prior JUMP is
+            // itself an ERROR reaching WB and must re-trap (REF does the same).
+            if (!int_jump_reg && (is_exception || is_interrupt_imm)) begin
                 mcause       <= trap_cause;
                 mepc         <= {trap_mepc[31:2], 2'b00};
                 mstatus_mpie <= mie_eff;
