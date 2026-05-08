@@ -220,8 +220,18 @@ module writeback_stage (
     logic ext_int_pending, timer_int_pending;
     logic is_interrupt, is_interrupt_imm, is_interrupt_seq, is_trap;
 
-    assign ext_int_pending   = external_interrupt_in && meie_eff && mie_eff;
-    assign timer_int_pending = timer_interrupt_in    && mtie_eff && mie_eff;
+    // Hybrid interrupt source: REF appears to use live ext_int/timer_int for
+    // ordinary VALID instructions (so the trap fires same cycle the line
+    // asserts), but the registered MIP latches when the current instruction is
+    // enable-changing (CSR-write to MSTATUS/MIE or MRET) — this avoids the
+    // same-cycle race between the instruction's own MIE update and the
+    // interrupt decision and matches REF's commit ordering.
+    logic ext_int_src, timer_int_src;
+    assign ext_int_src   = is_enable_changed ? mip_meip_reg : external_interrupt_in;
+    assign timer_int_src = is_enable_changed ? mip_mtip_reg : timer_interrupt_in;
+
+    assign ext_int_pending   = ext_int_src   && meie_eff && mie_eff;
+    assign timer_int_pending = timer_int_src && mtie_eff && mie_eff;
 
     // is_enable_changed: current instruction modifies interrupt enable flags.
     // Only MSTATUS/MIE CSR writes and MRET change these flags.
