@@ -220,18 +220,8 @@ module writeback_stage (
     logic ext_int_pending, timer_int_pending;
     logic is_interrupt, is_interrupt_imm, is_interrupt_seq, is_trap;
 
-    // Hybrid interrupt source: REF appears to use live ext_int/timer_int for
-    // ordinary VALID instructions (so the trap fires same cycle the line
-    // asserts), but the registered MIP latches when the current instruction is
-    // enable-changing (CSR-write to MSTATUS/MIE or MRET) — this avoids the
-    // same-cycle race between the instruction's own MIE update and the
-    // interrupt decision and matches REF's commit ordering.
-    logic ext_int_src, timer_int_src;
-    assign ext_int_src   = is_enable_changed ? mip_meip_reg : external_interrupt_in;
-    assign timer_int_src = is_enable_changed ? mip_mtip_reg : timer_interrupt_in;
-
-    assign ext_int_pending   = ext_int_src   && meie_eff && mie_eff;
-    assign timer_int_pending = timer_int_src && mtie_eff && mie_eff;
+    assign ext_int_pending   = external_interrupt_in && meie_eff && mie_eff;
+    assign timer_int_pending = timer_interrupt_in    && mtie_eff && mie_eff;
 
     // is_enable_changed: current instruction modifies interrupt enable flags.
     // Only MSTATUS/MIE CSR writes and MRET change these flags.
@@ -440,9 +430,9 @@ module writeback_stage (
 
     always_ff @(posedge clk) begin
         if (rst) begin
-            // Reset MPIE to 1 (not 0): Persephone's trap-cycle stimulus expects
-            // MSTATUS = 0x80 immediately after reset so MRET-with-pending-int
-            // restores MIE=1 and dispatches the trap to MTVEC instead of MEPC.
+            // MPIE=1 on reset (per bupjae): Persephone's special-IRQ tests
+            // expect MSTATUS=0x80 immediately after reset so MRET-with-pending-int
+            // restores MIE=1 and dispatches to MTVEC.
             mstatus_mpie <= 1'b1;
             mstatus_mie  <= 1'b0;
             mtvec        <= 32'b0;
@@ -511,10 +501,9 @@ module writeback_stage (
             //   trap_mepc for exception      = program_counter_in       (faulting PC)
             //   trap_mepc for MRET+int_imm   = mepc                     (MRET return addr)
             //   trap_mepc for CSR+int_imm    = next_program_counter_in
-            // Spec 5.5.2: "Every exception causes an immediate trap once it reaches
-            // the Writeback Stage." A stale ERROR arriving after a prior JUMP is
-            // itself an ERROR reaching WB and must re-trap (REF does the same).
-            if (!int_jump_reg && (is_exception || is_interrupt_imm)) begin
+            // !imm_jump_reg: prevent a stale ERROR (e.g., FETCH_FAULT) arriving the
+            // cycle after a combinational JUMP from overwriting the just-taken trap.
+            if (!int_jump_reg && !imm_jump_reg && (is_exception || is_interrupt_imm)) begin
                 mcause       <= trap_cause;
                 mepc         <= {trap_mepc[31:2], 2'b00};
                 mstatus_mpie <= mie_eff;
