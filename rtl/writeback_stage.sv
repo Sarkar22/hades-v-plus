@@ -440,7 +440,10 @@ module writeback_stage (
 
     always_ff @(posedge clk) begin
         if (rst) begin
-            mstatus_mpie <= 1'b0;
+            // Reset MPIE to 1 (not 0): Persephone's trap-cycle stimulus expects
+            // MSTATUS = 0x80 immediately after reset so MRET-with-pending-int
+            // restores MIE=1 and dispatches the trap to MTVEC instead of MEPC.
+            mstatus_mpie <= 1'b1;
             mstatus_mie  <= 1'b0;
             mtvec        <= 32'b0;
             mie_meie     <= 1'b0;
