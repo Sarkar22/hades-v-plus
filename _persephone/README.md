@@ -1,12 +1,12 @@
 # Testcase Results 
 
 **Repository:** hades-v_9_Sarkar22  
-**Test Run:** 11.05.2026 00:05  
-**Test Deadline:** 04.06.2026 00:00  
+**Test Run:** 12.05.2026 22:36  
+**Test Deadline:** 02.06.2026 00:00  
 ### Tested Commit Information
-**Date:** 10.05.2026 16:31  
-**Hash:** 9b6dcf0  
-**Message:** WB: revert to 11ed557 + MPIE=1 on reset  
+**Date:** 12.05.2026 16:33  
+**Hash:** 738e1bd  
+**Message:** WB: also init MPIE=1 (cover no-rst-toggle harness)  
 **Committer Email:** esarkar@RF-LT05.eng.uwaterloo.ca  
 
 # Module Under Test:  Fetch Stage  
