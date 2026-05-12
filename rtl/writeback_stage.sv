@@ -422,10 +422,14 @@ module writeback_stage (
     // flush). All state-modifying effects are suppressed: CSR writes, MRET,
     // trap handling, and minstret increment. MCYCLE always counts.
 
-    // MCYCLE counts every cycle including reset — use initial for startup value
+    // MCYCLE counts every cycle including reset — use initial for startup value.
+    // mstatus_mpie also initialised here: if the test harness instantiates this
+    // module and applies stimulus without ever toggling `rst`, Verilator's 2-state
+    // default would otherwise leave MPIE=0 and break the MRET-with-pending-int path.
     initial begin
-        mcycle   = 64'b0;
-        minstret = 64'b0;
+        mcycle       = 64'b0;
+        minstret     = 64'b0;
+        mstatus_mpie = 1'b1;
     end
 
     always_ff @(posedge clk) begin
