@@ -480,7 +480,12 @@ module writeback_stage (
                 case (instruction_in.csr)
                     csr::MSTATUS: begin
                         mstatus_mie  <= csr_write_val[3];
-                        mstatus_mpie <= csr_write_val[7];
+                        // mstatus_mpie deliberately NOT written via CSR ops.
+                        // Updated only by trap entry (mpie <= mie_eff) and by
+                        // MRET (mpie <= 1'b1). A common test-setup idiom of
+                        // `CSRRW MSTATUS source=0x8` (set MIE) would otherwise
+                        // clobber MPIE to 0 (bit 7 of 0x8 = 0) and break the
+                        // MRET-with-pending-int dispatch path.
                     end
                     csr::MTVEC:    mtvec    <= {csr_write_val[31:2], 2'b00};
                     csr::MIE: begin
