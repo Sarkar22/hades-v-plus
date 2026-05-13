@@ -1,12 +1,12 @@
 # Testcase Results 
 
 **Repository:** hades-v_9_Sarkar22  
-**Test Run:** 13.05.2026 03:06  
+**Test Run:** 13.05.2026 04:06  
 **Test Deadline:** 02.06.2026 00:00  
 ### Tested Commit Information
-**Date:** 12.05.2026 20:42  
-**Hash:** 9b20957  
-**Message:** WB: don't clobber MPIE on CSRRW MSTATUS  
+**Date:** 12.05.2026 21:56  
+**Hash:** 784fbb7  
+**Message:** WB: revert Phase 9 — restore MPIE write on CSRRW MSTATUS  
 **Committer Email:** esarkar@RF-LT05.eng.uwaterloo.ca  
 
 # Module Under Test:  Fetch Stage  
@@ -66,20 +66,8 @@
 # Module Under Test:  Writeback Stage  
 <details><summary>Details for the  Writeback Stage</summary>
 
-**Points:**  15.85 / 16  
+**Points:**  15.91 / 16  
 
-## CSR-operations  
-### MSTATUS - do only consider MPIE and MIE  
-  
-Test input: CSRRSI with status_forwards_in = VALID and external/timer interrupt = 0/0, csr = MSTATUS  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| forwarding_out.data | 0x00000088 | 0x00000008 | 
-  
-Test input: CSRRCI with status_forwards_in = VALID and external/timer interrupt = 0/0, csr = MSTATUS  
-| Signal | Is Value | Expected Value |   
-| - | - | - |  
-| forwarding_out.data | 0x00000088 | 0x00000008 | 
 ## special Interrupt cases  
 ### check CSRs  
   
