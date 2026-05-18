@@ -510,13 +510,16 @@ module writeback_stage (
             if (!int_jump_reg && !imm_jump_reg && (is_exception || is_interrupt_imm)) begin
                 mcause       <= trap_cause;
                 mepc         <= {trap_mepc[31:2], 2'b00};
-                mstatus_mpie <= mie_eff;
+                // Nested-trap fix (per Jannatul Nayem): only update MPIE when
+                // mie_eff=1 (there was a real prior MIE state to save). On a
+                // nested trap fired while MIE is already 0, leave MPIE alone.
+                if (mie_eff) mstatus_mpie <= 1'b1;
                 mstatus_mie  <= 1'b0;
             end
             // Sequential interrupt: save mcause/mstatus now; defer mepc to next cycle.
             if (!int_jump_reg && is_interrupt_seq) begin
                 mcause       <= trap_cause;
-                mstatus_mpie <= mie_eff;
+                if (mie_eff) mstatus_mpie <= 1'b1;
                 mstatus_mie  <= 1'b0;
             end
             // Deferred mepc for sequential interrupt (int_jump_reg cycle).
