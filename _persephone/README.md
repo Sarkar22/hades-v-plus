@@ -1,12 +1,12 @@
 # Testcase Results 
 
 **Repository:** hades-v_9_Sarkar22  
-**Test Run:** 18.05.2026 22:06  
+**Test Run:** 18.05.2026 22:36  
 **Test Deadline:** 02.06.2026 00:00  
 ### Tested Commit Information
-**Date:** 18.05.2026 15:37  
-**Hash:** 253d2ca  
-**Message:** WB: nested-trap fix — only update MPIE when mie_eff=1  
+**Date:** 18.05.2026 16:34  
+**Hash:** 14a82a3  
+**Message:** docs: add nested-trap MPIE rule to Hazards section  
 **Committer Email:** esarkar@RF-LT05.eng.uwaterloo.ca  
 
 # Module Under Test:  Fetch Stage  
