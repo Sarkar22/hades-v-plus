@@ -296,6 +296,8 @@ module execute_stage (
                                     && (status_forwards_in == VALID);
 
     // Jump detected: unconditional jumps always flush; branches only flush on misprediction.
+    // NOTE: with predicted_taken=0 (mode 0 / never taken), is_mispredicted_branch reduces
+    // to (is_branch && branch_taken && VALID), identical to the original formulation.
     assign jump_detected = (is_mispredicted_branch || is_jump)
                            && (status_forwards_in == VALID);
 
@@ -306,6 +308,7 @@ module execute_stage (
     assign next_pc = is_mispredicted_branch ? corrected_address :
                      is_jump                ? jump_target        :
                                               pc_plus_4;
+
 
     // =========================================================================
     // Part 5: Pipeline control — backwards direction (combinational)
