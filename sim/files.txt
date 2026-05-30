@@ -7,6 +7,7 @@ defines/pipeline_status.sv
 defines/constants.sv
 defines/forwarding.sv
 defines/clk_params.sv
+defines/bpredict.sv
 
 -y lib
 -y lib/peripherals
