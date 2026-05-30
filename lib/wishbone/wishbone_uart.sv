@@ -424,4 +424,15 @@ module wishbone_uart #(
     assign wb_read_tx_status  = wb_access && wishbone.we == 0 && wishbone.sel[3];
     assign wb_write_tx_status = wb_access && wishbone.we == 1 && wishbone.sel[3];
 
+    // --------------------------------------------------------------------------------------------
+    // |                              Simulation UART stdout echo                                  |
+    // --------------------------------------------------------------------------------------------
+    // In Verilator simulation there is no real serial line, so echo every byte
+    // written to the TX buffer directly to the simulator's stdout via $write.
+    // Has zero effect on synthesis (Vivado ignores $write).
+    always @(posedge clk) begin
+        if (wb_write_tx_buffer)
+            $write("%c", wb_dat_mosi[7:0]);
+    end
+
 endmodule

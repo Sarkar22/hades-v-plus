@@ -381,10 +381,6 @@ module writeback_stage (
 
     always_comb begin
         if (is_valid) begin
-            // CSRRS/CSRRC/CSRRSI/CSRRCI with rd≠x0: WB reads CSR (read-modify-write).
-            // CSRRW/CSRRWI with rd=x0, or CSRRWI any rd: old CSR captured by earlier
-            // pipeline stage and passed in rd_data_in.
-            // Non-CSR ops: forward rd_data_in (ALU/memory result).
             if (is_csr_op && instruction_in.rd_address != 5'b0)
                 forwarding_out.data = csr_read_val;
             else
