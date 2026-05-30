@@ -50,6 +50,7 @@ module decode_stage (
     output logic [31:0]   rs2_data_reg_out,        // rs2 value (possibly forwarded)
     output logic [31:0]   program_counter_reg_out,
     output instruction::t instruction_reg_out,
+    output bpredict::bp_data_t bp_prediction_reg_out,  // branch prediction for this instruction
 
     // Pipeline control — forwards direction (Fetch → Decode → Execute)
     input  pipeline_status::forwards_t  status_forwards_in,   // from Fetch
@@ -61,7 +62,10 @@ module decode_stage (
 
     // Jump address passthrough (Execute → Decode → Fetch)
     input  logic [31:0] jump_address_backwards_in,
-    output logic [31:0] jump_address_backwards_out
+    output logic [31:0] jump_address_backwards_out,
+
+    // Branch prediction passthrough (Fetch → Decode → Execute)
+    input  bpredict::bp_data_t bp_prediction_in
 );
 
     import pipeline_status::*;
@@ -249,6 +253,7 @@ module decode_stage (
             rs2_data_reg_out        <= 32'b0;
             program_counter_reg_out <= 32'b0;
             instruction_reg_out     <= instruction::NOP;
+            bp_prediction_reg_out   <= '0;
             status_forwards_out_reg <= BUBBLE;
 
         end else begin
@@ -257,13 +262,11 @@ module decode_stage (
 
             end else if (status_backwards_in == JUMP || pipeline_hazard) begin
                 // JUMP: throw away current instruction; load-use: insert bubble.
-                // rs1/rs2/pc are still updated so Execute sees the forwarded data
-                // (Execute receives a BUBBLE and ignores it, but keeping registers
-                // consistent matches the reference implementation).
                 rs1_data_reg_out        <= rs1_data;
                 rs2_data_reg_out        <= rs2_data;
                 program_counter_reg_out <= program_counter_in;
                 instruction_reg_out     <= instruction::NOP;
+                bp_prediction_reg_out   <= '0;  // no prediction for flushed instruction
                 status_forwards_out_reg <= BUBBLE;
 
             end else begin
@@ -272,6 +275,7 @@ module decode_stage (
                 rs2_data_reg_out        <= rs2_data;
                 program_counter_reg_out <= program_counter_in;
                 instruction_reg_out     <= decoded;
+                bp_prediction_reg_out   <= bp_prediction_in;
                 if (status_forwards_in != VALID)
                     status_forwards_out_reg <= status_forwards_in;
                 else

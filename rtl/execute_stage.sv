@@ -59,6 +59,10 @@ module execute_stage (
     // Forwarding output to Decode Stage (combinational, from current cycle)
     output forwarding::t  forwarding_out,
 
+    // Branch prediction: prediction from Decode, feedback back to Fetch
+    input  bpredict::bp_data_t bp_prediction_in,
+    output bpredict::bp_data_t bp_feedback_out,
+
     // Pipeline control — forwards direction (Decode → Execute → Memory)
     input  pipeline_status::forwards_t  status_forwards_in,
     output pipeline_status::forwards_t  status_forwards_out,
@@ -229,7 +233,9 @@ module execute_stage (
     logic [31:0] pc_plus_4;
     logic        is_branch;
     logic        is_jump;
+    logic        is_mispredicted_branch;
     logic        jump_detected;
+    logic [31:0] corrected_address;
     logic [31:0] next_pc;
 
     assign pc_plus_4 = program_counter_in + 32'd4;
@@ -282,13 +288,24 @@ module execute_stage (
         endcase
     end
 
-    // Jump detected: a branch is taken or an unconditional jump, only when VALID.
-    // BUBBLE / exception statuses must not trigger a jump.
-    assign jump_detected = ((is_branch && branch_taken) || is_jump)
+    // Misprediction: branch actual outcome differs from what the predictor assumed.
+    // A correctly-predicted branch requires no pipeline flush — Fetch already went
+    // to the right address speculatively.
+    assign is_mispredicted_branch = is_branch
+                                    && (branch_taken != bp_prediction_in.predicted_taken)
+                                    && (status_forwards_in == VALID);
+
+    // Jump detected: unconditional jumps always flush; branches only flush on misprediction.
+    assign jump_detected = (is_mispredicted_branch || is_jump)
                            && (status_forwards_in == VALID);
 
-    // Next program counter: jump target when jumping, else PC+4
-    assign next_pc = jump_detected ? jump_target : pc_plus_4;
+    // Corrected address: where we should have gone when prediction was wrong.
+    assign corrected_address = branch_taken ? jump_target : pc_plus_4;
+
+    // Next PC: mispredicted branch → corrected address; JAL/JALR → target; else PC+4.
+    assign next_pc = is_mispredicted_branch ? corrected_address :
+                     is_jump                ? jump_target        :
+                                              pc_plus_4;
 
     // =========================================================================
     // Part 5: Pipeline control — backwards direction (combinational)
@@ -311,9 +328,9 @@ module execute_stage (
             jump_address_backwards_out = jump_target;
 
         end else if (jump_detected) begin
-            // Execute detected a branch taken or JAL/JALR — flush behind us
+            // Execute detected a misprediction or JAL/JALR — flush behind us
             status_backwards_out       = JUMP;
-            jump_address_backwards_out = jump_target;
+            jump_address_backwards_out = next_pc;
 
         end else begin
             // Normal operation — pipeline flows freely
@@ -364,6 +381,20 @@ module execute_stage (
     end
 
     // =========================================================================
+    // Part 6b: Branch prediction feedback (combinational)
+    // =========================================================================
+    // Tells the branch predictor in Fetch the actual branch outcome so it can
+    // update its 2-bit counter table. Gated by !STALL so the counter updates
+    // exactly once per branch (not repeatedly during a multi-cycle stall).
+
+    assign bp_feedback_out.valid          = is_branch
+                                            && (status_forwards_in == VALID)
+                                            && (status_backwards_in != STALL);
+    assign bp_feedback_out.was_taken      = branch_taken;
+    assign bp_feedback_out.predicted_taken = bp_prediction_in.predicted_taken;
+    assign bp_feedback_out.index          = bp_prediction_in.index;
+
+    // =========================================================================
     // Part 7: Output registers — updated on clock edge
     // =========================================================================
     // Rules (same pattern as decode_stage):
@@ -373,9 +404,9 @@ module execute_stage (
     //                    but still update data values for register consistency
     //   Normal / self-jump → register computed values
 
-    // Misalignment detection for jump targets
+    // Misalignment detection for jump targets (use next_pc which reflects corrected address)
     logic misaligned_jump;
-    assign misaligned_jump = jump_detected && (jump_target[1:0] != 2'b00);
+    assign misaligned_jump = jump_detected && (next_pc[1:0] != 2'b00);
 
     always_ff @(posedge clk) begin
         if (rst) begin

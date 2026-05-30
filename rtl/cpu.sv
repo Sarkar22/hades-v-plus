@@ -58,6 +58,15 @@ module cpu (
     forwarding::t fwd_wb;  // forwarding result from Writeback
 
     // =========================================================================
+    // Branch prediction signals
+    // =========================================================================
+
+    bpredict::bp_data_t bp_pred_f;    // Fetch    → Decode  (prediction for fetched inst)
+    bpredict::bp_data_t bp_pred_d;    // Decode   → Execute (prediction travelling with inst)
+    bpredict::bp_data_t bp_feedback;  // Execute  → Fetch + Writeback (actual branch outcome)
+    logic [31:0]        bp_control;   // Writeback → Fetch  (algorithm select CSR)
+
+    // =========================================================================
     // Pipeline control signals
     //   fwd_status_<stage>  = forwards status OUT of that stage
     //   bwd_status_<stage>  = backwards status OUT of that stage (goes backwards)
@@ -94,7 +103,10 @@ module cpu (
         .program_counter_reg_out  (pc_f),
         .status_forwards_out      (fwd_status_f),
         .status_backwards_in      (bwd_status_d),
-        .jump_address_backwards_in(jump_addr_d)
+        .jump_address_backwards_in(jump_addr_d),
+        .bp_feedback_in           (bp_feedback),
+        .bp_control_in            (bp_control),
+        .bp_prediction_reg_out    (bp_pred_f)
     );
 
     // --- Decode Stage ---------------------------------------------------------
@@ -111,12 +123,14 @@ module cpu (
         .rs2_data_reg_out          (rs2_d),
         .program_counter_reg_out   (pc_d),
         .instruction_reg_out       (inst_d),
+        .bp_prediction_reg_out     (bp_pred_d),
         .status_forwards_in        (fwd_status_f),
         .status_forwards_out       (fwd_status_d),
         .status_backwards_in       (bwd_status_e),
         .status_backwards_out      (bwd_status_d),
         .jump_address_backwards_in (jump_addr_e),
-        .jump_address_backwards_out(jump_addr_d)
+        .jump_address_backwards_out(jump_addr_d),
+        .bp_prediction_in          (bp_pred_f)
     );
 
     // --- Execute Stage --------------------------------------------------------
@@ -134,6 +148,8 @@ module cpu (
         .program_counter_reg_out      (pc_e),
         .next_program_counter_reg_out (next_pc_e),
         .forwarding_out               (fwd_e),
+        .bp_prediction_in             (bp_pred_d),
+        .bp_feedback_out              (bp_feedback),
         .status_forwards_in           (fwd_status_d),
         .status_forwards_out          (fwd_status_e),
         .status_backwards_in          (bwd_status_m),
@@ -179,6 +195,8 @@ module cpu (
         .next_program_counter_in   (next_pc_m),
         .external_interrupt_in     (external_interrupt_in),
         .timer_interrupt_in        (timer_interrupt_in),
+        .bp_feedback_in            (bp_feedback),
+        .bp_control_out            (bp_control),
         .forwarding_out            (fwd_wb),
         .status_forwards_in        (fwd_status_m),
         .status_backwards_out      (bwd_status_wb),

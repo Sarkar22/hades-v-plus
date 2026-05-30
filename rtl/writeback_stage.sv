@@ -40,6 +40,10 @@ module writeback_stage (
     input logic external_interrupt_in,
     input logic timer_interrupt_in,
 
+    // Branch prediction
+    input  bpredict::bp_data_t bp_feedback_in,  // from Execute: branch outcome for counters
+    output logic [31:0]        bp_control_out,  // MHPMEVENT10 value → Fetch algorithm select
+
     // Outputs
     output forwarding::t forwarding_out,
 
@@ -76,6 +80,14 @@ module writeback_stage (
 
     // MINSTRET/MINSTRETH: 64-bit retired-instruction counter
     logic [63:0] minstret;
+
+    // Branch predictor CSRs
+    logic [31:0] bp_control;   // MHPMEVENT10  — algorithm select (0=NT,1=AT,2=BT,3=2bit)
+    logic [31:0] bp_cnt_nn;    // MHPMCOUNTER10 — predict not-taken, actually not-taken
+    logic [31:0] bp_cnt_nt;    // MHPMCOUNTER11 — predict not-taken, actually taken
+    logic [31:0] bp_cnt_tn;    // MHPMCOUNTER12 — predict taken, actually not-taken
+    logic [31:0] bp_cnt_tt;    // MHPMCOUNTER13 — predict taken, actually taken
+    assign bp_control_out = bp_control;
 
     // =========================================================================
     // Part 2: Classify instruction (raw status — for combo outputs)
@@ -142,9 +154,14 @@ module writeback_stage (
             csr::MSCRATCH:  csr_read_val = mscratch;
             csr::MCYCLE:    csr_read_val = mcycle_read[31:0];
             csr::MCYCLEH:   csr_read_val = mcycle_read[63:32];
-            csr::MINSTRET:  csr_read_val = minstret_read[31:0];
-            csr::MINSTRETH: csr_read_val = minstret_read[63:32];
-            default:        csr_read_val = 32'b0;
+            csr::MINSTRET:      csr_read_val = minstret_read[31:0];
+            csr::MINSTRETH:     csr_read_val = minstret_read[63:32];
+            csr::MHPMEVENT10:   csr_read_val = bp_control;
+            csr::MHPMCOUNTER10: csr_read_val = bp_cnt_nn;
+            csr::MHPMCOUNTER11: csr_read_val = bp_cnt_nt;
+            csr::MHPMCOUNTER12: csr_read_val = bp_cnt_tn;
+            csr::MHPMCOUNTER13: csr_read_val = bp_cnt_tt;
+            default:            csr_read_val = 32'b0;
         endcase
     end
 
@@ -430,6 +447,11 @@ module writeback_stage (
         mcycle       = 64'b0;
         minstret     = 64'b0;
         mstatus_mpie = 1'b1;
+        bp_control   = 32'b0;
+        bp_cnt_nn    = 32'b0;
+        bp_cnt_nt    = 32'b0;
+        bp_cnt_tn    = 32'b0;
+        bp_cnt_tt    = 32'b0;
     end
 
     always_ff @(posedge clk) begin
@@ -447,7 +469,12 @@ module writeback_stage (
             mepc         <= 32'b0;
             mcause       <= 32'b0;
             mscratch     <= 32'b0;
-            minstret     <= 64'b0;
+            minstret  <= 64'b0;
+            bp_control <= 32'b0;
+            bp_cnt_nn  <= 32'b0;
+            bp_cnt_nt  <= 32'b0;
+            bp_cnt_tn  <= 32'b0;
+            bp_cnt_tt  <= 32'b0;
 
             // MCYCLE always counts, even during reset
             mcycle <= mcycle + 64'd1;
@@ -487,11 +514,28 @@ module writeback_stage (
                         mie_meie <= csr_write_val[11];
                         mie_mtie <= csr_write_val[7];
                     end
-                    csr::MEPC:     mepc     <= {csr_write_val[31:2], 2'b00};
-                    csr::MCAUSE:   mcause   <= csr_write_val;
-                    csr::MSCRATCH: mscratch <= csr_write_val;
+                    csr::MEPC:       mepc       <= {csr_write_val[31:2], 2'b00};
+                    csr::MCAUSE:     mcause     <= csr_write_val;
+                    csr::MSCRATCH:   mscratch   <= csr_write_val;
+                    csr::MHPMEVENT10:  bp_control <= csr_write_val;
+                    csr::MHPMCOUNTER10: bp_cnt_nn <= csr_write_val;
+                    csr::MHPMCOUNTER11: bp_cnt_nt <= csr_write_val;
+                    csr::MHPMCOUNTER12: bp_cnt_tn <= csr_write_val;
+                    csr::MHPMCOUNTER13: bp_cnt_tt <= csr_write_val;
                     default: ;
                 endcase
+            end
+
+            // ---- Branch prediction performance counters ----
+            if (bp_feedback_in.valid) begin
+                if (!bp_feedback_in.predicted_taken && !bp_feedback_in.was_taken)
+                    bp_cnt_nn <= bp_cnt_nn + 32'd1;
+                else if (!bp_feedback_in.predicted_taken && bp_feedback_in.was_taken)
+                    bp_cnt_nt <= bp_cnt_nt + 32'd1;
+                else if (bp_feedback_in.predicted_taken && !bp_feedback_in.was_taken)
+                    bp_cnt_tn <= bp_cnt_tn + 32'd1;
+                else
+                    bp_cnt_tt <= bp_cnt_tt + 32'd1;
             end
 
             // ---- MRET effects on MSTATUS (suppressed during stale cycle) ----

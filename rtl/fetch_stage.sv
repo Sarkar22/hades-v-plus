@@ -21,7 +21,12 @@ module fetch_stage (
     // Pipeline control
     output pipeline_status::forwards_t  status_forwards_out,
     input  pipeline_status::backwards_t status_backwards_in,
-    input  logic [31:0] jump_address_backwards_in
+    input  logic [31:0] jump_address_backwards_in,
+
+    // Branch prediction
+    input  bpredict::bp_data_t bp_feedback_in,   // from Execute: actual outcome
+    input  logic [31:0]        bp_control_in,    // from Writeback: algorithm select
+    output bpredict::bp_data_t bp_prediction_reg_out  // to Decode: prediction for this instruction
 );
 
     // -------------------------------------------------------------------------
@@ -38,6 +43,23 @@ module fetch_stage (
     // It lives in a register — it only changes on a rising clock edge.
     // -------------------------------------------------------------------------
     logic [31:0] pc;
+
+    // -------------------------------------------------------------------------
+    // Branch predictor instantiation
+    // -------------------------------------------------------------------------
+    bpredict::bp_data_t bp_prediction;
+    logic [31:0]        bp_branch_offset;
+
+    branch_predictor i_branch_predictor (
+        .clk              (clk),
+        .rst              (rst),
+        .instruction_bits (wb.dat_miso),
+        .program_counter  (pc),
+        .bp_control_in    (bp_control_in),
+        .bp_feedback_in   (bp_feedback_in),
+        .bp_prediction_out(bp_prediction),
+        .bp_branch_offset (bp_branch_offset)
+    );
 
     // =========================================================================
     // PART 1: Wishbone bus drive signals (combinational — no clock needed)
@@ -104,11 +126,17 @@ module fetch_stage (
                 STALL: pc <= pc;
 
                 // READY: Decode accepted the last instruction, wants a new one.
-                // → If the RAM acknowledged (ack=1): instruction received, move to next.
-                // → If the RAM hasn't responded yet (ack=0): wait, hold the PC.
-                // With the ASYNC RAM used here, ack always arrives the same cycle
-                // that cyc/stb are asserted, so we almost always take pc + 4.
-                READY: pc <= wb.ack ? pc + 4 : pc;
+                // → If predicted taken: speculatively jump to branch target.
+                // → Otherwise: advance to PC+4.
+                READY: begin
+                    if (wb.ack) begin
+                        if (bp_prediction.predicted_taken)
+                            pc <= pc + bp_branch_offset;
+                        else
+                            pc <= pc + 4;
+                    end else
+                        pc <= pc;
+                end
 
                 // Catch-all for safety (shouldn't be reachable with a 2-bit enum).
                 default: pc <= pc;
@@ -133,13 +161,13 @@ module fetch_stage (
             instruction_reg_out     <= NOP;           // safe dummy value
             program_counter_reg_out <= RESET_ADDRESS;
             status_forwards_out     <= BUBBLE;
+            bp_prediction_reg_out   <= '0;
 
         end else begin
             case (status_backwards_in)
 
                 // STALL: Decode is still working on the instruction we already gave it.
-                // → Do absolutely nothing. Leave all three output registers unchanged.
-                // An empty begin/end is valid — registers hold their value by default.
+                // → Do absolutely nothing. Leave all output registers unchanged.
                 STALL: begin
                     // intentionally empty — hold outputs
                 end
@@ -150,40 +178,35 @@ module fetch_stage (
                 // The PC has already been set to jump_address above, so next cycle
                 // we will fetch the correct instruction and output VALID.
                 JUMP: begin
-                    status_forwards_out <= BUBBLE;
+                    status_forwards_out   <= BUBBLE;
+                    bp_prediction_reg_out <= '0;  // no valid prediction for flushed instruction
                 end
 
                 // READY: Decode wants a new instruction and the bus is active.
                 READY: begin
                     if (wb.ack) begin
                         // The RAM responded successfully.
-                        // dat_miso holds the full 32-bit instruction word.
-                        // We also pass the PC of THIS instruction (before the +4)
-                        // so later stages know where the instruction came from.
                         instruction_reg_out     <= wb.dat_miso;
                         program_counter_reg_out <= pc;
                         status_forwards_out     <= VALID;
+                        bp_prediction_reg_out   <= bp_prediction;
 
                     end else if (wb.err) begin
-                        // The RAM signalled an error (e.g. address out of range).
-                        // We cannot provide a valid instruction.
-                        // FETCH_FAULT propagates forward so the exception handler
-                        // can see which address caused the problem.
                         program_counter_reg_out <= pc;
                         status_forwards_out     <= FETCH_FAULT;
+                        bp_prediction_reg_out   <= '0;
 
                     end else begin
-                        // No ack and no err yet — the RAM is taking more than one
-                        // cycle to respond (synchronous slave case).
-                        // Insert a BUBBLE to hold the pipeline until data arrives.
-                        // With the async RAM this branch is never taken in practice,
-                        // but we handle it for correctness.
-                        status_forwards_out <= BUBBLE;
+                        status_forwards_out   <= BUBBLE;
+                        bp_prediction_reg_out <= '0;
                     end
                 end
 
                 // Safety default.
-                default: status_forwards_out <= BUBBLE;
+                default: begin
+                    status_forwards_out   <= BUBBLE;
+                    bp_prediction_reg_out <= '0;
+                end
 
             endcase
         end
