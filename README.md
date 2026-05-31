@@ -42,7 +42,7 @@ HaDes-V is a **32-bit, in-order, classic five-stage RISC-V soft core** written i
 | Privilege | **Machine mode only** (M-mode) with a full trap model: ECALL, EBREAK, MRET, and all synchronous exceptions |
 | Interrupts | **External** and **timer** (`mie.MEIE`, `mie.MTIE`); gated by `mstatus.MIE`; save/restore via `MPIE` |
 
-Implemented M-mode CSRs include `MSTATUS`, `MISA`, `MIE`, `MIP`, `MTVEC`, `MSCRATCH`, `MEPC`, `MCAUSE`, `MCYCLE`/`MCYCLEH`, and `MINSTRET`/`MINSTRETH` — see [defines/csr.sv](defines/csr.sv) for the full map.
+Implemented M-mode CSRs include `MSTATUS`, `MISA`, `MIE`, `MIP`, `MTVEC`, `MSCRATCH`, `MEPC`, `MCAUSE`, `MCYCLE`/`MCYCLEH`, `MINSTRET`/`MINSTRETH`, and (as an extension) **`MHPMEVENT10`** and **`MHPMCOUNTER10–13`** for branch-predictor control and performance monitoring — see [defines/csr.sv](defines/csr.sv) for the full map.
 
 ### Pipeline
 
@@ -77,12 +77,158 @@ Being in-order and single-issue keeps the control story small, but every classic
 - **Data hazards (RAW).** A three-level **forwarding network** bypasses results from Execute, Memory, and Writeback back into Decode, with *most-recent-wins* priority (E > M > WB). The ordinary arithmetic case is resolved with zero bubbles.
 - **Load-use hazard.** A load's result isn't available until after Memory. If Decode sees Execute forwarding with `data_valid = 0` for a register it needs, it asserts `STALL` backwards for one cycle and a `BUBBLE` forwards — exactly one stall slot, no more.
 - **CSR-use hazard.** A CSR read resolves in Writeback, so its forwarding is tagged `data_valid = 0` in earlier stages; the same stall mechanism as load-use covers it.
-- **Control hazards (branches / JAL / JALR).** Resolved in Execute. On a taken jump, the younger instructions already in Fetch/Decode are squashed by driving `JUMP` with the target address backwards; Fetch reloads from the target next cycle.
+- **Control hazards (branches / JAL / JALR).** Resolved in Execute. On a taken jump, the younger instructions already in Fetch/Decode are squashed by driving `JUMP` with the target address backwards; Fetch reloads from the target next cycle. With the **branch predictor extension** enabled (see below), correctly-predicted branches incur zero flush penalty — Execute only generates a `JUMP` on *mis*predictions.
 - **Structural hazards on the bus.** The fetch and data paths each have their own Wishbone port, so loads/stores never collide with instruction fetches. When the data bus is slow, Memory holds the rest of the pipeline with `STALL`.
 - **Exceptions.** Flow forwards through the pipeline as the instruction's status code and trap at Writeback — the faulting PC is saved to `MEPC`, the cause encoded into `MCAUSE`, and control jumps to `MTVEC`.
 - **Interrupts.** External and timer lines are sampled at Writeback. They trap on the completion boundary of a `VALID` or `ERROR` instruction (never on a `BUBBLE`), honour `mstatus.MIE` / `mie.MEIE` / `mie.MTIE`, and save/restore the global enable via `MPIE`. MRET returning with a pending enabled interrupt traps in the same cycle.
 - **Nested-trap MPIE preservation.** On a primary trap `MPIE ← MIE` captures the previous interrupt-enable state. If a *nested* trap fires while MIE is already 0 (CPU already in a handler), `MPIE` must **not** be overwritten — doing so would destroy the saved state from the outer trap. In the implementation: `mstatus_mpie` is only updated when `mie_eff = 1`; nested traps still update `MCAUSE`, `MEPC`, and clear `MIE`, but leave `MPIE` unchanged. Without this rule, a stale `FETCH_FAULT` arriving the cycle after a primary interrupt trap would clobber `MPIE` to 0, breaking the `MRET`-with-pending-interrupt path.
 - **Pipeline flushes on trap.** The trap's `JUMP` propagates backwards exactly like a branch, draining younger instructions without architectural side effects.
+
+### Branch Predictor Extension
+
+Standard HaDes-V is a **predict-never-taken** machine: every branch is speculatively treated as not-taken, and a taken branch always costs **two bubble cycles** while Fetch/Decode are flushed and the correct PC is reloaded. For code with many backward-taken branches (tight loops), this is a significant throughput loss.
+
+The branch predictor extension eliminates the flush penalty for correctly-predicted branches. It is implemented across four files:
+
+| File | Role |
+|---|---|
+| [defines/bpredict.sv](defines/bpredict.sv) | `bpredict::bp_data_t` packed struct — 8 bits threading prediction state through the pipeline |
+| [rtl/branch_predictor.sv](rtl/branch_predictor.sv) | Submodule instantiated inside Fetch; contains all four prediction algorithms |
+| [rtl/fetch_stage.sv](rtl/fetch_stage.sv) | Speculatively updates the PC using the predictor's output |
+| [rtl/execute_stage.sv](rtl/execute_stage.sv) | Detects mispredictions instead of flushing on every taken branch |
+
+#### The `bp_data_t` Pipeline Struct
+
+A single 8-bit struct travels with each instruction from Fetch through to Execute, carrying the prediction that was made when that instruction was fetched:
+
+```
+struct packed {
+    logic       valid;            // 1 = this instruction is an aligned branch with a prediction
+    logic       predicted_taken;  // the predictor's guess at fetch time
+    logic       was_taken;        // actual outcome (filled in by Execute)
+    logic [4:0] index;            // 2-bit counter table index (for feedback update)
+}
+```
+
+#### Four Prediction Algorithms
+
+The prediction algorithm is selected at runtime by writing to `MHPMEVENT10` (CSR `0x32A`). All four algorithms live in [rtl/branch_predictor.sv](rtl/branch_predictor.sv) and are mux'd by `bp_control_in[1:0]`:
+
+| Mode | `MHPMEVENT10` value | Algorithm | Description |
+|---|---|---|---|
+| **0** | `0` | **Predict Never Taken** | Default HaDes-V behaviour. All branches are predicted not-taken. No pipeline change for taken branches (they still flush, as before). Zero prediction logic required. |
+| **1** | `1` | **Predict Always Taken** | All aligned branches are predicted taken. Good for single loops but causes one flush on every exit. |
+| **2** | `2` | **Predict Backward Taken** | Branches with a **negative offset** (bit 31 of the branch displacement = 1, i.e. the target is at a lower address) are predicted taken; forward branches are predicted not-taken. This fixed heuristic is free of state and correct for the dominant loop pattern. |
+| **3** | `3` | **2-bit Saturating Counter Array** | Adaptive bimodal predictor. A table of 32 entries, each a 2-bit saturating counter (SNT → WNT → WT → ST). Indexed by `{branch_offset[31], pc[5:2]}` — one bit encodes direction (backward/forward), four bits address the instruction within its cache line. Updated by feedback from Execute after each resolved branch. On reset: the backward half initialises to *Weak Taken* and the forward half to *Weak Not-Taken*, matching the Backward-Taken heuristic as a zero-warmup starting point. |
+
+Only **aligned** branch targets are predicted (`branch_offset[1:0] == 2'b00`). Misaligned branches fall through to the normal `FETCH_MISALIGNED` exception path unchanged.
+
+#### Pipeline Integration
+
+**Fetch stage — speculative PC update.**  
+When `predicted_taken = 1`, the Fetch program counter advances to `pc + branch_offset` instead of `pc + 4`. The prediction is registered alongside the instruction word and the program counter into `bp_prediction_reg_out`, which travels through Decode (pass-through pipeline register) to Execute.
+
+```
+READY case (wb.ack):
+    if (bp_prediction.predicted_taken)
+        pc <= pc + bp_branch_offset;   // speculative jump
+    else
+        pc <= pc + 4;                  // normal advance
+```
+
+For mode 0 this is always `pc + 4` — functionally identical to the original core.
+
+**Execute stage — misprediction detection.**  
+The old Execute logic flushed the pipeline on *every taken branch*. With the predictor, Execute instead computes `is_mispredicted_branch` and only flushes when the prediction was wrong:
+
+```
+is_mispredicted_branch = is_branch
+                       && (branch_taken != bp_prediction_in.predicted_taken)
+                       && (status_forwards_in == VALID);
+
+jump_detected = (is_mispredicted_branch || is_jump) && VALID;
+
+// Corrected address when the prediction was wrong:
+corrected_address = branch_taken ? jump_target : pc_plus_4;
+
+next_pc = is_mispredicted_branch ? corrected_address
+        : is_jump               ? jump_target
+        :                         pc_plus_4;
+```
+
+When a branch is **correctly** predicted (e.g. the 2-bit counter correctly predicted *taken* for a loop-back branch), `is_mispredicted_branch = false`, `jump_detected = false`, and the pipeline flows without any flush. Fetch has already loaded the right next instruction.
+
+When a branch is **mispredicted**, Execute flushes exactly as it did before, but now redirects to `corrected_address` — the address the CPU *should* have taken — rather than unconditionally to `jump_target`.
+
+**Feedback loop.**  
+After Execute resolves a branch, it drives `bp_feedback_out` combinationally back to the Fetch stage (directly via a wire in [cpu.sv](rtl/cpu.sv), bypassing Memory and Writeback):
+
+```
+bp_feedback_out.valid          = is_branch && VALID && !STALL;
+bp_feedback_out.was_taken      = branch_taken;
+bp_feedback_out.predicted_taken = bp_prediction_in.predicted_taken;
+bp_feedback_out.index          = bp_prediction_in.index;
+```
+
+The branch predictor's `always_ff` block samples this at the next posedge and updates `counter_store[update_index]`. The feedback also reaches Writeback (same wire) for the performance counters.
+
+#### New CSRs — Branch Predictor Control and Monitoring
+
+Five new CSRs are implemented in [rtl/writeback_stage.sv](rtl/writeback_stage.sv). All are read/write. CSR addresses are already defined in [defines/csr.sv](defines/csr.sv).
+
+| CSR name | Address | Description |
+|---|---|---|
+| `MHPMEVENT10` | `0x32A` | **Algorithm select.** Bits [1:0] choose the active predictor: 0 = Never Taken, 1 = Always Taken, 2 = Backward Taken, 3 = 2-bit Counter. Write this before running a benchmark to switch modes. |
+| `MHPMCOUNTER10` | `0xB0A` | **NN** — count of branches where prediction = *not-taken* **and** actual = *not-taken* (correct prediction). |
+| `MHPMCOUNTER11` | `0xB0B` | **NT** — count of branches where prediction = *not-taken* **but** actual = *taken* (misprediction — predictor too conservative). |
+| `MHPMCOUNTER12` | `0xB0C` | **TN** — count of branches where prediction = *taken* **but** actual = *not-taken* (misprediction — over-predicted; expected once per loop at the exit). |
+| `MHPMCOUNTER13` | `0xB0D` | **TT** — count of branches where prediction = *taken* **and** actual = *taken* (correct prediction). |
+
+A correct predictor on a tight loop of *N* iterations produces `TT = N−1`, `TN = 1`, `NT = 0`, `NN = 0`. Accuracy = `(NN + TT) / (NN + NT + TN + TT)`.
+
+Reading and writing from assembly:
+
+```asm
+# Select 2-bit counter mode
+li   t0, 3
+csrw mhpmevent10, t0         # or: csrw 0x32A, t0
+
+# Reset all four counters before a run
+csrwi mhpmcounter10, 0       # NN
+csrwi mhpmcounter11, 0       # NT
+csrwi mhpmcounter12, 0       # TN
+csrwi mhpmcounter13, 0       # TT
+
+# ... run benchmark ...
+
+# Read results
+csrr  a0, mhpmcounter13      # TT (correct taken)
+csrr  a1, mhpmcounter11      # NT (mispredictions on taken branches)
+```
+
+#### Verification
+
+The assembly test [test/asm/bpred.s](test/asm/bpred.s) verifies all three non-trivial predictor modes without using UART (pass/fail reported directly through the test peripheral at `TEST_ADDRESS = 0x480000`):
+
+| Test | Mode | Loop iterations | Assertion | Expected result |
+|---|---|---|---|---|
+| **A** | 0 — Never Taken | 50 | NT ≥ 48 (predictor misses on almost every taken branch) | Confirms baseline penalty is real |
+| **B** | 3 — 2-bit Counter | 50 | TT ≥ 47 **and** NT = 0 (predictor correct from first iteration due to *Weak Taken* initialisation of backward half) | Confirms adaptive predictor works |
+| **C** | 1 — Always Taken | 20 | TT = 19 (all loop iterations correct) **and** TN = 1 (one misprediction at the exit branch) | Confirms always-taken mode and counter precision |
+
+Run with:
+
+```bash
+make test/asm/bpred
+```
+
+#### Implementation Notes
+
+- **No BTB.** This is a pure bimodal predictor — no branch-target buffer. The target address is always computed by Decode from the immediate field. Prediction only decides whether to speculatively advance the PC; misses are corrected in Execute with the same mechanism as the original taken-branch flush.
+- **Only `Bxxx` instructions** (opcode `7'b1100011`) are predicted. `JAL` and `JALR` are unconditional and always cause a flush via `is_jump`, unchanged from the original design.
+- **Alignment guard.** `predicted_taken` is suppressed for branches whose target is not 4-byte aligned (`branch_offset[1:0] != 2'b00`). These fall through to the existing `FETCH_MISALIGNED` exception path.
+- **Mode 0 is zero-overhead.** When `MHPMEVENT10 = 0`, `predicted_taken = 0` unconditionally. `is_mispredicted_branch` reduces to `is_branch && branch_taken && VALID`, which is the original `jump_detected` formula. The pipeline behaves identically to unmodified HaDes-V.
+- **Simulator echo.** [lib/wishbone/wishbone_uart.sv](lib/wishbone/wishbone_uart.sv) includes an `always @(posedge clk)` block that calls `$write("%c", byte)` whenever a TX buffer write is detected, echoing UART output to Verilator's stdout. This is purely a simulation convenience; `$write` is ignored by synthesis tools.
 
 ### Memory Subsystem
 
@@ -223,7 +369,7 @@ The [test/](test/) tree has three progressively integrative tiers:
 
 | Tier | Location | What it exercises | Invocation |
 |---|---|---|---|
-| **Assembly** | [test/asm/](test/asm/) | Small hand-written `.s` programs targeting a specific ISA feature — e.g. [trap.s](test/asm/trap.s) for the full exception/interrupt path, [ops.s](test/asm/ops.s) for every RV32I instruction, [forwarding.s](test/asm/forwarding.s) for the data-hazard network. | `make test/asm/trap` |
+| **Assembly** | [test/asm/](test/asm/) | Small hand-written `.s` programs targeting a specific ISA feature — e.g. [trap.s](test/asm/trap.s) for the full exception/interrupt path, [ops.s](test/asm/ops.s) for every RV32I instruction, [forwarding.s](test/asm/forwarding.s) for the data-hazard network, [bpred.s](test/asm/bpred.s) for the branch predictor (modes 0/1/3, counter verification). | `make test/asm/trap` |
 | **C** | [test/c/](test/c/) | Full C programs linked against [std/](std/). [bootloader.c](test/c/bootloader.c) is the UART loader; [basys3_demo.c](test/c/basys3_demo.c) wiggles every on-board peripheral. | `make test/c/basys3_demo` |
 | **SystemVerilog** | [test/sv/](test/sv/) | Module-level benches that run DUT vs. REF side-by-side and compare every cycle. Examples: [test_writeback_compare.sv](test/sv/test_writeback_compare.sv), [test_execute_compare.sv](test/sv/test_execute_compare.sv), [test_decode_hazard.sv](test/sv/test_decode_hazard.sv). | `make test/sv/test_writeback_compare` |
 
