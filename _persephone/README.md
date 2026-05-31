@@ -1,12 +1,12 @@
 # Testcase Results 
 
 **Repository:** hades-v_9_Sarkar22  
-**Test Run:** 31.05.2026 02:06  
+**Test Run:** 31.05.2026 06:36  
 **Test Deadline:** 02.06.2026 00:00  
 ### Tested Commit Information
-**Date:** 30.05.2026 19:40  
-**Hash:** 9a89eb2  
-**Message:** Add branch predictor verification test and fix fetch_stage  
+**Date:** 31.05.2026 00:30  
+**Hash:** 517517f  
+**Message:** update readme with br pred  
 **Committer Email:** esarkar@RF-LT05.eng.uwaterloo.ca  
 
 # Module Under Test:  Fetch Stage  
