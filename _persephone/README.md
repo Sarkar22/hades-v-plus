@@ -1,12 +1,12 @@
 # Testcase Results 
 
 **Repository:** hades-v_9_Sarkar22  
-**Test Run:** 31.05.2026 00:05  
-**Test Deadline:** 04.06.2026 00:00  
+**Test Run:** 31.05.2026 02:06  
+**Test Deadline:** 02.06.2026 00:00  
 ### Tested Commit Information
-**Date:** 30.05.2026 17:21  
-**Hash:** 009832c  
-**Message:** Add bimodal branch predictor (4 algorithms, MHPMEVENT10/MHPMCOUNTER10-13)  
+**Date:** 30.05.2026 19:40  
+**Hash:** 9a89eb2  
+**Message:** Add branch predictor verification test and fix fetch_stage  
 **Committer Email:** esarkar@RF-LT05.eng.uwaterloo.ca  
 
 # Module Under Test:  Fetch Stage  
