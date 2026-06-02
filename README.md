@@ -59,11 +59,11 @@ Instructions flow through five stages, each a dedicated module in [rtl/](rtl/), 
 
 | Stage | File | Responsibility |
 |---|---|---|
-| **Fetch** | [fetch_stage.sv](rtl/fetch_stage.sv) | Drives the instruction-side Wishbone port, keeps the program counter, and reports `FETCH_MISALIGNED` / `FETCH_FAULT` to the downstream pipeline. |
-| **Decode** | [decode_stage.sv](rtl/decode_stage.sv) + [instruction_decoder.sv](rtl/instruction_decoder.sv) | Expands the raw 32-bit word into a typed `instruction::t`, reads rs1/rs2 from the [register_file](rtl/register_file.sv), and runs the forwarding mux. Raises `ILLEGAL_INSTRUCTION` for unknown encodings. |
-| **Execute** | [execute_stage.sv](rtl/execute_stage.sv) | ALU, branch comparison, and jump-target computation. Branches and JAL/JALR are **resolved here** and flushed backwards as a `JUMP`. |
+| **Fetch** | [fetch_stage.sv](rtl/fetch_stage.sv) | Drives the instruction-side Wishbone port, keeps the program counter, and reports `FETCH_MISALIGNED` / `FETCH_FAULT` to the downstream pipeline. Also instantiates [branch_predictor.sv](rtl/branch_predictor.sv) and speculatively updates the PC to the branch target when `predicted_taken = 1`. |
+| **Decode** | [decode_stage.sv](rtl/decode_stage.sv) + [instruction_decoder.sv](rtl/instruction_decoder.sv) | Expands the raw 32-bit word into a typed `instruction::t`, reads rs1/rs2 from the [register_file](rtl/register_file.sv), and runs the forwarding mux. Raises `ILLEGAL_INSTRUCTION` for unknown encodings. Threads the `bp_data_t` prediction struct from Fetch to Execute as a pass-through pipeline register. |
+| **Execute** | [execute_stage.sv](rtl/execute_stage.sv) | ALU, branch comparison, and jump-target computation. Branches and JAL/JALR are **resolved here**. With branch prediction enabled, only *mis*predicted branches flush the pipeline; correctly-predicted branches have zero penalty. Drives `bp_feedback_out` back to Fetch for 2-bit counter updates. |
 | **Memory** | [memory_stage.sv](rtl/memory_stage.sv) | Data-side Wishbone loads and stores with alignment checking. Stalls the pipeline until the bus acks. Emits `LOAD/STORE_MISALIGNED` and `LOAD/STORE_FAULT`. |
-| **Writeback** | [writeback_stage.sv](rtl/writeback_stage.sv) | Commits `rd` to the register file, services all CSR reads/writes, and is the single point where **exceptions and interrupts trap** into `MTVEC`. Also implements MRET and FENCE.I. |
+| **Writeback** | [writeback_stage.sv](rtl/writeback_stage.sv) | Commits `rd` to the register file, services all CSR reads/writes, and is the single point where **exceptions and interrupts trap** into `MTVEC`. Also implements MRET and FENCE.I. Holds the branch-predictor control register (`MHPMEVENT10`) and the four prediction-outcome counters (`MHPMCOUNTER10–13`). |
 
 Pipeline direction is encoded in two packed packages in [defines/pipeline_status.sv](defines/pipeline_status.sv):
 
