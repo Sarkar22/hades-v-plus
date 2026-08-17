@@ -79,7 +79,12 @@ module instruction_decoder (
     // These bit positions are the same for ALL instruction formats.
 
     // rd  = destination register (where the result goes). Bits [11:7].
-    assign instruction_out.rd_address  = instruction_in[11:7];
+    // S-type (stores, opcode 0100011) and B-type (branches, opcode 1100011)
+    // reuse bits [11:7] as immediate bits and write NO destination register.
+    // Force rd=0 so no pipeline stage forwards/writes a bogus result into
+    // reg[imm[4:0]] (this corrupted the frame pointer in the bootloader).
+    assign instruction_out.rd_address  =
+        (opcode == 7'b0100011 || opcode == 7'b1100011) ? 5'b0 : instruction_in[11:7];
 
     // rs1 = source register 1 (first operand). Bits [19:15].
     assign instruction_out.rs1_address = instruction_in[19:15];
