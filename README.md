@@ -86,13 +86,10 @@ Instructions flow through five stages, each a dedicated module in [rtl/](rtl/), 
 ```mermaid
 flowchart LR
     F["Fetch"] --> D["Decode"] --> E["Execute"] --> M["Memory"] --> W["Writeback"]
-    W -.->|"READY / STALL / JUMP"| M
-    M -.-> E
-    E -.-> D
-    D -.-> F
+    W -. "backwards control<br/>READY · STALL · JUMP" .-> F
 ```
 
-Solid arrows carry the instruction and its `forwards` status toward Writeback; dotted arrows carry `backwards` control the other way, so any stage can stall or redirect everything ahead of it.
+Solid arrows carry the instruction and its `forwards` status toward Writeback. The dotted return path carries `backwards` control — `READY`, `STALL` or `JUMP` — which propagates one stage at a time rather than broadcasting, so any stage can stall or redirect everything upstream of it.
 
 | Stage | File | Responsibility |
 |---|---|---|
