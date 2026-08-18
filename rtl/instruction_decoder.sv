@@ -290,6 +290,16 @@ module instruction_decoder (
                     {7'b0100000, 3'b101}: instruction_out.op = SRA;
                     {7'b0000000, 3'b110}: instruction_out.op = OR;
                     {7'b0000000, 3'b111}: instruction_out.op = AND;
+                    // Zba address-generation shifts: rd = (rs1 << N) + rs2.
+                    // Same OP opcode and same R-type field layout as ADD/SUB —
+                    // funct7 = 0010000 is what separates them, and funct3 picks
+                    // the shift amount (010 → 1, 100 → 2, 110 → 3). Because they
+                    // are plain R-type, the immediate decoder above needs no arm
+                    // and rd_address is already correct: they genuinely write rd,
+                    // so they must NOT join the store/branch rd=0 suppression.
+                    {7'b0010000, 3'b010}: instruction_out.op = SH1ADD;
+                    {7'b0010000, 3'b100}: instruction_out.op = SH2ADD;
+                    {7'b0010000, 3'b110}: instruction_out.op = SH3ADD;
                     default:              instruction_out.op = ILLEGAL;
                 endcase
             end

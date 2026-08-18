@@ -40,10 +40,11 @@ HaDes-V is a **32-bit, in-order, classic five-stage RISC-V soft core** written i
 | Control & Status | **Zicsr** — CSRRW / CSRRS / CSRRC and their immediate variants |
 | Instruction fence | **Zifencei** — FENCE.I to resynchronise the fetch path after self-modifying writes |
 | Counters | **Zicntr** — user-mode read-only `cycle`, `time`, `instret` (+ `*h` high halves) |
+| Address generation | **Zba** — `sh1add` / `sh2add` / `sh3add`, single-cycle scaled-index addressing |
 | Privilege | **Machine mode only** (M-mode) with a full trap model: ECALL, EBREAK, MRET, and all synchronous exceptions |
 | Interrupts | **External** and **timer** (`mie.MEIE`, `mie.MTIE`); gated by `mstatus.MIE`; save/restore via `MPIE` |
 
-The full ISA string is **`rv32i_zicsr_zifencei_zicntr`** (pinned: `rv32i2p1_zicsr2p0_zifencei2p0_zicntr2p0`). The `Zicsr` and `Zifencei` suffixes are load-bearing rather than decorative: base `I` version 2.0 included the CSR instructions and `FENCE.I`, but version 2.1 split them out into separately-named extensions. Note that no `Z*` extension can be advertised in `MISA` — its `Extensions` field has exactly one bit per single letter (bit 8 = `I`, bit 12 = `M`, …), so multi-letter extension names exist only in the ISA string.
+The full ISA string is **`rv32i_zba_zicsr_zifencei_zicntr`** (pinned: `rv32i2p1_zba1p0_zicsr2p0_zifencei2p0_zicntr2p0`). The `Zicsr` and `Zifencei` suffixes are load-bearing rather than decorative: base `I` version 2.0 included the CSR instructions and `FENCE.I`, but version 2.1 split them out into separately-named extensions. Note that no `Z*` extension can be advertised in `MISA` — its `Extensions` field has exactly one bit per single letter (bit 8 = `I`, bit 12 = `M`, …), so multi-letter extension names exist only in the ISA string.
 
 Implemented M-mode CSRs include `MSTATUS`, `MISA`, `MIE`, `MIP`, `MTVEC`, `MSCRATCH`, `MEPC`, `MCAUSE`, `MCYCLE`/`MCYCLEH`, `MINSTRET`/`MINSTRETH`, and (as an extension) **`MHPMEVENT10`** and **`MHPMCOUNTER10–13`** for branch-predictor control and performance monitoring — see [defines/csr.sv](defines/csr.sv) for the full map.
 
@@ -86,6 +87,44 @@ Being in-order and single-issue keeps the control story small, but every classic
 - **Interrupts.** External and timer lines are sampled at Writeback. They trap on the completion boundary of a `VALID` or `ERROR` instruction (never on a `BUBBLE`), honour `mstatus.MIE` / `mie.MEIE` / `mie.MTIE`, and save/restore the global enable via `MPIE`. MRET returning with a pending enabled interrupt traps in the same cycle.
 - **Nested-trap MPIE preservation.** On a primary trap `MPIE ← MIE` captures the previous interrupt-enable state. If a *nested* trap fires while MIE is already 0 (CPU already in a handler), `MPIE` must **not** be overwritten — doing so would destroy the saved state from the outer trap. In the implementation: `mstatus_mpie` is only updated when `mie_eff = 1`; nested traps still update `MCAUSE`, `MEPC`, and clear `MIE`, but leave `MPIE` unchanged. Without this rule, a stale `FETCH_FAULT` arriving the cycle after a primary interrupt trap would clobber `MPIE` to 0, breaking the `MRET`-with-pending-interrupt path.
 - **Pipeline flushes on trap.** The trap's `JUMP` propagates backwards exactly like a branch, draining younger instructions without architectural side effects.
+
+### Zba — Scaled-Index Address Generation
+
+`Zba` adds three single-cycle instructions that fuse a small left shift with an add: `rd = (rs1 << N) + rs2` for N = 1, 2, 3. That is precisely the shape of an array subscript — `&a[i]` is `base + i*sizeof(elem)` — so one instruction replaces the `slli`/`add` pair RV32I needs.
+
+| Instruction | funct7 | funct3 | Operation |
+|---|---|---|---|
+| `sh1add` | `0010000` | `010` | `rd = (rs1 << 1) + rs2` — 2-byte elements |
+| `sh2add` | `0010000` | `100` | `rd = (rs1 << 2) + rs2` — 4-byte elements (`int`, pointers) |
+| `sh3add` | `0010000` | `110` | `rd = (rs1 << 3) + rs2` — 8-byte elements (`long long`, `double`) |
+
+All three are plain R-type on the existing `OP` opcode (`0110011`), so the decoder needs no new immediate format and the pipeline needs no new plumbing — they inherit forwarding, hazard detection and writeback like any other ALU operation. The shift is **logical** over the full 32 bits (bits pushed past bit 31 are discarded, never sign-extended) and the add wraps modulo 2³², with no trap and no flags.
+
+**The compiler emits them for you.** Building with `-march=rv32i_zba` makes GCC 12 generate `sh2add`/`sh3add` automatically for ordinary indexing code — no intrinsics or inline assembly required.
+
+#### Verification
+
+The frozen reference models predate `Zba` and can only report it as illegal, so correctness is established by **differential testing against the toolchain** instead: the same C program is compiled twice, once as plain RV32I (`slli`+`add`) and once with `-march=rv32i_zba`, and both binaries must produce byte-identical output on the core. The two programs are semantically identical, so any divergence is a hardware fault.
+
+| Test | What it covers |
+|---|---|
+| [test/asm/zba.s](test/asm/zba.s) | 23 blocks / 62 assertions: zero and `x0` operands, `rd`/`rs1`/`rs2` aliasing, negative `rs1` with the sign bit shifted out, 32-bit overflow wrap, and forwarding from all three stages including into load/store addresses |
+| [test/asm/zbaadv.s](test/asm/zbaadv.s) | 49 adversarial tests / 103 assertions written independently, including operand-order traps and pipeline-position interactions |
+| [test/sv/test_zba_encoding_sweep.sv](test/sv/test_zba_encoding_sweep.sv) | 290,288-word DUT-vs-reference decoder sweep, plus enum and struct width assertions |
+
+```bash
+make test/asm/zba
+make test/asm/zbaadv
+make test/sv/test_zba_encoding_sweep
+```
+
+Measured on an address-generation-heavy workload: **20.3 % fewer cycles** (1.26×) and 6–8 % smaller code, verified across 16,704 in-program operand comparisons with zero discrepancies.
+
+#### Implementation Notes
+
+- **Assembled via a directive, not a global flag.** [test/asm/zba.s](test/asm/zba.s) carries `.option arch, +zba` rather than adding `-march=rv32i_zba` to the Makefile. This keeps the requirement next to the file that needs it and preserves the Makefile's property of specifying no `-march` at all; a global flag would silently permit `Zba` in every other assembly test.
+- **New ops were appended *after* `ILLEGAL` in [defines/op.sv](defines/op.sv).** `op::t` values are positional, and [test/sv/test_execute_compare.sv](test/sv/test_execute_compare.sv) feeds `op::ILLEGAL` directly into a frozen reference model. Inserting ahead of `ILLEGAL` would have renumbered it from 49 to 52 and handed the golden model a code it has never seen. The enum stays 6 bits and `instruction::t` stays 65 bits, so every reference port width is unchanged — 53 of 64 codes are now used.
+- **Three fixed shifts, not one variable shift.** Each `alu_sel` arm hardwires its shift amount, which is free wiring into the existing adder. A single parameterised arm would need a shift-amount signal crossing the `alu_sel` boundary and would likely infer a second barrel shifter beside the one `SLL`/`SRL`/`SRA` already share — a poor trade on a design with this timing margin.
 
 ### Zicntr — User-Mode Counters
 
