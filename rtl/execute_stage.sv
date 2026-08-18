@@ -84,11 +84,12 @@ module execute_stage (
     // =========================================================================
     // Maps op::t to a 4-bit ALU selector plus operand muxes.
     //
-    // alu_sel encoding (same as a standard RV32I ALU):
-    //   0000 = ADD        0100 = SLTU       1000 = OR
-    //   0001 = SUB        0101 = XOR        1001 = AND
-    //   0010 = SLL        0110 = SRL        1010 = LUI (passthrough in2)
-    //   0011 = SLT        0111 = SRA
+    // alu_sel encoding (standard RV32I ALU, plus the three Zba codes):
+    //   0000 = ADD        0100 = SLTU       1000 = OR                  1100 = SH2ADD
+    //   0001 = SUB        0101 = XOR        1001 = AND                 1101 = SH3ADD
+    //   0010 = SLL        0110 = SRL        1010 = LUI (passthrough)
+    //   0011 = SLT        0111 = SRA        1011 = SH1ADD
+    // 1110 and 1111 remain free.
     //
     // alu_in1: rs1 for most ops, PC for AUIPC only.
     // alu_in2: rs2 for R-type, immediate for I/S/U-type.
@@ -118,6 +119,15 @@ module execute_stage (
             SRA:  begin alu_sel = 4'b0111; end
             OR:   begin alu_sel = 4'b1000; end
             AND:  begin alu_sel = 4'b1001; end
+
+            // ----- Zba: rd = (rs1 << N) + rs2 -----
+            // Both operands are registers, exactly like the R-type group above,
+            // so the defaults (alu_in1 = rs1, alu_in2 = rs2) are already right
+            // and only the selector changes. The shift amount is not an operand;
+            // it is baked into the ALU arm that each selector picks.
+            SH1ADD: begin alu_sel = 4'b1011; end
+            SH2ADD: begin alu_sel = 4'b1100; end
+            SH3ADD: begin alu_sel = 4'b1101; end
 
             // ----- I-type: register × immediate -----
             ADDI:  begin alu_sel = 4'b0000; alu_in2 = instruction_in.immediate; end
@@ -178,6 +188,20 @@ module execute_stage (
             4'b1000: alu_result = alu_in1 | alu_in2;                                  // OR
             4'b1001: alu_result = alu_in1 & alu_in2;                                  // AND
             4'b1010: alu_result = alu_in2;                                             // LUI passthrough
+
+            // Zba: shift rs1 left by a fixed 1/2/3 and add rs2.
+            // The shift is LOGICAL over the full 32 bits — whatever is pushed past
+            // bit 31 is dropped, never sign-extended, so a negative rs1 loses its
+            // sign bit exactly like any other bit. The add then wraps modulo 2^32;
+            // there is no overflow trap and no flag to set.
+            // Three fixed shifts rather than one shift by a variable amount: the
+            // amount stays a compile-time constant, which is pure wiring into the
+            // adder, whereas a variable amount would ask synthesis for a second
+            // barrel shifter beside the one SLL/SRL/SRA already share.
+            4'b1011: alu_result = (alu_in1 << 1) + alu_in2;                            // SH1ADD
+            4'b1100: alu_result = (alu_in1 << 2) + alu_in2;                            // SH2ADD
+            4'b1101: alu_result = (alu_in1 << 3) + alu_in2;                            // SH3ADD
+
             default: alu_result = 32'b0;
         endcase
     end

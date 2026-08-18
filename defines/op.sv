@@ -60,7 +60,24 @@ package op;
         CSRRCI,
         MRET,
         WFI,
-        ILLEGAL
+        ILLEGAL,
+
+        // Zba (address generation): rd = (rs1 << N) + rs2, N = 1, 2, 3.
+        //
+        // These sit AFTER ILLEGAL, which looks like a mistake until you know why.
+        // op::t is the first field of instruction::t, and that struct is a 65-bit
+        // port on every pipeline stage — including the frozen ref/*.so golden
+        // models, which were compiled against the ORIGINAL numbering and cannot be
+        // regenerated. Inserting before ILLEGAL would renumber it from 49 to 52,
+        // and every DUT-vs-REF bench that hands the reference an op::ILLEGAL
+        // (test_execute_compare's special_ops list does exactly that) would be
+        // feeding it a code it has never heard of. Appending leaves codes 0..49
+        // bit-identical and claims only the previously unused 50, 51, 52 — 53 of
+        // 64 codes now in use, so the enum stays 6 bits wide and the struct stays
+        // at 65 bits.
+        SH1ADD,
+        SH2ADD,
+        SH3ADD
     } t;
 endpackage
 
