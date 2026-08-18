@@ -8,25 +8,36 @@
 [rvgcc]:https://github.com/riscv-collab/riscv-gnu-toolchain
 
 ![image](https://www.scheipel.com/wp-content/uploads/2024/12/hades_logo.svg)
-# Microcontroller Design, Lab: HaDes-V
+# HaDes-V+ — An Extended RISC-V Soft Core
 
-***Ever thought about developing a processor from scratch and bringing it to life on an FPGA? With HaDes-V, you'll delve into hardware design and create your own pipelined 32-bit RISC-V processor, mastering efficient computing principles and practical FPGA implementation.***
+**HaDes-V+** is an extended version of the [HaDes-V][lvref] 32-bit RISC-V soft core: a classic in-order, five-stage pipeline written in SystemVerilog, targeting the Digilent [Basys3][basys] (Xilinx Artix-7 `xc7a35tcpg236-1`) at 50 MHz. It boots bare-metal C, takes interrupts, drives real peripherals, and programs itself over UART.
 
-The [Instruction Guide][instrguide] and this source code template for the [**Microcontroller Design, Lab**][lvref] is an **Open Educational Resource (OER)** developed by [Tobias Scheipel](https://www.scheipel.com), David Beikircher, and Florian Riedl, Embedded Architectures & Systems Group at Graz University of Technology. It is designed for teaching and learning microcontroller design and hardware description languages, using the **HaDes-V architecture**, a RISC-V-based processor.
+The upstream HaDes-V is an **Open Educational Resource** developed by [Tobias Scheipel](https://www.scheipel.com), David Beikircher, and Florian Riedl of the Embedded Architectures & Systems Group at Graz University of Technology, and released under the MIT licence. This repository preserves that work and its licence in full — see [Attribution and Upstream](#attribution-and-upstream). Everything described under *Extensions* below is additional work by Emon Sarkar.
 
-## Project Overview
+## What This Repository Adds
 
-The lab is structured around designing, simulating, and synthesizing the HaDes-V processor. It integrates software and hardware design exercises using SystemVerilog, assembly, and C.
+The upstream core implements **RV32I + Zicsr**. This version extends it to **`rv32im_zba_zicsr_zifencei_zicntr`** and adds a branch predictor:
 
-One of the standout features of HaDes-V is its **modular design**:  
-- Implement each module of the pipeline individually in the [`rtl/`](rtl) directory and cross-check its functionality using pre-compiled Verilator libraries provided in [`ref/`](ref).  
-- Validate that your implementation fits seamlessly into the overall processor—just like solving a jigsaw puzzle.  
-- Focus on one stage at a time, integrate step-by-step, and build confidence as you progress.  
+| Addition | Summary | Detail |
+|---|---|---|
+| **M** — multiply/divide | All eight instructions. 2-cycle registered multiply, 34-cycle restoring divider, and the first self-generated stall in the Execute stage | [§](#m--multiply-and-divide) |
+| **Zba** — address generation | `sh1add`/`sh2add`/`sh3add`; **20.3 % fewer cycles** on address-heavy code | [§](#zba--scaled-index-address-generation) |
+| **Zicntr** — user counters | `cycle`, `time`, `instret` (+ high halves), with `time` shadowing the real memory-mapped `mtime` | [§](#zicntr--user-mode-counters) |
+| **Zifencei** — documented & tested | `FENCE.I` was implemented but never actually verified upstream; now proven against a measured 3-slot staleness window | [§](#zifencei--instruction-fetch-synchronisation) |
+| **Branch predictor** | Bimodal, four runtime-selectable algorithms with dedicated performance counters | [§](#branch-predictor-extension) |
 
-Key topics covered:
-- **RISC-V Architecture**: Hands-on implementation of a pipelined processor with custom extensions.
-- **FPGA Development**: Using the AMD [Vivado][vivado] toolchain and the [Basys3][basys] development board.
-- **Hardware/Software Co-design**: Combining hardware description and software programming skills.
+Two correctness fixes to the base core are also included: a decoder defect that corrupted registers on stores and branches (which prevented the bootloader from running at all), and a forwarding defect that leaked a garbage value for `FENCE` instructions carrying a non-zero reserved field.
+
+### Verification
+
+Correctness is not asserted casually. The upstream project ships **frozen, closed-source reference models** (pre-compiled Verilator libraries in [`ref/`](ref)) which every base-ISA change is compared against bit-exactly. Those models predate the new extensions and cannot validate them, so each extension is instead verified by **differential testing against an independent implementation** — for M, the same program compiled to libgcc's software routines and to native instructions must produce byte-identical output; for Zba, the same program built with and without the extension.
+
+Test suites are additionally validated by **mutation testing**: faults are deliberately injected into the RTL to confirm the tests actually fail, guarding against coverage that only appears to be thorough.
+
+### Known Limitations
+
+- **FPGA timing does not close at 50 MHz.** Post-route WNS is −0.120 ns on a path that predates these extensions. The cause, the evidence, and the one-constant workaround are documented in full under [M — Multiply and Divide](#m--multiply-and-divide); nothing here has been silently glossed over.
+- **Not yet validated on physical hardware.** All results are from Verilator simulation and Vivado implementation.
 
 ## The HaDes-V Core
 
@@ -617,6 +628,20 @@ See the detailed exercise instructions in Chapter 4 of the [Instruction Guide][i
 ## Test Benches
 A closed-source test bench system is available for teaching purposes. For more information, please refer to the [Contact](#contact) section.
 
+## Attribution and Upstream
+
+This repository is a derivative work. The HaDes-V core, its build system, the Wishbone peripheral fabric, the reference models in [`ref/`](ref), and the original documentation were created by **Tobias Scheipel, David Beikircher, and Florian Riedl** (Embedded Architectures & Systems Group, Graz University of Technology) and published as an Open Educational Resource. Their copyright notices are retained in every file they authored, and both upstream licences apply unchanged — see [License](#license) below and [CITATION.cff](CITATION.cff) for the citation the authors request.
+
+The following are original contributions by **Emon Sarkar**, added after completing the upstream lab:
+
+- The **M**, **Zba**, and **Zicntr** extensions, and the substantiation of **Zifencei**
+- The **bimodal branch predictor** and its performance-counter CSRs
+- Two correctness fixes to the base core (decoder `rd` handling for S/B-type instructions; `FENCE` forwarding suppression in the Memory stage)
+- The test suites in [`test/asm/`](test/asm) and [`test/sv/`](test/sv) beyond the upstream set, including the golden-comparison, encoding-sweep, and adversarial suites
+- Repairs to the synthesis flow ([`synth/synth.tcl`](synth/synth.tcl)) and the architectural documentation in this README
+
+If you are looking for the original teaching material rather than this extended version, please go to the upstream source linked above — it is the canonical reference and the appropriate starting point for coursework.
+
 ## License
 
 This OER and all of its creative material (text, logos, etc.) is licensed under the **CC BY 4.0 International License**, allowing you to share and adapt the resource, provided appropriate credit is given. See the full license details [here](https://creativecommons.org/licenses/by/4.0/).
@@ -631,7 +656,9 @@ Contributions to this OER are welcome and encouraged! The LaTeX sources for the 
 
 ## Contact
 
-For questions, licensing, test bench inquiries, or further information, please contact and/or consult:
+For questions about the **extensions in this repository** (M, Zba, Zicntr, the branch predictor, or the verification work), please open an issue here.
+
+For questions about the **upstream HaDes-V project**, its licensing, or the closed-source test-bench system, contact the original authors:
 - **Email**: [tobias.scheipel@tugraz.at](mailto:tobias.scheipel@tugraz.at)
 - **Website**: [https://www.scheipel.com/oer](https://www.scheipel.com/oer)
 
