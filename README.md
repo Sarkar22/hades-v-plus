@@ -10,9 +10,16 @@
 ![image](https://www.scheipel.com/wp-content/uploads/2024/12/hades_logo.svg)
 # HaDes-V+ — An Extended RISC-V Soft Core
 
+[![ISA](https://img.shields.io/badge/ISA-rv32im__zba__zicsr__zifencei__zicntr-1f6feb)](#instruction-set)
+[![Target](https://img.shields.io/badge/target-Basys3%20%C2%B7%20Artix--7%20xc7a35t-e05d44)](#clocks--reset)
+[![Simulation](https://img.shields.io/badge/simulation-Verilator-2ea44f)](#building-running-and-debugging)
+[![License](https://img.shields.io/badge/license-MIT%20%C2%B7%20CC%20BY%204.0-8957e5)](#license)
+
 **HaDes-V+** is an extended version of the [HaDes-V][lvref] 32-bit RISC-V soft core: a classic in-order, five-stage pipeline written in SystemVerilog, targeting the Digilent [Basys3][basys] (Xilinx Artix-7 `xc7a35tcpg236-1`) at 50 MHz. It boots bare-metal C, takes interrupts, drives real peripherals, and programs itself over UART.
 
 The upstream HaDes-V is an **Open Educational Resource** developed by [Tobias Scheipel](https://www.scheipel.com), David Beikircher, and Florian Riedl of the Embedded Architectures & Systems Group at Graz University of Technology, and released under the MIT licence. This repository preserves that work and its licence in full — see [Attribution and Upstream](#attribution-and-upstream). Everything described under *Extensions* below is additional work by Emon Sarkar.
+
+Development proceeded in two phases. The base core was implemented as part of the **RISC-V Community Challenge with HaDes-V** (Gold, 2026), a programme issued by The Linux Foundation, in which each pipeline module of the submitted design was assessed against a reference implementation; the submission scored full marks across every stage (56/56). The extensions catalogued below were developed subsequently and independently of the challenge.
 
 ## What This Repository Adds
 
@@ -38,6 +45,18 @@ Test suites are additionally validated by **mutation testing**: faults are delib
 
 - **FPGA timing does not close at 50 MHz.** Post-route WNS is −0.120 ns on a path that predates these extensions. The cause, the evidence, and the one-constant workaround are documented in full under [M — Multiply and Divide](#m--multiply-and-divide); nothing here has been silently glossed over.
 - **Not yet validated on physical hardware.** All results are from Verilator simulation and Vivado implementation.
+
+## Quick Start
+
+```bash
+make test/asm/ops                      # every RV32I instruction, against the golden reference
+make test/c/m_extension                # M hardware diffed against libgcc's software routines
+make test/sv/test_decode_exhaustive    # 11,026 DUT-vs-reference decode checks
+make synthesis                         # implement for the Basys3 (Vivado)
+make help                              # all available targets
+```
+
+Requires [Verilator][verilator] and a `riscv32-unknown-elf` GCC toolchain; synthesis additionally needs AMD [Vivado][vivado]. Full list under [Tools and Dependencies](#tools-and-dependencies).
 
 ## The HaDes-V Core
 
@@ -542,12 +561,12 @@ The linker exports `__ram_start`, `__ram_end`, `__boot_start`, `__boot_end`, `__
 
 ## Reference-Library ("Jigsaw Puzzle") Flow
 
-The reason you can build HaDes-V stage-by-stage without ever having a broken pipeline is the [ref/](ref/) directory. Every pipeline module ships in two forms:
+HaDes-V can be built stage-by-stage without ever holding a broken pipeline, and the reason is the [ref/](ref/) directory. Every pipeline module ships in two forms:
 
-- **Your implementation** in [rtl/](rtl/) — plain SystemVerilog you edit.
+- **The implementation** in [rtl/](rtl/) — plain, editable SystemVerilog.
 - **A golden reference** in [ref/](ref/) — a pair of `ref_<stage>.sv` / `ref_<stage>_inner.sv` wrappers plus a precompiled `libref_<stage>_inner.so` produced by Verilator with `--protect-lib`. The `.so` is the actual implementation; the `.sv` wrapper is a DPI-C shim that makes it look like a normal SystemVerilog module to the simulator.
 
-Testbenches in [test/sv/](test/sv/) instantiate **both** — student DUT and golden REF — in parallel, clock them with the same stimulus, and flag any cycle where their outputs diverge. Because each stage has the same port list as its reference, you can freely mix: use your fetch + reference decode + your execute + reference memory + reference writeback, and the processor still runs a real program. That is what makes the "solve the puzzle one piece at a time" workflow possible.
+Testbenches in [test/sv/](test/sv/) instantiate **both** — the DUT and the golden REF — in parallel, clock them with the same stimulus, and flag any cycle where their outputs diverge. Because each stage has the same port list as its reference, you can freely mix: use your fetch + reference decode + your execute + reference memory + reference writeback, and the processor still runs a real program. That is what makes the "solve the puzzle one piece at a time" workflow possible.
 
 ## Building, Running, and Debugging
 
@@ -577,21 +596,11 @@ The [test/](test/) tree has three progressively integrative tiers:
 
 Together these give coverage at the instruction level, the system level, and the per-module bit-level — catch a bug as early as possible in whichever tier first exposes it.
 
-## Why HaDes-V?
+## Upstream Course Material
 
-- **Learn by Building**: Design a pipelined RISC-V processor from scratch.
-- **Modular Design**: Implement, test, and integrate each module of the pipeline step by step—just like solving a jigsaw puzzle.
-- **Immediate Validation**: Use golden references in [`ref/`](ref) to ensure your functionality matches expectations.
-- **Hands-On Debugging**: Simulate and verify your work with tools like [Verilator][verilator] and [GTKWave][gtkwave].
-- **Real Hardware Integration**: Bring your design to life on an FPGA using the [Basys3][basys]  board.
+HaDes-V originates as the lab project for [Microcontroller Design, Lab][lvref] at Graz University of Technology, where students implement each pipeline stage themselves and validate it against the reference models in [`ref/`](ref) — the flow described under [Reference-Library](#reference-library-jigsaw-puzzle-flow). The upstream project provides the staged exercises — basic pipeline implementation, then memory/writeback and CSRs, then a free-form extension project — together with an [Instruction Guide][instrguide] (exercise instructions are in its Chapter 4) and a closed-source test-bench system available to educators on request.
 
-## Learning Outcomes  
-By completing the lab, students will:  
-- **Design** a modular, pipelined 32-bit RISC-V processor with multiple stages.  
-- **Implement** CPU functionality using SystemVerilog.  
-- **Program** software for the processor in RISC-V Assembly and C.  
-- **Deploy** the processor design onto FPGA boards.  
-- **Analyze** the processor using simulation and waveform tools.
+**If you are taking that course, work from the upstream template rather than this repository.** It is the canonical starting point, and implementing the stages yourself is the entire point of the exercise.
 
 ## Tools and Dependencies
 
@@ -607,23 +616,12 @@ The following tools are required for the lab exercises (details in the [Instruct
 - [`defines/`](defines): HDL constants and definitions.
 - [`lib/`](lib): Peripheral modules (e.g., UART, timer).
 - [`ref/`](ref): Precompiled reference libraries.
-- [`rtl/`](rtl): The actual student implementation. Contains code stubs for further development.
+- [`rtl/`](rtl): The processor implementation — pipeline stages, register file, instruction decoder, and branch predictor.
 - [`synth/`](synth): Synthesis scripts and FPGA configuration files.
 - [`test/`](test): Test files in assembly (`asm`), C (`c`), and SystemVerilog (`sv`).
 - [`.vscode/`](.vscode): Configuration files for Visual Studio Code.
 
 Refer to the [Instruction Guide][instrguide] for a detailed project structure.
-
-## Exercises
-
-The laboratory includes several exercises to progressively build the HaDes-V processor:
-- **Basic Implementation**: CPU module, instruction fetch, decode, and execution stages.
-- **Advanced Features**: Memory stage, writeback stage, and control/status registers.
-- **Extensions**: Final project to extend the processor with custom peripherals or functionality.
-
-Each exercise allows you to implement and test individual modules while leveraging the **golden references** in [`ref/`](ref) for validation—ensuring seamless integration like solving a puzzle.
-
-See the detailed exercise instructions in Chapter 4 of the [Instruction Guide][instrguide].
 
 ## Test Benches
 A closed-source test bench system is available for teaching purposes. For more information, please refer to the [Contact](#contact) section.
