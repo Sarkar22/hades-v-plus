@@ -83,13 +83,16 @@ Implemented M-mode CSRs include `MSTATUS`, `MISA`, `MIE`, `MIP`, `MTVEC`, `MSCRA
 
 Instructions flow through five stages, each a dedicated module in [rtl/](rtl/), stitched together in [cpu.sv](rtl/cpu.sv):
 
-```mermaid
-flowchart LR
-    F["Fetch"] --> D["Decode"] --> E["Execute"] --> M["Memory"] --> W["Writeback"]
-    W -. "backwards control<br/>READY · STALL · JUMP" .-> F
+```
+  ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌───────────┐
+  │  FETCH  │──▶│ DECODE  │──▶│ EXECUTE │──▶│ MEMORY  │──▶│ WRITEBACK │
+  └─────────┘   └─────────┘   └─────────┘   └─────────┘   └───────────┘
+       ▲             ▲             ▲             ▲              │
+       └─────────────┴─────────────┴─────────────┴──────────────┘
+                    backwards control (READY / STALL / JUMP)
 ```
 
-Solid arrows carry the instruction and its `forwards` status toward Writeback. The dotted return path carries `backwards` control — `READY`, `STALL` or `JUMP` — which propagates one stage at a time rather than broadcasting, so any stage can stall or redirect everything upstream of it.
+The top row is the `forwards` path: the instruction and its status travel toward Writeback. The line beneath is the `backwards` control path — `READY`, `STALL` or `JUMP`. Any stage can originate it (Memory when the bus is busy, Execute during a multi-cycle divide, Decode on a hazard) and it propagates upstream one stage at a time, holding or redirecting everything ahead of it.
 
 | Stage | File | Responsibility |
 |---|---|---|
