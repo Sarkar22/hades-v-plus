@@ -83,14 +83,16 @@ Implemented M-mode CSRs include `MSTATUS`, `MISA`, `MIE`, `MIP`, `MTVEC`, `MSCRA
 
 Instructions flow through five stages, each a dedicated module in [rtl/](rtl/), stitched together in [cpu.sv](rtl/cpu.sv):
 
+```mermaid
+flowchart LR
+    F["Fetch"] --> D["Decode"] --> E["Execute"] --> M["Memory"] --> W["Writeback"]
+    W -.->|"READY / STALL / JUMP"| M
+    M -.-> E
+    E -.-> D
+    D -.-> F
 ```
-  ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌───────────┐
-  │  FETCH  │──▶│ DECODE  │──▶│ EXECUTE │──▶│ MEMORY  │──▶│ WRITEBACK │
-  └─────────┘   └─────────┘   └─────────┘   └─────────┘   └───────────┘
-       ▲             ▲             ▲             ▲              │
-       └─────────────┴─────────────┴─────────────┴──────────────┘
-                    backwards control (READY / STALL / JUMP)
-```
+
+Solid arrows carry the instruction and its `forwards` status toward Writeback; dotted arrows carry `backwards` control the other way, so any stage can stall or redirect everything ahead of it.
 
 | Stage | File | Responsibility |
 |---|---|---|
