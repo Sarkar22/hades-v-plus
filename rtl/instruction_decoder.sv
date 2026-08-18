@@ -300,6 +300,20 @@ module instruction_decoder (
                     {7'b0010000, 3'b010}: instruction_out.op = SH1ADD;
                     {7'b0010000, 3'b100}: instruction_out.op = SH2ADD;
                     {7'b0010000, 3'b110}: instruction_out.op = SH3ADD;
+                    // M extension: one funct7 (0000001) claims all eight funct3
+                    // values under the same OP opcode, so unlike Zba there are no
+                    // holes to leave illegal here. Plain R-type layout again: rd,
+                    // rs1 and rs2 are all real, the immediate is unused (the
+                    // decoder above emits 0 for this opcode), and none of them may
+                    // join the store/branch rd=0 suppression.
+                    {7'b0000001, 3'b000}: instruction_out.op = MUL;
+                    {7'b0000001, 3'b001}: instruction_out.op = MULH;
+                    {7'b0000001, 3'b010}: instruction_out.op = MULHSU;
+                    {7'b0000001, 3'b011}: instruction_out.op = MULHU;
+                    {7'b0000001, 3'b100}: instruction_out.op = DIV;
+                    {7'b0000001, 3'b101}: instruction_out.op = DIVU;
+                    {7'b0000001, 3'b110}: instruction_out.op = REM;
+                    {7'b0000001, 3'b111}: instruction_out.op = REMU;
                     default:              instruction_out.op = ILLEGAL;
                 endcase
             end

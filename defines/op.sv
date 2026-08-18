@@ -77,7 +77,26 @@ package op;
         // at 65 bits.
         SH1ADD,
         SH2ADD,
-        SH3ADD
+        SH3ADD,
+
+        // M (integer multiply / divide), opcode 0110011, funct7 = 0000001.
+        //
+        // Appended for exactly the reason spelled out above the Zba block: op::t
+        // numbering is positional and baked into the frozen ref/*.so models via
+        // the 65-bit instruction::t port.  Codes 0..52 stay bit-identical and
+        // these eight claim 53..60 -- 61 of 64 codes in use, so the enum is
+        // still 6 bits and instruction::t is still 65 bits.  Three codes remain.
+        //
+        // The order here is deliberately funct3 order (000..111), so a decoder
+        // or execute-stage arm can be read against the ISA table line by line.
+        MUL,
+        MULH,
+        MULHSU,
+        MULHU,
+        DIV,
+        DIVU,
+        REM,
+        REMU
     } t;
 endpackage
 
