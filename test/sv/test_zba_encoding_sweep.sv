@@ -1,9 +1,17 @@
-/* Adversarial encoding-hygiene sweep for Zba.
+/* Adversarial encoding-hygiene sweep for the non-base extensions (Zba + M).
  *
  * Contract checked here: the DUT decoder must produce the SAME op::t as the
- * frozen reference decoder for every 32-bit word, with exactly three
- * exceptions -- the SH1ADD / SH2ADD / SH3ADD encodings.  A decode arm that is
- * too broad shows up as a word where DUT.op != REF.op that is not Zba.
+ * frozen reference decoder for every 32-bit word, with exactly two families of
+ * exceptions -- the three SH1ADD / SH2ADD / SH3ADD encodings and the M
+ * encodings (opcode 0110011, funct7 0000001).  A decode arm that is too broad
+ * shows up as a word where DUT.op != REF.op that belongs to neither family.
+ *
+ * The M family is checked the same way Zba is: the DUT must produce the exact
+ * expected op for every word in the family, the reference must call every one
+ * of them ILLEGAL (it predates M), and the R-type field extraction must be
+ * untouched.  Only the funct3 values that are actually implemented are claimed;
+ * any unimplemented funct3 under funct7=0000001 must still decode to ILLEGAL,
+ * which the final `else` branch enforces because it is then not an M word.
  *
  * rd_address / csr / immediate are also compared strictly.
  *
@@ -29,6 +37,8 @@ module test_zba_encoding_sweep;
     int unsigned sh1_hits  = 0;
     int unsigned sh2_hits  = 0;
     int unsigned sh3_hits  = 0;
+    int unsigned m_hits    = 0;
+    int unsigned m_f3_hits[8];
 
     instruction_decoder     dut  (.instruction_in(instr), .instruction_out(dut_out));
     ref_instruction_decoder refd (.instruction_in(instr), .instruction_out(ref_out));
@@ -44,6 +54,33 @@ module test_zba_encoding_sweep;
             3'b010:  return SH1ADD;
             3'b100:  return SH2ADD;
             default: return SH3ADD;
+        endcase
+    endfunction
+
+    // ---- M extension ---------------------------------------------------
+    // IMPLEMENTED_M_F3 is a bit mask over funct3: bit i set means funct3 == i is
+    // a decoded M instruction.  It is deliberately a mask rather than "all eight
+    // funct3 values", so that a partially implemented M (multiply landed,
+    // division not yet) is checked exactly as strictly: the funct3 values that
+    // are NOT in the mask must still decode to ILLEGAL, matching the reference.
+    localparam logic [7:0] IMPLEMENTED_M_F3 = 8'b1111_1111;
+
+    function automatic bit is_m_word(input logic [31:0] w);
+        return (w[6:0]   == 7'b0110011)
+            && (w[31:25] == 7'b0000001)
+            && IMPLEMENTED_M_F3[w[14:12]];
+    endfunction
+
+    function automatic op::t m_op(input logic [31:0] w);
+        case (w[14:12])
+            3'b000:  return MUL;
+            3'b001:  return MULH;
+            3'b010:  return MULHSU;
+            3'b011:  return MULHU;
+            3'b100:  return DIV;
+            3'b101:  return DIVU;
+            3'b110:  return REM;
+            default: return REMU;
         endcase
     endfunction
 
@@ -85,6 +122,26 @@ module test_zba_encoding_sweep;
                 $display("ZBA-FIELD BAD instr=%08h rd=%0d rs1=%0d rs2=%0d imm=%08h",
                          w, dut_out.rd_address, dut_out.rs1_address, dut_out.rs2_address, dut_out.immediate);
             end
+        end else if (is_m_word(w)) begin
+            m_hits++;
+            m_f3_hits[w[14:12]]++;
+            if (dut_out.op !== m_op(w)) begin
+                errors++;
+                $display("M-OP MISMATCH instr=%08h dut.op=%0d expected=%0d", w, dut_out.op, m_op(w));
+            end
+            if (ref_out.op !== ILLEGAL) begin
+                errors++;
+                $display("REF-SANITY instr=%08h ref.op=%0d (expected ILLEGAL=%0d)", w, ref_out.op, ILLEGAL);
+            end
+            // M is plain R-type: raw field extraction must be untouched.
+            if (dut_out.rd_address  !== w[11:7]  ||
+                dut_out.rs1_address !== w[19:15] ||
+                dut_out.rs2_address !== w[24:20] ||
+                dut_out.immediate   !== 32'b0) begin
+                errors++;
+                $display("M-FIELD BAD instr=%08h rd=%0d rs1=%0d rs2=%0d imm=%08h",
+                         w, dut_out.rd_address, dut_out.rs1_address, dut_out.rs2_address, dut_out.immediate);
+            end
         end else if (w[6:0] == 7'b1110011) begin
             // SYSTEM opcode: this project's CSR decoder already diverges from the
             // reference on some CSR addresses (e.g. 303f71f3 -> CSRRCI vs ILLEGAL).
@@ -104,6 +161,8 @@ module test_zba_encoding_sweep;
     initial begin
         int unsigned rdv, rs1v, rs2v;
 
+        foreach (m_f3_hits[i]) m_f3_hits[i] = 0;
+
         $display("WIDTH: $bits(op::t)=%0d  $bits(instruction::t)=%0d  (ref inner port is [64:0])",
                  $bits(op::t), $bits(instruction::t));
         if ($bits(op::t) != 6 || $bits(instruction::t) != 65) begin
@@ -112,9 +171,15 @@ module test_zba_encoding_sweep;
         end
         $display("ENUM: ILLEGAL=%0d SH1ADD=%0d SH2ADD=%0d SH3ADD=%0d  (ILLEGAL must still be 49)",
                  ILLEGAL, SH1ADD, SH2ADD, SH3ADD);
+        $display("ENUM: MUL=%0d MULH=%0d MULHSU=%0d MULHU=%0d DIV=%0d DIVU=%0d REM=%0d REMU=%0d",
+                 MUL, MULH, MULHSU, MULHU, DIV, DIVU, REM, REMU);
         if (int'(ILLEGAL) != 49) begin
             errors++;
             $display("ENUM REGRESSION: ILLEGAL renumbered");
+        end
+        if (int'(SH1ADD) != 50 || int'(SH3ADD) != 52 || int'(MUL) != 53 || int'(REMU) != 60) begin
+            errors++;
+            $display("ENUM REGRESSION: extension ops must occupy 50..60 with M appended last");
         end
         $display("=== SWEEP A: every opcode x funct3 x funct7 (rd=x10 rs1=x11 rs2=x12) ===");
         for (int oc = 0; oc < 128; oc++)
@@ -149,14 +214,22 @@ module test_zba_encoding_sweep;
             errors++;
             $display("COVERAGE HOLE: sh1=%0d sh2=%0d sh3=%0d", sh1_hits, sh2_hits, sh3_hits);
         end
+        for (int f3 = 0; f3 < 8; f3++)
+            if (IMPLEMENTED_M_F3[f3] && m_f3_hits[f3] == 0) begin
+                errors++;
+                $display("COVERAGE HOLE: no M word exercised for funct3=%0d", f3);
+            end
         $display("Zba words exercised: sh1add=%0d sh2add=%0d sh3add=%0d (total %0d)",
                  sh1_hits, sh2_hits, sh3_hits, zba_hits);
+        $display("M words exercised: f3 = %0d %0d %0d %0d %0d %0d %0d %0d (total %0d)",
+                 m_f3_hits[0], m_f3_hits[1], m_f3_hits[2], m_f3_hits[3],
+                 m_f3_hits[4], m_f3_hits[5], m_f3_hits[6], m_f3_hits[7], m_hits);
         $display("INFO: pre-existing rs1/rs2 DUT-vs-REF divergences = %0d of %0d", rs_diverge, checks);
         $display("INFO: pre-existing rd/csr/imm DUT-vs-REF divergences = %0d of %0d", field_diverge, checks);
         $display("INFO: pre-existing SYSTEM-opcode op divergences = %0d of %0d", sys_diverge, checks);
 
         if (errors == 0)
-            $display("\033[0;32mAll %0d encoding checks passed — dut op matches ref everywhere except the 3 Zba words\033[0m", checks);
+            $display("\033[0;32mAll %0d encoding checks passed — dut op matches ref everywhere except the Zba and M words\033[0m", checks);
         else
             $display("\033[0;31m%0d/%0d encoding checks FAILED\033[0m", errors, checks);
         $display("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");

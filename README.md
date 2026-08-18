@@ -37,6 +37,7 @@ HaDes-V is a **32-bit, in-order, classic five-stage RISC-V soft core** written i
 | Class | Support |
 |---|---|
 | Base ISA | **RV32I** — all 37 integer instructions (LUI/AUIPC, arithmetic/logic reg–reg & reg–imm, loads/stores for byte/half/word with signed & unsigned variants, conditional branches, JAL/JALR) |
+| Multiply / divide | **M** — `mul`, `mulh`, `mulhsu`, `mulhu`, `div`, `divu`, `rem`, `remu` |
 | Control & Status | **Zicsr** — CSRRW / CSRRS / CSRRC and their immediate variants |
 | Instruction fence | **Zifencei** — FENCE.I to resynchronise the fetch path after self-modifying writes |
 | Counters | **Zicntr** — user-mode read-only `cycle`, `time`, `instret` (+ `*h` high halves) |
@@ -44,7 +45,7 @@ HaDes-V is a **32-bit, in-order, classic five-stage RISC-V soft core** written i
 | Privilege | **Machine mode only** (M-mode) with a full trap model: ECALL, EBREAK, MRET, and all synchronous exceptions |
 | Interrupts | **External** and **timer** (`mie.MEIE`, `mie.MTIE`); gated by `mstatus.MIE`; save/restore via `MPIE` |
 
-The full ISA string is **`rv32i_zba_zicsr_zifencei_zicntr`** (pinned: `rv32i2p1_zba1p0_zicsr2p0_zifencei2p0_zicntr2p0`). The `Zicsr` and `Zifencei` suffixes are load-bearing rather than decorative: base `I` version 2.0 included the CSR instructions and `FENCE.I`, but version 2.1 split them out into separately-named extensions. Note that no `Z*` extension can be advertised in `MISA` — its `Extensions` field has exactly one bit per single letter (bit 8 = `I`, bit 12 = `M`, …), so multi-letter extension names exist only in the ISA string.
+The full ISA string is **`rv32im_zba_zicsr_zifencei_zicntr`** (pinned: `rv32i2p1_m2p0_zba1p0_zicsr2p0_zifencei2p0_zicntr2p0`). The `Zicsr` and `Zifencei` suffixes are load-bearing rather than decorative: base `I` version 2.0 included the CSR instructions and `FENCE.I`, but version 2.1 split them out into separately-named extensions. Note that no `Z*` extension can be advertised in `MISA` — its `Extensions` field has exactly one bit per single letter (bit 8 = `I`, bit 12 = `M`, …), so multi-letter extension names exist only in the ISA string.
 
 Implemented M-mode CSRs include `MSTATUS`, `MISA`, `MIE`, `MIP`, `MTVEC`, `MSCRATCH`, `MEPC`, `MCAUSE`, `MCYCLE`/`MCYCLEH`, `MINSTRET`/`MINSTRETH`, and (as an extension) **`MHPMEVENT10`** and **`MHPMCOUNTER10–13`** for branch-predictor control and performance monitoring — see [defines/csr.sv](defines/csr.sv) for the full map.
 
@@ -83,10 +84,85 @@ Being in-order and single-issue keeps the control story small, but every classic
 - **CSR-use hazard.** A CSR read resolves in Writeback, so its forwarding is tagged `data_valid = 0` in earlier stages; the same stall mechanism as load-use covers it.
 - **Control hazards (branches / JAL / JALR).** Resolved in Execute. On a taken jump, the younger instructions already in Fetch/Decode are squashed by driving `JUMP` with the target address backwards; Fetch reloads from the target next cycle. With the **branch predictor extension** enabled (see below), correctly-predicted branches incur zero flush penalty — Execute only generates a `JUMP` on *mis*predictions.
 - **Structural hazards on the bus.** The fetch and data paths each have their own Wishbone port, so loads/stores never collide with instruction fetches. When the data bus is slow, Memory holds the rest of the pipeline with `STALL`.
+- **Multi-cycle execute (M extension).** Execute is single-cycle for every RV32I operation, but `mul` needs two cycles and `div`/`rem` need 34. Execute therefore has its own `STALL` generator, the second one in the pipeline after Memory's. Priority is `JUMP` from behind > `STALL` from Memory > Execute's own stall: a flush always outranks an unfinished divide, which is abandoned and re-run after the trap returns. See [Multiply and Divide](#m--multiply-and-divide) below.
 - **Exceptions.** Flow forwards through the pipeline as the instruction's status code and trap at Writeback — the faulting PC is saved to `MEPC`, the cause encoded into `MCAUSE`, and control jumps to `MTVEC`.
 - **Interrupts.** External and timer lines are sampled at Writeback. They trap on the completion boundary of a `VALID` or `ERROR` instruction (never on a `BUBBLE`), honour `mstatus.MIE` / `mie.MEIE` / `mie.MTIE`, and save/restore the global enable via `MPIE`. MRET returning with a pending enabled interrupt traps in the same cycle.
 - **Nested-trap MPIE preservation.** On a primary trap `MPIE ← MIE` captures the previous interrupt-enable state. If a *nested* trap fires while MIE is already 0 (CPU already in a handler), `MPIE` must **not** be overwritten — doing so would destroy the saved state from the outer trap. In the implementation: `mstatus_mpie` is only updated when `mie_eff = 1`; nested traps still update `MCAUSE`, `MEPC`, and clear `MIE`, but leave `MPIE` unchanged. Without this rule, a stale `FETCH_FAULT` arriving the cycle after a primary interrupt trap would clobber `MPIE` to 0, breaking the `MRET`-with-pending-interrupt path.
 - **Pipeline flushes on trap.** The trap's `JUMP` propagates backwards exactly like a branch, draining younger instructions without architectural side effects.
+
+### M — Multiply and Divide
+
+Eight instructions, all plain R-type on the existing `OP` opcode (`0110011`) with `funct7 = 0000001`, so `funct3` alone selects among them and no new instruction format is needed.
+
+| Instruction | funct3 | Operation |
+|---|---|---|
+| `mul` | `000` | low 32 bits of `rs1 × rs2` |
+| `mulh` | `001` | high 32 bits, `rs1` **signed** × `rs2` **signed** |
+| `mulhsu` | `010` | high 32 bits, `rs1` **signed** × `rs2` **unsigned** |
+| `mulhu` | `011` | high 32 bits, `rs1` **unsigned** × `rs2` **unsigned** |
+| `div` | `100` | signed quotient, truncated toward zero |
+| `divu` | `101` | unsigned quotient |
+| `rem` | `110` | signed remainder, sign of the **dividend** |
+| `remu` | `111` | unsigned remainder |
+
+**Division never traps.** RISC-V has no divide-by-zero exception and no overflow exception; both cases produce a defined value:
+
+| Case | `div` | `divu` | `rem` | `remu` |
+|---|---|---|---|---|
+| `rs2 == 0` | `-1` | `2³²-1` | `rs1` | `rs1` |
+| `rs1 == -2³¹`, `rs2 == -1` | `-2³¹` | *(ordinary)* `0` | `0` | *(ordinary)* `-2³¹` |
+
+Both are handled as a **combinational early-out** that skips iteration entirely, so a divide by zero costs one cycle rather than 34.
+
+#### Execute learns to stall
+
+This is the first extension that makes Execute multi-cycle. Until now Execute was purely combinational and only *relayed* Memory's `STALL`/`JUMP`; the divider gives it a reason of its own.
+
+| Operation | Cycles in Execute | Measured |
+|---|---|---|
+| any RV32I ALU op | 1 | 1.00 |
+| `mul` / `mulh` / `mulhsu` / `mulhu` | 2 | 2.00 |
+| `div` / `divu` / `rem` / `remu` | 34 | 34.00 |
+| `div` / `rem` by zero, or `-2³¹ / -1` | 1 | 1.00 |
+
+*(Measured in the assembled core over 800 back-to-back operations, loop overhead subtracted.)*
+
+The arbitration between the three reasons the pipeline can be redirected is the delicate part, and the order is fixed in [rtl/execute_stage.sv](rtl/execute_stage.sv) Part 5:
+
+1. **`JUMP` from Memory/Writeback wins over everything.** A trap, interrupt, `MRET` or `FENCE.I` is squashing the instruction that owns the in-flight divide, so the divide is **abandoned** and the M unit resets. Holding `STALL` through a flush instead is the classic hang: Decode and Fetch would never see the redirect. The abandoned divide costs nothing — the flushed instruction is re-fetched from `mepc` and re-run.
+2. **`STALL` from Memory wins over Execute's own stall,** because a Wishbone transaction cannot be aborted. The divider keeps iterating underneath it: Decode holds its output registers whenever anything downstream stalls, so the operands are bit-stable and the progress is free. A divide that finishes mid-stall simply parks until the instruction can leave.
+3. **Execute's own stall.** Decode already honoured `STALL` from Execute (holding its registers and relaying to Fetch, which freezes the PC), so no upstream change was needed — only the generator was missing.
+
+While stalling, Execute holds every data register and forwards `BUBBLE` to Memory — the same pattern `memory_stage` already uses for its bus stall — so the instruction Memory consumed on the previous edge is not re-executed.
+
+#### Verification
+
+The frozen reference models predate `M` and can only report every M encoding as illegal, so correctness rests on three independent oracles.
+
+| Test | What it covers |
+|---|---|
+| [test/sv/test_m_execute.sv](test/sv/test_m_execute.sv) | 6,268 checks against a golden model written from SystemVerilog's own `*`, `/` and `%`. Corner×corner and random operand sweeps for all eight ops, plus the whole stall protocol: `JUMP` at all 36 points of a divide, `JUMP` on the exact cycle it finishes, Memory `STALL` during and outlasting a divide, back-to-back M ops, `BUBBLE` and exception-status M ops (which must not stall), and reset mid-divide. Every wait loop is bounded and reports `HANG`. |
+| [test/asm/mul.s](test/asm/mul.s) | 19 operand rows × 4 forms plus aliasing, `x0` destination and forwarding cases. `mulhsu` is run in **both operand orders** for every mixed-sign case — it is the only one of the four that is not commutative, and the expected values differ. |
+| [test/asm/div.s](test/asm/div.s) | All four quadrants of truncating division, divide-by-zero for all four instructions over six dividends, the `-2³¹ / -1` overflow, dependent divide chains, quotients used as load/store addresses, divides in front of taken and not-taken branches, and an external interrupt swept across the 34-cycle window — 20 of the sweep's flushes land on an unfinished divide. |
+| [test/c/m_extension.c](test/c/m_extension.c) | 200 differential checks against **libgcc**: each pair is computed once by a hardware M instruction and once by `__mulsi3`/`__muldi3`/`__divsi3`/`__modsi3`/`__udivsi3`/`__umodsi3`, which are independent RV32I software running on the same core. The two inputs that are undefined behaviour in C are checked against the mandated constants instead. |
+| [test/sv/test_zba_encoding_sweep.sv](test/sv/test_zba_encoding_sweep.sv) | The 290,288-word decoder sweep now also requires the DUT to match the reference everywhere except the Zba **and** M words, so a decode arm that is too broad still shows up as a leak. |
+
+```bash
+make test/sv/test_m_execute
+make test/asm/mul
+make test/asm/div
+make test/c/m_extension
+```
+
+#### Implementation Notes
+
+- **FPGA timing does not close, and this is the repository's top open issue.** Measured on Vivado 2024.2 for the `xc7a35tcpg236-1` at 20 ns: this tree reports post-route **WNS −0.120 ns** with 2 failing endpoints of 11214, while the same flow on the immediately preceding commit reports **+0.026 ns** with none. A bitstream is still produced — `write_bitstream` does not check timing — so a successful `make synthesis` is *not* evidence of closure; read `build/synth/reports/timing_pnr.rpt`. Two caveats matter before blaming the multiplier. First, **no M cell appears in the 40 worst paths**: the multiply closes with +6.15 ns and the divider with +10.19 ns. The failing path is a pre-existing 21-level, ~85 %-route path from the Memory stage's instruction register, through the waived `LUTLP-1` combinational-loop tangle, to the `mcause` register's clock enable — M's ~9 % area growth degrades its routing rather than lengthening its logic. Second, **run-to-run variance on that path is around 1 ns**, far larger than the 0.15 ns M costs, so a single run cannot cleanly attribute blame. The honest summary is that the design has been running at roughly zero margin since before M, the stored `+0.221 ns` report predates the `Zicntr` and `Zba` commits, and the real fix is to shorten that interrupt path rather than to pipeline the multiplier further.
+- **The M results bypass `alu_sel` entirely.** `alu_sel` is a 4-bit local with only `1110`/`1111` free, and it is internal to `execute_stage` (not a struct field or port), so widening it would have been safe with respect to the frozen models. It was not widened anyway: half the M results come out of a sequential FSM and cannot be arms of the `always_comb` case that computes `alu_result`, and this design has essentially no timing margin to spend restructuring a block already near the critical path (see the FPGA timing note below). `m_result` is a second result bus that meets the ALU at the `rd_data` mux — one extra 2:1 level instead of six extra arms inside the ALU mux.
+- **The multiply is registered, not combinational.** A 33×33 signed product is an array of DSP48E1 tiles plus an adder tree; run with no internal pipeline register it is comfortably the deepest combinational block in the core, and it would land on a path that runs from Decode's output registers through the multiplier, the `rd_data` mux and the forwarding network back into Decode's output registers — one 20 ns period, in a design with almost no margin to give. Registering the product puts a flop directly on the multiplier output. The price is one stall cycle, and since the divider needs the stall generator anyway it costs no extra machinery. Measured on the routed design the multiply path closes with **+6.15 ns** of slack, so the decision is vindicated — though Vivado did *not* absorb the flop into the DSP48E1's `P` register as intended, because the `MUL`-vs-`MULH` output mux sits between the DSP cascade and the register. Registering the full 64-bit product and muxing after the flops would allow that, at the cost of 32 extra FFs; it is not needed at this margin.
+- **Restoring division on magnitudes.** Restoring and non-restoring need the same 32 iterations, but restoring needs no final correction step: the inner loop is one 33-bit subtract whose borrow *is* the quotient bit. Signs are stripped on the way in and reapplied on the way out, which is exactly the truncate-toward-zero rounding RISC-V specifies — and it makes the remainder follow the dividend for free. `abs(0x80000000)` is `0x80000000`, which read as unsigned is the correct magnitude 2³¹, so the most-negative value needs no special case in the datapath.
+- **New ops were again appended *after* `ILLEGAL`** in [defines/op.sv](defines/op.sv), for the reason the `Zba` notes give. Codes 0–52 are bit-identical and M claims 53–60: **61 of 64 codes used**, so `op::t` is still 6 bits and `instruction::t` still 65 bits. The encoding sweep asserts both widths and the exact enum positions on every run.
+- **Assembled via a directive, not a global flag.** [test/asm/mul.s](test/asm/mul.s) and [test/asm/div.s](test/asm/div.s) carry `.option arch, +m`, and [test/c/m_extension.c](test/c/m_extension.c) wraps its inline asm in `.option push` / `.option arch, +m` / `.option pop`. The Makefile still specifies no `-march` anywhere, so every other test still assembles as strict RV32I.
+- **Interrupt latency grows behind a divide.** Writeback only takes an interrupt on the completion boundary of a non-`BUBBLE` instruction, and Execute feeds `BUBBLE` to Memory for all 33 stall cycles. Once the pipeline drains, an interrupt raised mid-divide is therefore deferred until the divide retires — up to ~34 cycles of extra latency. This is legal (interrupt latency is implementation-defined) and it is not a hang, but it is real and worth knowing before using `div` in an interrupt-critical loop.
 
 ### Zba — Scaled-Index Address Generation
 
@@ -123,7 +199,7 @@ Measured on an address-generation-heavy workload: **20.3 % fewer cycles** (1.26�
 #### Implementation Notes
 
 - **Assembled via a directive, not a global flag.** [test/asm/zba.s](test/asm/zba.s) carries `.option arch, +zba` rather than adding `-march=rv32i_zba` to the Makefile. This keeps the requirement next to the file that needs it and preserves the Makefile's property of specifying no `-march` at all; a global flag would silently permit `Zba` in every other assembly test.
-- **New ops were appended *after* `ILLEGAL` in [defines/op.sv](defines/op.sv).** `op::t` values are positional, and [test/sv/test_execute_compare.sv](test/sv/test_execute_compare.sv) feeds `op::ILLEGAL` directly into a frozen reference model. Inserting ahead of `ILLEGAL` would have renumbered it from 49 to 52 and handed the golden model a code it has never seen. The enum stays 6 bits and `instruction::t` stays 65 bits, so every reference port width is unchanged — 53 of 64 codes are now used.
+- **New ops were appended *after* `ILLEGAL` in [defines/op.sv](defines/op.sv).** `op::t` values are positional, and [test/sv/test_execute_compare.sv](test/sv/test_execute_compare.sv) feeds `op::ILLEGAL` directly into a frozen reference model. Inserting ahead of `ILLEGAL` would have renumbered it from 49 to 52 and handed the golden model a code it has never seen. The enum stays 6 bits and `instruction::t` stays 65 bits, so every reference port width is unchanged — `Zba` took the count to 53 of 64, and the `M` extension appended after it takes it to 61.
 - **Three fixed shifts, not one variable shift.** Each `alu_sel` arm hardwires its shift amount, which is free wiring into the existing adder. A single parameterised arm would need a shift-amount signal crossing the `alu_sel` boundary and would likely infer a second barrel shifter beside the one `SLL`/`SRL`/`SRA` already share — a poor trade on a design with this timing margin.
 
 ### Zicntr — User-Mode Counters
@@ -484,9 +560,9 @@ The [test/](test/) tree has three progressively integrative tiers:
 
 | Tier | Location | What it exercises | Invocation |
 |---|---|---|---|
-| **Assembly** | [test/asm/](test/asm/) | Small hand-written `.s` programs targeting a specific ISA feature — e.g. [trap.s](test/asm/trap.s) for the full exception/interrupt path, [ops.s](test/asm/ops.s) for every RV32I instruction, [forwarding.s](test/asm/forwarding.s) for the data-hazard network, [bpred.s](test/asm/bpred.s) for the branch predictor (modes 0/1/3, counter verification). | `make test/asm/trap` |
-| **C** | [test/c/](test/c/) | Full C programs linked against [std/](std/). [bootloader.c](test/c/bootloader.c) is the UART loader; [basys3_demo.c](test/c/basys3_demo.c) wiggles every on-board peripheral. | `make test/c/basys3_demo` |
-| **SystemVerilog** | [test/sv/](test/sv/) | Module-level benches that run DUT vs. REF side-by-side and compare every cycle. Examples: [test_writeback_compare.sv](test/sv/test_writeback_compare.sv), [test_execute_compare.sv](test/sv/test_execute_compare.sv), [test_decode_hazard.sv](test/sv/test_decode_hazard.sv). | `make test/sv/test_writeback_compare` |
+| **Assembly** | [test/asm/](test/asm/) | Small hand-written `.s` programs targeting a specific ISA feature — e.g. [trap.s](test/asm/trap.s) for the full exception/interrupt path, [ops.s](test/asm/ops.s) for every RV32I instruction, [forwarding.s](test/asm/forwarding.s) for the data-hazard network, [bpred.s](test/asm/bpred.s) for the branch predictor (modes 0/1/3, counter verification), [mul.s](test/asm/mul.s) / [div.s](test/asm/div.s) for the `M` extension. | `make test/asm/trap` |
+| **C** | [test/c/](test/c/) | Full C programs linked against [std/](std/). [bootloader.c](test/c/bootloader.c) is the UART loader; [basys3_demo.c](test/c/basys3_demo.c) wiggles every on-board peripheral; [m_extension.c](test/c/m_extension.c) diffs the `M` hardware against libgcc's software routines. | `make test/c/basys3_demo` |
+| **SystemVerilog** | [test/sv/](test/sv/) | Module-level benches that run DUT vs. REF side-by-side and compare every cycle. Examples: [test_writeback_compare.sv](test/sv/test_writeback_compare.sv), [test_execute_compare.sv](test/sv/test_execute_compare.sv), [test_decode_hazard.sv](test/sv/test_decode_hazard.sv). Where the frozen reference cannot help — `Zba`, `M` — the bench carries its own golden model instead: [test_m_execute.sv](test/sv/test_m_execute.sv). | `make test/sv/test_writeback_compare` |
 
 Together these give coverage at the instruction level, the system level, and the per-module bit-level — catch a bug as early as possible in whichever tier first exposes it.
 
