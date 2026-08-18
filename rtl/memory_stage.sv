@@ -361,12 +361,16 @@ module memory_stage (
                 forwarding_out.address = instruction_in.rd_address;
         endcase
 
-        // data_valid: 0 for CSR, non-VALID status, and misaligned exceptions
+        // data_valid: 0 for CSR, fences, non-VALID status, and misaligned exceptions
         // Use status_next which captures both incoming non-VALID and local errors
+        // FENCE/FENCE.I produce no result: bits [11:7] are a RESERVED field, not an
+        // rd, so forwarding the ALU output under that address would corrupt a
+        // dependent operand. Execute and Writeback already suppress it here too.
         if (status_next != VALID)
             forwarding_out.data_valid = 1'b0;
         else case (instruction_in.op)
-            CSRRW, CSRRS, CSRRC, CSRRWI, CSRRSI, CSRRCI:
+            CSRRW, CSRRS, CSRRC, CSRRWI, CSRRSI, CSRRCI,
+            FENCE, FENCE_I:
                 forwarding_out.data_valid = 1'b0;
             default:
                 forwarding_out.data_valid = 1'b1;
