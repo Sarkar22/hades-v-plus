@@ -104,8 +104,16 @@ module mcu #(
         test_interrupt
     };
 
+    // Live mtime from the wishbone timer, fed to the core so the Zicntr TIME/TIMEH
+    // CSRs shadow the real memory-mapped mtime (see wishbone_timer.mtime_out).
+    logic [63:0] mtime;
+
     // Instantiate CPU
-    cpu cpu(
+    // To run a test against the golden model instead, verilate with +define+USE_REF_CPU:
+    // ref_cpu has a frozen port list with no mtime_in, so that pin is excluded and
+    // TIME/TIMEH read 0 on the reference (it predates Zicntr).
+`ifdef USE_REF_CPU
+    ref_cpu cpu(
         .clk(clk),
         .rst(rst),
         .memory_fetch_port(fetch_bus.master),
@@ -113,6 +121,17 @@ module mcu #(
         .external_interrupt_in(external_interrupt),
         .timer_interrupt_in(timer_interrupt)
     );
+`else
+    cpu cpu(
+        .clk(clk),
+        .rst(rst),
+        .memory_fetch_port(fetch_bus.master),
+        .memory_mem_port(mem_bus.master),
+        .external_interrupt_in(external_interrupt),
+        .timer_interrupt_in(timer_interrupt),
+        .mtime_in(mtime)
+    );
+`endif
 
     // --------------------------------------------------------------------------------------------
     // |                                       Peripherals                                        |
@@ -225,6 +244,7 @@ module mcu #(
         .rst(rst),
 
         .interrupt(timer_interrupt),
+        .mtime_out(mtime),
 
         .wishbone(mem_bus_slaves[6])
     );

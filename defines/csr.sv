@@ -91,6 +91,21 @@ package csr;
         MHPMCOUNTER29H = 12'hB9D,
         MHPMCOUNTER30H = 12'hB9E,
         MHPMCOUNTER31H = 12'hB9F,
+
+        // --- Zicntr: user-mode read-only counters -----------------------------
+        // These are read-only SHADOWS, not separate state:
+        //   CYCLE   (0xC00) shadows MCYCLE   (0xB00)
+        //   TIME    (0xC01) shadows the memory-mapped mtime of wishbone_timer
+        //   INSTRET (0xC02) shadows MINSTRET (0xB02)
+        // Address bits [11:10] == 2'b11 marks them read-only, so the decoder's
+        // generic read-only rule already turns every write form into ILLEGAL.
+        CYCLE          = 12'hC00,
+        TIME           = 12'hC01,
+        INSTRET        = 12'hC02,
+        CYCLEH         = 12'hC80,
+        TIMEH          = 12'hC81,
+        INSTRETH       = 12'hC82,
+
         MHPMEVENT3     = 12'h323,
         MHPMEVENT4     = 12'h324,
         MHPMEVENT5     = 12'h325,

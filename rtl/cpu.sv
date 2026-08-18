@@ -15,7 +15,12 @@ module cpu (
     wishbone_interface.master memory_mem_port,
 
     input logic external_interrupt_in,
-    input logic timer_interrupt_in
+    input logic timer_interrupt_in,
+
+    // Live 64-bit mtime from the platform timer (wishbone_timer.mtime_out).
+    // Only consumer is the Writeback stage, which exposes it as the Zicntr
+    // TIME/TIMEH CSRs. Same clock domain as `clk`, so it is used directly.
+    input logic [63:0] mtime_in
 );
 
     // =========================================================================
@@ -195,6 +200,7 @@ module cpu (
         .next_program_counter_in   (next_pc_m),
         .external_interrupt_in     (external_interrupt_in),
         .timer_interrupt_in        (timer_interrupt_in),
+        .mtime_in                  (mtime_in),
         .bp_feedback_in            (bp_feedback),
         .bp_control_out            (bp_control),
         .forwarding_out            (fwd_wb),

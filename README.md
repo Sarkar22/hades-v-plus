@@ -39,10 +39,11 @@ HaDes-V is a **32-bit, in-order, classic five-stage RISC-V soft core** written i
 | Base ISA | **RV32I** — all 37 integer instructions (LUI/AUIPC, arithmetic/logic reg–reg & reg–imm, loads/stores for byte/half/word with signed & unsigned variants, conditional branches, JAL/JALR) |
 | Control & Status | **Zicsr** — CSRRW / CSRRS / CSRRC and their immediate variants |
 | Instruction fence | **Zifencei** — FENCE.I to resynchronise the fetch path after self-modifying writes |
+| Counters | **Zicntr** — user-mode read-only `cycle`, `time`, `instret` (+ `*h` high halves) |
 | Privilege | **Machine mode only** (M-mode) with a full trap model: ECALL, EBREAK, MRET, and all synchronous exceptions |
 | Interrupts | **External** and **timer** (`mie.MEIE`, `mie.MTIE`); gated by `mstatus.MIE`; save/restore via `MPIE` |
 
-The full ISA string is **`rv32i_zicsr_zifencei`** (pinned: `rv32i2p1_zicsr2p0_zifencei2p0`, as ratified in the RISC-V Unprivileged ISA v20191213). The `Zicsr` and `Zifencei` suffixes are load-bearing rather than decorative: base `I` version 2.0 included the CSR instructions and `FENCE.I`, but version 2.1 split them out into separately-named extensions. Note that no `Z*` extension can be advertised in `MISA` — its `Extensions` field has exactly one bit per single letter (bit 8 = `I`, bit 12 = `M`, …), so multi-letter extension names exist only in the ISA string.
+The full ISA string is **`rv32i_zicsr_zifencei_zicntr`** (pinned: `rv32i2p1_zicsr2p0_zifencei2p0_zicntr2p0`). The `Zicsr` and `Zifencei` suffixes are load-bearing rather than decorative: base `I` version 2.0 included the CSR instructions and `FENCE.I`, but version 2.1 split them out into separately-named extensions. Note that no `Z*` extension can be advertised in `MISA` — its `Extensions` field has exactly one bit per single letter (bit 8 = `I`, bit 12 = `M`, …), so multi-letter extension names exist only in the ISA string.
 
 Implemented M-mode CSRs include `MSTATUS`, `MISA`, `MIE`, `MIP`, `MTVEC`, `MSCRATCH`, `MEPC`, `MCAUSE`, `MCYCLE`/`MCYCLEH`, `MINSTRET`/`MINSTRETH`, and (as an extension) **`MHPMEVENT10`** and **`MHPMCOUNTER10–13`** for branch-predictor control and performance monitoring — see [defines/csr.sv](defines/csr.sv) for the full map.
 
@@ -85,6 +86,36 @@ Being in-order and single-issue keeps the control story small, but every classic
 - **Interrupts.** External and timer lines are sampled at Writeback. They trap on the completion boundary of a `VALID` or `ERROR` instruction (never on a `BUBBLE`), honour `mstatus.MIE` / `mie.MEIE` / `mie.MTIE`, and save/restore the global enable via `MPIE`. MRET returning with a pending enabled interrupt traps in the same cycle.
 - **Nested-trap MPIE preservation.** On a primary trap `MPIE ← MIE` captures the previous interrupt-enable state. If a *nested* trap fires while MIE is already 0 (CPU already in a handler), `MPIE` must **not** be overwritten — doing so would destroy the saved state from the outer trap. In the implementation: `mstatus_mpie` is only updated when `mie_eff = 1`; nested traps still update `MCAUSE`, `MEPC`, and clear `MIE`, but leave `MPIE` unchanged. Without this rule, a stale `FETCH_FAULT` arriving the cycle after a primary interrupt trap would clobber `MPIE` to 0, breaking the `MRET`-with-pending-interrupt path.
 - **Pipeline flushes on trap.** The trap's `JUMP` propagates backwards exactly like a branch, draining younger instructions without architectural side effects.
+
+### Zicntr — User-Mode Counters
+
+`Zicntr` defines three read-only counters that unprivileged code can read without a system call: `cycle` (elapsed core cycles), `time` (wall-clock), and `instret` (instructions retired), each with a high half for the upper 32 bits of its 64-bit value.
+
+| CSR | Address | Shadows | Notes |
+|---|---|---|---|
+| `cycle` / `cycleh` | `0xC00` / `0xC80` | `mcycle` / `mcycleh` | Counts every cycle, including during reset |
+| `time` / `timeh` | `0xC01` / `0xC81` | the timer's memory-mapped `mtime` | True shadow — tracks software writes to `mtime` |
+| `instret` / `instreth` | `0xC02` / `0xC82` | `minstret` / `minstreth` | +1 per `VALID` retire |
+
+**`time` is wired to the real `mtime`.** The spec defines `time` as a shadow of the memory-mapped `mtime`, not of the cycle counter, so [lib/wishbone/wishbone_timer.sv](lib/wishbone/wishbone_timer.sv) exports its 64-bit `mtime` register, [rtl/mcu.sv](rtl/mcu.sv) routes it into the core, and [rtl/writeback_stage.sv](rtl/writeback_stage.sv) reads it. A core-private counter would have been simpler but wrong here in a way this repo can actually observe: [test/asm/trap.s](test/asm/trap.s) writes `mtime` over the Wishbone bus in its timer handler, so a private counter would desynchronise on the very first timer test.
+
+**All six are read-only, and that came for free.** The decoder already traps any CSR write whose address has bits `[11:10] == 2'b11`, which covers the whole `0xC00`/`0xC80` range. Writes via `csrrw`/`csrrwi` always trap; `csrrs`/`csrrc`/`csrrsi`/`csrrci` trap only when their source field is nonzero, so a zero-source `csrrs` remains a legal pure read.
+
+#### Verification
+
+[test/asm/zicntr.s](test/asm/zicntr.s) proves the aliases are exact rather than merely plausible. Since `mcycle` is writable and `cycle` is not, it writes a marker through `mcycle` and reads it back through `cycle`; a separate argument measures the spacing of `mcycle→mcycle`, `mcycle→cycle` and `cycle→mcycle` reads, which forces any constant offset between the two counters to zero. `time` is proven a real shadow by writing `mtime`/`mtimeh` through the timer's bus registers and reading the values back out of the CSRs. All 36 write forms (6 CSRs × 6 instructions) are checked to trap with `mcause=2`, and all 24 read forms to succeed.
+
+```bash
+make test/asm/zicntr
+```
+
+#### Implementation Notes
+
+- **Do not add `_zicntr` to `-march`.** binutils 2.39 rejects the token outright (`unknown prefixed ISA extension 'zicntr'`). None is needed: the stock default `-march=rv32i` already accepts all six CSRs by name, so `csrr t0, cycle` assembles as-is and no Makefile change is required.
+- **`mcounteren` stays hardwired to zero.** It gates counter access from privilege modes below M, and this core is M-mode only. Reading zero is legal WARL; implementing a register that reads back nonzero would imply gating the hardware cannot perform. If U-mode is ever added, `mcounteren` must be implemented for real.
+- **`time` ticks at the core clock.** `mtime` increments once per `clk`, the same clock driving `mcycle`, so on this platform the two advance at the same rate and differ only by an offset (`mcycle` counts during reset; `mtime` is software-writable). That is a legal fixed-frequency clock, not an independent oscillator.
+- **Reading a 64-bit counter on RV32** needs the standard retry loop — read the high half, read the low half, read the high half again, and repeat if it changed — because the two halves cannot be sampled atomically.
+- **Golden-model note.** `writeback_stage` gained an `mtime_in` port that the frozen reference does not have; the DUT-vs-REF testbenches simply leave it unconnected, exactly as they already do for the branch predictor's ports. To run a test on the golden CPU, append a `+define+USE_REF_CPU` line to [sim/files.txt](sim/files.txt) and rebuild — the guard in [rtl/mcu.sv](rtl/mcu.sv) then instantiates `ref_cpu` with the `mtime_in` pin excluded, and the simulation prints `REFERENCE IMPLEMENTATION OF "cpu.sv" USED!`.
 
 ### Zifencei — Instruction-Fetch Synchronisation
 
