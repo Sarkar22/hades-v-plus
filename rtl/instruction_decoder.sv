@@ -60,8 +60,17 @@ module instruction_decoder (
         [12'hB03:12'hB1F],       // MHPMCOUNTER3..31
         12'hB80, 12'hB82,        // MCYCLEH, MINSTRETH (0xB81 not defined)
         [12'hB83:12'hB9F],       // MHPMCOUNTER3H..31H
+        [12'hC00:12'hC02],       // Zicntr: CYCLE, TIME, INSTRET     (read-only)
+        [12'hC80:12'hC82],       // Zicntr: CYCLEH, TIMEH, INSTRETH  (read-only)
         [12'hF11:12'hF15]        // MVENDORID, MARCHID, MIMPID, MHARTID, MCONFIGPTR
     };
+
+    // Note on the Zicntr block: 0xC00-0xC02 / 0xC80-0xC82 all have address bits
+    // [11:10] == 2'b11, which is the RISC-V encoding for "read-only CSR". The
+    // generic read-only check further down (instruction_in[31:30] == 2'b11, i.e.
+    // csr[11:10]) therefore rejects every write form for free — no extra rule is
+    // needed here, only the address had to be made *valid* so that a pure READ
+    // (csrrs/csrrc with rs1=x0, csrrsi/csrrci with uimm=0) is no longer ILLEGAL.
 
     // =========================================================================
     // Step 1: Extract raw bit fields

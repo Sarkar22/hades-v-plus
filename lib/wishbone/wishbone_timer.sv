@@ -17,6 +17,13 @@ module wishbone_timer #(
 
     output logic interrupt,
 
+    // Live 64-bit mtime value, exported to the core so that the Zicntr TIME/TIMEH
+    // CSRs can be a true read-only shadow of this register (RISC-V Unprivileged
+    // ISA: "time is a read-only shadow of the memory-mapped mtime register").
+    // Same clock domain as the CPU (both are driven by `clk` in mcu.sv), so no
+    // synchroniser is needed. Includes software writes made through the bus.
+    output logic [63:0] mtime_out,
+
     wishbone_interface.slave wishbone
 );
 
@@ -197,5 +204,9 @@ module wishbone_timer #(
     // --------------------------------------------------------------------------------------------
 
     assign interrupt = (mtime >= mtimecmp);
+
+    // Export the raw counter (post-write value of the current cycle's register)
+    // for the core's TIME/TIMEH CSRs.
+    assign mtime_out = mtime;
 
 endmodule

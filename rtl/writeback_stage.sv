@@ -40,6 +40,14 @@ module writeback_stage (
     input logic external_interrupt_in,
     input logic timer_interrupt_in,
 
+    // Platform timer (Zicntr)
+    // Live 64-bit mtime from wishbone_timer, routed through cpu.sv. Read-only
+    // here: it feeds the TIME/TIMEH CSRs and nothing else. The golden model
+    // ref_writeback_stage has no such port, so the DUT-vs-REF testbenches leave
+    // it unconnected (Verilator PINMISSING warning, value 0) exactly like the
+    // pre-existing bp_feedback_in / bp_control_out pair.
+    input logic [63:0] mtime_in,
+
     // Branch prediction
     input  bpredict::bp_data_t bp_feedback_in,  // from Execute: branch outcome for counters
     output logic [31:0]        bp_control_out,  // MHPMEVENT10 value → Fetch algorithm select
@@ -141,6 +149,14 @@ module writeback_stage (
     assign mcycle_read   = mcycle;
     assign minstret_read = minstret;
 
+    // Zicntr TIME/TIMEH read source: the live memory-mapped mtime of the platform
+    // timer. Unlike CYCLE/INSTRET this is NOT a core-internal counter — the spec
+    // defines `time` as a read-only shadow of mtime, i.e. a fixed-frequency wall
+    // clock that software can also write through the timer's Wishbone registers.
+    // Sampling it combinationally here keeps the two views bit-identical.
+    logic [63:0] mtime_read;
+    assign mtime_read = mtime_in;
+
     logic [31:0] csr_read_val;
 
     always_comb begin
@@ -156,6 +172,17 @@ module writeback_stage (
             csr::MCYCLEH:   csr_read_val = mcycle_read[63:32];
             csr::MINSTRET:      csr_read_val = minstret_read[31:0];
             csr::MINSTRETH:     csr_read_val = minstret_read[63:32];
+            // ---- Zicntr shadows (read-only, no write arm in Part 12) ----
+            // CYCLE/CYCLEH and INSTRET/INSTRETH deliberately reuse the *same*
+            // expressions as MCYCLE/MINSTRET above, so a read of CYCLE returns
+            // bit-for-bit what a read of MCYCLE returns in that same cycle.
+            // TIME/TIMEH come from the platform timer instead (see mtime_read).
+            csr::CYCLE:         csr_read_val = mcycle_read[31:0];
+            csr::CYCLEH:        csr_read_val = mcycle_read[63:32];
+            csr::TIME:          csr_read_val = mtime_read[31:0];
+            csr::TIMEH:         csr_read_val = mtime_read[63:32];
+            csr::INSTRET:       csr_read_val = minstret_read[31:0];
+            csr::INSTRETH:      csr_read_val = minstret_read[63:32];
             csr::MHPMEVENT10:   csr_read_val = bp_control;
             csr::MHPMCOUNTER10: csr_read_val = bp_cnt_nn;
             csr::MHPMCOUNTER11: csr_read_val = bp_cnt_nt;
@@ -415,6 +442,11 @@ module writeback_stage (
         endcase
     end
 
+    // Note: there are deliberately no csr_writes_cycle_* / csr_writes_time_* /
+    // csr_writes_instret_* signals. The Zicntr CSRs are read-only, the decoder
+    // already turns every write form into ILLEGAL (address bits [11:10]==2'b11),
+    // and Part 12 has no write arm for them — so they can never suppress the
+    // auto-increment of the counters they shadow.
     logic csr_writes_mcycle_lo, csr_writes_mcycle_hi;
     logic csr_writes_minstret_lo, csr_writes_minstret_hi;
 
