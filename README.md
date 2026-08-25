@@ -10,6 +10,7 @@
 ![image](https://www.scheipel.com/wp-content/uploads/2024/12/hades_logo.svg)
 # HaDes-V+ — An Extended RISC-V Soft Core
 
+[![RISC-V Community Challenge](https://img.shields.io/badge/RISC--V%20Community%20Challenge-Gold%20%C2%B7%20Silver%20%C2%B7%20Bronze-d4af37)](https://www.credly.com/badges/a78e3644-1597-450d-8020-f03662391719/public_url)
 [![ISA](https://img.shields.io/badge/ISA-rv32im__zba__zicsr__zifencei__zicntr-1f6feb)](#instruction-set)
 [![Target](https://img.shields.io/badge/target-Basys3%20%C2%B7%20Artix--7%20xc7a35t-e05d44)](#clocks--reset)
 [![Simulation](https://img.shields.io/badge/simulation-Verilator-2ea44f)](#building-running-and-debugging)
@@ -19,7 +20,7 @@
 
 The upstream HaDes-V is an **Open Educational Resource** developed by [Tobias Scheipel](https://www.scheipel.com), David Beikircher, and Florian Riedl of the Embedded Architectures & Systems Group at Graz University of Technology, and released under the MIT licence. This repository preserves that work and its licence in full — see [Attribution and Upstream](#attribution-and-upstream). Everything described under *Extensions* below is additional work by Emon Sarkar.
 
-Development proceeded in two phases. The base core was implemented as part of the **RISC-V Community Challenge with HaDes-V** (Gold, 2026), a programme issued by The Linux Foundation, in which each pipeline module of the submitted design was assessed against a reference implementation; the submission scored full marks across every stage (56/56). The extensions catalogued below were developed subsequently and independently of the challenge.
+Development proceeded in two phases. The base core was implemented for the **RISC-V Community Challenge with HaDes-V**, a programme issued by The Linux Foundation, in which each pipeline module of a submitted design is assessed against a reference implementation. This submission scored full marks at every stage — 56/56 across Fetch, Decode, Register File, Instruction Decoder, Execute, Memory and Writeback — earning all three tiers: [Bronze](https://www.credly.com/badges/1f02699c-a9f7-4590-82f9-97f688cd0b7f/public_url), [Silver](https://www.credly.com/badges/6d03e72d-23fc-494a-bcad-b93a1da5c283/public_url) and [Gold](https://www.credly.com/badges/a78e3644-1597-450d-8020-f03662391719/public_url). The extensions catalogued below were developed subsequently and independently of the challenge.
 
 ## What This Repository Adds
 
