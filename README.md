@@ -526,19 +526,19 @@ A bare-metal C program targets HaDes-V by linking against the runtime in [std/](
 [std/hades-v.ld](std/hades-v.ld) defines a single `RAM` region (`ORIGIN = 0x40000`, `LENGTH = 32K`) matching the Wishbone RAM window, and arranges the image as:
 
 ```
-┌─────────────────────────────────┐ 0x40000  ← RESET_ADDRESS
-│ .reset      — __reset entry    │
+┌─────────────────────────────────┐  0x40000   <- RESET_ADDRESS
+│ .reset      - __reset entry     │
 ├─────────────────────────────────┤
-│ .text       — program code     │
-│ .rodata                        │
-│ .data       — initial data     │
-│ .sdata / .sbss                 │
-│ .bss                           │
-│ …stack grows down…             │
-├─────────────────────────────────┤ __ram_end − 4 K
-│ .boot       — bootloader       │
-│ .reserved                      │
-└─────────────────────────────────┘ 0x48000  = __ram_end
+│ .text       - program code      │
+│ .rodata                         │
+│ .data       - initial data      │
+│ .sdata / .sbss                  │
+│ .bss                            │
+│ ...stack grows down...          │
+├─────────────────────────────────┤  __ram_end - 4 K
+│ .boot       - bootloader        │
+│ .reserved                       │
+└─────────────────────────────────┘  0x48000   = __ram_end
 ```
 
 The linker exports `__ram_start`, `__ram_end`, `__boot_start`, `__boot_end`, `__boot_load`, and `__global_pointer$` — the last one is loaded into `gp` in the startup code to enable GCC's linker relaxation (±2 KB small-data accesses). `NOCROSSREFS_TO` directives prevent the bootloader from accidentally touching the application sections it's busy replacing.
