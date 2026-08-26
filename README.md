@@ -82,18 +82,9 @@ Implemented M-mode CSRs include `MSTATUS`, `MISA`, `MIE`, `MIP`, `MTVEC`, `MSCRA
 
 ### Pipeline
 
-Instructions flow through five stages, each a dedicated module in [rtl/](rtl/), stitched together in [cpu.sv](rtl/cpu.sv):
+Instructions flow through five stages, each a dedicated module in [rtl/](rtl/), stitched together in [cpu.sv](rtl/cpu.sv): **Fetch → Decode → Execute → Memory → Writeback**.
 
-```
-  ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌───────────┐
-  │  FETCH  │──▶│ DECODE  │──▶│ EXECUTE │──▶│ MEMORY  │──▶│ WRITEBACK │
-  └─────────┘   └─────────┘   └─────────┘   └─────────┘   └───────────┘
-       ▲             ▲             ▲             ▲              │
-       └─────────────┴─────────────┴─────────────┴──────────────┘
-                    backwards control (READY / STALL / JUMP)
-```
-
-The top row is the `forwards` path: the instruction and its status travel toward Writeback. The line beneath is the `backwards` control path — `READY`, `STALL` or `JUMP`. Any stage can originate it (Memory when the bus is busy, Execute during a multi-cycle divide, Decode on a hazard) and it propagates upstream one stage at a time, holding or redirecting everything ahead of it.
+Two signals travel with them, in opposite directions. The `forwards` path carries the instruction and its status downstream toward Writeback. The `backwards` path carries control — `READY`, `STALL` or `JUMP`. Any stage can originate it: Memory when the bus is busy, Execute during a multi-cycle divide, Decode on a data hazard, Writeback on a trap or `FENCE.I`. It propagates upstream one stage at a time, holding or redirecting everything ahead of it.
 
 | Stage | File | Responsibility |
 |---|---|---|
