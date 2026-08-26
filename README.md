@@ -114,6 +114,10 @@ Being in-order and single-issue keeps the control story small, but every classic
 - **Nested-trap MPIE preservation.** On a primary trap `MPIE ← MIE` captures the previous interrupt-enable state. If a *nested* trap fires while MIE is already 0 (CPU already in a handler), `MPIE` must **not** be overwritten — doing so would destroy the saved state from the outer trap. In the implementation: `mstatus_mpie` is only updated when `mie_eff = 1`; nested traps still update `MCAUSE`, `MEPC`, and clear `MIE`, but leave `MPIE` unchanged. Without this rule, a stale `FETCH_FAULT` arriving the cycle after a primary interrupt trap would clobber `MPIE` to 0, breaking the `MRET`-with-pending-interrupt path.
 - **Pipeline flushes on trap.** The trap's `JUMP` propagates backwards exactly like a branch, draining younger instructions without architectural side effects.
 
+## Extensions
+
+Everything in this section is work added after the upstream lab; the baseline core implements RV32I with `Zicsr` only.
+
 ### M — Multiply and Divide
 
 Eight instructions, all plain R-type on the existing `OP` opcode (`0110011`) with `funct7 = 0000001`, so `funct3` alone selects among them and no new instruction format is needed.
@@ -445,6 +449,8 @@ make test/asm/bpred
 - **Mode 0 is zero-overhead.** When `MHPMEVENT10 = 0`, `predicted_taken = 0` unconditionally. `is_mispredicted_branch` reduces to `is_branch && branch_taken && VALID`, which is the original `jump_detected` formula. The pipeline behaves identically to unmodified HaDes-V.
 - **Simulator echo.** [lib/wishbone/wishbone_uart.sv](lib/wishbone/wishbone_uart.sv) includes an `always @(posedge clk)` block that calls `$write("%c", byte)` whenever a TX buffer write is detected, echoing UART output to Verilator's stdout. This is purely a simulation convenience; `$write` is ignored by synthesis tools.
 
+## System Architecture
+
 ### Memory Subsystem
 
 The core has **two completely independent memory ports** — an instruction-side port for Fetch and a data-side port for Memory — each a separate Wishbone master. This is a classic Harvard-style split at the boundary of the core:
@@ -553,14 +559,14 @@ The linker exports `__ram_start`, `__ram_end`, `__boot_start`, `__boot_end`, `__
 
 [std/include/helperfunctions.h](std/include/helperfunctions.h) layers ergonomic helpers on top: 7-segment digit encoding (`number2segment`), VGA primitives (`setPixel`, `clearPixel`, a `vga_color_t` palette of 16 colours, `rowCol2pxIdx` for 640×480 addressing), and machine/external/timer/UART interrupt enable wrappers (`enableDisable_machineInterrupts`, etc.). [test/c/basys3_demo.c](test/c/basys3_demo.c) is the canonical example that exercises every peripheral using these helpers.
 
-## Reference-Library ("Jigsaw Puzzle") Flow
+## Tools and Dependencies
 
-HaDes-V can be built stage-by-stage without ever holding a broken pipeline, and the reason is the [ref/](ref/) directory. Every pipeline module ships in two forms:
-
-- **The implementation** in [rtl/](rtl/) — plain, editable SystemVerilog.
-- **A golden reference** in [ref/](ref/) — a pair of `ref_<stage>.sv` / `ref_<stage>_inner.sv` wrappers plus a precompiled `libref_<stage>_inner.so` produced by Verilator with `--protect-lib`. The `.so` is the actual implementation; the `.sv` wrapper is a DPI-C shim that makes it look like a normal SystemVerilog module to the simulator.
-
-Testbenches in [test/sv/](test/sv/) instantiate **both** — the DUT and the golden REF — in parallel, clock them with the same stimulus, and flag any cycle where their outputs diverge. Because each stage has the same port list as its reference, you can freely mix: use your fetch + reference decode + your execute + reference memory + reference writeback, and the processor still runs a real program. That is what makes the "solve the puzzle one piece at a time" workflow possible.
+The following tools are required for the lab exercises (details in the [Instruction Guide][instrguide]):
+- **[SystemVerilog][sv]**: HDL for processor and peripheral design.
+- **[RISC-V Toolchain][rvgcc]**: Compiler for RV32I assembly and C programs.
+- **[Vivado][vivado]**: FPGA synthesis and programming.
+- **[Verilator][verilator]**: Open-source HDL simulator.
+- **[GTKWave][gtkwave]**: Waveform viewer for debugging simulations.
 
 ## Building, Running, and Debugging
 
@@ -590,20 +596,14 @@ The [test/](test/) tree has three progressively integrative tiers:
 
 Together these give coverage at the instruction level, the system level, and the per-module bit-level — catch a bug as early as possible in whichever tier first exposes it.
 
-## Upstream Course Material
+## Reference-Library ("Jigsaw Puzzle") Flow
 
-HaDes-V originates as the lab project for [Microcontroller Design, Lab][lvref] at Graz University of Technology, where students implement each pipeline stage themselves and validate it against the reference models in [`ref/`](ref) — the flow described under [Reference-Library](#reference-library-jigsaw-puzzle-flow). The upstream project provides the staged exercises — basic pipeline implementation, then memory/writeback and CSRs, then a free-form extension project — together with an [Instruction Guide][instrguide] (exercise instructions are in its Chapter 4) and a closed-source test-bench system available to educators on request.
+HaDes-V can be built stage-by-stage without ever holding a broken pipeline, and the reason is the [ref/](ref/) directory. Every pipeline module ships in two forms:
 
-**If you are taking that course, work from the upstream template rather than this repository.** It is the canonical starting point, and implementing the stages yourself is the entire point of the exercise.
+- **The implementation** in [rtl/](rtl/) — plain, editable SystemVerilog.
+- **A golden reference** in [ref/](ref/) — a pair of `ref_<stage>.sv` / `ref_<stage>_inner.sv` wrappers plus a precompiled `libref_<stage>_inner.so` produced by Verilator with `--protect-lib`. The `.so` is the actual implementation; the `.sv` wrapper is a DPI-C shim that makes it look like a normal SystemVerilog module to the simulator.
 
-## Tools and Dependencies
-
-The following tools are required for the lab exercises (details in the [Instruction Guide][instrguide]):
-- **[SystemVerilog][sv]**: HDL for processor and peripheral design.
-- **[RISC-V Toolchain][rvgcc]**: Compiler for RV32I assembly and C programs.
-- **[Vivado][vivado]**: FPGA synthesis and programming.
-- **[Verilator][verilator]**: Open-source HDL simulator.
-- **[GTKWave][gtkwave]**: Waveform viewer for debugging simulations.
+Testbenches in [test/sv/](test/sv/) instantiate **both** — the DUT and the golden REF — in parallel, clock them with the same stimulus, and flag any cycle where their outputs diverge. Because each stage has the same port list as its reference, you can freely mix: use your fetch + reference decode + your execute + reference memory + reference writeback, and the processor still runs a real program. That is what makes the "solve the puzzle one piece at a time" workflow possible.
 
 ## Repository Structure
 
@@ -617,8 +617,13 @@ The following tools are required for the lab exercises (details in the [Instruct
 
 Refer to the [Instruction Guide][instrguide] for a detailed project structure.
 
-## Test Benches
-A closed-source test bench system is available for teaching purposes. For more information, please refer to the [Contact](#contact) section.
+## Upstream Course Material
+
+HaDes-V originates as the lab project for [Microcontroller Design, Lab][lvref] at Graz University of Technology, where students implement each pipeline stage themselves and validate it against the reference models in [`ref/`](ref) — the flow described under [Reference-Library](#reference-library-jigsaw-puzzle-flow). The upstream project provides the staged exercises — basic pipeline implementation, then memory/writeback and CSRs, then a free-form extension project — together with an [Instruction Guide][instrguide] (exercise instructions are in its Chapter 4) and a closed-source test-bench system available to educators on request.
+
+A closed-source test-bench system is also available to educators for teaching purposes; see [Contact](#contact).
+
+**If you are taking that course, work from the upstream template rather than this repository.** It is the canonical starting point, and implementing the stages yourself is the entire point of the exercise.
 
 ## Attribution and Upstream
 
@@ -658,5 +663,4 @@ For questions about the **upstream HaDes-V project**, its licensing, or the clos
 The upstream authors published the HaDes-V OER at the [RISC-V Summit Europe 2025](https://riscv-europe.org/summit/2025/) as a [Poster](https://graz.elsevierpure.com/files/93678000/HaDes_V_Poster-CR_v1.pdf) and an extended [Abstract Paper](https://www.scheipel.com/wp-content/uploads/2025/05/HaDes_V_RISC_V_Summit_camera_ready-1.pdf). 
 
 It was also featured on the official RISC-V International [Blog](https://riscv.org/blog/2025/05/hades-v-learning-by-puzzling-a-modular-approach-to-risc-v-processor-design-education/). Please cite that work rather than this repository when referring to the HaDes-V architecture itself.
-
 
