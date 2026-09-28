@@ -36,7 +36,9 @@
 //                         {31'b0, branch_taken} for branches.
 //   source_data_reg_out = rs2 for most ops; rs1 for CSR register ops;
 //                         immediate for CSR immediate ops.
-//   next_program_counter_reg_out = jump_target when jump detected, else PC+4.
+//   next_program_counter_reg_out = architectural next PC: jump_target for a taken
+//                         VALID branch or JAL/JALR, else PC+4 -- independent of the
+//                         branch prediction (Writeback uses it as interrupt mepc).
 // =============================================================================
 
 module execute_stage (
@@ -639,8 +641,9 @@ module execute_stage (
     //               PC+4 for JAL/JALR (return address);
     //               {31'b0, branch_taken} for branches.
     // source_data:  rs1 for CSR register ops; immediate for CSR-imm; rs2 otherwise.
-    // next_pc:      jump_target when jump detected, else PC+4.
-    // jump_detected: branch taken or unconditional jump, only for VALID instructions.
+    // next_pc:      architectural next PC: jump_target for a taken VALID branch or
+    //               JAL/JALR, else PC+4 (whatever the branch prediction was).
+    // jump_detected: mispredicted branch or unconditional jump, only for VALID instructions.
 
     logic [31:0] rd_data;
     logic [31:0] source_data;
@@ -720,10 +723,30 @@ module execute_stage (
     // Corrected address: where we should have gone when prediction was wrong.
     assign corrected_address = branch_taken ? jump_target : pc_plus_4;
 
-    // Next PC: mispredicted branch → corrected address; JAL/JALR → target; else PC+4.
-    assign next_pc = is_mispredicted_branch ? corrected_address :
-                     is_jump                ? jump_target        :
-                                              pc_plus_4;
+    // Next PC: the ARCHITECTURAL successor of this instruction, independent of the
+    // prediction. VALID branch → target if taken, PC+4 if not; JAL/JALR → target;
+    // everything else (including a non-VALID branch) → PC+4.
+    //
+    // It is not only the flush address: it travels with the instruction to
+    // Writeback, which uses it as mepc when an interrupt is taken right after the
+    // instruction (the retiring stale instruction in the int_jump cycle, the saved
+    // int_next_pc_reg when a bubble/exception follows, trap_mepc). It used to be
+    // `is_mispredicted_branch ? corrected_address : ...`, so a CORRECTLY predicted
+    // taken branch (predictor modes 1-3; mode 0 never predicts taken) carried PC+4
+    // and an interrupt right after it returned to the NOT-taken path: loops exited
+    // early, not-taken-path instructions ran, an ECALL at the target was skipped
+    // (test/asm/bpirq*.s, test/sv/test_execute_bpred_nextpc.sv).
+    //
+    // Gated by VALID like is_mispredicted_branch: a non-VALID branch keeps PC+4, as
+    // in the golden ref_execute_stage. The flush path is unchanged: next_pc is only
+    // used as a jump / misalignment address when jump_detected, i.e. for a
+    // mispredicted branch (corrected_address, as before) or JAL/JALR. A correctly
+    // predicted taken branch never has a misaligned target (the predictor never
+    // predicts offset[1:0] != 0 taken). With predicted_taken = 0 (mode 0) this is
+    // identical to the old expression.
+    assign next_pc = (is_branch && (status_forwards_in == VALID)) ? corrected_address :
+                     is_jump                                      ? jump_target       :
+                                                                    pc_plus_4;
 
 
     // =========================================================================

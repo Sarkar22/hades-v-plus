@@ -63,7 +63,12 @@ module memory_stage (
     input  pipeline_status::backwards_t status_backwards_in,
     output pipeline_status::backwards_t status_backwards_out,
     input  logic [31:0] jump_address_backwards_in,
-    output logic [31:0] jump_address_backwards_out
+    output logic [31:0] jump_address_backwards_out,
+
+    // Registered: a bus transaction started in an earlier cycle is still in
+    // flight (wb_pending). Writeback holds a sequential interrupt JUMP while this
+    // is set, so the instruction whose access is on the bus retires first.
+    output logic        bus_pending_out
 );
 
     import pipeline_status::*;
@@ -222,6 +227,14 @@ module memory_stage (
         else if (bus_active && !bus_done)
             wb_pending <= 1'b1;
     end
+
+    // A started access cannot be aborted (it may already have had its side
+    // effect in the peripheral), so the instruction must retire. The only JUMP
+    // that can arrive while wb_pending=1 is Writeback's sequential interrupt JUMP
+    // (every other JUMP is combinational and blocks want_bus in the cycle it is
+    // decided; while this stage stalls, Writeback only sees BUBBLEs). Writeback
+    // uses this flag to defer that JUMP until the access has completed.
+    assign bus_pending_out = wb_pending;
 
     // =========================================================================
     // Part 6: Load data extraction and sign extension

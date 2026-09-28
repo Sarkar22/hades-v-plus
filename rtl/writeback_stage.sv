@@ -20,8 +20,15 @@
 //  - Interrupt → sequential JUMP (detected at posedge, visible after posedge)
 //  - Forwarding → combinational (reads current CSR state)
 //  - When int_jump_reg fires (sequential JUMP), the stale instruction arriving
-//    that cycle is suppressed: CSR writes, MRET, trap effects, and minstret
-//    are all gated by !int_jump_reg.
+//    that cycle has already passed Memory. It either RETIRES before the trap
+//    (register/CSR write, minstret, mepc = its next PC) or, if it touches the
+//    trap state (MSTATUS/MCAUSE/MIE/MTVEC CSR op, MRET), is REPLAYED
+//    (no effects, mepc = its PC). See stale_replay. Trap effects of the stale
+//    instruction itself are always gated by !int_jump_reg.
+//  - If that instruction is a load/store whose multi-cycle bus access is still
+//    in flight in Memory (mem_bus_pending_in), the JUMP is HELD until the
+//    access completes and the instruction reaches Writeback, where it retires
+//    as above. See int_hold.
 //  - This stage NEVER stalls.
 // =============================================================================
 
@@ -47,6 +54,11 @@ module writeback_stage (
     // it unconnected (Verilator PINMISSING warning, value 0) exactly like the
     // pre-existing bp_feedback_in / bp_control_out pair.
     input logic [63:0] mtime_in,
+
+    // From Memory (registered): a multi-cycle bus access started in an earlier
+    // cycle is still in flight. Like mtime_in, the golden model has no such port;
+    // left unconnected in the unit benches it reads 0 and changes nothing.
+    input logic        mem_bus_pending_in,
 
     // Branch prediction
     input  bpredict::bp_data_t bp_feedback_in,  // from Execute: branch outcome for counters
@@ -219,7 +231,6 @@ module writeback_stage (
     // the stale instruction's CSR effects do not apply to flag computation.
 
     logic int_jump_reg;         // registered: interrupt JUMP pending
-    logic [31:0] int_addr_reg;  // registered: interrupt jump address
 
     logic mie_eff, meie_eff, mtie_eff, mpie_eff;
 
@@ -277,11 +288,23 @@ module writeback_stage (
 
     assign is_interrupt     = !int_jump_reg && !is_bubble && (ext_int_pending || timer_int_pending);
     assign is_interrupt_imm = is_interrupt && is_enable_changed;
-    // When exception + interrupt fire together, the exception JUMP handles both
-    // (trap_cause/trap_mepc already use interrupt priority). Suppress sequential
-    // path to avoid a spurious int_jump_reg double-JUMP next cycle.
+    // When exception + interrupt fire together, the exception JUMP handles the
+    // cycle (see irq_wins below: the exception has priority). Suppress the
+    // sequential path to avoid a spurious int_jump_reg double-JUMP next cycle.
     assign is_interrupt_seq = is_interrupt && !is_enable_changed && !is_exception;
     assign is_trap = is_exception || is_interrupt;
+
+    // Exception priority over a same-cycle interrupt. If the instruction in
+    // Writeback raised an exception (ECALL, illegal instruction, fault, ...) in
+    // the same cycle an enabled interrupt becomes pending, the EXCEPTION is taken
+    // (mcause = its cause, mepc = its PC). The interrupt is level-held, stays
+    // pending, and is taken as soon as MIE is re-enabled (normally by the
+    // handler's MRET). Previously the interrupt cause was recorded with
+    // mepc = PC+4, so the excepting instruction was neither trapped nor retired
+    // -- e.g. a FreeRTOS portYIELD ECALL silently vanished. The frozen golden
+    // model (ref_writeback_stage) also takes the exception in this situation.
+    logic irq_wins;
+    assign irq_wins = is_interrupt && !is_exception;
 
     // =========================================================================
     // Part 7: MCAUSE and MEPC for trap
@@ -290,7 +313,7 @@ module writeback_stage (
     logic [31:0] trap_cause;
 
     always_comb begin
-        if (is_interrupt) begin
+        if (irq_wins) begin
             if (ext_int_pending)
                 trap_cause = 32'h8000000B;
             else
@@ -318,7 +341,7 @@ module writeback_stage (
             // MRET+interrupt: MRET was about to return to old mepc.
             // Save that address so the interrupt handler's MRET returns there.
             trap_mepc = mepc;
-        else if (is_interrupt)
+        else if (irq_wins)
             // Regular interrupt: instruction at WB has completed.
             // Save next_PC so MRET resumes at the correct next instruction.
             trap_mepc = next_program_counter_in;
@@ -349,36 +372,100 @@ module writeback_stage (
     always_ff @(posedge clk) begin
         if (rst) begin
             int_jump_reg    <= 1'b0;
-            int_addr_reg    <= 32'b0;
             int_next_pc_reg <= 32'b0;
             imm_jump_reg    <= 1'b0;
         end else begin
             // Only sequential interrupts use int_jump_reg to issue the JUMP.
             // Immediate interrupts (CSR/MRET enable change) produce JUMP combinationally.
-            int_jump_reg    <= is_interrupt_seq;
-            int_addr_reg    <= mtvec;
-            int_next_pc_reg <= next_program_counter_in;
+            // int_hold keeps it set (and the captured next PC) until J's
+            // bus access has completed.
+            int_jump_reg    <= is_interrupt_seq || int_hold;
+            if (!int_jump_reg)
+                int_next_pc_reg <= next_program_counter_in;
             // Capture any combinational JUMP that fired this cycle (not int_jump_reg).
             imm_jump_reg    <= !int_jump_reg &&
                                (is_exception || is_interrupt_imm || is_mret || is_fence_i);
         end
     end
 
+    // Stale instruction in the int_jump_reg cycle: RETIRE or REPLAY.
+    // The sequential interrupt was decided at instruction I (previous cycle; the
+    // trap already wrote mcause and MIE<=0/MPIE<=MIE, and I itself retired). The
+    // next instruction J is in Writeback now and has already passed Memory (a
+    // store has been performed), so by default J RETIRES and the trap is taken
+    // after it: register write, CSR write, minstret++, mepc <= J.next_PC.
+    // That is only coherent if J does not touch the state the trap has already
+    // committed. J is REPLAYED instead (no register write, no CSR write, no
+    // minstret, mepc <= J.PC, so it re-executes after MRET) when it is
+    //   - a CSR op on MSTATUS or MCAUSE: a read would return the post-trap value,
+    //     a write would clobber the trap entry (e.g. FreeRTOS's
+    //     portDISABLE_INTERRUPTS `csrc mstatus,8` would otherwise be lost while
+    //     mepc skipped it, returning from the interrupt with MIE=1), or
+    //   - a CSR op on MIE or MTVEC: the write could disable the interrupt being
+    //     taken, or would have to redirect the JUMP that leaves this very cycle
+    //     (a retired J writing MTVEC means the trap must use J's new vector), or
+    //   - an MRET: its MIE/MPIE update and return JUMP cannot both happen here.
+    // CSR ops on any other CSR (MEPC, MSCRATCH, counters, ...) retire: a MEPC
+    // write is superseded by the trap's mepc, exactly as "J, then the trap".
+    // This matches the frozen golden model, which retires the Writeback
+    // instruction (and counts it in minstret) when it takes an interrupt.
+    logic is_stale_csr_replay, stale_replay;
+
+    always_comb begin
+        case (instruction_in.csr)
+            csr::MSTATUS, csr::MCAUSE, csr::MIE, csr::MTVEC: is_stale_csr_replay = is_csr_op;
+            default:                                         is_stale_csr_replay = 1'b0;
+        endcase
+    end
+
+    assign stale_replay = int_jump_reg && is_valid && (is_mret || is_stale_csr_replay);
+
+    // Hold the sequential interrupt JUMP while J's bus access is in flight.
+    // J (the instruction after I) entered Memory in the decision cycle and
+    // started its access there; a peripheral with a registered ack (LEDs, UART,
+    // timer, VGA, ...) answers one or more cycles later. The access cannot be
+    // aborted, so J must RETIRE: flushing it (the JUMP squashes Memory) with
+    // mepc = J.PC performed a UART store twice after mret, and when the ack took
+    // >= 2 more cycles (VGA read, test stall register) Memory's STALL overrode the
+    // one-cycle JUMP, so the trap state was committed (MIE=0, mcause, mepc) but
+    // the handler was never entered. While held, Writeback sees only BUBBLEs and
+    // outputs READY; Memory stalls the front of the pipeline. When the access
+    // completes, J arrives here with int_jump_reg still set and retires, mepc =
+    // J.next_PC, then the JUMP fires. The golden model also retires J first in
+    // this situation (test/asm/memirq.s: never a repeated access, never a lost
+    // interrupt, the same landing positions).
+    logic int_hold, int_jump_fire;
+    assign int_hold      = int_jump_reg && mem_bus_pending_in;
+    assign int_jump_fire = int_jump_reg && !int_hold;
+
     // =========================================================================
     // Part 9: Pipeline backwards control
     // =========================================================================
-    // Priority: int_jump_reg > exception > interrupt_imm > MRET > FENCE.I > READY
+    // Priority: int_jump_reg (held: READY) > exception > interrupt_imm > MRET
+    //           > FENCE.I > READY
     //
     // int_jump_reg: sequential interrupt JUMP (fires cycle after detection).
     // is_interrupt_imm: immediate JUMP when current instruction enables interrupt.
     // is_mret (without interrupt): return to mepc.
 
     always_comb begin
-        if (int_jump_reg) begin
+        if (int_hold) begin
+            // J's bus access is still in flight: wait for it (only BUBBLEs here).
+            status_backwards_out       = READY;
+            jump_address_backwards_out = 32'b0;
+        end else if (int_jump_fire) begin
             // Sequential interrupt JUMP: pipeline was NOT flushed last cycle.
             // Stale instruction arrives; redirect to mtvec.
+            // The LIVE mtvec, i.e. its value after I retired: the trap is taken
+            // after I (mepc points past it), so if I was `csrw mtvec` the
+            // trap must use the NEW vector (privileged spec: every trap sets pc to
+            // mtvec.BASE; Zicsr: a CSR write's effects are seen by the very next
+            // instruction). Using the value sampled in the decision cycle -- before
+            // I's write -- jumped to the OLD vector (test/asm/mtvecirq.s). J itself
+            // cannot change mtvec here (a CSR op on MTVEC is replayed, see
+            // stale_replay), and while int_hold waits, only BUBBLEs arrive.
             status_backwards_out       = JUMP;
-            jump_address_backwards_out = int_addr_reg;
+            jump_address_backwards_out = mtvec;
         end else if (is_exception) begin
             status_backwards_out       = JUMP;
             jump_address_backwards_out = mtvec;
@@ -415,8 +502,9 @@ module writeback_stage (
 
             forwarding_out.address = instruction_in.rd_address;
 
-            // data_valid = 0 for FENCE and FENCE.I (no register write)
-            if (is_fence_i || is_fence)
+            // data_valid = 0 for FENCE and FENCE.I (no register write), and for
+            // a replayed stale instruction (it re-executes after MRET).
+            if (is_fence_i || is_fence || stale_replay)
                 forwarding_out.data_valid = 1'b0;
             else
                 forwarding_out.data_valid = 1'b1;
@@ -464,8 +552,9 @@ module writeback_stage (
     // Part 12: CSR Register Updates (SEQUENTIAL — posedge clk)
     // =========================================================================
     // When int_jump_reg=1, the instruction is stale (from before the interrupt
-    // flush). All state-modifying effects are suppressed: CSR writes, MRET,
-    // trap handling, and minstret increment. MCYCLE always counts.
+    // flush). Its MRET and trap effects are suppressed; its CSR write and
+    // minstret increment are suppressed only when it is replayed (stale_replay),
+    // otherwise it retires normally. MCYCLE always counts.
 
     // MCYCLE counts every cycle including reset — use initial for startup value.
     // mstatus_mpie also initialised here: if the test harness instantiates this
@@ -515,23 +604,26 @@ module writeback_stage (
             // The counter always increments; a CSR write overrides only the
             // targeted half, while the other half reflects the incremented value
             // (preserving carry across the 32-bit boundary).
-            if (!int_jump_reg && csr_writes_mcycle_lo)
+            if (!stale_replay && csr_writes_mcycle_lo)
                 mcycle <= {mcycle_inc[63:32], csr_write_val};
-            else if (!int_jump_reg && csr_writes_mcycle_hi)
+            else if (!stale_replay && csr_writes_mcycle_hi)
                 mcycle <= {csr_write_val, mcycle_inc[31:0]};
             else
                 mcycle <= mcycle_inc;
 
             // ---- MINSTRET: "increment first, then write" (only for VALID) ----
-            if (!int_jump_reg && csr_writes_minstret_lo)
+            // A stale instruction that retires in the int_jump_reg cycle is
+            // counted (it did retire: its result is written and mepc skips it);
+            // a replayed one is not (it is counted when it re-executes).
+            if (!stale_replay && csr_writes_minstret_lo)
                 minstret <= {minstret_inc[63:32], csr_write_val};
-            else if (!int_jump_reg && csr_writes_minstret_hi)
+            else if (!stale_replay && csr_writes_minstret_hi)
                 minstret <= {csr_write_val, minstret_inc[31:0]};
-            else if (!int_jump_reg && is_valid)
+            else if (!stale_replay && is_valid)
                 minstret <= minstret + 64'd1;
 
-            // ---- CSR writes by instruction (suppressed during stale cycle) ----
-            if (!int_jump_reg && is_valid && is_csr_op) begin
+            // ---- CSR writes by instruction (not for a replayed stale op) ----
+            if (!stale_replay && is_valid && is_csr_op) begin
                 case (instruction_in.csr)
                     csr::MSTATUS: begin
                         mstatus_mie  <= csr_write_val[3];
@@ -542,7 +634,9 @@ module writeback_stage (
                         mie_meie <= csr_write_val[11];
                         mie_mtie <= csr_write_val[7];
                     end
-                    csr::MEPC:       mepc       <= {csr_write_val[31:2], 2'b00};
+                    // In the int_jump_reg cycle the trap's deferred mepc (below)
+                    // supersedes a retiring stale MEPC write ("J, then the trap").
+                    csr::MEPC:       if (!int_jump_reg) mepc <= {csr_write_val[31:2], 2'b00};
                     csr::MCAUSE:     mcause     <= csr_write_val;
                     csr::MSCRATCH:   mscratch   <= csr_write_val;
                     csr::MHPMEVENT10:  bp_control <= csr_write_val;
@@ -582,24 +676,31 @@ module writeback_stage (
             if (!int_jump_reg && !imm_jump_reg && (is_exception || is_interrupt_imm)) begin
                 mcause       <= trap_cause;
                 mepc         <= {trap_mepc[31:2], 2'b00};
-                // Nested-trap fix (per Jannatul Nayem): only update MPIE when
-                // mie_eff=1 (there was a real prior MIE state to save). On a
-                // nested trap fired while MIE is already 0, leave MPIE alone.
-                if (mie_eff) mstatus_mpie <= 1'b1;
+                // Privileged spec: on trap entry MPIE <= MIE (the enable active
+                // before the trap), MIE <= 0 -- also when MIE was already 0.
+                // (A trap taken with MIE=0 used to leave MPIE unchanged, so the
+                // handler's MRET came back with MIE=1; the golden model writes
+                // MPIE <= MIE, i.e. MPIE=0 here.)
+                mstatus_mpie <= mie_eff;
                 mstatus_mie  <= 1'b0;
             end
             // Sequential interrupt: save mcause/mstatus now; defer mepc to next cycle.
             if (!int_jump_reg && is_interrupt_seq) begin
                 mcause       <= trap_cause;
-                if (mie_eff) mstatus_mpie <= 1'b1;
+                mstatus_mpie <= mie_eff;   // always 1 here: a seq interrupt needs MIE=1
                 mstatus_mie  <= 1'b0;
             end
             // Deferred mepc for sequential interrupt (int_jump_reg cycle).
-            // Stale may be VALID (committed) or BUBBLE (after taken branch).
-            //   VALID → skip it, use next_PC of stale.
-            //   BUBBLE → its next_PC is garbage; use saved int_next_pc_reg instead.
-            if (int_jump_reg) begin
-                if (is_valid)
+            // Stale may be VALID (retired or replayed) or BUBBLE/ERROR.
+            //   VALID, replayed (stale_replay) → its own PC: it re-executes after MRET.
+            //   VALID, retired  → skip it, use next_PC of stale.
+            //   BUBBLE/ERROR → its next_PC is garbage; use saved int_next_pc_reg
+            //                  (next PC of the interrupted instruction, so a stale
+            //                  ERROR instruction re-executes and traps after MRET).
+            if (int_jump_fire) begin
+                if (stale_replay)
+                    mepc <= {program_counter_in[31:2], 2'b00};
+                else if (is_valid)
                     mepc <= {next_program_counter_in[31:2], 2'b00};
                 else
                     mepc <= {int_next_pc_reg[31:2], 2'b00};

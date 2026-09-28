@@ -93,6 +93,9 @@ module cpu (
     logic [31:0] jump_addr_m;   // Memory   → Execute
     logic [31:0] jump_addr_wb;  // Writeback→ Memory
 
+    // Memory → Writeback: a multi-cycle bus access is still in flight (registered)
+    logic        mem_bus_pending;
+
     // =========================================================================
     // Stage instantiations
     // =========================================================================
@@ -185,7 +188,8 @@ module cpu (
         .status_backwards_in          (bwd_status_wb),
         .status_backwards_out         (bwd_status_m),
         .jump_address_backwards_in    (jump_addr_wb),
-        .jump_address_backwards_out   (jump_addr_m)
+        .jump_address_backwards_out   (jump_addr_m),
+        .bus_pending_out              (mem_bus_pending)
     );
 
     // --- Writeback Stage ------------------------------------------------------
@@ -204,9 +208,22 @@ module cpu (
         .bp_feedback_in            (bp_feedback),
         .bp_control_out            (bp_control),
         .forwarding_out            (fwd_wb),
+        .mem_bus_pending_in        (mem_bus_pending),
         .status_forwards_in        (fwd_status_m),
         .status_backwards_out      (bwd_status_wb),
         .jump_address_backwards_out(jump_addr_wb)
     );
+
+`ifndef SYNTHESIS
+    // Invariant (simulation only): a JUMP must never reach Memory while its bus
+    // access is in flight. The access cannot be aborted, so a flush there would
+    // re-execute an instruction whose side effect already happened (e.g. a UART
+    // store printed twice) or, if Memory keeps stalling, swallow the JUMP.
+    // Writeback's int_hold guarantees this; stop loudly if it is ever violated.
+    always_ff @(posedge clk) begin
+        if (!rst && mem_bus_pending && bwd_status_wb == pipeline_status::JUMP)
+            $fatal(1, "cpu: JUMP from Writeback while a Memory bus access is in flight");
+    end
+`endif
 
 endmodule
