@@ -21,7 +21,6 @@ VIVADO ?= $(XILINX_VIVADO)/bin/vivado
 
 # Directories
 SIM_DIR = sim
-BUILD_DIR = build
 RTL_DIR = rtl
 REF_DIR = ref
 LIB_DIR = lib
@@ -35,12 +34,68 @@ ASM_DIR = $(TEST_DIR)/asm
 C_DIR = $(TEST_DIR)/c
 SV_DIR = $(TEST_DIR)/sv
 
+################################################################################
+#                               Build Directory                                #
+################################################################################
+
+# Everything the flows generate (Verilator models, ELFs, logs, waveforms) goes to
+# BUILD_DIR. The default is build/ inside the repository, exactly as before. It can
+# live anywhere else, for instance when the repository sits on a disk that cannot
+# execute programs (see docs/FREERTOS.md):
+#     make BUILD_DIR=/abs/path <target>      or      export HADES_BUILD_DIR=/abs/path
+# Use one build directory per checkout (a relocated one records its owner and refuses
+# to serve another checkout, so a model built from other RTL is never reused).
+ifneq ($(HADES_BUILD_DIR),)
+BUILD_DIR = $(HADES_BUILD_DIR)
+else
+BUILD_DIR = build
+endif
+# A relocated build directory is always spelled as one normalised absolute path:
+# Verilator writes its dependency files with the path it was given, and a second
+# spelling of the same directory would silently disable those dependencies.
+# build/ inside the repository keeps its original relative spelling.
+ifeq ($(strip $(BUILD_DIR)),)
+$(error BUILD_DIR is empty: leave it unset for build/ inside the repository, or give a directory)
+endif
+override BUILD_DIR := $(abspath $(BUILD_DIR))
+ifeq ($(BUILD_DIR),$(CURDIR)/build)
+override BUILD_DIR := build
+endif
+BUILD_ABS := $(abspath $(BUILD_DIR))
+
+ifneq ($(BUILD_DIR),build)
+ifeq ($(filter clean,$(MAKECMDGOALS)),)
+BUILD_OWNER := $(shell cat '$(BUILD_DIR)/.hades-source-dir' 2>/dev/null)
+ifeq ($(BUILD_OWNER),)
+BUILD_OWNER := $(shell mkdir -p '$(BUILD_DIR)' && echo '$(CURDIR)' > '$(BUILD_DIR)/.hades-source-dir' && echo '$(CURDIR)')
+endif
+ifneq ($(BUILD_OWNER),$(CURDIR))
+$(error Build directory $(BUILD_DIR) belongs to the checkout $(BUILD_OWNER), not to $(CURDIR). Use a separate BUILD_DIR/HADES_BUILD_DIR for every checkout, or remove the old one)
+endif
+endif
+endif
+
+# Golden reference libraries. With build/ inside the repository the simulators link
+# them in place, as before. A relocated build links copies kept in the build
+# directory, so that no simulator maps executable code from the repository's disk.
+REF_SO_SRC = $(wildcard $(REF_DIR)/*.so)
+ifeq ($(BUILD_DIR),build)
+REF_SO      = $(abspath $(REF_SO_SRC))
+REF_SO_DEPS =
+else
+REF_SO      = $(addprefix $(BUILD_DIR)/ref/,$(notdir $(REF_SO_SRC)))
+REF_SO_DEPS = $(REF_SO)
+$(BUILD_DIR)/ref/%.so: $(REF_DIR)/%.so
+	@ mkdir -p $(dir $@)
+	cp $< $@
+endif
+
 # Verilator Flags
 VERILATOR_FLAGS =
 VERILATOR_FLAGS += -cc
 VERILATOR_FLAGS += -Wall -Wno-fatal
 VERILATOR_FLAGS += -f $(SIM_DIR)/files.txt
-VERILATOR_FLAGS += $(abspath $(wildcard $(REF_DIR)/*.so)) -j
+VERILATOR_FLAGS += $(REF_SO) -j
 
 ################################################################################
 #                                  Print Help                                  #
@@ -54,9 +109,21 @@ help:
 	@echo "  help        Prints this help message"
 	@echo "  clean       Deletes build artifacts"
 	@echo "  test/...    Builds and runs the specified test"
+	@echo "              (test/freertos/<app>: FreeRTOS program, see test/freertos/README.md)"
 	@echo "  show        Show the waveform of the most recently run test (if available)"
 	@echo "  bootloader  Build the bootloader"
 	@echo "  synthesis   Synthesize the MCU using Vivado"
+	@echo ""
+	@echo "FreeRTOS (guide: docs/FREERTOS.md):"
+	@echo "  freertos-fetch    Clone the FreeRTOS sources at the tested commits into FREERTOS_HOME"
+	@echo "  freertos-list     List the FreeRTOS programs"
+	@echo "  freertos          Build and run one program: make freertos APP=minimal [CPU=golden]"
+	@echo "                    [MARCH=rv32im_zba] [OPT=-Os] [TICK=5000] [BPRED=3] [SEED=2a] [TIMEOUT=<cycles>]"
+	@echo "  freertos-compare  Run one program on the DUT and on the golden CPU and compare"
+	@echo "  freertos-stress   Differential stress campaign, DUT vs golden CPU [SEEDS=2] [JOBS=4] [SET=validate]"
+	@echo "  freertos-new      Start a new program from the template: make freertos-new NAME=<name>"
+	@echo ""
+	@echo "Build directory: $(BUILD_DIR)  (relocate with BUILD_DIR=/abs/path or HADES_BUILD_DIR)"
 
 
 ################################################################################
@@ -65,6 +132,10 @@ help:
 
 .PHONY: clean
 clean::
+	@ b='$(BUILD_ABS)'; \
+	  case "$$b" in ''|/) echo "refusing to delete '$$b'"; exit 1;; esac; \
+	  case '$(CURDIR)/' in "$$b"/*) echo "refusing to delete $$b: it contains the repository"; exit 1;; esac; \
+	  case "$$b" in '$(HOME)'|'$(HOME)/') echo "refusing to delete the home directory $$b"; exit 1;; esac
 	rm -rf $(BUILD_DIR)
 
 ################################################################################
@@ -76,7 +147,11 @@ MODE ?= batch
 .PHONY: synthesis
 synthesis: $(BUILD_DIR)/$(C_DIR)/bootloader/init.mem
 	@ mkdir -p $(BUILD_DIR)/$(SYNTH_DIR)
-	cd $(BUILD_DIR)/$(SYNTH_DIR) && $(VIVADO) -mode $(MODE) -source $(CURDIR)/$(SYNTH_DIR)/synth.tcl
+	cd $(BUILD_DIR)/$(SYNTH_DIR) && HADES_BOOTLOADER_MEM=$(BUILD_ABS)/$(C_DIR)/bootloader/init.mem $(VIVADO) -mode $(MODE) -source $(CURDIR)/$(SYNTH_DIR)/synth.tcl
+
+# Bootloader image (init.mem for synthesis, out.hex/out.elf/out.dis alongside)
+.PHONY: bootloader
+bootloader: $(BUILD_DIR)/$(C_DIR)/bootloader/init.mem $(BUILD_DIR)/$(C_DIR)/bootloader/out.hex $(BUILD_DIR)/$(C_DIR)/bootloader/out.dis
 
 ################################################################################
 #                                  Simulation                                  #
@@ -86,7 +161,7 @@ synthesis: $(BUILD_DIR)/$(C_DIR)/bootloader/init.mem
 -include $(BUILD_DIR)/$(SIM_DIR)/top__ver.d
 
 # Verilate simulation
-$(BUILD_DIR)/$(SIM_DIR)/top.mk:
+$(BUILD_DIR)/$(SIM_DIR)/top.mk: $(REF_SO_DEPS)
 	@ mkdir -p $(BUILD_DIR)/$(SIM_DIR)
 	$(VERILATOR) $(VERILATOR_FLAGS) --trace-fst --trace-structs --timing --assert --main --exe --prefix top -Mdir $(BUILD_DIR)/$(SIM_DIR) --top-module top sim/top.sv
 
@@ -119,7 +194,7 @@ $(BUILD_DIR)/$(ASM_DIR)/%/init.mem: $(BUILD_DIR)/$(ASM_DIR)/%/init.bin
 # Run test
 .PHONY: $(ASM_TEST_NAMES)
 $(ASM_TEST_NAMES): $(ASM_DIR)/%: $(BUILD_DIR)/$(ASM_DIR)/%/init.mem $(BUILD_DIR)/$(SIM_DIR)/top
-	cd $(BUILD_DIR)/$(ASM_DIR)/$* && $(CURDIR)/$(BUILD_DIR)/$(SIM_DIR)/top
+	cd $(BUILD_DIR)/$(ASM_DIR)/$* && $(BUILD_ABS)/$(SIM_DIR)/top
 	@echo 'gtkwave $(BUILD_DIR)/$(ASM_DIR)/$*/sim.fst $(SAVES_DIR)/pipeline.gtkw' > $(BUILD_DIR)/show.sh
 
 ################################################################################
@@ -167,7 +242,7 @@ $(BUILD_DIR)/$(C_DIR)/%/out.dis: $(BUILD_DIR)/$(C_DIR)/%/out.elf
 # Run test
 .PHONY: $(C_TEST_NAMES)
 $(C_TEST_NAMES): $(C_DIR)/%: $(BUILD_DIR)/$(C_DIR)/%/init.mem $(BUILD_DIR)/$(C_DIR)/%/out.hex $(BUILD_DIR)/$(C_DIR)/%/out.elf $(BUILD_DIR)/$(C_DIR)/%/out.dis $(BUILD_DIR)/$(SIM_DIR)/top
-	cd $(BUILD_DIR)/$(C_DIR)/$* && $(CURDIR)/$(BUILD_DIR)/$(SIM_DIR)/top
+	cd $(BUILD_DIR)/$(C_DIR)/$* && $(BUILD_ABS)/$(SIM_DIR)/top
 	@echo 'gtkwave $(BUILD_DIR)/$(C_DIR)/$*/sim.fst $(SAVES_DIR)/pipeline.gtkw' > $(BUILD_DIR)/show.sh
 
 ################################################################################
@@ -183,17 +258,26 @@ SV_TEST_NAMES = $(patsubst $(SV_DIR)/%.sv, $(SV_DIR)/%, $(SV_TESTS))
 # Run test bench
 .PHONY: $(SV_TEST_NAMES)
 $(SV_TEST_NAMES): $(SV_DIR)/%: $(BUILD_DIR)/$(SV_DIR)/%/top
-	cd $(BUILD_DIR)/$(SV_DIR)/$* && $(CURDIR)/$(BUILD_DIR)/$(SV_DIR)/$*/top
+	cd $(BUILD_DIR)/$(SV_DIR)/$* && $(BUILD_ABS)/$(SV_DIR)/$*/top
 
 # Build system verilog executable
 $(BUILD_DIR)/$(SV_DIR)/%/top: $(BUILD_DIR)/$(SV_DIR)/%/top.mk
 	$(MAKE) -j -C $(BUILD_DIR)/$(SV_DIR)/$* -f top.mk
 
 # Verilate system verilog testbench
-$(BUILD_DIR)/$(SV_DIR)/%/top.mk:
+$(BUILD_DIR)/$(SV_DIR)/%/top.mk: $(REF_SO_DEPS)
 	@ mkdir -p $(BUILD_DIR)/$(SV_DIR)/$*
 	$(VERILATOR) $(VERILATOR_FLAGS) -f $(SV_DIR)/files.txt --trace-fst --trace-structs --timing --assert --main --exe --prefix top -Mdir $(BUILD_DIR)/$(SV_DIR)/$* --top-module $* $(SV_DIR)/$*.sv
 	@echo 'gtkwave $(BUILD_DIR)/$(SV_DIR)/$*/$*.fst $(SAVES_DIR)/$*.gtkw' > $(BUILD_DIR)/show.sh
+
+################################################################################
+#                               FreeRTOS Programs                              #
+################################################################################
+
+# Multi-file FreeRTOS programs in test/freertos/<app>/ (kernel sources are external,
+# see docs/FREERTOS.md and test/freertos/README.md): make freertos APP=<app>,
+# make test/freertos/<app>
+include $(TEST_DIR)/freertos/freertos.mk
 
 ################################################################################
 #                                   Waveform                                   #
@@ -201,4 +285,4 @@ $(BUILD_DIR)/$(SV_DIR)/%/top.mk:
 
 .PHONY: show
 show:
-	$(file < build/show.sh)
+	$(file < $(BUILD_DIR)/show.sh)

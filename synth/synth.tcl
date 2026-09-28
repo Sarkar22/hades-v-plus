@@ -59,8 +59,13 @@ foreach source $SOURCES {
 # Read constraints
 read_xdc $ROOT/synth/basys3.xdc
 
-# Read memory file
-read_mem $ROOT/build/test/c/bootloader/init.mem
+# Read memory file (the Makefile passes its location, which follows BUILD_DIR;
+# without it, the default build directory inside the repository is used)
+if {[info exists ::env(HADES_BOOTLOADER_MEM)]} {
+    read_mem $::env(HADES_BOOTLOADER_MEM)
+} else {
+    read_mem $ROOT/build/test/c/bootloader/init.mem
+}
 
 # Synthesize and Optimize
 synth_design -top top -part xc7a35tcpg236-1
