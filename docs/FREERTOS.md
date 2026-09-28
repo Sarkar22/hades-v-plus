@@ -33,7 +33,7 @@ FreeRTOS V11.1.0+, unmodified, running in machine mode.
 | git | 2.43 (2.25 or newer is needed) | `git --version` |
 | Python 3 | 3.12 (3.8 or newer) | `python3 --version` |
 | Network access to github.com | for the one-time download of FreeRTOS | |
-| Free space on a Linux (ext4) disk | about 100 MB: FreeRTOS sources 50 MB, builds 30 MB and more | `df -h $HOME` |
+| Free disk space | about 100 MB: FreeRTOS sources 50 MB, builds 30 MB and more | `df -h .` |
 
 Check the tools:
 
@@ -50,61 +50,86 @@ The third command must print a full path ending in `libc_nano.a`. If it prints o
 
 ## 2. One-time setup
 
-**Why the setup is needed.** The repository lives on the NTFS data disk, which cannot run
-programs: a simulator built there fails with `Permission denied`. The sources can stay there.
-Everything that is built or downloaded goes to a directory on the Linux disk instead:
+### 2.1 Download FreeRTOS
 
-* `HADES_BUILD_DIR` is where all simulators, program images and logs are built. The
-  Makefile uses it for every target (the default without it is `build/` inside the
-  repository).
-* `FREERTOS_HOME` is where the FreeRTOS sources are downloaded. They are not part of the
-  repository.
-
-Set both, and download FreeRTOS at the exact commits that were tested:
+The FreeRTOS sources are not part of this repository. Download them once, at the exact
+commits that were tested:
 
 ```bash
-cd /media/esarkar/DATADISK/hades_riscv/hades-v-plus
-export HADES_BUILD_DIR=$HOME/hades-work/build
-export FREERTOS_HOME=$HOME/hades-work/freertos
 make freertos-fetch
 ```
+
+By default they are placed in the repository's parent directory. To keep them somewhere
+else, set `FREERTOS_HOME` first and keep it set for later commands, for example
+`export FREERTOS_HOME=$HOME/freertos`.
 
 The last lines of the output confirm the two commits:
 
 ```text
-FreeRTOS sources ready in /home/esarkar/hades-work/freertos:
+FreeRTOS sources ready in <FREERTOS_HOME>:
   FreeRTOS-Kernel  8be86d4a24fd4091f8f4192018423ab590f408db
   FreeRTOS (demo)  f4fcc3b228643144727e9257ba12db1cb632b6e6
 ```
 
-The two `export` lines hold only for the current terminal. To make them permanent, add
-them to `~/.bashrc`:
+### 2.2 Choose where to build
+
+Verilator compiles every simulator into a native program, so the build directory must be
+on a filesystem that can execute programs. Check which kind of filesystem the repository
+is on:
 
 ```bash
-echo 'export HADES_BUILD_DIR=$HOME/hades-work/build' >> ~/.bashrc
-echo 'export FREERTOS_HOME=$HOME/hades-work/freertos' >> ~/.bashrc
+findmnt -no FSTYPE,OPTIONS -T .
 ```
 
-Every later section assumes that you are in the repository directory and that both
-variables are set. `make help` shows the build directory in use on its last line:
+**On a native Linux filesystem** (`ext4`, `btrfs`, `xfs` and similar, without `noexec` in
+the options) there is nothing to do: everything is built in `build/` inside the
+repository.
+
+**On a filesystem that cannot execute programs** — typically an NTFS or exFAT partition
+(shown as `fuseblk`, `ntfs`, `ntfs3`, `exfat` or `vfat`), a network share, or any mount
+with `noexec` in its options — a simulator built there fails to start with
+`Permission denied`. The sources can stay where they are; only the build output has to
+move. Point `HADES_BUILD_DIR` at a directory on a native filesystem:
+
+```bash
+export HADES_BUILD_DIR=$HOME/hades-build
+```
+
+On such a filesystem, also note:
+
+* Files there cannot be marked executable, so scripts are run through `sh` or `python3`.
+  The make targets already do this.
+* `git config core.fileMode false` stops git from reporting every script as modified,
+  since the filesystem cannot record execute permissions.
+
+`export` holds only for the current terminal. To make a setting permanent, add it to
+`~/.bashrc`, for example:
+
+```bash
+echo 'export HADES_BUILD_DIR=$HOME/hades-build' >> ~/.bashrc
+```
+
+`make help` shows the build directory in use on its last line:
 
 ```bash
 make help | tail -n 1
 ```
 
 ```text
-Build directory: /home/esarkar/hades-work/build  (relocate with BUILD_DIR=/abs/path or HADES_BUILD_DIR)
+Build directory: <build directory>  (relocate with BUILD_DIR=/abs/path or HADES_BUILD_DIR)
 ```
 
 Notes:
 
 * A build directory belongs to one checkout. If you work with two copies of the
-  repository, give each its own `HADES_BUILD_DIR`.
-* Instead of the environment variable you can give the directory per command, as in
-  `make BUILD_DIR=$HOME/hades-work/build test/asm/ops`. All targets of the Makefile
-  (assembly, C and SystemVerilog tests, `synthesis`, `show`, `clean`) follow it.
-* Scripts in the repository are always run through `sh` or `python3` (the make targets do
-  this), because files on the NTFS disk are not executable.
+  repository, give each its own build directory.
+* Instead of the environment variable you can name the directory per command, as in
+  `make BUILD_DIR=$HOME/hades-build test/asm/ops`. All targets of the Makefile (assembly,
+  C and SystemVerilog tests, `synthesis`, `show`, `clean`) follow it.
+
+Every later section assumes that you are in the repository directory, with
+`FREERTOS_HOME` set if you moved the FreeRTOS sources and `HADES_BUILD_DIR` set if your
+filesystem needs it.
 
 ## 3. Boot FreeRTOS
 
@@ -150,7 +175,7 @@ All tests passed! (# Errors: 1 = initial test)
 ==============================================================================
 FREERTOS RESULT: PASS  app=minimal cpu=dut isa=rv32i opt=-O2 tick=10000 bpred=0 seed=0 cycles=3169254
   UART pattern lines intact: 3/3
-  log: /home/esarkar/hades-work/build/test/freertos/minimal/run-dut.log
+  log: <build directory>/test/freertos/minimal/run-dut.log
 ==============================================================================
 ```
 
@@ -428,7 +453,8 @@ The FreeRTOS sources are in `$FREERTOS_HOME/FreeRTOS-Kernel` and
 ## 11. Troubleshooting
 
 **`Permission denied` (exit status 126) when a test starts.** The simulator was built on
-the NTFS disk. Set `HADES_BUILD_DIR` (section 2) and run the command again.
+a filesystem that cannot execute programs. Set `HADES_BUILD_DIR` (section 2.2) and run the
+command again.
 
 **`sh: 1: test/freertos/...: Permission denied`.** A script was started directly. Use the
 make targets, or run scripts through `sh` or `python3`, for example
