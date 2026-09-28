@@ -37,6 +37,24 @@ module wishbone_interconnect #(
 
     assign invalid_address = master.cyc && master.stb && select == 0;
 
+`ifndef SYNTHESIS
+    // Simulation-only sanity check of the address map: the decode above selects
+    // every slave whose window contains the address and ORs their responses, so
+    // two overlapping windows (e.g. after enlarging MEMORY_SIZE for simulation,
+    // see defines/constants.sv) would silently corrupt reads. Stop instead.
+    initial begin : address_map_check
+        for (int a = 0; a < NUM_SLAVES; a++) begin
+            for (int b = a + 1; b < NUM_SLAVES; b++) begin
+                if ({1'b0, SLAVE_ADDRESS[a*32 +: 32]} < {1'b0, SLAVE_ADDRESS[b*32 +: 32]} + {1'b0, SLAVE_SIZE[b*32 +: 32]} &&
+                    {1'b0, SLAVE_ADDRESS[b*32 +: 32]} < {1'b0, SLAVE_ADDRESS[a*32 +: 32]} + {1'b0, SLAVE_SIZE[a*32 +: 32]}) begin
+                    $fatal(1, "wishbone_interconnect: address windows overlap: [0x%h, +0x%h) and [0x%h, +0x%h) (word addresses)",
+                           SLAVE_ADDRESS[a*32 +: 32], SLAVE_SIZE[a*32 +: 32], SLAVE_ADDRESS[b*32 +: 32], SLAVE_SIZE[b*32 +: 32]);
+                end
+            end
+        end
+    end
+`endif
+
     // Bus monitor (timeout)
     logic [7:0] count;
     logic timeout;

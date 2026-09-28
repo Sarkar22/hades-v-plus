@@ -1,0 +1,217 @@
+# FreeRTOS on HaDes-V+: programs and differential stress campaign
+
+A passing FreeRTOS demo proves little: interrupt bugs only show when an
+interrupt meets an ECALL, a `csrc mstatus` or a divide at one particular
+pipeline cycle. These programs randomise that timing per run, and
+`campaign.py` runs every build on the DUT *and* on the golden reference CPU
+(`ref/*.so`), so a difference between them is a DUT bug, not a flaky test.
+
+**Start with the user guide, [docs/FREERTOS.md](../../docs/FREERTOS.md):** setup
+(including a build directory outside a disk that cannot execute programs), booting a
+program, comparing with the golden CPU, the stress campaign, and writing your own program
+from [template/](template/). This file documents the programs and the campaign in depth.
+
+## Setup
+
+The FreeRTOS sources are not vendored. Fetch them at the tested commits:
+
+```bash
+make freertos-fetch                              # clones into FREERTOS_HOME (default: the repo's parent dir)
+sh test/freertos/fetch_freertos.sh /path/to/deps # or anywhere, then:
+export FREERTOS_KERNEL=/path/to/deps/FreeRTOS-Kernel          # 8be86d4 (V11.1.0+)
+export FREERTOS_DEMO=/path/to/deps/FreeRTOS/FreeRTOS/Demo     # FreeRTOS/FreeRTOS f4fcc3b
+```
+
+The Makefile finds the sources through `FREERTOS_HOME` (or the two variables above);
+`campaign.py` and `test/trapsweep` need `FREERTOS_KERNEL`/`FREERTOS_DEMO` (or
+`--kernel`/`--demo`) when run directly. All build output follows `BUILD_DIR` /
+`HADES_BUILD_DIR` (see docs/FREERTOS.md); the paths below assume the default `build/`.
+
+## Front end
+
+```bash
+make freertos-list                               # the programs
+make freertos APP=stress SEED=2a                 # build + run, UART streamed, one verdict line
+make freertos APP=stress CPU=golden              # the same on the golden CPU (rv32i only)
+make freertos-compare APP=stress BPRED=3         # DUT and golden, verdicts compared
+make freertos-stress SEEDS=8 JOBS=6              # campaign.py --set validate --strict
+make freertos-new NAME=myapp                     # copy template/ to myapp/
+make freertos-check-rebuild                      # check_rebuild.sh
+```
+
+The short knobs (`APP CPU MARCH OPT TICK SEED TIMEOUT BPRED PREEMPT SLICE HEAP DEFS
+RAM_KB`) are command-line aliases of the `FRTOS_*` variables below; `run.sh` prints the
+verdict (`PASS`/`FAIL`/`HANG`/`CRASH`, exit status 0 only for `PASS`), applying the same
+UART-transcript check as the campaign.
+
+## One program, one configuration
+
+```bash
+make test/freertos/stress                                   # rv32i -O2, 10000-cycle tick, DUT
+make test/freertos/stress FRTOS_CPU=ref FRTOS_SEED=2a       # same on the golden CPU, seed 0x2a
+make test/freertos/mzba FRTOS_MARCH=rv32im_zba FRTOS_OPT=-Os
+make frtos-elf FRTOS_APP=full FRTOS_OUT=build/full          # build only
+```
+
+| knob | meaning (default) |
+|---|---|
+| `FRTOS_APP` | `minimal`, `stress`, `full`, `mzba`, `brk`, `template`, or your own |
+| `FRTOS_MARCH` | `rv32i`, `rv32im`, `rv32im_zba` (`rv32i`) |
+| `FRTOS_OPT` | `-O0`, `-O2`, `-Os` (`-O2`) |
+| `FRTOS_PREEMPT` / `FRTOS_SLICE` | `configUSE_PREEMPTION` / `configUSE_TIME_SLICING` (1/1) |
+| `FRTOS_TICK` | CPU cycles per RTOS tick (10000; 50000 = 1 kHz at 50 MHz) |
+| `FRTOS_HEAP` | `1` or `4` (heap_1.c / heap_4.c) (4) |
+| `FRTOS_RAM_KB` | RAM size; 32 = the board. Larger values build a simulator with `+define+HADES_MEMORY_SIZE_WORDS` (per program) |
+| `FRTOS_SEED` | run seed, drives `+switches=<hex>` (0) |
+| `FRTOS_CPU` | `dut` or `ref`/`golden` (golden) simulator (`dut`); the golden CPU runs `rv32i` builds only |
+| `FRTOS_DEFS` | extra `-D` flags, e.g. `-DSTRESS_CRIT_YIELD=0` |
+| `FRTOS_BPRED` | branch-predictor mode written to MHPMEVENT10 at start-up: 0 off, 1 always-taken, 2 backward-taken, 3 bimodal (0). The golden CPU reads this CSR as 0 and ignores writes, so it stays a valid twin |
+
+The output directory (`build/test/freertos/<app>`, or `FRTOS_OUT`) is reused
+across configurations: `freertos.mk` records the compiler/linker flags of the
+last build in `flags.txt` and rebuilds everything when any knob changes, before
+the run. (It used to notice the change one invocation late, so the first run
+after changing e.g. `FRTOS_TICK` or `FRTOS_BPRED` silently ran the previous
+ELF.) `test/freertos/check_rebuild.sh` is the regression test: it runs
+`minimal` eight times in a scratch directory, changing one knob at a time, and
+checks from each run's start-up banner (`config: tick=... isa=... opt=...
+bpred=...`) that the very next run used the new build, and that an unchanged
+configuration is not rebuilt (15-30 s; prints `REBUILD CHECK: PASS`).
+
+Every program prints exactly one `FRTOS-RESULT: PASS` or
+`FRTOS-RESULT: FAIL <reason>` line and uses the usual test-register protocol,
+so a pass ends in `All tests passed! (# Errors: 1 = initial test)`. Failures
+are loud: `configASSERT`, stack overflow (`configCHECK_FOR_STACK_OVERFLOW=2`),
+malloc failure, unexpected exceptions/interrupts, and each program's own
+checks all end the run at once.
+
+## Programs
+
+* **template** -- the starting point for your own program (`make freertos-new
+  NAME=<name>`): producer -> queue -> consumer, PASS after `TEMPLATE_ITEMS` items;
+  `-DTEMPLATE_WITH_IRQ=1` adds an interrupt handler fed by the `wishbone_test`
+  interrupt. Its `app.mk` builds every `.c`/`.S` file in the program's directory
+  (`APP_DIR`), so a copy needs no edits. Not part of any campaign set.
+* **minimal** -- 2 tasks + idle (32 KiB). Notification ping-pong, idle
+  progress, tick drift.
+* **stress** -- 32 KiB at `-O2`/`-Os` (64 KiB at `-O0`). Official port RegTest
+  tasks + RegTest3 (also checks `ra` and MIE=1); a queue with a low-priority
+  producer and a high-priority consumer and one the other way round; a counting
+  semaphore and task notifications fed from the `wishbone_test` interrupt,
+  re-armed from its own ISR with seed-dependent random delays; two tasks that
+  check `mstatus.MIE=0` inside critical sections, `taskYIELD()` inside them
+  (`STRESS_CRIT_YIELD`, default 1) and toggle `csrc/csrs mstatus` in tight
+  loops; ISR/semaphore/notification accounting and tick drift against `mtime`;
+  an idle hook (`STRESS_SLOWBUS`, default 1) that writes and reads back a VGA
+  frame-buffer word and the `wishbone_test` stall register (2- to 4-cycle bus
+  accesses) and checks `mstatus.MIE=1`, so interrupts also land while Memory
+  waits for a slow peripheral.
+  A blocking call with `portMAX_DELAY` that returns empty-handed is a failure
+  (it can only happen when the blocking ECALL was lost).
+* **full** -- the FreeRTOS standard demo set used by the official RISC-V QEMU
+  `full_demo` (blocktim, dynamic, GenQTest, recmutex, TimerDemo,
+  EventGroupsDemo, TaskNotify, AbortDelay, countsem, MessageBufferDemo,
+  StreamBufferDemo, StreamBufferInterrupt, QueueOverwrite, QueueSet, semtest,
+  BlockQ, PollQ, IntSemTest, RegTest) with their tick-hook ISR halves, plus a
+  random external interrupt. The check task fails the run on the first
+  `xAre...StillRunning() != pdTRUE` or stalled RegTest counter. 256 KiB RAM
+  (512 KiB at `-O0`); three 5000-tick check periods. The campaign runs it with time
+  slicing on only, like the official demo: with `configUSE_TIME_SLICING=0`
+  the demo's priority-0 tasks (semtest polling pair, MessageBuffer
+  non-blocking/coherence tasks) can starve for a whole check period or trip
+  MessageBufferDemo's coherence assert, and the golden CPU failed 3 of 12
+  seeds that way. MessageBufferDemo's "space available coherence" sub-test
+  (`configRUN_ADDITIONAL_TESTS`, on in the official demo) is off: it trips on
+  an ABA race in `xStreamBufferSpacesAvailable()` that any CPU can hit (see
+  `full/app_config.h`).
+* **mzba** -- M and Zba under the RTOS. `kernels.c` is built twice: with the
+  program's `-march` and for plain rv32i as the reference; results are compared
+  before the scheduler starts and continuously afterwards (random operands incl.
+  0, -1, INT_MIN; array/matrix code that GCC compiles to `sh1add/sh2add/sh3add`).
+  `divstorm.S` (M builds) runs back-to-back divides with register integrity
+  while short random external interrupts land inside the 34-cycle divide stall.
+* **brk** -- the RTOS-level breaker (64 KiB, 256 KiB at `-O0`). All at once,
+  timing randomised by the seed: external-interrupt *storms* (bursts of
+  1..150-cycle or 1..8-cycle intervals, far shorter than the tick; `-DBRK_STORM_MASK=3`
+  makes them 8x more frequent) whose ISR writes a stream buffer and framed
+  messages into a message buffer and drains a task->ISR stream buffer (all
+  contents sequence-checked); `mtimecmp` written into the past, to 0 and a few
+  cycles into the future, and critical sections spanning 1..3 ticks (tick
+  catch-up); critical sections nested 1..8 deep with `taskYIELD()` at random
+  depths and nested `vTaskSuspendAll()`; `taskYIELD()` with interrupts disabled
+  outside any critical section; task churn with `vTaskDelete(NULL)`, deletion of
+  blocked and of ready tasks (heap and task count must return to baseline); a
+  priority-inheritance chain L<-M<-H with timeouts, a recursive mutex and hog
+  tasks; self-modifying code + `fence.i` from two tasks (incl. a buffer that
+  starts with `fence.i`); deliberate exceptions from a task (illegal, ebreak,
+  misaligned load/store/jalr, access faults incl. after a 3-cycle stall, bad
+  CSR), 1 in 4 of them inside a critical section, plus reads of the
+  side-effecting `wishbone_test` counter (a load performed twice shows);
+  `pipebrk.S` (divides next to `csrci/csrsi mstatus`, ECALL, slow-bus
+  loads/stores, `fence.i`, `mscratch`; MIE toggles next to ECALL); `wfi` and
+  slow-bus accesses in the idle hook; RegTest 1/2/3; optional run-time
+  MHPMEVENT10 mode changes (`-DBRK_BPDYN=1`). It prints how often an interrupt
+  was taken with mepc at a divide / M op / ECALL / CSR op / `fence.i`.
+
+All task periods and interrupt rates scale with `FRTOS_TICK`, so the programs
+pass on the golden CPU from pathological ticks (500 cycles at `-O2`/`-Os`,
+1500 at `-O0`; `campaign.py --set ticksweep --golden-only` re-measures this)
+up to the real 50000-cycle tick.
+
+**UART transcript check.** A program cannot observe its own UART output, so
+every program also prints the fixed line `HADES_PATTERN_LINE`
+(`~0123...xyz~`, see `common/hades_hal.h`) with interrupts enabled -- once
+per check period, and `stress`/`mzba` about every 100k cycles from a
+low-priority task. `campaign.py` fails a run whose pattern lines do not arrive
+intact (a UART store performed twice or lost); `--no-uart-check` only counts
+them.
+
+## Differential campaign
+
+```bash
+python3 test/freertos/campaign.py --set quick                         # smoke test, DUT + golden
+python3 test/freertos/campaign.py --set validate --seeds 8 \
+    --dut buggy=. --dut patched=/path/to/other/tree            # several DUT trees side by side
+python3 test/freertos/campaign.py --set standard --seeds 3 --jobs 6   # every knob, all four programs
+python3 test/freertos/campaign.py --set standard --list               # show the variants
+python3 test/freertos/campaign.py --set full --only 'rv32i\.Os' --seeds 12   # one variant, more seeds
+python3 test/freertos/campaign.py --set realtick --seeds 2              # full demo at the real 1 kHz tick (~750M cycles/run)
+python3 test/freertos/campaign.py --set validate --run-cycles 40000000 # longer stress/minimal/mzba runs
+python3 test/freertos/campaign.py --set breaker --seeds 8 --run-cycles 20000000     # brk, incl. branch predictor on
+python3 test/freertos/campaign.py --set breaker2 --seeds 8 --run-cycles 20000000    # brk with heavy storms
+python3 test/freertos/campaign.py --set bpred --seeds 4                             # stress/minimal/mzba/full, predictor on
+python3 test/freertos/campaign.py --set breaker-long --run-cycles 100000000 --max-checks 100000
+```
+
+Each ELF is built once and run with `--seeds` interrupt-timing seeds on every
+`--dut` tree (default: this repo) and, for rv32i builds, on the golden CPU
+(verilated from the first tree with `+define+USE_REF_CPU`). Results go to
+`build/freertos-campaign/` (`summary.md`, `results.csv`, `results.json`, one
+`sim.log` per run) and the table is printed:
+
+* `PASS` / `FAIL <reason>` / `HANG` (no result before the cycle limit) /
+  `CRASH` (simulator ended otherwise), with the cycles simulated. `PASS`
+  means the program passed *and* its UART transcript is intact; the summary
+  counts the runs that failed *only* the UART transcript check separately.
+* rv32i: the golden CPU is the oracle. A golden failure means the variant or
+  the harness is broken and makes the campaign exit with status 2.
+* rv32im / rv32im_zba: the golden CPU predates M and Zba; the programs' own
+  self-checks are the oracle.
+* Nothing reads the Zicntr `time` CSR (0 on the golden CPU); time comes from the
+  memory-mapped `mtime`.
+
+**Reproducing one run.** Every run directory holds `cmd.txt` (the `make
+frtos-elf` variables of its ELF and the exact simulator command) next to its
+`sim.log`; the simulations are deterministic. By hand, e.g.
+
+```bash
+make test/freertos/full FRTOS_OPT=-Os FRTOS_SLICE=0 FRTOS_SEED=3            # DUT
+make test/freertos/full FRTOS_OPT=-Os FRTOS_SLICE=0 FRTOS_SEED=3 FRTOS_CPU=ref
+```
+
+(the campaign additionally passes `-DFRTOS_NCHECKS`/`-DFRTOS_CHECK_TICKS`
+for stress/mzba/minimal, derived from the tick period; see `cmd.txt`).
+
+The simulator options used (`sim/top.sv`, all optional, defaults unchanged):
+`+timeout=<cycles>` (default 100000), `+nodump` (no `sim.fst`),
+`+switches=<hex>` (board switches = run seed).
