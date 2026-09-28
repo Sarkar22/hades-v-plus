@@ -123,6 +123,10 @@ help:
 	@echo "  freertos-stress   Differential stress campaign, DUT vs golden CPU [SEEDS=2] [JOBS=4] [SET=validate]"
 	@echo "  freertos-new      Start a new program from the template: make freertos-new NAME=<name>"
 	@echo ""
+	@echo "Formal verification of the M unit (guide: formal/README.md):"
+	@echo "  formal            Re-run the divider/multiplier proofs (a few minutes) [FORMAL_PAR=4]"
+	@echo "  formal-full       Also H6 by bitwuzla and the mutation campaign (~35 min)"
+	@echo ""
 	@echo "Build directory: $(BUILD_DIR)  (relocate with BUILD_DIR=/abs/path or HADES_BUILD_DIR)"
 
 
@@ -278,6 +282,22 @@ $(BUILD_DIR)/$(SV_DIR)/%/top.mk: $(REF_SO_DEPS)
 # see docs/FREERTOS.md and test/freertos/README.md): make freertos APP=<app>,
 # make test/freertos/<app>
 include $(TEST_DIR)/freertos/freertos.mk
+
+################################################################################
+#                              Formal Verification                             #
+################################################################################
+
+# Formal proof of the M unit (divider + multiplier of rtl/execute_stage.sv), see
+# formal/README.md. Tools (SymbiYosys/Yosys, sv2v, bitwuzla, yices, z3) are found on
+# PATH or through HADES_FORMAL_ENV. Everything is written to $(BUILD_DIR)/formal.
+FORMAL_PAR ?= 4
+
+.PHONY: formal formal-full
+formal:
+	bash formal/run.sh --mode default --par $(FORMAL_PAR) --out $(BUILD_ABS)/formal
+
+formal-full:
+	bash formal/run.sh --mode full --par $(FORMAL_PAR) --out $(BUILD_ABS)/formal
 
 ################################################################################
 #                                   Waveform                                   #

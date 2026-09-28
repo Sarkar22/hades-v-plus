@@ -1,0 +1,25 @@
+# Yosys model of the EXACT H6 hint text (props/hints.vh through
+# lemmas/hint_validity.v), produced with the same passes SBY uses for its
+# SMT2 model. run_split.sh substitutes the two directory placeholders.
+read_verilog -sv -formal -I@HINTDIR@ -DHINT_VSTEP -DSKIP_H7 -DSKIP_H8 -DSKIP_H9 @LEMMADIR@/hint_validity.v
+prep -top hint_validity
+hierarchy -smtcheck
+rename -witness
+scc -select; simplemap; select -clear
+memory_nordff
+async2sync
+chformal -assume -early
+opt_clean
+formalff -setundef -clk2ff -ff2anyinit -hierarchy
+chformal -live -fair -cover -remove
+opt_clean
+check
+setundef -undriven -anyseq
+opt -fast
+rename -witness
+opt_clean
+hierarchy -smtcheck
+delete */t:$print
+formalff -assume
+dffunmap
+write_smt2 -wires h6_model.smt2

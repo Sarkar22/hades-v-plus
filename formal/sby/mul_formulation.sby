@@ -1,0 +1,35 @@
+# The earlier multiplier FORMULATION check. dut_mul in mul/mul_formulation.sv is
+# a HAND COPY of the 33x33 signed multiply of rtl/execute_stage.sv, NOT the RTL:
+# this checks the formulation against riscv-formal-style spec expressions for
+# all 2^64 inputs. The real-RTL multiplier proof is FINAL(mul) + MULREG + A1/A3a.
+# mulhsu_bug_y is a negative control (wrong operand signedness): it MUST FAIL.
+[tasks]
+mul_bw mul bw
+mul_y mul y
+mulh_bw mulh bw
+mulh_y mulh y
+mulhsu_bw mulhsu bw
+mulhsu_y mulhsu y
+mulhu_bw mulhu bw
+mulhu_y mulhu y
+mulhsu_bug_y mulhsu_bug y
+
+[options]
+mode bmc
+depth 1
+
+[engines]
+bw: smtbmc bitwuzla
+y:  smtbmc yices
+
+[script]
+mul: read_verilog -sv -formal -DOP_MUL mul_formulation.sv
+mulh: read_verilog -sv -formal -DOP_MULH mul_formulation.sv
+mulhsu: read_verilog -sv -formal -DOP_MULHSU mul_formulation.sv
+mulhu: read_verilog -sv -formal -DOP_MULHU mul_formulation.sv
+mulhsu_bug: read_verilog -sv -formal -DOP_MULHSU mul_formulation_bug.sv
+prep -top mul_eq
+
+[files]
+../mul/mul_formulation.sv
+../mul/mul_formulation_bug.sv

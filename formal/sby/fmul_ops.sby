@@ -1,0 +1,60 @@
+# FINAL (F1/F2/F3) for the four multiply opcodes on the real execute_stage, one
+# opcode and one property per task (the opcode is then a top-level fact).
+# Assumes CTRL + MULREG (sby/div.sby). yn = required; bwn = second solver
+# (bitwuzla does not close MULH-F3 and MULHSU-F3 within 300 s; yices does).
+[tasks]
+mul_f1_yn g_mul_f1 yn
+mul_f1_bwn g_mul_f1 bwn
+mul_f2_yn g_mul_f2 yn
+mul_f2_bwn g_mul_f2 bwn
+mul_f3_yn g_mul_f3 yn
+mul_f3_bwn g_mul_f3 bwn
+mulh_f1_yn g_mulh_f1 yn
+mulh_f1_bwn g_mulh_f1 bwn
+mulh_f2_yn g_mulh_f2 yn
+mulh_f2_bwn g_mulh_f2 bwn
+mulh_f3_yn g_mulh_f3 yn
+mulh_f3_bwn g_mulh_f3 bwn
+mulhsu_f1_yn g_mulhsu_f1 yn
+mulhsu_f1_bwn g_mulhsu_f1 bwn
+mulhsu_f2_yn g_mulhsu_f2 yn
+mulhsu_f2_bwn g_mulhsu_f2 bwn
+mulhsu_f3_yn g_mulhsu_f3 yn
+mulhsu_f3_bwn g_mulhsu_f3 bwn
+mulhu_f1_yn g_mulhu_f1 yn
+mulhu_f1_bwn g_mulhu_f1 bwn
+mulhu_f2_yn g_mulhu_f2 yn
+mulhu_f2_bwn g_mulhu_f2 bwn
+mulhu_f3_yn g_mulhu_f3 yn
+mulhu_f3_bwn g_mulhu_f3 bwn
+
+[options]
+mode prove
+depth 2
+
+[engines]
+bwn: smtbmc bitwuzla -- --noincr
+yn:  smtbmc yices -- --noincr
+
+[script]
+g_mul_f1: read_verilog -sv -formal -DASSUME_CTRL -DASSUME_MULREG -DASSERT_FINAL -DFINAL_OP=53 -DFSEL_F1 execute_stage_formal.v
+g_mul_f2: read_verilog -sv -formal -DASSUME_CTRL -DASSUME_MULREG -DASSERT_FINAL -DFINAL_OP=53 -DFSEL_F2 execute_stage_formal.v
+g_mul_f3: read_verilog -sv -formal -DASSUME_CTRL -DASSUME_MULREG -DASSERT_FINAL -DFINAL_OP=53 -DFSEL_F3 execute_stage_formal.v
+g_mulh_f1: read_verilog -sv -formal -DASSUME_CTRL -DASSUME_MULREG -DASSERT_FINAL -DFINAL_OP=54 -DFSEL_F1 execute_stage_formal.v
+g_mulh_f2: read_verilog -sv -formal -DASSUME_CTRL -DASSUME_MULREG -DASSERT_FINAL -DFINAL_OP=54 -DFSEL_F2 execute_stage_formal.v
+g_mulh_f3: read_verilog -sv -formal -DASSUME_CTRL -DASSUME_MULREG -DASSERT_FINAL -DFINAL_OP=54 -DFSEL_F3 execute_stage_formal.v
+g_mulhsu_f1: read_verilog -sv -formal -DASSUME_CTRL -DASSUME_MULREG -DASSERT_FINAL -DFINAL_OP=55 -DFSEL_F1 execute_stage_formal.v
+g_mulhsu_f2: read_verilog -sv -formal -DASSUME_CTRL -DASSUME_MULREG -DASSERT_FINAL -DFINAL_OP=55 -DFSEL_F2 execute_stage_formal.v
+g_mulhsu_f3: read_verilog -sv -formal -DASSUME_CTRL -DASSUME_MULREG -DASSERT_FINAL -DFINAL_OP=55 -DFSEL_F3 execute_stage_formal.v
+g_mulhu_f1: read_verilog -sv -formal -DASSUME_CTRL -DASSUME_MULREG -DASSERT_FINAL -DFINAL_OP=56 -DFSEL_F1 execute_stage_formal.v
+g_mulhu_f2: read_verilog -sv -formal -DASSUME_CTRL -DASSUME_MULREG -DASSERT_FINAL -DFINAL_OP=56 -DFSEL_F2 execute_stage_formal.v
+g_mulhu_f3: read_verilog -sv -formal -DASSUME_CTRL -DASSUME_MULREG -DASSERT_FINAL -DFINAL_OP=56 -DFSEL_F3 execute_stage_formal.v
+read_verilog -sv -formal top.v
+prep -top top
+
+[files]
+../gen/execute_stage_formal.v
+../props/div_props.vh
+../props/spec.vh
+../props/hints.vh
+../harness/top.v

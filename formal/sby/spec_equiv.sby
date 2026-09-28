@@ -1,0 +1,34 @@
+# The two formulations of the RV32M spec in props/spec.vh agree for all inputs:
+# f_spec_m (used by the proofs) == f_spec_ref (Verilog signed '/' and '%'),
+# one task per opcode (lemmas/spec_equiv.v).
+[tasks]
+mul_bw mul
+mulh_bw mulh
+mulhsu_bw mulhsu
+mulhu_bw mulhu
+div_bw div
+divu_bw divu
+rem_bw rem
+remu_bw remu
+
+[options]
+mode bmc
+depth 1
+
+[engines]
+smtbmc bitwuzla
+
+[script]
+mul: read_verilog -sv -formal -DSPEC_OP=6'd53 spec_equiv.v
+mulh: read_verilog -sv -formal -DSPEC_OP=6'd54 spec_equiv.v
+mulhsu: read_verilog -sv -formal -DSPEC_OP=6'd55 spec_equiv.v
+mulhu: read_verilog -sv -formal -DSPEC_OP=6'd56 spec_equiv.v
+div: read_verilog -sv -formal -DSPEC_OP=6'd57 spec_equiv.v
+divu: read_verilog -sv -formal -DSPEC_OP=6'd58 spec_equiv.v
+rem: read_verilog -sv -formal -DSPEC_OP=6'd59 spec_equiv.v
+remu: read_verilog -sv -formal -DSPEC_OP=6'd60 spec_equiv.v
+prep -top spec_equiv
+
+[files]
+../lemmas/spec_equiv.v
+../props/spec.vh

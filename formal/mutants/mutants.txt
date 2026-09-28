@@ -1,0 +1,21 @@
+# name | exact original text (must occur exactly once in gen/execute_stage_formal.v; \n = newline, \| = |) | replacement | description
+rem_sign_divisor|m_rem_neg <= div_dividend_neg;|m_rem_neg <= div_divisor_neg;|remainder takes the sign of the DIVISOR
+count31|m_count <= 6'd32;|m_count <= 6'd31;|only 31 iterations
+diff32|assign div_diff = div_shifted - {1'b0, m_divisor};|assign div_diff = {1'b0, div_shifted[31:0]} - {1'b0, m_divisor};|drops bit 32 of the shifted remainder (wrong only for divisors >= 2^31)
+rem_ovf_one|m_early_result = (div_wants_quotient ? 32'h80000000 : 32'h00000000);|m_early_result = (div_wants_quotient ? 32'h80000000 : 32'h00000001);|REM overflow returns 1
+divu_zero|m_early_result = (div_wants_quotient ? 32'hffffffff : rs1_data_in);|m_early_result = (div_wants_quotient ? 32'h00000000 : rs1_data_in);|x/0 quotient returns 0
+quo_sign_or|m_quo_neg <= div_dividend_neg ^ div_divisor_neg;|m_quo_neg <= div_dividend_neg \| div_divisor_neg;|quotient sign uses OR instead of XOR
+mag_onescomp|assign div_dividend_mag = (div_dividend_neg ? ~rs1_data_in + 32'd1 : rs1_data_in);|assign div_dividend_mag = (div_dividend_neg ? ~rs1_data_in : rs1_data_in);|dividend magnitude uses ones' complement
+jump_noreset|		else if (status_backwards_in == 2'd2)\n			m_state <= M_IDLE;|		else if (status_backwards_in == 2'd2)\n			m_state <= m_state;|a flush does not abandon the M unit
+stop_early|if (m_count == 6'd1)|if (m_count == 6'd2)|FSM leaves M_RUN one step early
+mulhsu_swap|				mul_a_signed = 1'b1;\n				mul_b_signed = 1'b0;|				mul_a_signed = 1'b0;\n				mul_b_signed = 1'b1;|MULHSU treats rs2 as signed and rs1 as unsigned
+ovf_ungated|assign div_overflow = ((is_m_div && div_is_signed) && (rs1_data_in == 32'h80000000)) && (rs2_data_in == 32'hffffffff);|assign div_overflow = (is_m_div && (rs1_data_in == 32'h80000000)) && (rs2_data_in == 32'hffffffff);|overflow early-out not gated on signedness (DIVU 0x80000000/0xFFFFFFFF -> 0x80000000, REMU -> 0)
+rem_no_restore|assign div_rem_next = (div_step_take ? div_diff[31:0] : div_shifted[31:0]);|assign div_rem_next = div_diff[31:0];|remainder never restored (always keeps the difference)
+take_ge|assign div_step_take = !div_diff[32];|assign div_step_take = !div_diff[32] && (div_diff[31:0] != 32'd0);|quotient bit requires shifted > divisor instead of >= (off-by-one compare)
+divisor_raw|m_divisor <= div_divisor_mag;|m_divisor <= rs2_data_in;|divisor latched without taking its magnitude
+ready_in_run|assign m_ready = m_early \|\| (m_state == M_READY);|assign m_ready = m_early \|\| (m_state == M_READY) \|\| ((m_state == M_RUN) && (m_count == 6'd1));|result declared ready one cycle early (during the last RUN step)
+# --- added from the independent audit (sv2v-level restatement of its SV mutants); FINAL F1-F3 alone do NOT reject the first three, A1/A3a do
+rem_not_decoded|6'd57, 6'd58, 6'd59, 6'd60: is_m_div = 1'b1;|6'd57, 6'd58, 6'd60: is_m_div = 1'b1;|the M decode drops REM (it executes as the ALU op)
+mulh_not_decoded|6'd53, 6'd54, 6'd55, 6'd56: is_m_mul = 1'b1;|6'd53, 6'd55, 6'd56: is_m_mul = 1'b1;|the M decode drops MULH (it executes as the ALU op)
+stall_valid_to_mem|else if (m_stall)\n			status_forwards_out <= 4'd1;|else if (m_stall)\n			status_forwards_out <= status_forwards_in;|while the M unit stalls, Memory is handed the instruction as VALID every cycle (early/duplicate hand-off)
+mulh_unsigned|			6'd56: begin\n				mul_a_signed = 1'b0;|			6'd56, 6'd54: begin\n				mul_a_signed = 1'b0;|MULH computed as unsigned x unsigned

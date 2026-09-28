@@ -1,0 +1,19 @@
+# Structural justification of hint H1 (props/hints.vh):
+#   mul_result is a purely COMBINATIONAL function of the module inputs
+#   instruction_in, rs1_data_in, rs2_data_in -- no flip-flop, latch, memory or
+#   any other input lies in its transitive fan-in cone. Hence equal values of
+#   those three inputs in two cycles give equal mul_result (congruence).
+# Run from proof/:   yosys -q -s lemmas/mul_result_cone.ys
+read_verilog -sv gen/execute_stage_sv2v.v
+prep -top execute_stage
+flatten
+select -set cone w:mul_result %ci*
+# 1. no state element anywhere in the cone
+select -assert-none @cone t:$dff t:$dffe t:$adff t:$adffe t:$sdff t:$sdffe t:$sdffce t:$aldff t:$aldffe t:$dffsr t:$dffsre t:$ff t:$dlatch t:$adlatch t:$dlatchsr t:$mem t:$mem_v2 %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %i
+# 2. the only module inputs in the cone are the three H1 compares
+select -assert-count 3 @cone i:* %i
+select -assert-count 1 @cone w:instruction_in %i
+select -assert-count 1 @cone w:rs1_data_in %i
+select -assert-count 1 @cone w:rs2_data_in %i
+log CONE-CHECK-OK: mul_result depends combinationally on instruction_in, rs1_data_in, rs2_data_in only
+select -list @cone i:* %i
