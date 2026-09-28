@@ -1,0 +1,48 @@
+# Divider chain (and MULREG) on the real execute_stage -- see formal/README.md.
+# Task name = <group>_<engine>.  Dependency order (acyclic; run.sh proves every
+# group in the same run, so every assumed group is itself proven):
+#   ctrl   : CTRL                                   (no lemmas)
+#   divf1/divf : DIVF at k=1 / k=2, assumes CTRL,   lemmas H6 H7 H8 H9
+#   mulreg : MULREG, assumes CTRL,                  lemma  H1
+#   fdiv   : FINAL F1/F2/F3 for DIV/DIVU/REM/REMU, assumes CTRL+DIVF, lemmas H5a H5b
+# engines: bw = bitwuzla, bwn/yn = bitwuzla/yices restarted per check-sat
+#          (--noincr enables the solvers' full substitution preprocessing; the
+#          incremental engines do not close DIVF within 900 s)
+[tasks]
+ctrl_bw        ctrl   bw
+ctrl_yn        ctrl   yn
+divf1_bwn      divf1  bwn
+divf1_yn       divf1  yn
+divf_bwn       divf   bwn
+divf_yn        divf   yn
+mulreg_bw      mulreg bw
+mulreg_yn      mulreg yn
+fdiv_bw        fdiv   bw
+fdiv_bwn       fdiv   bwn
+fdiv_yn        fdiv   yn
+
+[options]
+mode prove
+depth 2
+divf1: depth 1
+
+[engines]
+bw:  smtbmc bitwuzla
+bwn: smtbmc bitwuzla -- --noincr
+yn:  smtbmc yices -- --noincr
+
+[script]
+ctrl:   read_verilog -sv -formal -DASSERT_CTRL execute_stage_formal.v
+divf1:  read_verilog -sv -formal -DASSUME_CTRL -DASSERT_DIVF -DHINT_VSTEP execute_stage_formal.v
+divf:   read_verilog -sv -formal -DASSUME_CTRL -DASSERT_DIVF -DHINT_VSTEP execute_stage_formal.v
+fdiv:   read_verilog -sv -formal -DASSUME_CTRL -DASSUME_DIVF -DASSERT_FINAL -DFINAL_DIV_ONLY -DHINT_DIVFIN execute_stage_formal.v
+mulreg: read_verilog -sv -formal -DASSUME_CTRL -DASSERT_MULREG -DHINT_MUL execute_stage_formal.v
+read_verilog -sv -formal top.v
+prep -top top
+
+[files]
+../gen/execute_stage_formal.v
+../props/div_props.vh
+../props/spec.vh
+../props/hints.vh
+../harness/top.v

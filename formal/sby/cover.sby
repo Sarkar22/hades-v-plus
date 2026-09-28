@@ -1,0 +1,40 @@
+# Non-vacuity. The covers must be REACHED:
+#   env_bw  : C1-C6 of props/div_props.vh section 6 under the bare environment E0-E2
+#   all_bw  : the same with every proven group and every lemma ASSUMED (if the
+#             assumption set were contradictory or over-constraining, the covers
+#             could not be reached and the proofs would be vacuous)
+#   iface_bw: every M opcode leaves Execute with a non-special operand pair
+#             (harness/top_iface.v, IFACE_COVER; bare environment)
+[tasks]
+env_bw   env
+all_bw   all
+iface_bw iface
+
+[options]
+mode cover
+env: depth 45
+all: depth 45
+iface: depth 40
+
+[engines]
+smtbmc bitwuzla
+
+[script]
+env:   read_verilog -sv -formal -DCOVER execute_stage_formal.v
+all:   read_verilog -sv -formal -DCOVER -DASSUME_CTRL -DASSUME_DIVF -DASSUME_MULREG -DHINT_MUL -DHINT_VSTEP -DHINT_DIVFIN execute_stage_formal.v
+iface: read_verilog -sv -formal execute_stage_formal.v
+env:   read_verilog -sv -formal top.v
+all:   read_verilog -sv -formal top.v
+iface: read_verilog -sv -formal -DIFACE_COVER top_iface.v
+prep -top top
+iface: flatten
+iface: opt_merge
+iface: opt_clean
+
+[files]
+../gen/execute_stage_formal.v
+../props/div_props.vh
+../props/spec.vh
+../props/hints.vh
+../harness/top.v
+../harness/top_iface.v

@@ -1,0 +1,41 @@
+# Validity of the lemma instances ("hints") of props/hints.vh: every signal they
+# mention is a FREE input of lemmas/hint_validity.v and the very same hint text
+# is ASSERTED; a depth-1 BMC PASS means the formula holds for ALL values.
+# H6 (one long-division step) is the hard one: bitwuzla closes it here in
+# ~20-35 min (h6_bw, h6_bwn; run.sh --mode full); run.sh also proves it with z3
+# by an exhaustive 33-way case split (lemmas/h6_split/), in seconds.
+# H8 is closed by z3 only (bitwuzla > 300 s).
+[tasks]
+h5a_bw h5a bw
+h5a_z3 h5a z3
+h5b_bw h5b bw
+h5b_z3 h5b z3
+h6_bw  h6 bw
+h6_bwn h6 bwn
+h7_bw  h7 bw
+h7_z3  h7 z3
+h8_z3  h8 z3
+h9_bw  h9 bw
+h9_z3  h9 z3
+
+[options]
+mode bmc
+depth 1
+
+[engines]
+bw:  smtbmc bitwuzla
+bwn: smtbmc bitwuzla -- --noincr
+z3:  smtbmc z3
+
+[script]
+h5a: read_verilog -sv -formal -DHINT_DIVFIN -DSKIP_H5B hint_validity.v
+h5b: read_verilog -sv -formal -DHINT_DIVFIN -DSKIP_H5A hint_validity.v
+h6: read_verilog -sv -formal -DHINT_VSTEP -DSKIP_H7 -DSKIP_H8 -DSKIP_H9 hint_validity.v
+h7: read_verilog -sv -formal -DHINT_VSTEP -DSKIP_H6 -DSKIP_H8 -DSKIP_H9 hint_validity.v
+h8: read_verilog -sv -formal -DHINT_VSTEP -DSKIP_H6 -DSKIP_H7 -DSKIP_H9 hint_validity.v
+h9: read_verilog -sv -formal -DHINT_VSTEP -DSKIP_H6 -DSKIP_H7 -DSKIP_H8 hint_validity.v
+prep -top hint_validity
+
+[files]
+../lemmas/hint_validity.v
+../props/hints.vh

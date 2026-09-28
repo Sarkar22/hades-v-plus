@@ -43,6 +43,8 @@ Correctness is not asserted casually. The upstream project ships **frozen, close
 
 Trap and interrupt behaviour — which the frozen models cover only partially, and where they themselves deviate from the specification in three known places — is checked by an **independent instruction-set model** ([`test/trapsweep/`](test/trapsweep)) that replays each simulation at the interrupt boundaries the hardware chose, with interrupts swept over every cycle offset around several hundred trap-relevant instruction sequences.
 
+The multiply/divide unit is additionally **formally verified**: MUL, MULH, MULHSU, MULHU, DIV, DIVU, REM and REMU are proven by k-induction to produce the RISC-V result for all 2⁶⁴ operand pairs in every reachable state, on the real RTL — see [Formal Verification of the M Unit](#formal-verification-of-the-m-unit).
+
 Test suites are additionally validated by **mutation testing**: faults are deliberately injected into the RTL to confirm the tests actually fail, guarding against coverage that only appears to be thorough.
 
 ### Known Limitations
@@ -56,6 +58,7 @@ Test suites are additionally validated by **mutation testing**: faults are delib
 make test/asm/ops                      # every RV32I instruction, against the golden reference
 make test/c/m_extension                # M hardware diffed against libgcc's software routines
 make test/sv/test_decode_exhaustive    # 11,026 DUT-vs-reference decode checks
+make formal                            # formal proof of the multiply/divide unit (tools: formal/README.md)
 make freertos APP=minimal              # boot FreeRTOS (after make freertos-fetch; guide: docs/FREERTOS.md)
 make synthesis                         # implement for the Basys3 (Vivado)
 make help                              # all available targets
@@ -130,6 +133,8 @@ Everything in this section is work added after the upstream lab; the baseline co
 ### M — Multiply and Divide
 
 Eight instructions, all plain R-type on the existing `OP` opcode (`0110011`) with `funct7 = 0000001`, so `funct3` alone selects among them and no new instruction format is needed.
+
+The unit is formally proven correct for all inputs; see [Formal Verification of the M Unit](#formal-verification-of-the-m-unit).
 
 | Instruction | funct3 | Operation |
 |---|---|---|
@@ -667,6 +672,67 @@ The [test/](test/) tree has three progressively integrative tiers, plus two syst
 
 Together these give coverage at the instruction level, the system level, and the per-module bit-level — catch a bug as early as possible in whichever tier first exposes it.
 
+## Formal Verification of the M Unit
+
+The multiply/divide unit of `rtl/execute_stage.sv` is formally verified. The proof shows
+that MUL, MULH, MULHSU, MULHU, DIV, DIVU, REM and REMU produce the RISC-V M-extension
+result:
+
+- for **all 2^64 operand pairs**;
+- including division by zero and the `-2^31 / -1` overflow;
+- in **every reachable state**, by k-induction, not a bounded check;
+- with Memory stalls, pipeline flushes and resets arriving in any cycle.
+
+It also shows that the divider never holds the pipeline for more than 33 consecutive
+cycles.
+
+The proof runs on the real RTL. The only change is one inserted `include` line in the
+sv2v translation, and the script checks that nothing else changed.
+
+```bash
+make formal         # the proofs, lemma checks, covers and sanity checks (about 1-2 min)
+make formal-full    # also the slow bitwuzla lemma proof and a mutation campaign (about 25-35 min)
+```
+
+Each run ends with `FORMAL RESULT: PASS` or `FORMAL RESULT: FAIL`. The tools
+(SymbiYosys/Yosys, sv2v, bitwuzla, Yices, z3) install in user space, for example with
+`pip install yowasp-yosys z3-solver` plus three release binaries.
+[formal/README.md](formal/README.md) explains the installation, the proof structure, the
+runtimes, and exactly what is and is not proven.
+
+### How it is built
+
+The main steps are proven by k-induction:
+
+| Step | Property |
+|---|---|
+| Control and shape invariants | The FSM stays consistent, the latched operands match the instruction, and the stall is bounded. |
+| Division invariant | While the divider runs, its partial quotient and remainder are the quotient and remainder of the dividend bits consumed so far. |
+| Results | Every M instruction leaving Execute, every forwarded M result, and every VALID hand-off to Memory carries the ISA result. The result is checked on the module's ports and decided from the opcode field, so an instruction the unit misdecodes is also caught. |
+
+Six small arithmetic lemmas and one structural fact are assumed; each is checked on its
+exact text. The hardest one, a single long-division step, is proven with z3 and again
+with bitwuzla.
+The following checks guard against a proof that is true only because it is empty or
+misstated:
+
+- non-vacuity covers;
+- negative controls (deliberately broken lemmas and a buggy multiplier must fail);
+- an independent Python model of the specification;
+- a line-by-line bench comparison of the SystemVerilog and its sv2v translation;
+- 19 seeded bugs, 18 of which are rejected. The 19th changes a bit that the proof shows
+  is always zero.
+
+### Limitations
+
+- The proof covers the Execute stage alone. The behaviour of Decode and Memory that it
+  relies on (Decode holds its outputs while Execute stalls; Memory only signals
+  READY/STALL/JUMP) is argued from the RTL, not proven. The rest of the pipeline
+  (Memory, Writeback, forwarding consumers, traps) is covered by the simulation tests.
+- The translation tool (sv2v), Yosys and the SMT solvers are trusted.
+- The specification is written from the RISC-V manual. The golden reference models in
+  `ref/` predate the M extension and cannot serve as an oracle.
+
 ## Reference-Library ("Jigsaw Puzzle") Flow
 
 HaDes-V can be built stage-by-stage without ever holding a broken pipeline, and the reason is the [ref/](ref/) directory. Every pipeline module ships in two forms:
@@ -682,6 +748,7 @@ Testbenches in [test/sv/](test/sv/) instantiate **both** — the DUT and the gol
 - [`docs/`](docs): User guides; [FREERTOS.md](docs/FREERTOS.md) covers running FreeRTOS on the core.
 - [`lib/`](lib): Peripheral modules (e.g., UART, timer).
 - [`ref/`](ref): Precompiled reference libraries.
+- [`formal/`](formal): Formal proof of the multiply/divide unit (SymbiYosys, k-induction); see [formal/README.md](formal/README.md).
 - [`rtl/`](rtl): The processor implementation — pipeline stages, register file, instruction decoder, and branch predictor.
 - [`synth/`](synth): Synthesis scripts and FPGA configuration files.
 - [`test/`](test): Test files in assembly (`asm`), C (`c`), and SystemVerilog (`sv`); FreeRTOS programs and the differential campaign (`freertos`); the interrupt-offset sweeps with their independent ISA model (`trapsweep`).
@@ -706,6 +773,7 @@ The following are original contributions by **Emon Sarkar**, added after complet
 - The **M**, **Zba**, and **Zicntr** extensions, and the substantiation of **Zifencei**
 - The **bimodal branch predictor** and its performance-counter CSRs
 - Eight correctness fixes to the base core: decoder `rd` handling for S/B-type instructions, `FENCE` forwarding suppression in the Memory stage, and six trap/interrupt defects found by running FreeRTOS
+- The formal proof of the multiply/divide unit ([`formal/`](formal))
 - FreeRTOS support ([`test/freertos/`](test/freertos), [docs/FREERTOS.md](docs/FREERTOS.md)) and the independent trap-sweep model ([`test/trapsweep/`](test/trapsweep))
 - The test suites in [`test/asm/`](test/asm) and [`test/sv/`](test/sv) beyond the upstream set, including the golden-comparison, encoding-sweep, and adversarial suites
 - Repairs to the synthesis flow ([`synth/synth.tcl`](synth/synth.tcl)) and the architectural documentation in this README

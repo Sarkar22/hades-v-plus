@@ -1,0 +1,68 @@
+# Port-level properties A1 (result) and A3a (hand-off) of harness/top_iface.v,
+# one task per M opcode, by k-induction on the real execute_stage with the
+# proven groups CTRL, DIVF, MULREG and the lemmas H1, H5a, H5b assumed.
+# (Formulated by the independent audit of the proof; see formal/README.md.)
+# yn = required; a1_*_bwn = second solver for A1.
+[tasks]
+a1_mul_yn        a1_mul       yn
+a1_mulh_yn       a1_mulh      yn
+a1_mulhsu_yn     a1_mulhsu    yn
+a1_mulhu_yn      a1_mulhu     yn
+a1_div_yn        a1_div       yn
+a1_divu_yn       a1_divu      yn
+a1_rem_yn        a1_rem       yn
+a1_remu_yn       a1_remu      yn
+a3a_mul_yn       a3a_mul      yn
+a3a_mulh_yn      a3a_mulh     yn
+a3a_mulhsu_yn    a3a_mulhsu   yn
+a3a_mulhu_yn     a3a_mulhu    yn
+a3a_div_yn       a3a_div      yn
+a3a_divu_yn      a3a_divu     yn
+a3a_rem_yn       a3a_rem      yn
+a3a_remu_yn      a3a_remu     yn
+a1_mul_bwn       a1_mul       bwn
+a1_mulh_bwn      a1_mulh      bwn
+a1_mulhsu_bwn    a1_mulhsu    bwn
+a1_mulhu_bwn     a1_mulhu     bwn
+a1_div_bwn       a1_div       bwn
+a1_divu_bwn      a1_divu      bwn
+a1_rem_bwn       a1_rem       bwn
+a1_remu_bwn      a1_remu      bwn
+
+[options]
+mode prove
+depth 2
+
+[engines]
+yn:  smtbmc yices -- --noincr
+bwn: smtbmc bitwuzla -- --noincr
+
+[script]
+read_verilog -sv -formal -DASSUME_CTRL -DASSUME_DIVF -DASSUME_MULREG -DHINT_DIVFIN -DHINT_MUL execute_stage_formal.v
+a1_mul: read_verilog -sv -formal -DIFACE -DIFACE_A1 -DIFACE_OP=53 top_iface.v
+a3a_mul: read_verilog -sv -formal -DIFACE -DIFACE_A3A -DIFACE_OP=53 top_iface.v
+a1_mulh: read_verilog -sv -formal -DIFACE -DIFACE_A1 -DIFACE_OP=54 top_iface.v
+a3a_mulh: read_verilog -sv -formal -DIFACE -DIFACE_A3A -DIFACE_OP=54 top_iface.v
+a1_mulhsu: read_verilog -sv -formal -DIFACE -DIFACE_A1 -DIFACE_OP=55 top_iface.v
+a3a_mulhsu: read_verilog -sv -formal -DIFACE -DIFACE_A3A -DIFACE_OP=55 top_iface.v
+a1_mulhu: read_verilog -sv -formal -DIFACE -DIFACE_A1 -DIFACE_OP=56 top_iface.v
+a3a_mulhu: read_verilog -sv -formal -DIFACE -DIFACE_A3A -DIFACE_OP=56 top_iface.v
+a1_div: read_verilog -sv -formal -DIFACE -DIFACE_A1 -DIFACE_OP=57 top_iface.v
+a3a_div: read_verilog -sv -formal -DIFACE -DIFACE_A3A -DIFACE_OP=57 top_iface.v
+a1_divu: read_verilog -sv -formal -DIFACE -DIFACE_A1 -DIFACE_OP=58 top_iface.v
+a3a_divu: read_verilog -sv -formal -DIFACE -DIFACE_A3A -DIFACE_OP=58 top_iface.v
+a1_rem: read_verilog -sv -formal -DIFACE -DIFACE_A1 -DIFACE_OP=59 top_iface.v
+a3a_rem: read_verilog -sv -formal -DIFACE -DIFACE_A3A -DIFACE_OP=59 top_iface.v
+a1_remu: read_verilog -sv -formal -DIFACE -DIFACE_A1 -DIFACE_OP=60 top_iface.v
+a3a_remu: read_verilog -sv -formal -DIFACE -DIFACE_A3A -DIFACE_OP=60 top_iface.v
+prep -top top
+flatten
+opt_merge
+opt_clean
+
+[files]
+../gen/execute_stage_formal.v
+../props/div_props.vh
+../props/spec.vh
+../props/hints.vh
+../harness/top_iface.v
