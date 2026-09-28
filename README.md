@@ -33,18 +33,21 @@ The upstream core implements **RV32I + Zicsr**. This version extends it to **`rv
 | **Zicntr** — user counters | `cycle`, `time`, `instret` (+ high halves), with `time` shadowing the real memory-mapped `mtime` | [§](#zicntr--user-mode-counters) |
 | **Zifencei** — documented & tested | `FENCE.I` was implemented but never actually verified upstream; now proven against a measured 3-slot staleness window | [§](#zifencei--instruction-fetch-synchronisation) |
 | **Branch predictor** | Bimodal, four runtime-selectable algorithms with dedicated performance counters | [§](#branch-predictor-extension) |
+| **FreeRTOS** | The official RISC-V port boots unmodified; one-command build and run, a differential stress campaign against the golden CPU, and a template for your own programs | [§](#freertos) |
 
-Two correctness fixes to the base core are also included: a decoder defect that corrupted registers on stores and branches (which prevented the bootloader from running at all), and a forwarding defect that leaked a garbage value for `FENCE` instructions carrying a non-zero reserved field.
+Eight correctness fixes to the base core are also included. Two predate the RTOS work: a decoder defect that corrupted registers on stores and branches (which prevented the bootloader from running at all), and a forwarding defect that leaked a garbage value for `FENCE` instructions carrying a non-zero reserved field. The other six are trap and interrupt defects exposed by running FreeRTOS under randomised interrupt timing; see [FreeRTOS](#freertos).
 
 ### Verification
 
 Correctness is not asserted casually. The upstream project ships **frozen, closed-source reference models** (pre-compiled Verilator libraries in [`ref/`](ref)) which every base-ISA change is compared against bit-exactly. Those models predate the new extensions and cannot validate them, so each extension is instead verified by **differential testing against an independent implementation** — for M, the same program compiled to libgcc's software routines and to native instructions must produce byte-identical output; for Zba, the same program built with and without the extension.
 
+Trap and interrupt behaviour — which the frozen models cover only partially, and where they themselves deviate from the specification in three known places — is checked by an **independent instruction-set model** ([`test/trapsweep/`](test/trapsweep)) that replays each simulation at the interrupt boundaries the hardware chose, with interrupts swept over every cycle offset around several hundred trap-relevant instruction sequences.
+
 Test suites are additionally validated by **mutation testing**: faults are deliberately injected into the RTL to confirm the tests actually fail, guarding against coverage that only appears to be thorough.
 
 ### Known Limitations
 
-- **FPGA timing does not close at 50 MHz.** Post-route WNS is −0.120 ns on a path that predates these extensions. The cause, the evidence, and the one-constant workaround are documented in full under [M — Multiply and Divide](#m--multiply-and-divide); nothing here has been silently glossed over.
+- **FPGA timing at 50 MHz is marginal.** The most recent implementation of the current RTL met timing with a worst negative slack of **+0.016 ns**; an earlier revision missed by 0.120 ns on the same pre-existing path, and run-to-run variance on that path is around 1 ns. Treat closure as unconfirmed until repeated; the cause and the one-constant clock workaround are documented under [M — Multiply and Divide](#m--multiply-and-divide).
 - **Not yet validated on physical hardware.** All results are from Verilator simulation and Vivado implementation.
 
 ## Quick Start
@@ -53,11 +56,12 @@ Test suites are additionally validated by **mutation testing**: faults are delib
 make test/asm/ops                      # every RV32I instruction, against the golden reference
 make test/c/m_extension                # M hardware diffed against libgcc's software routines
 make test/sv/test_decode_exhaustive    # 11,026 DUT-vs-reference decode checks
+make freertos APP=minimal              # boot FreeRTOS (after make freertos-fetch; guide: docs/FREERTOS.md)
 make synthesis                         # implement for the Basys3 (Vivado)
 make help                              # all available targets
 ```
 
-Requires [Verilator][verilator] and a `riscv32-unknown-elf` GCC toolchain; synthesis additionally needs AMD [Vivado][vivado]. Full list under [Tools and Dependencies](#tools-and-dependencies).
+Requires [Verilator][verilator] and a `riscv32-unknown-elf` GCC toolchain; synthesis additionally needs AMD [Vivado][vivado]. Full list under [Tools and Dependencies](#tools-and-dependencies). If the repository sits on a disk that cannot execute programs, put the build directory elsewhere with `export HADES_BUILD_DIR=/abs/path` (or `make BUILD_DIR=/abs/path ...`); see [docs/FREERTOS.md](docs/FREERTOS.md).
 
 ## The HaDes-V Core
 
@@ -111,7 +115,12 @@ Being in-order and single-issue keeps the control story small, but every classic
 - **Multi-cycle execute (M extension).** Execute is single-cycle for every RV32I operation, but `mul` needs two cycles and `div`/`rem` need 34. Execute therefore has its own `STALL` generator, the second one in the pipeline after Memory's. Priority is `JUMP` from behind > `STALL` from Memory > Execute's own stall: a flush always outranks an unfinished divide, which is abandoned and re-run after the trap returns. See [Multiply and Divide](#m--multiply-and-divide) below.
 - **Exceptions.** Flow forwards through the pipeline as the instruction's status code and trap at Writeback — the faulting PC is saved to `MEPC`, the cause encoded into `MCAUSE`, and control jumps to `MTVEC`.
 - **Interrupts.** External and timer lines are sampled at Writeback. They trap on the completion boundary of a `VALID` or `ERROR` instruction (never on a `BUBBLE`), honour `mstatus.MIE` / `mie.MEIE` / `mie.MTIE`, and save/restore the global enable via `MPIE`. MRET returning with a pending enabled interrupt traps in the same cycle.
-- **Nested-trap MPIE preservation.** On a primary trap `MPIE ← MIE` captures the previous interrupt-enable state. If a *nested* trap fires while MIE is already 0 (CPU already in a handler), `MPIE` must **not** be overwritten — doing so would destroy the saved state from the outer trap. In the implementation: `mstatus_mpie` is only updated when `mie_eff = 1`; nested traps still update `MCAUSE`, `MEPC`, and clear `MIE`, but leave `MPIE` unchanged. Without this rule, a stale `FETCH_FAULT` arriving the cycle after a primary interrupt trap would clobber `MPIE` to 0, breaking the `MRET`-with-pending-interrupt path.
+- **Exception beats a same-cycle interrupt.** If the instruction in Writeback raises an exception (e.g. `ECALL`) in the very cycle an enabled interrupt becomes pending, the exception is taken (`MEPC` = its PC). The interrupt stays pending and is taken at the handler's `MRET`. This matches the frozen golden model; the earlier behaviour recorded the interrupt with `MEPC` = PC+4, so the `ECALL` vanished — under FreeRTOS a lost `portYIELD` corrupted the scheduler lists. Regression: [trapirq.s](test/asm/trapirq.s).
+- **`MPIE ← MIE` on every trap entry.** As the privileged spec requires, trap entry copies `MIE` into `MPIE` and clears `MIE`, also when `MIE` was already 0, so `MRET` from that trap comes back with interrupts still disabled. The golden model does the same. (An earlier "nested-trap" rule left `MPIE` untouched when `MIE` was 0. That made a FreeRTOS yield taken inside a critical section resume with interrupts *enabled*, and it diverged from the golden model in exactly the stale-`FETCH_FAULT` sequence it was meant to handle.) Regression: [trapmpie.s](test/asm/trapmpie.s).
+- **The instruction in flight at a sequential interrupt.** An interrupt decided at instruction *I* redirects one cycle later, when the next instruction *J* is already in Writeback and has passed Memory. *J* therefore normally **retires** before the trap (register and CSR write, `minstret`, `MEPC` = its next PC). The exception is when *J* would touch state the trap has already committed: a CSR op on `MSTATUS`/`MCAUSE`/`MIE`/`MTVEC`, or an `MRET`. That *J* is **replayed** instead, with no effects and `MEPC` = its own PC. Earlier, *J*'s CSR write was dropped while `MEPC` still skipped it, which lost FreeRTOS's `portDISABLE_INTERRUPTS` (`csrc mstatus,8`). A retired *J* was also missing from `minstret`, which the golden model does count. Regression: [csrirq.s](test/asm/csrirq.s).
+- **An interrupt never flushes a bus access in flight.** If *J* is a load or store to a peripheral that answers a cycle or more later (UART, timer, LEDs, VGA, the test stall register), its access has already started when the interrupt is decided at *I*, and a Wishbone access cannot be aborted. Writeback therefore **holds** the interrupt's `JUMP` while Memory reports the access in flight, and *J* retires when it completes (`MEPC` = its next PC), as the golden model does. Earlier the `JUMP` flushed *J* with `MEPC` = *J*'s PC, so the access was performed a second time after `MRET` (a UART character printed twice); with a response of three or more cycles (VGA read, test stall register) Memory's `STALL` swallowed the one-cycle `JUMP` altogether, so the trap state was committed (`MIE` = 0, `MCAUSE`, `MEPC`) but the handler never ran. Regression: [memirq.s](test/asm/memirq.s).
+- **Interrupt after a correctly predicted taken branch.** Writeback takes an interrupt's `MEPC` from the `next_program_counter` that Execute attaches to every instruction. That value is the architectural next PC, so for a taken branch it is the target even when the predictor already fetched the target and Execute did not flush. Earlier it was `pc + 4` for a correctly predicted taken branch, so the handler's `MRET` resumed on the not-taken path (predictor modes 1–3 only). Regression: [bpirq.s](test/asm/bpirq.s), [bpirq2.s](test/asm/bpirq2.s), [bpirq3.s](test/asm/bpirq3.s), [test_execute_bpred_nextpc.sv](test/sv/test_execute_bpred_nextpc.sv); see [Branch predictor](#branch-predictor-extension).
+- **Interrupt right after a `csrw mtvec`.** A sequential interrupt decided at an instruction *I* that writes `MTVEC` is taken after *I* has retired (`MEPC` points past it), so it must use the *new* vector: every trap sets `pc` to `mtvec.BASE`, and a CSR write is seen by the very next instruction (Zicsr, "CSR Access Ordering"). The interrupt's `JUMP` used to take a copy of `MTVEC` made in the decision cycle, before *I*'s write, and entered the *old* handler. It now uses the live register. The frozen golden model has the same bug (one delay step earlier), so here the spec and the independent ISA model in [test/trapsweep/](test/trapsweep/) decide, not the golden model. FreeRTOS was never affected, because it writes `MTVEC` once, before enabling interrupts. Regression: [mtvecirq.s](test/asm/mtvecirq.s).
 - **Pipeline flushes on trap.** The trap's `JUMP` propagates backwards exactly like a branch, draining younger instructions without architectural side effects.
 
 ## Extensions
@@ -184,7 +193,7 @@ make test/c/m_extension
 
 #### Implementation Notes
 
-- **FPGA timing does not close, and this is the repository's top open issue.** Measured on Vivado 2024.2 for the `xc7a35tcpg236-1` at 20 ns: this tree reports post-route **WNS −0.120 ns** with 2 failing endpoints of 11214, while the same flow on the immediately preceding commit reports **+0.026 ns** with none. A bitstream is still produced — `write_bitstream` does not check timing — so a successful `make synthesis` is *not* evidence of closure; read `build/synth/reports/timing_pnr.rpt`. Two caveats matter before blaming the multiplier. First, **no M cell appears in the 40 worst paths**: the multiply closes with +6.15 ns and the divider with +10.19 ns. The failing path is a pre-existing 21-level, ~85 %-route path from the Memory stage's instruction register, through the waived `LUTLP-1` combinational-loop tangle, to the `mcause` register's clock enable — M's ~9 % area growth degrades its routing rather than lengthening its logic. Second, **run-to-run variance on that path is around 1 ns**, far larger than the 0.15 ns M costs, so a single run cannot cleanly attribute blame. The honest summary is that the design has been running at roughly zero margin since before M, the stored `+0.221 ns` report predates the `Zicntr` and `Zba` commits, and the real fix is to shorten that interrupt path rather than to pipeline the multiplier further.
+- **FPGA timing is marginal.** *Update:* after the trap and interrupt fixes, the current RTL met timing in its most recent implementation (WNS **+0.016 ns**, 0 failing endpoints) — a single deterministic data point on a path with about 1 ns of run-to-run variance. The history below explains why the margin is this thin. Measured on Vivado 2024.2 for the `xc7a35tcpg236-1` at 20 ns: this tree reports post-route **WNS −0.120 ns** with 2 failing endpoints of 11214, while the same flow on the immediately preceding commit reports **+0.026 ns** with none. A bitstream is still produced — `write_bitstream` does not check timing — so a successful `make synthesis` is *not* evidence of closure; read `build/synth/reports/timing_pnr.rpt`. Two caveats matter before blaming the multiplier. First, **no M cell appears in the 40 worst paths**: the multiply closes with +6.15 ns and the divider with +10.19 ns. The failing path is a pre-existing 21-level, ~85 %-route path from the Memory stage's instruction register, through the waived `LUTLP-1` combinational-loop tangle, to the `mcause` register's clock enable — M's ~9 % area growth degrades its routing rather than lengthening its logic. Second, **run-to-run variance on that path is around 1 ns**, far larger than the 0.15 ns M costs, so a single run cannot cleanly attribute blame. The honest summary is that the design has been running at roughly zero margin since before M, the stored `+0.221 ns` report predates the `Zicntr` and `Zba` commits, and the real fix is to shorten that interrupt path rather than to pipeline the multiplier further.
 - **The M results bypass `alu_sel` entirely.** `alu_sel` is a 4-bit local with only `1110`/`1111` free, and it is internal to `execute_stage` (not a struct field or port), so widening it would have been safe with respect to the frozen models. It was not widened anyway: half the M results come out of a sequential FSM and cannot be arms of the `always_comb` case that computes `alu_result`, and this design has essentially no timing margin to spend restructuring a block already near the critical path (see the FPGA timing note below). `m_result` is a second result bus that meets the ALU at the `rd_data` mux — one extra 2:1 level instead of six extra arms inside the ALU mux.
 - **The multiply is registered, not combinational.** A 33×33 signed product is an array of DSP48E1 tiles plus an adder tree; run with no internal pipeline register it is comfortably the deepest combinational block in the core, and it would land on a path that runs from Decode's output registers through the multiplier, the `rd_data` mux and the forwarding network back into Decode's output registers — one 20 ns period, in a design with almost no margin to give. Registering the product puts a flop directly on the multiplier output. The price is one stall cycle, and since the divider needs the stall generator anyway it costs no extra machinery. Measured on the routed design the multiply path closes with **+6.15 ns** of slack, so the decision is vindicated — though Vivado did *not* absorb the flop into the DSP48E1's `P` register as intended, because the `MUL`-vs-`MULH` output mux sits between the DSP cascade and the register. Registering the full 64-bit product and muxing after the flops would allow that, at the cost of 32 extra FFs; it is not needed at this margin.
 - **Restoring division on magnitudes.** Restoring and non-restoring need the same 32 iterations, but restoring needs no final correction step: the inner loop is one 33-bit subtract whose borrow *is* the quotient bit. Signs are stripped on the way in and reapplied on the way out, which is exactly the truncate-toward-zero rounding RISC-V specifies — and it makes the remainder follow the dividend for free. `abs(0x80000000)` is `0x80000000`, which read as unsigned is the correct magnitude 2³¹, so the most-negative value needs no special case in the datapath.
@@ -370,14 +379,17 @@ jump_detected = (is_mispredicted_branch || is_jump) && VALID;
 // Corrected address when the prediction was wrong:
 corrected_address = branch_taken ? jump_target : pc_plus_4;
 
-next_pc = is_mispredicted_branch ? corrected_address
-        : is_jump               ? jump_target
-        :                         pc_plus_4;
+// Architectural next PC, whatever the prediction was:
+next_pc = (is_branch && VALID) ? corrected_address
+        : is_jump              ? jump_target
+        :                        pc_plus_4;
 ```
 
 When a branch is **correctly** predicted (e.g. the 2-bit counter correctly predicted *taken* for a loop-back branch), `is_mispredicted_branch = false`, `jump_detected = false`, and the pipeline flows without any flush. Fetch has already loaded the right next instruction.
 
 When a branch is **mispredicted**, Execute flushes exactly as it did before, but now redirects to `corrected_address` — the address the CPU *should* have taken — rather than unconditionally to `jump_target`.
+
+`next_pc` is more than the flush address: it travels with the instruction to Writeback as `next_program_counter`, and Writeback uses it as `MEPC` when an interrupt is taken right after that instruction (the retiring instruction *J* in the interrupt's `JUMP` cycle, or the saved next PC of *I* when *J* is a bubble or carries an exception). It must therefore be the architectural successor, independent of the prediction. It used to be `is_mispredicted_branch ? corrected_address : …`, so a **correctly predicted taken** branch carried `pc + 4`, and an interrupt right after it returned to the *not-taken* path: loops exited early, a skipped instruction ran, and an `ECALL` at the branch target was skipped. Under FreeRTOS with the predictor on this caused `configASSERT`s, lost yields and hangs. Mode 0 never predicts taken, so it was not affected, and the new expression is identical to the old one when `predicted_taken = 0`. The `VALID` gate keeps `pc + 4` for a squashed branch, as the golden `ref_execute_stage` does. Regressions: [bpirq.s](test/asm/bpirq.s), [bpirq2.s](test/asm/bpirq2.s), [bpirq3.s](test/asm/bpirq3.s), and [test_execute_bpred_nextpc.sv](test/sv/test_execute_bpred_nextpc.sv), which checks `next_program_counter` against the golden execute stage for every prediction.
 
 **Feedback loop.**  
 After Execute resolves a branch, it drives `bp_feedback_out` combinationally back to the Fetch stage (directly via a wire in [cpu.sv](rtl/cpu.sv), bypassing Memory and Writeback):
@@ -441,12 +453,34 @@ Run with:
 make test/asm/bpred
 ```
 
+Interrupts next to predicted branches are covered by four regression tests. The golden CPU has no predictor, ignores `MHPMEVENT10` and passes all three asm tests, so it is a valid twin for them:
+
+| Test | What it sweeps | Check |
+|---|---|---|
+| [test/asm/bpirq.s](test/asm/bpirq.s) | Modes 0–3 × IRQ delays 1–80 over a 40-iteration backward loop. | The loop count must be 40. Prints `M<mismatches> I<irqs>`. |
+| [test/asm/bpirq2.s](test/asm/bpirq2.s) | Modes 0–3 × delays 1–32, with three shapes: a backward loop, a forward branch over a poison instruction, and a load-use at the target. | Count exact, no poison executed. |
+| [test/asm/bpirq3.s](test/asm/bpirq3.s) | The Writeback paths where `MEPC` comes from the *interrupted* branch's next PC. The branch is followed by a bubble (CSR-use stall at its target) or by an `ECALL` at its target. | Exact loop count, one `ECALL` per iteration, no poison. Prints `D/E/F` mismatches. |
+| [test/sv/test_execute_bpred_nextpc.sv](test/sv/test_execute_bpred_nextpc.sv) | 20,000 random branches with random prediction and status, against `ref_execute_stage`. | `next_program_counter` must match golden for every prediction. Flushes happen exactly on mispredictions, to the golden next PC. |
+
+```bash
+make test/asm/bpirq test/asm/bpirq2 test/asm/bpirq3 test/sv/test_execute_bpred_nextpc
+```
+
+Under an RTOS, `FRTOS_BPRED=<mode>` makes a FreeRTOS program write `MHPMEVENT10` at start-up (the golden CPU ignores it and stays a valid twin). The campaign sets `bpred` (stress/minimal/mzba/full with the predictor on) and `breaker`/`breaker2`/`breaker-long` (the `brk` program, including random run-time mode changes) run the predictor in modes 1–3 against the golden CPU. The predictor-off sets never switch it on. `test/trapsweep` family `bp` sweeps interrupts around predicted branches in every mode:
+
+```bash
+python3 test/freertos/campaign.py --set bpred --seeds 4
+python3 test/freertos/campaign.py --set breaker --seeds 8 --run-cycles 20000000
+python3 test/trapsweep/sweep.py run --fam bp
+```
+
 #### Implementation Notes
 
 - **No BTB.** This is a pure bimodal predictor — no branch-target buffer. The target address is always computed by Decode from the immediate field. Prediction only decides whether to speculatively advance the PC; misses are corrected in Execute with the same mechanism as the original taken-branch flush.
 - **Only `Bxxx` instructions** (opcode `7'b1100011`) are predicted. `JAL` and `JALR` are unconditional and always cause a flush via `is_jump`, unchanged from the original design.
 - **Alignment guard.** `predicted_taken` is suppressed for branches whose target is not 4-byte aligned (`branch_offset[1:0] != 2'b00`). These fall through to the existing `FETCH_MISALIGNED` exception path.
-- **Mode 0 is zero-overhead.** When `MHPMEVENT10 = 0`, `predicted_taken = 0` unconditionally. `is_mispredicted_branch` reduces to `is_branch && branch_taken && VALID`, which is the original `jump_detected` formula. The pipeline behaves identically to unmodified HaDes-V.
+- **Mode 0 is zero-overhead.** When `MHPMEVENT10 = 0`, `predicted_taken = 0` unconditionally. `is_mispredicted_branch` reduces to `is_branch && branch_taken && VALID`, which is the original `jump_detected` formula, and `next_pc` reduces to the original expression. The pipeline behaves identically to unmodified HaDes-V.
+- **The prediction never reaches architectural state.** It only decides whether Execute flushes. `next_program_counter`, which becomes `MEPC` for an interrupt taken right after the branch, is always the resolved successor (see [Execute stage](#branch-predictor-extension) above).
 - **Simulator echo.** [lib/wishbone/wishbone_uart.sv](lib/wishbone/wishbone_uart.sv) includes an `always @(posedge clk)` block that calls `$write("%c", byte)` whenever a TX buffer write is detected, echoing UART output to Verilator's stdout. This is purely a simulation convenience; `$write` is ignored by synthesis tools.
 
 ## System Architecture
@@ -527,6 +561,38 @@ Reset is driven from the Basys3 center button, synchronised into `clk`, and dist
 
 A bare-metal C program targets HaDes-V by linking against the runtime in [std/](std/) with the RISC-V GCC toolchain at `/opt/riscv32i/bin/riscv32-unknown-elf-gcc`. The build is driven by the top-level [Makefile](Makefile).
 
+### FreeRTOS
+
+HaDes-V+ runs the unmodified official RISC-V port of FreeRTOS (V11.1.0+) in machine mode, using the memory-mapped machine timer (`mtime` at `0x00214004`, `mtimecmp` at `0x0021400C`) as the tick source. No instruction-set extension is required: the port needs only RV32I, Zicsr, `mstatus.MIE`/`MPIE`, `mie.MTIE`/`MEIE`, direct-mode `mtvec`, `mepc`, `mcause` and `MRET`. Programs can be built for `rv32i`, `rv32im` or `rv32im_zba`.
+
+**FreeRTOS is used here as a test, not a demo.** A system that merely boots proves little: interrupt-handling defects appear only when an interrupt meets a particular instruction in a particular pipeline cycle, and a tick-synchronised demo ran more than 5,000 ticks on a core that still had three such defects. The programs in [`test/freertos/`](test/freertos) therefore randomise their interrupt timing from a run seed, check themselves continuously (queue sequences, critical sections, register integrity across context switches, tick drift, the UART transcript), and run both on HaDes-V+ and on the frozen golden CPU from [`ref/`](ref). A run that passes on the golden CPU and fails on HaDes-V+ is a defect of the core.
+
+This found six defects, all fixed and each covered by a directed regression test that fails when its fix alone is reverted:
+
+| Defect | Effect under FreeRTOS | Regression |
+|---|---|---|
+| An exception in Writeback was dropped when an interrupt became pending in the same cycle | A yield `ECALL` vanished; the scheduler lists were corrupted | [trapirq.s](test/asm/trapirq.s) |
+| A trap taken with `MIE=0` left `MPIE=1` | A yield inside a critical section returned with interrupts enabled | [trapmpie.s](test/asm/trapmpie.s) |
+| The instruction in flight at a sequential interrupt lost its CSR write | `portDISABLE_INTERRUPTS` was lost | [csrirq.s](test/asm/csrirq.s) |
+| An interrupt during a slow bus access re-executed the access after the handler | Doubled UART characters | [memirq.s](test/asm/memirq.s) |
+| With the branch predictor on, an interrupt after a correctly predicted taken branch resumed on the not-taken path | Assertions, lost yields and hangs | [bpirq.s](test/asm/bpirq.s) and variants |
+| An interrupt right after `csrw mtvec` used the old vector (the golden CPU shares this defect) | None in practice (FreeRTOS writes `mtvec` once) | [mtvecirq.s](test/asm/mtvecirq.s) |
+
+On the fixed core the final differential campaign passed **794 of 794** FreeRTOS runs (102 of them with the branch predictor enabled, about 14.7 billion simulated cycles), with every one of the 523 golden-CPU twin runs agreeing, and the independent model in [`test/trapsweep/`](test/trapsweep) found no architectural error across its full interrupt-offset sweep and random-program fuzzing.
+
+**Running it.** The FreeRTOS sources are not vendored; `make freertos-fetch` clones them at the tested commits. The guide, [docs/FREERTOS.md](docs/FREERTOS.md), covers setup (including building outside a disk that cannot execute programs), reading the output, every setting, and writing your own program.
+
+```bash
+make freertos-fetch                       # once
+make freertos-list                        # available programs
+make freertos APP=minimal                 # boot FreeRTOS on HaDes-V+
+make freertos-compare APP=stress SEED=7   # same program on HaDes-V+ and on the golden CPU
+make freertos-stress                      # differential campaign, HaDes-V+ vs golden CPU
+make freertos-new NAME=myapp              # start your own program from the template
+```
+
+Each run ends with a single verdict line — `FREERTOS RESULT: PASS`, `FAIL`, `HANG` or `CRASH` — and `make` exits with status 0 only on `PASS`.
+
 ### Linker Script & Memory Layout
 
 [std/hades-v.ld](std/hades-v.ld) defines a single `RAM` region (`ORIGIN = 0x40000`, `LENGTH = 32K`) matching the Wishbone RAM window, and arranges the image as:
@@ -580,19 +646,24 @@ make show                # open the FST waveform of the most recent test in GTKW
 make bootloader          # build the UART bootloader image
 make synthesis           # synthesise the full MCU for Basys3 via Vivado
 make clean               # wipe build artefacts
+make freertos APP=<name> # build and run a FreeRTOS program (make freertos-list, docs/FREERTOS.md)
 ```
+
+All build output goes to `build/` inside the repository unless `BUILD_DIR=/abs/path` is given on the command line or `HADES_BUILD_DIR` is set in the environment; every target follows it. This is how to work from a checkout on a disk that cannot execute programs (such as an NTFS data disk): the simulators are built and run from the build directory, and the golden-model libraries are copied there.
 
 The simulator is [Verilator][verilator]; synthesis uses [Vivado][vivado] 2023.2 (default path `/opt/Xilinx/Vivado/2023.2/`). Wave dumps land in the repository root as `*.fst` files and can be inspected with [GTKWave][gtkwave].
 
 ### Test Hierarchy
 
-The [test/](test/) tree has three progressively integrative tiers:
+The [test/](test/) tree has three progressively integrative tiers, plus two system-level stress suites:
 
 | Tier | Location | What it exercises | Invocation |
 |---|---|---|---|
-| **Assembly** | [test/asm/](test/asm/) | Small hand-written `.s` programs targeting a specific ISA feature — e.g. [trap.s](test/asm/trap.s) for the full exception/interrupt path, [ops.s](test/asm/ops.s) for every RV32I instruction, [forwarding.s](test/asm/forwarding.s) for the data-hazard network, [bpred.s](test/asm/bpred.s) for the branch predictor (modes 0/1/3, counter verification), [mul.s](test/asm/mul.s) / [div.s](test/asm/div.s) for the `M` extension. | `make test/asm/trap` |
+| **Assembly** | [test/asm/](test/asm/) | Small hand-written `.s` programs targeting a specific ISA feature — e.g. [trap.s](test/asm/trap.s) for the full exception/interrupt path, [ops.s](test/asm/ops.s) for every RV32I instruction, [forwarding.s](test/asm/forwarding.s) for the data-hazard network, [bpred.s](test/asm/bpred.s) for the branch predictor (modes 0/1/3, counter verification), [mul.s](test/asm/mul.s) / [div.s](test/asm/div.s) for the `M` extension, [trapirq.s](test/asm/trapirq.s) / [trapmpie.s](test/asm/trapmpie.s) / [csrirq.s](test/asm/csrirq.s) / [memirq.s](test/asm/memirq.s) for interrupt-vs-trap and interrupt-vs-bus timing sweeps, [bpirq.s](test/asm/bpirq.s) / [bpirq2.s](test/asm/bpirq2.s) / [bpirq3.s](test/asm/bpirq3.s) for interrupts landing next to correctly predicted taken branches in every predictor mode, [mtvecirq.s](test/asm/mtvecirq.s) for an interrupt right after a `csrw mtvec`. | `make test/asm/trap` |
 | **C** | [test/c/](test/c/) | Full C programs linked against [std/](std/). [bootloader.c](test/c/bootloader.c) is the UART loader; [basys3_demo.c](test/c/basys3_demo.c) wiggles every on-board peripheral; [m_extension.c](test/c/m_extension.c) diffs the `M` hardware against libgcc's software routines. | `make test/c/basys3_demo` |
-| **SystemVerilog** | [test/sv/](test/sv/) | Module-level benches that run DUT vs. REF side-by-side and compare every cycle. Examples: [test_writeback_compare.sv](test/sv/test_writeback_compare.sv), [test_execute_compare.sv](test/sv/test_execute_compare.sv), [test_decode_hazard.sv](test/sv/test_decode_hazard.sv). Where the frozen reference cannot help — `Zba`, `M` — the bench carries its own golden model instead: [test_m_execute.sv](test/sv/test_m_execute.sv). | `make test/sv/test_writeback_compare` |
+| **SystemVerilog** | [test/sv/](test/sv/) | Module-level benches that run DUT vs. REF side-by-side and compare every cycle. Examples: [test_writeback_compare.sv](test/sv/test_writeback_compare.sv), [test_execute_compare.sv](test/sv/test_execute_compare.sv), [test_decode_hazard.sv](test/sv/test_decode_hazard.sv), [test_execute_bpred_nextpc.sv](test/sv/test_execute_bpred_nextpc.sv) (Execute with a branch prediction applied, against the predictor-less reference). Where the frozen reference cannot help — `Zba`, `M` — the bench carries its own golden model instead: [test_m_execute.sv](test/sv/test_m_execute.sv). | `make test/sv/test_writeback_compare` |
+| **FreeRTOS** | [test/freertos/](test/freertos/) | FreeRTOS V11 programs (`minimal`, `stress`, `full` standard demo, `mzba`, and the `brk` RTOS breaker) with randomised, desynchronised interrupt timing, plus `campaign.py`, which runs every configuration on the DUT and on the golden CPU. `FRTOS_BPRED=1..3` runs a program with the branch predictor on. User guide: [docs/FREERTOS.md](docs/FREERTOS.md); details: [test/freertos/README.md](test/freertos/README.md). | `make freertos APP=stress`, `make freertos-compare APP=stress`, `make freertos-stress` |
+| **Trap sweep** | [test/trapsweep/](test/trapsweep/) | Interrupts swept over every cycle offset around 532 distinct probe instruction sequences, plus random programs. Every run is checked by an independent Python ISA model (`iss.py`) and compared with the golden CPU. This is the oracle for extensions that the frozen golden models cannot check. See [test/trapsweep/README.md](test/trapsweep/README.md). | `python3 test/trapsweep/sweep.py run` |
 
 Together these give coverage at the instruction level, the system level, and the per-module bit-level — catch a bug as early as possible in whichever tier first exposes it.
 
@@ -608,11 +679,12 @@ Testbenches in [test/sv/](test/sv/) instantiate **both** — the DUT and the gol
 ## Repository Structure
 
 - [`defines/`](defines): HDL constants and definitions.
+- [`docs/`](docs): User guides; [FREERTOS.md](docs/FREERTOS.md) covers running FreeRTOS on the core.
 - [`lib/`](lib): Peripheral modules (e.g., UART, timer).
 - [`ref/`](ref): Precompiled reference libraries.
 - [`rtl/`](rtl): The processor implementation — pipeline stages, register file, instruction decoder, and branch predictor.
 - [`synth/`](synth): Synthesis scripts and FPGA configuration files.
-- [`test/`](test): Test files in assembly (`asm`), C (`c`), and SystemVerilog (`sv`).
+- [`test/`](test): Test files in assembly (`asm`), C (`c`), and SystemVerilog (`sv`); FreeRTOS programs and the differential campaign (`freertos`); the interrupt-offset sweeps with their independent ISA model (`trapsweep`).
 - [`.vscode/`](.vscode): Configuration files for Visual Studio Code.
 
 Refer to the [Instruction Guide][instrguide] for a detailed project structure.
@@ -633,7 +705,8 @@ The following are original contributions by **Emon Sarkar**, added after complet
 
 - The **M**, **Zba**, and **Zicntr** extensions, and the substantiation of **Zifencei**
 - The **bimodal branch predictor** and its performance-counter CSRs
-- Two correctness fixes to the base core (decoder `rd` handling for S/B-type instructions; `FENCE` forwarding suppression in the Memory stage)
+- Eight correctness fixes to the base core: decoder `rd` handling for S/B-type instructions, `FENCE` forwarding suppression in the Memory stage, and six trap/interrupt defects found by running FreeRTOS
+- FreeRTOS support ([`test/freertos/`](test/freertos), [docs/FREERTOS.md](docs/FREERTOS.md)) and the independent trap-sweep model ([`test/trapsweep/`](test/trapsweep))
 - The test suites in [`test/asm/`](test/asm) and [`test/sv/`](test/sv) beyond the upstream set, including the golden-comparison, encoding-sweep, and adversarial suites
 - Repairs to the synthesis flow ([`synth/synth.tcl`](synth/synth.tcl)) and the architectural documentation in this README
 
