@@ -1,0 +1,151 @@
+<svg class="rich-terminal" viewBox="0 0 1043 733.1999999999999" xmlns="http://www.w3.org/2000/svg">
+    <!-- Generated with Rich https://www.textualize.io -->
+    <style>
+
+    .hades-hardware-matrix {
+        font-family: 'Fira Code', 'JetBrains Mono', 'Cascadia Mono', 'DejaVu Sans Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+        font-size: 20px;
+        line-height: 24.4px;
+        font-variant-east-asian: full-width;
+    }
+
+    .hades-hardware-title {
+        font-size: 18px;
+        font-weight: bold;
+        font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+    }
+
+    .hades-hardware-r1 { fill: #3fb950;font-weight: bold }
+.hades-hardware-r2 { fill: #c9d1d9 }
+.hades-hardware-r3 { fill: #f0f6fc;font-weight: bold }
+    </style>
+
+    <defs>
+    <clipPath id="hades-hardware-clip-terminal">
+      <rect x="0" y="0" width="1023.8" height="682.1999999999999" />
+    </clipPath>
+    <clipPath id="hades-hardware-line-0">
+    <rect x="0" y="1.5" width="1024.8" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-hardware-line-1">
+    <rect x="0" y="25.9" width="1024.8" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-hardware-line-2">
+    <rect x="0" y="50.3" width="1024.8" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-hardware-line-3">
+    <rect x="0" y="74.7" width="1024.8" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-hardware-line-4">
+    <rect x="0" y="99.1" width="1024.8" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-hardware-line-5">
+    <rect x="0" y="123.5" width="1024.8" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-hardware-line-6">
+    <rect x="0" y="147.9" width="1024.8" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-hardware-line-7">
+    <rect x="0" y="172.3" width="1024.8" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-hardware-line-8">
+    <rect x="0" y="196.7" width="1024.8" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-hardware-line-9">
+    <rect x="0" y="221.1" width="1024.8" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-hardware-line-10">
+    <rect x="0" y="245.5" width="1024.8" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-hardware-line-11">
+    <rect x="0" y="269.9" width="1024.8" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-hardware-line-12">
+    <rect x="0" y="294.3" width="1024.8" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-hardware-line-13">
+    <rect x="0" y="318.7" width="1024.8" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-hardware-line-14">
+    <rect x="0" y="343.1" width="1024.8" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-hardware-line-15">
+    <rect x="0" y="367.5" width="1024.8" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-hardware-line-16">
+    <rect x="0" y="391.9" width="1024.8" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-hardware-line-17">
+    <rect x="0" y="416.3" width="1024.8" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-hardware-line-18">
+    <rect x="0" y="440.7" width="1024.8" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-hardware-line-19">
+    <rect x="0" y="465.1" width="1024.8" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-hardware-line-20">
+    <rect x="0" y="489.5" width="1024.8" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-hardware-line-21">
+    <rect x="0" y="513.9" width="1024.8" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-hardware-line-22">
+    <rect x="0" y="538.3" width="1024.8" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-hardware-line-23">
+    <rect x="0" y="562.7" width="1024.8" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-hardware-line-24">
+    <rect x="0" y="587.1" width="1024.8" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-hardware-line-25">
+    <rect x="0" y="611.5" width="1024.8" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-hardware-line-26">
+    <rect x="0" y="635.9" width="1024.8" height="24.65"/>
+            </clipPath>
+    </defs>
+
+    <rect fill="#0d1117" stroke="rgba(255,255,255,0.35)" stroke-width="1" x="1" y="1" width="1041" height="731.2" rx="8"/><text class="hades-hardware-title" fill="#c9d1d9" text-anchor="middle" x="520" y="27">make&#160;freertos-shell</text>
+            <g transform="translate(26,22)">
+            <circle cx="0" cy="0" r="7" fill="#ff5f57"/>
+            <circle cx="22" cy="0" r="7" fill="#febc2e"/>
+            <circle cx="44" cy="0" r="7" fill="#28c840"/>
+            </g>
+        
+    <g transform="translate(9, 41)" clip-path="url(#hades-hardware-clip-terminal)">
+    
+    <g class="hades-hardware-matrix">
+    <text class="hades-hardware-r1" x="0" y="20" textLength="73.2" clip-path="url(#hades-hardware-line-0)">hades&gt;</text><text class="hades-hardware-r3" x="85.4" y="20" textLength="219.6" clip-path="url(#hades-hardware-line-0)">div&#160;-2147483648&#160;-1</text><text class="hades-hardware-r2" x="1024.8" y="20" textLength="12.2" clip-path="url(#hades-hardware-line-0)">
+</text><text class="hades-hardware-r2" x="0" y="44.4" textLength="597.8" clip-path="url(#hades-hardware-line-1)">a&#160;=&#160;-2147483648&#160;(0x80000000),&#160;b&#160;=&#160;-1&#160;(0xffffffff)</text><text class="hades-hardware-r2" x="1024.8" y="44.4" textLength="12.2" clip-path="url(#hades-hardware-line-1)">
+</text><text class="hades-hardware-r2" x="0" y="68.8" textLength="610" clip-path="url(#hades-hardware-line-2)">&#160;&#160;div&#160;&#160;&#160;&#160;-2147483648&#160;&#160;0x80000000&#160;&#160;quotient,&#160;signed</text><text class="hades-hardware-r2" x="1024.8" y="68.8" textLength="12.2" clip-path="url(#hades-hardware-line-2)">
+</text><text class="hades-hardware-r2" x="0" y="93.2" textLength="622.2" clip-path="url(#hades-hardware-line-3)">&#160;&#160;rem&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;0&#160;&#160;0x00000000&#160;&#160;remainder,&#160;signed</text><text class="hades-hardware-r2" x="1024.8" y="93.2" textLength="12.2" clip-path="url(#hades-hardware-line-3)">
+</text><text class="hades-hardware-r2" x="0" y="117.6" textLength="634.4" clip-path="url(#hades-hardware-line-4)">&#160;&#160;divu&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;0&#160;&#160;0x00000000&#160;&#160;quotient,&#160;unsigned</text><text class="hades-hardware-r2" x="1024.8" y="117.6" textLength="12.2" clip-path="url(#hades-hardware-line-4)">
+</text><text class="hades-hardware-r2" x="0" y="142" textLength="646.6" clip-path="url(#hades-hardware-line-5)">&#160;&#160;remu&#160;&#160;&#160;&#160;2147483648&#160;&#160;0x80000000&#160;&#160;remainder,&#160;unsigned</text><text class="hades-hardware-r2" x="1024.8" y="142" textLength="12.2" clip-path="url(#hades-hardware-line-5)">
+</text><text class="hades-hardware-r2" x="0" y="166.4" textLength="915" clip-path="url(#hades-hardware-line-6)">note:&#160;&#160;&#160;&#160;&#160;&#160;-2^31&#160;/&#160;-1&#160;overflows&#160;without&#160;a&#160;trap:&#160;quotient&#160;-2^31,&#160;remainder&#160;0</text><text class="hades-hardware-r2" x="1024.8" y="166.4" textLength="12.2" clip-path="url(#hades-hardware-line-6)">
+</text><text class="hades-hardware-r2" x="0" y="190.8" textLength="854" clip-path="url(#hades-hardware-line-7)">source:&#160;&#160;&#160;&#160;the&#160;CPU&#x27;s&#160;M&#160;instructions,&#160;equal&#160;to&#160;the&#160;rv32i&#160;software&#160;model</text><text class="hades-hardware-r2" x="1024.8" y="190.8" textLength="12.2" clip-path="url(#hades-hardware-line-7)">
+</text><text class="hades-hardware-r1" x="0" y="215.2" textLength="73.2" clip-path="url(#hades-hardware-line-8)">hades&gt;</text><text class="hades-hardware-r3" x="85.4" y="215.2" textLength="85.4" clip-path="url(#hades-hardware-line-8)">bpred&#160;3</text><text class="hades-hardware-r2" x="1024.8" y="215.2" textLength="12.2" clip-path="url(#hades-hardware-line-8)">
+</text><text class="hades-hardware-r2" x="0" y="239.6" textLength="195.2" clip-path="url(#hades-hardware-line-9)">counters&#160;cleared</text><text class="hades-hardware-r2" x="1024.8" y="239.6" textLength="12.2" clip-path="url(#hades-hardware-line-9)">
+</text><text class="hades-hardware-r2" x="0" y="264" textLength="463.6" clip-path="url(#hades-hardware-line-10)">mode:&#160;&#160;&#160;&#160;&#160;&#160;3&#160;(bimodal,&#160;2-bit&#160;counters)</text><text class="hades-hardware-r2" x="1024.8" y="264" textLength="12.2" clip-path="url(#hades-hardware-line-10)">
+</text><text class="hades-hardware-r2" x="0" y="288.4" textLength="719.8" clip-path="url(#hades-hardware-line-11)">branches:&#160;&#160;predicted&#160;not&#160;taken:&#160;17&#160;right&#160;(nn),&#160;2&#160;wrong&#160;(nt)</text><text class="hades-hardware-r2" x="1024.8" y="288.4" textLength="12.2" clip-path="url(#hades-hardware-line-11)">
+</text><text class="hades-hardware-r2" x="0" y="312.8" textLength="719.8" clip-path="url(#hades-hardware-line-12)">&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;predicted&#160;taken:&#160;&#160;&#160;&#160;&#160;32&#160;right&#160;(tt),&#160;2&#160;wrong&#160;(tn)</text><text class="hades-hardware-r2" x="1024.8" y="312.8" textLength="12.2" clip-path="url(#hades-hardware-line-12)">
+</text><text class="hades-hardware-r2" x="0" y="337.2" textLength="268.4" clip-path="url(#hades-hardware-line-13)">accuracy:&#160;&#160;92.5%&#160;of&#160;53</text><text class="hades-hardware-r2" x="1024.8" y="337.2" textLength="12.2" clip-path="url(#hades-hardware-line-13)">
+</text><text class="hades-hardware-r1" x="0" y="361.6" textLength="73.2" clip-path="url(#hades-hardware-line-14)">hades&gt;</text><text class="hades-hardware-r3" x="85.4" y="361.6" textLength="97.6" clip-path="url(#hades-hardware-line-14)">counters</text><text class="hades-hardware-r2" x="1024.8" y="361.6" textLength="12.2" clip-path="url(#hades-hardware-line-14)">
+</text><text class="hades-hardware-r2" x="0" y="386" textLength="341.6" clip-path="url(#hades-hardware-line-15)">cycles:&#160;&#160;&#160;&#160;12430083&#160;(mcycle)</text><text class="hades-hardware-r2" x="1024.8" y="386" textLength="12.2" clip-path="url(#hades-hardware-line-15)">
+</text><text class="hades-hardware-r2" x="0" y="410.4" textLength="353.8" clip-path="url(#hades-hardware-line-16)">instret:&#160;&#160;&#160;5712973&#160;(minstret)</text><text class="hades-hardware-r2" x="1024.8" y="410.4" textLength="12.2" clip-path="url(#hades-hardware-line-16)">
+</text><text class="hades-hardware-r2" x="0" y="434.8" textLength="341.6" clip-path="url(#hades-hardware-line-17)">IPC:&#160;&#160;&#160;&#160;&#160;&#160;&#160;0.460&#160;since&#160;reset</text><text class="hades-hardware-r2" x="1024.8" y="434.8" textLength="12.2" clip-path="url(#hades-hardware-line-17)">
+</text><text class="hades-hardware-r2" x="0" y="459.2" textLength="793" clip-path="url(#hades-hardware-line-18)">cpu:&#160;&#160;&#160;&#160;&#160;&#160;&#160;Zicntr:&#160;cycle&#160;12440826,&#160;time&#160;12440833,&#160;instret&#160;5721266</text><text class="hades-hardware-r2" x="1024.8" y="459.2" textLength="12.2" clip-path="url(#hades-hardware-line-18)">
+</text><text class="hades-hardware-r1" x="0" y="483.6" textLength="73.2" clip-path="url(#hades-hardware-line-19)">hades&gt;</text><text class="hades-hardware-r3" x="85.4" y="483.6" textLength="61" clip-path="url(#hades-hardware-line-19)">bpred</text><text class="hades-hardware-r2" x="1024.8" y="483.6" textLength="12.2" clip-path="url(#hades-hardware-line-19)">
+</text><text class="hades-hardware-r2" x="0" y="508" textLength="463.6" clip-path="url(#hades-hardware-line-20)">mode:&#160;&#160;&#160;&#160;&#160;&#160;3&#160;(bimodal,&#160;2-bit&#160;counters)</text><text class="hades-hardware-r2" x="1024.8" y="508" textLength="12.2" clip-path="url(#hades-hardware-line-20)">
+</text><text class="hades-hardware-r2" x="0" y="532.4" textLength="768.6" clip-path="url(#hades-hardware-line-21)">branches:&#160;&#160;predicted&#160;not&#160;taken:&#160;4436&#160;right&#160;(nn),&#160;996&#160;wrong&#160;(nt)</text><text class="hades-hardware-r2" x="1024.8" y="532.4" textLength="12.2" clip-path="url(#hades-hardware-line-21)">
+</text><text class="hades-hardware-r2" x="0" y="556.8" textLength="817.4" clip-path="url(#hades-hardware-line-22)">&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;predicted&#160;taken:&#160;&#160;&#160;&#160;&#160;3859985&#160;right&#160;(tt),&#160;2242&#160;wrong&#160;(tn)</text><text class="hades-hardware-r2" x="1024.8" y="556.8" textLength="12.2" clip-path="url(#hades-hardware-line-22)">
+</text><text class="hades-hardware-r2" x="0" y="581.2" textLength="329.4" clip-path="url(#hades-hardware-line-23)">accuracy:&#160;&#160;99.9%&#160;of&#160;3867659</text><text class="hades-hardware-r2" x="1024.8" y="581.2" textLength="12.2" clip-path="url(#hades-hardware-line-23)">
+</text><text class="hades-hardware-r1" x="0" y="605.6" textLength="73.2" clip-path="url(#hades-hardware-line-24)">hades&gt;</text><text class="hades-hardware-r3" x="85.4" y="605.6" textLength="48.8" clip-path="url(#hades-hardware-line-24)">halt</text><text class="hades-hardware-r2" x="1024.8" y="605.6" textLength="12.2" clip-path="url(#hades-hardware-line-24)">
+</text><text class="hades-hardware-r2" x="0" y="630" textLength="73.2" clip-path="url(#hades-hardware-line-25)">halted</text><text class="hades-hardware-r2" x="1024.8" y="630" textLength="12.2" clip-path="url(#hades-hardware-line-25)">
+</text><text class="hades-hardware-r2" x="1024.8" y="654.4" textLength="12.2" clip-path="url(#hades-hardware-line-26)">
+</text><text class="hades-hardware-r2" x="0" y="678.8" textLength="170.8" clip-path="url(#hades-hardware-line-27)">FRTOS-RESULT:&#160;</text><text class="hades-hardware-r1" x="170.8" y="678.8" textLength="48.8" clip-path="url(#hades-hardware-line-27)">PASS</text><text class="hades-hardware-r2" x="219.6" y="678.8" textLength="280.6" clip-path="url(#hades-hardware-line-27)">&#160;mtime=0000000000f72e59</text><text class="hades-hardware-r2" x="1024.8" y="678.8" textLength="12.2" clip-path="url(#hades-hardware-line-27)">
+</text>
+    </g>
+    </g>
+</svg>

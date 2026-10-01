@@ -1,3 +1,5 @@
+[HaDes-V+](../README.md) · [Architecture](ARCHITECTURE.md) · [Extensions](EXTENSIONS.md) · [Verification](VERIFICATION.md) · [Building](BUILDING.md) · **FreeRTOS**
+
 # Running FreeRTOS on HaDes-V+
 
 This guide shows how to boot FreeRTOS on the HaDes-V+ core in simulation, how to check a
@@ -415,7 +417,7 @@ instructions.
 make freertos-shell
 ```
 
-The first run builds the shell and a console variant of the simulator (about a minute).
+The first run builds the shell and a console variant of the simulator (up to a minute).
 After the build lines, the shell starts like this; type `help` and press Enter:
 
 ```text
@@ -598,6 +600,25 @@ To leave `screen` without ending the simulation, detach it with Ctrl-A and then 
 `screen -r` attaches again. (Closing `screen` with Ctrl-A `k` instead leaves the device in
 `screen`'s exclusive mode, so that no terminal program can open it again until the
 simulation ends.) The link `pty` is removed when the simulation ends.
+
+**Ending a PTY-mode session.** A detached session keeps running, as a board stays powered
+when its serial cable is unplugged, and in this mode the simulation has no cycle limit
+(`TIMEOUT=` sets one). End it in one of these ways:
+
+* attach again (`screen -r`, or `screen` on the link as above), then type `halt` and press
+  Enter, or press Ctrl-];
+* press Ctrl-C in the first terminal, or close that terminal window;
+* from any terminal, end the simulator itself:
+
+  ```bash
+  pgrep -af console_pty_link     # list the PTY-mode simulators that are running
+  pkill -f console_pty_link      # end them
+  ```
+
+Each of these ends the simulation and removes the link `pty` (after `pkill`, `make` reports
+`Terminated`). A session started under `nohup`, or by a program that runs `make` in a
+pseudo-terminal of its own, as a test harness does, keeps running when that terminal
+closes; end it with `halt` or `pkill` as above.
 
 ### Scripted sessions and the tests
 

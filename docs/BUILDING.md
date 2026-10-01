@@ -1,0 +1,102 @@
+[HaDes-V+](../README.md) · [Architecture](ARCHITECTURE.md) · [Extensions](EXTENSIONS.md) · [Verification](VERIFICATION.md) · **Building** · [FreeRTOS](FREERTOS.md)
+
+# Building and Running
+
+This document lists the tools HaDes-V+ needs, the build targets and how to debug with waveforms, how to synthesise the design for the Basys3 and what to expect from its timing, how the screenshots in this documentation are recorded, and how the repository is organised. FreeRTOS has its own guide, [FREERTOS.md](FREERTOS.md).
+
+**Contents**
+
+1. [Tools and Dependencies](#tools-and-dependencies)
+2. [Building, Running, and Debugging](#building-running-and-debugging)
+3. [Synthesis and FPGA Timing](#synthesis-and-fpga-timing)
+4. [Regenerating the Screenshots](#regenerating-the-screenshots)
+5. [Repository Structure](#repository-structure)
+
+## Tools and Dependencies
+
+The following tools are required for the lab exercises (details in the [Instruction Guide][instrguide]):
+- **[SystemVerilog][sv]**: HDL for processor and peripheral design.
+- **[RISC-V Toolchain][rvgcc]**: Compiler for RV32I assembly and C programs.
+- **[Vivado][vivado]**: FPGA synthesis and programming.
+- **[Verilator][verilator]**: Open-source HDL simulator.
+- **[GTKWave][gtkwave]**: Waveform viewer for debugging simulations.
+
+The versions this repository is tested with:
+
+| Tool | Tested version | Needed for |
+|---|---|---|
+| GNU make, a POSIX shell, coreutils | GNU Make 4.3 | every target |
+| [Verilator][verilator] | 5.042 | every simulation |
+| RISC-V GCC (`riscv32-unknown-elf`, with newlib-nano) in `/opt/riscv32i/bin`, the path set in the [Makefile](../Makefile) | GCC 12.2.0, binutils 2.39 | assembly, C and FreeRTOS programs |
+| Python 3 | 3.12 (3.8 or newer; 3.9 or newer for the trap sweep) | the FreeRTOS front end, campaigns and shell tests, the trap sweep, the formal flow |
+| [Vivado][vivado] | 2024.2, given with `XILINX_VIVADO=<install dir>` (the Makefile's default path, `/opt/Xilinx/Vivado/2023.2/`, names 2023.2, which is untested) | `make synthesis` |
+| [GTKWave][gtkwave] | any | `make show` |
+| SymbiYosys, Yosys, sv2v, bitwuzla, Yices, z3 | listed in [formal/README.md](../formal/README.md#tools) | `make formal` |
+| `screen` or `picocom` | any | `make freertos-shell PTY=1` |
+| Python package `rich` | 13.7 | regenerating the screenshots |
+
+[FREERTOS.md](FREERTOS.md#1-prerequisites) shows how to check the toolchain, which needs newlib-nano to link FreeRTOS programs.
+
+## Building, Running, and Debugging
+
+All flows are driven by [Makefile](../Makefile) targets; the main ones are listed below, and `make help` prints a longer list with the FreeRTOS and formal targets:
+
+```
+make test/asm/<name>     # assemble, simulate, and run an asm program
+make test/c/<name>       # compile C + runtime, simulate, and run
+make test/sv/<name>      # build and run a SystemVerilog testbench
+make show                # open the FST waveform of the most recent test in GTKWave
+make bootloader          # build the UART bootloader image
+make synthesis           # synthesise the full MCU for Basys3 via Vivado
+make clean               # wipe build artefacts
+make freertos APP=<name> # build and run a FreeRTOS program (make freertos-list, docs/FREERTOS.md)
+```
+
+All build output goes to `build/` inside the repository unless `BUILD_DIR=/abs/path` is given on the command line or `HADES_BUILD_DIR` is set in the environment; every target follows it. This is how to work from a checkout on a disk that cannot execute programs (such as an NTFS data disk): the simulators are built and run from the build directory, and the golden-model libraries are copied there.
+
+The simulator is [Verilator][verilator]; synthesis uses [Vivado][vivado], tested with 2024.2 (how to give its path: [Synthesis and FPGA Timing](#synthesis-and-fpga-timing)). Each assembly and C test writes its waveform, `sim.fst`, to its own directory in the build directory, and so does each SystemVerilog bench (`<bench>.fst`) except `test_zba_encoding_sweep` and `test_execute_bpred_nextpc`, which write none; a FreeRTOS run (`make freertos` and the shell targets) writes one only when `WAVES=1` is given ([settings](FREERTOS.md#10-settings-reference)). `make show` opens in [GTKWave][gtkwave] the waveform of the assembly or C test that ran last, with the signal layout [`saves/pipeline.gtkw`](../saves/pipeline.gtkw), or of the SystemVerilog bench that was built last (no signal layout is provided for the benches), whichever of the two came later.
+
+## Synthesis and FPGA Timing
+
+`make synthesis` builds the bootloader image and implements the complete microcontroller for the Basys3 (`xc7a35tcpg236-1`) with Vivado in batch mode, in the `synth/` directory of the build directory. The flow is [synth/synth.tcl](../synth/synth.tcl) and the constraints are [synth/basys3.xdc](../synth/basys3.xdc); the result is the bitstream `hades-v.bit` with its `.bin` form, and the reports in `reports/` beside it, among them `timing_pnr.rpt`, `utilization_pnr.rpt` and `power_pnr.rpt` after routing.
+
+The Makefile finds Vivado through `XILINX_VIVADO`, whose default is `/opt/Xilinx/Vivado/2023.2/`. The flow is tested with Vivado 2024.2 (2023.2 is untested), so give the installation on the command line, for example `make synthesis XILINX_VIVADO=/tools/Xilinx/Vivado/2024.2`.
+
+Timing at 50 MHz is marginal. The current RTL meets timing with a worst negative slack of +0.016 ns and no failing endpoint (Vivado 2024.2; a repeated run gives the same result). The worst path runs from the block RAM, which delivers the fetched instruction on the falling clock edge, through the branch predictor and its PC adder to the Fetch stage's PC register, so it has half a clock period. Small RTL changes move the worst path and change its slack: the recorded results of earlier revisions range from −0.120 ns to +0.242 ns. `write_bitstream` does not check timing, so a bitstream is produced even when timing fails: read `timing_pnr.rpt` after every run. The critical path, its history and the effect of the M extension on it are analysed in the FPGA timing note under [M — Implementation Notes](EXTENSIONS.md#implementation-notes).
+
+## Regenerating the Screenshots
+
+The terminal images in [docs/img/](img/) are recorded from a real session of `make freertos-shell` by [docs/tools/screenshots.py](tools/screenshots.py). The script runs the shell in a pseudo-terminal, types a fixed sequence of commands with pauses as a person would, and renders what the terminal showed as SVG with the Python package `rich`:
+
+```bash
+python3 -m pip install rich           # once
+python3 docs/tools/screenshots.py     # records a new session and rewrites docs/img/*.svg
+```
+
+The output is kept as the terminal showed it: the script only removes lines that contain paths or names of the machine, and colours the prompt, the typed commands and `PASS`. Both images are rendered with the same number of columns, so that their text has the same size. Cycle counts and counters differ from session to session, because the moment a key arrives decides the cycle at which the program sees it. Like the make targets, the script uses the build directory named by `HADES_BUILD_DIR`, if it is set.
+
+## Repository Structure
+
+- [`bitstream/`](../bitstream): Basys3 bitstreams of two earlier revisions, the base core and the base core with the branch predictor, built before the Zicntr, Zba and M extensions, the `FENCE` forwarding fix and the trap and interrupt fixes.
+- [`defines/`](../defines): HDL constants and definitions.
+- [`docs/`](../docs): User guides; [FREERTOS.md](FREERTOS.md) covers running FreeRTOS on the core. [ARCHITECTURE.md](ARCHITECTURE.md), [EXTENSIONS.md](EXTENSIONS.md), [VERIFICATION.md](VERIFICATION.md) and [BUILDING.md](BUILDING.md) describe the core, its extensions, its verification and its build; [`img/`](img) holds the screenshots and [`tools/`](tools) the script that records them.
+- [`lib/`](../lib): Peripheral modules (e.g., UART, timer).
+- [`ref/`](../ref): Precompiled reference libraries.
+- [`formal/`](../formal): Formal proof of the multiply/divide unit (SymbiYosys, k-induction); see [formal/README.md](../formal/README.md).
+- [`rtl/`](../rtl): The processor implementation — pipeline stages, register file, instruction decoder, and branch predictor.
+- [`saves/`](../saves): GTKWave signal layouts for `make show`.
+- [`sim/`](../sim): The simulation top level with the test device and the console bridge, and the Verilator file lists.
+- [`std/`](../std): The bare-metal C runtime: linker script, start-up code, bootloader and peripheral headers.
+- [`synth/`](../synth): Synthesis scripts and FPGA configuration files.
+- [`test/`](../test): Test files in assembly (`asm`), C (`c`), and SystemVerilog (`sv`); FreeRTOS programs and the differential campaign (`freertos`); the interrupt-offset sweeps with their independent ISA model (`trapsweep`).
+- [`third_party/`](../third_party): Third-party sources, included unmodified: the FreeRTOS kernel, its RISC-V port, the FreeRTOS standard demo tasks and FreeRTOS+CLI, at pinned upstream commits (MIT); see [third_party/freertos/README.md](../third_party/freertos/README.md).
+- [`.vscode/`](../.vscode): Configuration files for Visual Studio Code.
+
+Refer to the [Instruction Guide][instrguide] for a detailed project structure.
+
+[instrguide]:https://repository.tugraz.at/oer/nytm4-grv34
+[vivado]:https://www.xilinx.com/support/download.html
+[verilator]:https://verilator.org
+[gtkwave]:https://gtkwave.sourceforge.net/
+[sv]:https://doi.org/10.1109/IEEESTD.2018.8299595
+[rvgcc]:https://github.com/riscv-collab/riscv-gnu-toolchain
