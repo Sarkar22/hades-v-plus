@@ -1,0 +1,22 @@
+base-add 00000302
+mul      00000502
+mulh     00000502
+mulhsu   00000502
+mulhu    00000502
+div      00004502
+divu     00004502
+rem      00004502
+remu     00004502
+div-by-0 00000302
+remu-by-0 00000302
+div-ovf  00000302
+- sim/top.sv:131: Verilog $finish
+
+Inital test failed! (# Errors: 0)
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!! TEST DONE !!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+- S i m u l a t i o n   R e p o r t: Verilator 5.042 2025-11-02
+- Verilator: $finish at 2us; walltime 0.106 s; speed 20.802 us/s
+- Verilator: cpu 0.106 s on 1 threads; alloced 175 MB

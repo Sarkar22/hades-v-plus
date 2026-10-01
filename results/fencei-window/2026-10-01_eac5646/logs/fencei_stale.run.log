@@ -1,0 +1,35 @@
+(   540 ps) Test fail!
+
+--- fence.i negative control: instruction patched at sw+D, no fence.i ---
+  sw+4  (0 nops in gap) : OLD (STALE)
+  sw+8  (1 nop  in gap) : OLD (STALE)
+  sw+12 (2 nops in gap) : OLD (STALE)
+  sw+16 (3 nops in gap) : NEW (fresh)
+  sw+20 (4 nops in gap) : NEW (fresh)
+  sw+8  (fence.i in gap): NEW (fresh)
+  sw+12 (2 stalling lw ) : OLD (STALE)
+( 71260 ps) Test pass!
+( 71380 ps) Test pass!
+( 71500 ps) Test pass!
+( 71620 ps) Test pass!
+( 71740 ps) Test pass!
+( 71860 ps) Test pass!
+( 71980 ps) Test pass!
+( 72100 ps) Test pass!
+( 72200 ps) Test pass!
+( 72300 ps) Test pass!
+( 72400 ps) Test pass!
+( 72500 ps) Test pass!
+( 72600 ps) Test pass!
+( 72700 ps) Test pass!
+( 72800 ps) Test pass!
+- sim/top.sv:131: Verilog $finish
+
+All tests passed! (# Errors: 1 = initial test)
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!! TEST DONE !!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+- S i m u l a t i o n   R e p o r t: Verilator 5.042 2025-11-02
+- Verilator: $finish at 73ns; walltime 0.006 s; speed 11.427 us/s
+- Verilator: cpu 0.006 s on 1 threads; alloced 175 MB

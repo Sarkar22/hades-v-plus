@@ -133,6 +133,16 @@ help:
 	@echo "  formal            Re-run the divider/multiplier proofs (a few minutes) [FORMAL_PAR=4]"
 	@echo "  formal-full       Also H6 by bitwuzla and the mutation campaign (~35 min)"
 	@echo ""
+	@echo "Benchmarks (guide: test/bench/README.md; recorded results: results/):"
+	@echo "  bench-zba         Zba: two C programs for rv32i and rv32i_zba, compared [OPT=-O2]"
+	@echo "  bench-mcost       Cycles of each M instruction in the assembled core"
+	@echo "  bench-fencei-window"
+	@echo "                    Instructions that still run stale after a store patches them (no FENCE.I)"
+	@echo "  bench             All three"
+	@echo ""
+	@echo "Recorded results (guide: results/README.md):"
+	@echo "  check-results     Re-run the repeatable records of results/ and compare [CHECK_ARGS=--list]"
+	@echo ""
 	@echo "Build directory: $(BUILD_DIR)  (relocate with BUILD_DIR=/abs/path or HADES_BUILD_DIR)"
 
 
@@ -288,6 +298,25 @@ $(BUILD_DIR)/$(SV_DIR)/%/top.mk: $(REF_SO_DEPS)
 # in third_party/freertos/, see docs/FREERTOS.md and test/freertos/README.md):
 # make freertos APP=<app>, make test/freertos/<app>
 include $(TEST_DIR)/freertos/freertos.mk
+
+################################################################################
+#                                  Benchmarks                                  #
+################################################################################
+
+# Measurement programs in test/bench/ that reproduce figures quoted in the documentation
+# (make bench-zba, bench-mcost, bench-fencei-window, bench): guide test/bench/README.md,
+# recorded results in results/
+include $(TEST_DIR)/bench/bench.mk
+
+################################################################################
+#                               Recorded Results                               #
+################################################################################
+
+# Re-run the repeatable records of results/ and compare the output with the stored values
+# (guide: results/README.md): make check-results [CHECK_ARGS='--list | --campaign | <check> ...']
+.PHONY: check-results
+check-results:
+	HADES_BUILD_DIR='$(BUILD_ABS)' sh results/check.sh $(CHECK_ARGS)
 
 ################################################################################
 #                              Formal Verification                             #
