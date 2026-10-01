@@ -123,8 +123,14 @@ void vAssertCalled( const char * pcFile, unsigned long ulLine );
 #ifndef configUSE_TRACE_FACILITY
 #define configUSE_TRACE_FACILITY                0
 #endif
+#ifndef configUSE_STATS_FORMATTING_FUNCTIONS
 #define configUSE_STATS_FORMATTING_FUNCTIONS    0
+#endif
+/* A program that sets configGENERATE_RUN_TIME_STATS to 1 in app_config.h also
+ * defines portGET_RUN_TIME_COUNTER_VALUE() there (the shell uses mcycle). */
+#ifndef configGENERATE_RUN_TIME_STATS
 #define configGENERATE_RUN_TIME_STATS           0
+#endif
 
 #ifndef INCLUDE_vTaskPrioritySet
 #define INCLUDE_vTaskPrioritySet                0

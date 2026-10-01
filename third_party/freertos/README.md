@@ -74,8 +74,9 @@ the individual variables. Only the pinned commits are tested.
 76 files, 2,091,517 bytes. The set was determined by building every configuration of every
 program in `test/freertos/` (all variants of every `campaign.py` set, and every program at
 each `HEAP`, `MARCH` and `OPT` value: 239 configurations) and collecting the compiler's
-dependency files. That yields 64 files; the other 12 are the three licence files, FreeRTOS+CLI,
-and the kernel headers that no current configuration includes (see below).
+dependency files. That yields 64 files; the other 12 are the three licence files, FreeRTOS+CLI
+(compiled only by the `shell` program, which was added after the set was determined), and
+the kernel headers that no current configuration includes (see below).
 
 **FreeRTOS-Kernel** (35 files)
 
@@ -101,7 +102,7 @@ implementations, and upstream's build files, examples and documentation.
 | `FreeRTOS/Demo/Common/Minimal/` — 18 standard demo task sources | `full` |
 | `FreeRTOS/Demo/Common/include/` — their 18 headers | `full` |
 | `FreeRTOS/Demo/RISC-V_RV32_QEMU_VIRT_GCC/build/gcc/RegTest.S` | `stress`, `full`, `mzba`, `brk` (register test tasks) |
-| `FreeRTOS-Plus/Source/FreeRTOS-Plus-CLI/FreeRTOS_CLI.c`, `FreeRTOS_CLI.h`, `LICENSE_INFORMATION.txt` | FreeRTOS+CLI, for a FreeRTOS command shell; not yet compiled by any program |
+| `FreeRTOS-Plus/Source/FreeRTOS-Plus-CLI/FreeRTOS_CLI.c`, `FreeRTOS_CLI.h`, `LICENSE_INFORMATION.txt` | FreeRTOS+CLI: `shell` (the interactive command shell, `test/freertos/shell/`) |
 
 The complete list, as recorded in `MANIFEST`:
 

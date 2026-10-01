@@ -11,8 +11,18 @@
 #       line (exit status 0 = PASS)
 #   make freertos-compare APP=<app> [...]  the same ELF on the DUT and on the golden CPU
 #   make freertos-stress [SEEDS=2] [JOBS=4] [SET=validate]   differential campaign (campaign.py)
-#   make freertos-new NAME=<name>         copy test/freertos/template to test/freertos/<name>
+#   make freertos-new NAME=<name> [FROM=<app>]   copy test/freertos/template (or the program
+#                                         <app>, e.g. FROM=shell) to test/freertos/<name>
 #   make freertos-check-rebuild           regression test for the configuration tracking
+#   make freertos-shell [PTY=1] [...]     the interactive shell (test/freertos/shell) on a
+#                                         simulator whose UART is connected to this terminal
+#                                         (Ctrl-] quits) or, with PTY=1, to a pseudo-terminal
+#   make freertos-shell-test [SCRIPT=<file>] [...]   type a command script into the shell
+#                                         and check the transcript (session.py)
+#   make freertos-shell-compare [...]     the scripted session on the DUT and on the golden
+#                                         CPU, transcripts compared (rv32i)
+#   make freertos-shell-tty-test [...]    the interactive console driven through a pseudo-
+#                                         terminal: keys, Ctrl-], signals, terminal restore
 # Every short knob is an alias of the FRTOS_<KNOB> variable below and is honoured only on the
 # command line (so that a stray environment variable such as CPU or OPT changes nothing).
 #
@@ -29,8 +39,8 @@
 #   FREERTOS_KERNEL   FreeRTOS-Kernel            (vendored: 8be86d4, V11.1.0+)
 #   FREERTOS_DEMO     FreeRTOS/FreeRTOS/Demo     (vendored: FreeRTOS/FreeRTOS f4fcc3b; only
 #                     Demo/Common and Demo/RISC-V_RV32_QEMU_VIRT_GCC are needed)
-#   FREERTOS_PLUS_CLI FreeRTOS-Plus-CLI          (vendored: FreeRTOS/FreeRTOS f4fcc3b; not yet
-#                     compiled by any program)
+#   FREERTOS_PLUS_CLI FreeRTOS-Plus-CLI          (vendored: FreeRTOS/FreeRTOS f4fcc3b; the
+#                     command interpreter of the shell program, test/freertos/shell)
 # test/freertos/campaign.py builds and runs many configurations differentially against
 # the golden reference CPU; see test/freertos/README.md.
 # ---------------------------------------------------------------------------------------------
@@ -44,8 +54,16 @@ FRTOS_DIR  = $(TEST_DIR)/freertos
 FRTOS_APPS = $(patsubst $(FRTOS_DIR)/%/app.mk,%,$(wildcard $(FRTOS_DIR)/*/app.mk))
 
 # ---- short command-line aliases: APP=minimal is FRTOS_APP=minimal, CPU=golden is FRTOS_CPU=ref
-FRTOS_ALIASES = APP CPU MARCH OPT TICK SEED TIMEOUT BPRED PREEMPT SLICE HEAP DEFS RAM_KB
+FRTOS_ALIASES = APP CPU MARCH OPT TICK SEED TIMEOUT BPRED PREEMPT SLICE HEAP DEFS RAM_KB PTY SCRIPT
 $(foreach a,$(FRTOS_ALIASES),$(if $(filter command line,$(origin $(a))),$(eval FRTOS_$(a) := $$($(a)))))
+
+# Goals that run a program with its UART connected to the terminal or a script
+# (sim/console.cpp); their program is the shell unless APP= says otherwise (their
+# recipes pass FRTOS_APP on to the sub-make that builds it).
+FRTOS_SHELL_GOALS = freertos-shell freertos-shell-test freertos-shell-compare freertos-shell-tty-test
+ifneq ($(filter $(FRTOS_SHELL_GOALS),$(MAKECMDGOALS)),)
+FRTOS_APP     ?= shell
+endif
 
 # ---- configuration knobs (the campaign sets all of them explicitly) ----
 FRTOS_APP     ?= minimal
@@ -63,14 +81,16 @@ FRTOS_CPU     ?= dut
 override FRTOS_CPU := $(patsubst golden,ref,$(FRTOS_CPU))
 
 # Goals that build a program (they read test/freertos/<app>/app.mk and track the flags).
-FRTOS_BUILD_GOALS = frtos-elf frtos-run freertos freertos-compare
+FRTOS_BUILD_GOALS = frtos-elf frtos-run freertos freertos-compare $(FRTOS_SHELL_GOALS)
 # Goals that need one program's settings (RAM size, timeout).
-FRTOS_APP_GOALS   = $(filter frtos-% freertos freertos-compare,$(MAKECMDGOALS))
+FRTOS_APP_GOALS   = $(filter frtos-% freertos freertos-compare $(FRTOS_SHELL_GOALS),$(MAKECMDGOALS))
 
 # Per-program settings: APP_SRCS (C/asm, own march), APP_REF_SRCS (C, always compiled for
 # plain rv32i with -DFRTOS_REF_BUILD, as an independent software reference), APP_DEMO_SRCS
 # (file names in $(FREERTOS_DEMO)/Common/Minimal), APP_KERNEL_SRCS, APP_RAM_KB,
-# APP_ISR_STACK, APP_DEFS, APP_TIMEOUT. APP_DIR is the program's own directory.
+# APP_ISR_STACK, APP_DEFS, APP_INCLUDES (extra -I directories), APP_TIMEOUT, APP_CONSOLE
+# (1: the program reads the UART, so it runs only under the console targets).
+# APP_DIR is the program's own directory.
 APP_DIR          = $(FRTOS_DIR)/$(FRTOS_APP)
 APP_SRCS        :=
 APP_REF_SRCS    :=
@@ -79,7 +99,9 @@ APP_KERNEL_SRCS := tasks.c queue.c list.c
 APP_RAM_KB      := 32
 APP_ISR_STACK   := 2048
 APP_DEFS        :=
+APP_INCLUDES    :=
 APP_TIMEOUT     := 50000000
+APP_CONSOLE     :=
 ifneq ($(FRTOS_APP_GOALS),)
 ifeq ($(wildcard $(FRTOS_DIR)/$(FRTOS_APP)/app.mk),)
 $(error FreeRTOS program '$(FRTOS_APP)' not found (no $(FRTOS_DIR)/$(FRTOS_APP)/app.mk). Programs: $(FRTOS_APPS). See: make freertos-list)
@@ -100,6 +122,9 @@ FRTOS_PORT     = $(FREERTOS_KERNEL)/portable/GCC/RISC-V
 FRTOS_INCLUDES = -I$(FRTOS_DIR)/$(FRTOS_APP) -I$(FRTOS_DIR)/common -I$(FREERTOS_KERNEL)/include \
                  -I$(FRTOS_PORT) -I$(FRTOS_PORT)/chip_specific_extensions/RISCV_MTIME_CLINT_no_extensions \
                  -I$(FREERTOS_DEMO)/Common/include
+ifneq ($(strip $(APP_INCLUDES)),)
+FRTOS_INCLUDES += $(APP_INCLUDES)
+endif
 FRTOS_KNOBS    = -DFRTOS_TICK_CYCLES=$(FRTOS_TICK) -DFRTOS_PREEMPT=$(FRTOS_PREEMPT) \
                  -DFRTOS_SLICE=$(FRTOS_SLICE) -DFRTOS_HEAP=$(FRTOS_HEAP) -DFRTOS_RAM_KB=$(FRTOS_RAM_KB) -DFRTOS_BPRED=$(FRTOS_BPRED) \
                  $(APP_DEFS) $(FRTOS_DEFS)
@@ -191,10 +216,21 @@ ifneq ($(filter rv32i,$(FRTOS_MARCH)),rv32i)
 ifneq ($(filter freertos-compare,$(MAKECMDGOALS)),)
 $(error $(FRTOS_GOLDEN_MARCH_ERROR))
 endif
-ifeq ($(FRTOS_CPU),ref)
-ifneq ($(filter frtos-run freertos,$(MAKECMDGOALS)),)
+ifneq ($(filter freertos-shell-compare,$(MAKECMDGOALS)),)
 $(error $(FRTOS_GOLDEN_MARCH_ERROR))
 endif
+ifeq ($(FRTOS_CPU),ref)
+ifneq ($(filter frtos-run freertos freertos-shell freertos-shell-test freertos-shell-tty-test,$(MAKECMDGOALS)),)
+$(error $(FRTOS_GOLDEN_MARCH_ERROR))
+endif
+endif
+endif
+
+# A program that reads the UART (APP_CONSOLE := 1 in its app.mk) would wait forever for
+# input under the plain simulator.
+ifeq ($(strip $(APP_CONSOLE)),1)
+ifneq ($(filter frtos-run freertos freertos-compare,$(MAKECMDGOALS)),)
+$(error '$(FRTOS_APP)' is an interactive program that reads the UART: run it with 'make freertos-shell$(if $(filter shell,$(FRTOS_APP)),, APP=$(FRTOS_APP))' (your terminal types into it; Ctrl-] quits) or check it with 'make freertos-shell-test$(if $(filter shell,$(FRTOS_APP)),, APP=$(FRTOS_APP))' (a scripted session). See docs/FREERTOS.md)
 endif
 endif
 
@@ -243,24 +279,44 @@ freertos-compare:
 # ---- front end: list, new program, stress campaign, rebuild check ----
 .PHONY: freertos-list
 freertos-list:
-	@ echo "FreeRTOS programs (make freertos APP=<name>):"
+	@ echo "FreeRTOS programs (make freertos APP=<name>; the interactive ones: make freertos-shell APP=<name>):"
 	@ for f in $(sort $(wildcard $(FRTOS_DIR)/*/app.mk)); do \
 	      n=$$(basename $$(dirname $$f)); \
 	      d=$$(head -n 1 $$f | sed -e 's/^# *//' -e "s/^$$n: *//"); \
 	      printf '  %-10s %s\n' "$$n" "$$d"; \
 	  done
 
+# FROM=<app> starts the new program from a copy of another one instead of the template:
+# every file of test/freertos/<app>/ except its Python tools (FROM=shell gives a shell of
+# your own, to which you can add commands; see docs/FREERTOS.md, section 9).
+FRTOS_NEW_FROM = $(if $(filter command line,$(origin FROM)),$(FROM),template)
+
 .PHONY: freertos-new
 freertos-new:
 	@ case '$(NAME)' in '') echo "usage: make freertos-new NAME=<name>   (letters, digits, - and _)"; exit 1;; \
 	      *[!A-Za-z0-9_-]*) echo "invalid program name '$(NAME)': use letters, digits, - and _"; exit 1;; esac
 	@ if [ -e $(FRTOS_DIR)/$(NAME) ]; then echo "$(FRTOS_DIR)/$(NAME) already exists"; exit 1; fi
+ifeq ($(FRTOS_NEW_FROM),template)
 	@ mkdir -p $(FRTOS_DIR)/$(NAME)
 	@ cp $(FRTOS_DIR)/template/app_config.h $(FRTOS_DIR)/template/main.c $(FRTOS_DIR)/$(NAME)/
 	@ sed -e '1s/^# template:.*/# $(NAME): my FreeRTOS program (created from test\/freertos\/template)/' \
 	      $(FRTOS_DIR)/template/app.mk > $(FRTOS_DIR)/$(NAME)/app.mk
 	@ echo "created $(FRTOS_DIR)/$(NAME)/ (app.mk, app_config.h, main.c)"
 	@ echo "edit $(FRTOS_DIR)/$(NAME)/main.c, then run it with:  make freertos APP=$(NAME)"
+else
+	@ case '$(FRTOS_NEW_FROM)' in ''|*[!A-Za-z0-9_-]*) echo "invalid program name FROM='$(FRTOS_NEW_FROM)'"; exit 1;; esac
+	@ if [ ! -f $(FRTOS_DIR)/$(FRTOS_NEW_FROM)/app.mk ]; then \
+	      echo "FreeRTOS program '$(FRTOS_NEW_FROM)' not found (FROM=); programs: $(FRTOS_APPS)"; exit 1; fi
+	@ mkdir -p $(FRTOS_DIR)/$(NAME)
+	@ for f in $(FRTOS_DIR)/$(FRTOS_NEW_FROM)/*; do \
+	      case "$$f" in */app.mk|*.py) ;; *) cp "$$f" $(FRTOS_DIR)/$(NAME)/;; esac; done
+	@ sed -e '1s/^# $(FRTOS_NEW_FROM):/# $(NAME): created from test\/freertos\/$(FRTOS_NEW_FROM):/' \
+	      $(FRTOS_DIR)/$(FRTOS_NEW_FROM)/app.mk > $(FRTOS_DIR)/$(NAME)/app.mk
+	@ echo "created $(FRTOS_DIR)/$(NAME)/ ($$(cd $(FRTOS_DIR)/$(NAME) && ls | tr '\n' ' ' | sed 's/ $$//'))"
+	@ if grep -q '^APP_CONSOLE *:= *1' $(FRTOS_DIR)/$(NAME)/app.mk; then \
+	      echo "edit the files in $(FRTOS_DIR)/$(NAME)/, then run it with:  make freertos-shell APP=$(NAME)"; \
+	  else echo "edit the files in $(FRTOS_DIR)/$(NAME)/, then run it with:  make freertos APP=$(NAME)"; fi
+endif
 
 FRTOS_STRESS_SET   = $(if $(filter command line,$(origin SET)),$(SET),validate)
 FRTOS_STRESS_SEEDS = $(if $(filter command line,$(origin SEEDS)),$(SEEDS),2)
@@ -274,3 +330,65 @@ freertos-stress:
 .PHONY: freertos-check-rebuild
 freertos-check-rebuild:
 	sh $(FRTOS_DIR)/check_rebuild.sh $(BUILD_DIR)/freertos-rebuild-check
+
+# ---- interactive console: a program's UART connected to a terminal or a script ----
+# The console simulators are separate variants (frtos-model/<cpu>-<n>k-console), verilated
+# with +define+HADES_CONSOLE and the DPI bridge sim/console.cpp; the plain simulators above
+# are unchanged. Run options of sim/top.sv in this variant: +console_pty (a pseudo-terminal
+# instead of this terminal), +console_pty_link=<path> (a symlink to it), +console_script=<file>
+# (type a script, one line per prompt), +console_log=<file> (copy of the UART output),
+# +console_prompt=<text> (the program's prompt, which paces scripts and pastes; default
+# "hades> "). See docs/FREERTOS.md, section 9.
+FRTOS_CONSOLE_CPP   = $(SIM_DIR)/console.cpp
+frtos_con_model_dir = $(BUILD_DIR)/frtos-model/$(1)-$(FRTOS_RAM_KB)k-console
+frtos_con_sim       = $(BUILD_ABS)/frtos-model/$(1)-$(FRTOS_RAM_KB)k-console/top
+-include $(wildcard $(call frtos_con_model_dir,dut)/top__ver.d $(call frtos_con_model_dir,ref)/top__ver.d)
+
+define frtos_con_model_rules
+$(call frtos_con_model_dir,$(1))/top.mk: $(REF_SO_DEPS)
+	@ mkdir -p $$(@D)
+	$$(VERILATOR) $$(VERILATOR_FLAGS) $$(FRTOS_MODEL_DEFS_$(1)) +define+HADES_CONSOLE --trace-fst --trace-structs --timing --assert --main --exe --prefix top -Mdir $$(@D) --top-module top sim/top.sv $$(abspath $$(FRTOS_CONSOLE_CPP))
+
+$(call frtos_con_model_dir,$(1))/top: $(call frtos_con_model_dir,$(1))/top.mk $$(FRTOS_CONSOLE_CPP)
+	$$(MAKE) -C $$(@D) -f top.mk
+endef
+$(foreach c,dut ref,$(eval $(call frtos_con_model_rules,$(c))))
+
+# An interactive session has no cycle limit unless TIMEOUT= is given; a scripted one uses
+# the program's APP_TIMEOUT (or TIMEOUT=).
+FRTOS_SHELL_TIMEOUT = $(if $(filter command line,$(origin TIMEOUT) $(origin FRTOS_TIMEOUT)),$(FRTOS_TIMEOUT),9000000000000000000)
+FRTOS_SHELL_SCRIPT  = $(abspath $(if $(FRTOS_SCRIPT),$(FRTOS_SCRIPT),$(APP_DIR)/session.txt))
+FRTOS_SHELL_DUMP    = $(if $(filter-out 0,$(WAVES)),,+nodump)
+frtos_shell_label   = app=$(FRTOS_APP) cpu=$(call frtos_cpu_name,$(1)) isa=$(FRTOS_MARCH) opt=$(FRTOS_OPT) tick=$(FRTOS_TICK) bpred=$(FRTOS_BPRED) seed=$(FRTOS_SEED)
+# session.py run ... : run the script on simulator $(1), stream and check the transcript
+frtos_session = python3 $(FRTOS_DIR)/shell/session.py run --sim $(call frtos_con_sim,$(1)) \
+                --dir $(abspath $(FRTOS_OUT)) --script $(FRTOS_SHELL_SCRIPT) --cpu $(call frtos_cpu_name,$(1)) \
+                --timeout $(FRTOS_TIMEOUT) --seed $(FRTOS_SEED) --label "$(call frtos_shell_label,$(1))" \
+                $(if $(filter-out 0,$(WAVES)),--waves)
+
+.PHONY: freertos-shell
+freertos-shell:
+	$(call frtos_quiet_build,FRTOS_APP=$(FRTOS_APP) frtos-elf $(call frtos_con_model_dir,$(FRTOS_CPU))/top,$(call frtos_cpu_name,$(FRTOS_CPU)) console)
+	@ echo "run: $(call frtos_shell_label,$(FRTOS_CPU))  (UART copy: $(abspath $(FRTOS_OUT))/console.log)"
+	@ echo "     (the first 'Test fail!' line is the program's deliberate 'initial test' marker)"
+	@ cd $(FRTOS_OUT) && $(call frtos_con_sim,$(FRTOS_CPU)) $(FRTOS_SHELL_DUMP) +timeout=$(FRTOS_SHELL_TIMEOUT) \
+	      +switches=$(FRTOS_SEED) +console_log=console.log \
+	      $(if $(filter-out 0,$(FRTOS_PTY)),+console_pty +console_pty_link=$(abspath $(FRTOS_OUT))/pty)
+
+.PHONY: freertos-shell-test
+freertos-shell-test:
+	$(call frtos_quiet_build,FRTOS_APP=$(FRTOS_APP) frtos-elf $(call frtos_con_model_dir,$(FRTOS_CPU))/top,$(call frtos_cpu_name,$(FRTOS_CPU)) console)
+	@ $(call frtos_session,$(FRTOS_CPU))
+
+.PHONY: freertos-shell-compare
+freertos-shell-compare:
+	$(call frtos_quiet_build,FRTOS_APP=$(FRTOS_APP) frtos-elf $(call frtos_con_model_dir,dut)/top $(call frtos_con_model_dir,ref)/top,dut and golden console)
+	@ rc=0; $(call frtos_session,dut) || rc=1; $(call frtos_session,ref) || rc=1; \
+	  python3 $(FRTOS_DIR)/shell/session.py compare --script $(FRTOS_SHELL_SCRIPT) \
+	      $(abspath $(FRTOS_OUT))/session-dut.log $(abspath $(FRTOS_OUT))/session-golden.log || rc=1; \
+	  exit $$rc
+
+.PHONY: freertos-shell-tty-test
+freertos-shell-tty-test:
+	$(call frtos_quiet_build,FRTOS_APP=$(FRTOS_APP) frtos-elf $(call frtos_con_model_dir,$(FRTOS_CPU))/top,$(call frtos_cpu_name,$(FRTOS_CPU)) console)
+	@ python3 $(FRTOS_DIR)/shell/tty_test.py --sim $(call frtos_con_sim,$(FRTOS_CPU)) --dir $(abspath $(FRTOS_OUT))

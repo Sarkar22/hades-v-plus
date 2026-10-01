@@ -33,7 +33,7 @@ The upstream core implements **RV32I + Zicsr**. This version extends it to **`rv
 | **Zicntr** — user counters | `cycle`, `time`, `instret` (+ high halves), with `time` shadowing the real memory-mapped `mtime` | [§](#zicntr--user-mode-counters) |
 | **Zifencei** — documented & tested | `FENCE.I` was implemented but never actually verified upstream; now proven against a measured 3-slot staleness window | [§](#zifencei--instruction-fetch-synchronisation) |
 | **Branch predictor** | Bimodal, four runtime-selectable algorithms with dedicated performance counters | [§](#branch-predictor-extension) |
-| **FreeRTOS** | The official RISC-V port boots unmodified; one-command build and run, a differential stress campaign against the golden CPU, and a template for your own programs | [§](#freertos) |
+| **FreeRTOS** | The official RISC-V port boots unmodified; one-command build and run, a differential stress campaign against the golden CPU, a template for your own programs, and an interactive command shell (FreeRTOS+CLI) you type into from your terminal | [§](#freertos) |
 
 Eight correctness fixes to the base core are also included. Two predate the RTOS work: a decoder defect that corrupted registers on stores and branches (which prevented the bootloader from running at all), and a forwarding defect that leaked a garbage value for `FENCE` instructions carrying a non-zero reserved field. The other six are trap and interrupt defects exposed by running FreeRTOS under randomised interrupt timing; see [FreeRTOS](#freertos).
 
@@ -593,6 +593,7 @@ make freertos APP=minimal                 # boot FreeRTOS on HaDes-V+
 make freertos-compare APP=stress SEED=7   # same program on HaDes-V+ and on the golden CPU
 make freertos-stress                      # differential campaign, HaDes-V+ vs golden CPU
 make freertos-new NAME=myapp              # start your own program from the template
+make freertos-shell                       # interactive shell on the simulated UART (Ctrl-] quits)
 ```
 
 Each run ends with a single verdict line — `FREERTOS RESULT: PASS`, `FAIL`, `HANG` or `CRASH` — and `make` exits with status 0 only on `PASS`.

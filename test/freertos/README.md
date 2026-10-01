@@ -31,13 +31,19 @@ make freertos APP=stress CPU=golden              # the same on the golden CPU (r
 make freertos-compare APP=stress BPRED=3         # DUT and golden, verdicts compared
 make freertos-stress SEEDS=8 JOBS=6              # campaign.py --set validate --strict
 make freertos-new NAME=myapp                     # copy template/ to myapp/
+make freertos-new NAME=mysh FROM=shell           # copy shell/ (its sources and session.txt) to mysh/
 make freertos-check-rebuild                      # check_rebuild.sh
+make freertos-shell                              # the shell, typed into from this terminal (Ctrl-] quits)
+make freertos-shell PTY=1                        # the same on a pseudo-terminal, for screen/picocom
+make freertos-shell-test [SCRIPT=file]           # shell/session.txt typed in, transcript checked
+make freertos-shell-compare                      # the scripted session on DUT and golden, compared
+make freertos-shell-tty-test                     # shell/tty_test.py: keys, paste, quitting, terminal restore
 ```
 
 The short knobs (`APP CPU MARCH OPT TICK SEED TIMEOUT BPRED PREEMPT SLICE HEAP DEFS
-RAM_KB`) are command-line aliases of the `FRTOS_*` variables below; `run.sh` prints the
-verdict (`PASS`/`FAIL`/`HANG`/`CRASH`, exit status 0 only for `PASS`), applying the same
-UART-transcript check as the campaign.
+RAM_KB PTY SCRIPT`) are command-line aliases of the `FRTOS_*` variables below; `run.sh`
+prints the verdict (`PASS`/`FAIL`/`HANG`/`CRASH`, exit status 0 only for `PASS`), applying
+the same UART-transcript check as the campaign.
 
 ## One program, one configuration
 
@@ -50,7 +56,7 @@ make frtos-elf FRTOS_APP=full FRTOS_OUT=build/full          # build only
 
 | knob | meaning (default) |
 |---|---|
-| `FRTOS_APP` | `minimal`, `stress`, `full`, `mzba`, `brk`, `template`, or your own |
+| `FRTOS_APP` | `minimal`, `stress`, `full`, `mzba`, `brk`, `shell`, `template`, or your own |
 | `FRTOS_MARCH` | `rv32i`, `rv32im`, `rv32im_zba` (`rv32i`) |
 | `FRTOS_OPT` | `-O0`, `-O2`, `-Os` (`-O2`) |
 | `FRTOS_PREEMPT` / `FRTOS_SLICE` | `configUSE_PREEMPTION` / `configUSE_TIME_SLICING` (1/1) |
@@ -61,6 +67,8 @@ make frtos-elf FRTOS_APP=full FRTOS_OUT=build/full          # build only
 | `FRTOS_CPU` | `dut` or `ref`/`golden` (golden) simulator (`dut`); the golden CPU runs `rv32i` builds only |
 | `FRTOS_DEFS` | extra `-D` flags, e.g. `-DSTRESS_CRIT_YIELD=0` |
 | `FRTOS_BPRED` | branch-predictor mode written to MHPMEVENT10 at start-up: 0 off, 1 always-taken, 2 backward-taken, 3 bimodal (0). The golden CPU reads this CSR as 0 and ignores writes, so it stays a valid twin |
+| `FRTOS_PTY` | `freertos-shell`: `1` connects the UART to a pseudo-terminal (link `<out>/pty`) instead of this terminal |
+| `FRTOS_SCRIPT` | `freertos-shell-test`/`-compare`: the command script (`test/freertos/<app>/session.txt`) |
 
 The output directory (`build/test/freertos/<app>`, or `FRTOS_OUT`) is reused
 across configurations: `freertos.mk` records the compiler/linker flags of the
@@ -82,6 +90,21 @@ checks all end the run at once.
 
 ## Programs
 
+* **shell** -- an interactive command shell (32 KiB, built with `-Os`; 64 KiB at other
+  levels): FreeRTOS+CLI on the UART, fed by the UART receive interrupt through a queue.
+  Commands: `help`, `version`, `tasks`, `stats` (run-time statistics with `mcycle` as the
+  clock), `mem`, `uptime`, `counters`, `bpred [0-3|reset]` (MHPMEVENT10 and
+  MHPMCOUNTER10-13), `mul`, `div`, `zba` (the CPU's own M/Zba instructions where it has
+  them, compared with the rv32i software model `swmodel.c`), `uart`, `echo`,
+  `halt`/`exit`. Its `app.mk` sets `APP_CONSOLE := 1`: it runs only under the console
+  targets (`make freertos APP=shell` refuses), on the simulator variant
+  `frtos-model/<cpu>-<n>k-console` (`+define+HADES_CONSOLE`, `sim/console.cpp`). Guide:
+  docs/FREERTOS.md, section 9. `session.txt` is the scripted session (39 lines, 120
+  expectations on the DUT, 121 on the golden CPU), `session.py` runs and checks it (a
+  non-zero exit status of the simulator is a `CRASH`) and compares the DUT and golden
+  transcripts, `tty_test.py` drives the interactive console through a pseudo-terminal
+  (keys, paste, quitting, a hung program, signals, terminal restore, the UART copy). Not
+  part of any campaign set.
 * **template** -- the starting point for your own program (`make freertos-new
   NAME=<name>`): producer -> queue -> consumer, PASS after `TEMPLATE_ITEMS` items;
   `-DTEMPLATE_WITH_IRQ=1` adds an interrupt handler fed by the `wishbone_test`

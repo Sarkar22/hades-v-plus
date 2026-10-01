@@ -1,0 +1,192 @@
+# session.txt -- the scripted session of `make freertos-shell-test` (test/freertos/shell).
+#
+# The simulator's console bridge (sim/console.cpp) types every line that does not start
+# with '#', each one after the shell has printed its prompt, and adds the Enter key (CR).
+# Escapes: \r \n \t \e (ESC) \\ \xHH; \c at the end of a line suppresses the CR. Every
+# typed line must produce exactly one new prompt.
+#
+# session.py then checks the transcript. Lines starting with "#?" hold a regular
+# expression that must match one line of the output of the command typed just before
+# (in the order given); "#!" one that must match none of them. The output does not
+# include the command line itself as the shell echoes it after the prompt; "#>" holds a
+# regular expression for that line. "#?dut", "#!dut", "#?golden" and "#!golden" (and
+# "#>dut", "#>golden") apply only on that CPU (the golden CPU has no M, Zba, Zicntr and
+# branch predictor). Lines before the first typed line check the start-up banner.
+#
+#? ^HaDes-V\+ shell on FreeRTOS V11\.\d+\.\d+\+? with FreeRTOS\+CLI$
+#? ^  config: tick=\d+cyc .* heap_\d isa=rv32i\S* opt=-O\S ram=\d+K
+#? ^Type 'help' for the list of commands\.$
+help
+#? ^help:$
+#? ^version\s
+#? ^tasks\s
+#? ^stats\s
+#? ^mem\s
+#? ^uptime\s
+#? ^counters\s
+#? ^bpred \[0-3\|reset\]\s
+#? ^mul <a> <b>\s
+#? ^div <a> <b>\s
+#? ^zba <a> <b>\s
+#? ^uart\s
+#? ^echo <text>\s
+#? ^halt\s
+#? ^exit\s
+version
+#? ^HaDes-V\+ shell: FreeRTOS V11
+#? ^build:\s+rv32i\S* -O\S, GCC \d
+#?dut ^cpu:\s+M yes, Zba yes, Zicntr yes$
+#?golden ^cpu:\s+M no, Zba no, Zicntr no$
+tasks
+#? ^task\s+state\s+priority\s+stack free \(min\)$
+#? ^console\s+running\s+2\s+\d+ words$
+#? ^blink\s+blocked\s+3\s+\d+ words$
+#? ^IDLE\s+ready\s+0\s+\d+ words$
+#? ^3 tasks$
+stats
+#? ^task\s+CPU cycles\s+share$
+#? ^console\s+\d+\s+\d+\.\d%$
+#? ^blink\s+\d+\s+\d+\.\d%$
+#? ^IDLE\s+\d+\s+\d+\.\d%$
+#? ^total\s+\d+\s+since the scheduler started
+mem
+#? ^heap:\s+\d+ of \d+ bytes free, \d+ at the lowest \(heap_\d\)$
+#? ^RAM:\s+\d+ bytes: program and data \d+
+#? interrupt stack \d+ \(\d+ used at most\)$
+uptime
+#? ^ticks:\s+\d+ \(\d+ cycles per tick\)$
+#? ^mtime:\s+\d+ cycles since reset$
+#? ^uptime:\s+\d+\.\d{3} s at configCPU_CLOCK_HZ = \d+ Hz; \d+\.\d{3} s at the board's 50 MHz$
+counters
+#? ^cycles:\s+\d+ \(mcycle\)$
+#? ^instret:\s+\d+ \(minstret\)$
+#? ^IPC:\s+\d\.\d{3} since reset$
+#?dut ^cpu:\s+Zicntr: cycle \d+, time \d+, instret \d+$
+#?golden ^cpu:\s+no Zicntr
+counters
+#? ^IPC:\s+\d\.\d{3} since reset, \d\.\d{3} since the last 'counters'$
+bpred
+#? ^mode:\s+\d \(
+#? ^branches:\s+predicted not taken: \d+ right \(nn\), \d+ wrong \(nt\)$
+#? ^\s+predicted taken:\s+\d+ right \(tt\), \d+ wrong \(tn\)$
+#?dut ^accuracy:\s+\d+\.\d% of \d+$
+#?golden ^accuracy:\s+none counted$
+bpred 3
+#? ^counters cleared$
+#?dut ^mode:\s+3 \(bimodal, 2-bit counters\)$
+#?golden ^mode:\s+0
+#?golden ^cpu:\s+mode 3 not taken: no branch predictor$
+bpred reset
+#? ^counters cleared$
+bpred 0
+#? ^mode:\s+0 \(off
+bpred 7
+#? ^usage: bpred \[0\|1\|2\|3\|reset\]$
+# M extension: RISC-V results, including the cases that do not trap
+div -7 2
+#? ^a = -7 \(0xfffffff9\), b = 2 \(0x00000002\)$
+#? ^\s+div\s+-3\s+0xfffffffd\s
+#? ^\s+rem\s+-1\s+0xffffffff\s
+#? ^\s+divu\s+2147483644\s+0x7ffffffc\s
+#? ^\s+remu\s+1\s+0x00000001\s
+#?dut ^source:\s+the CPU's M instructions, equal to the rv32i software model$
+#?golden ^source:\s+rv32i software model: the CPU has no M$
+#! DIFFERENT
+div 7 -2
+#? ^\s+div\s+-3\s+0xfffffffd\s
+#? ^\s+rem\s+1\s+0x00000001\s
+#? ^\s+divu\s+0\s+0x00000000\s
+#? ^\s+remu\s+7\s+0x00000007\s
+#! DIFFERENT
+div 5 0
+#? ^\s+div\s+-1\s+0xffffffff\s
+#? ^\s+rem\s+5\s+0x00000005\s
+#? ^\s+divu\s+4294967295\s+0xffffffff\s
+#? ^\s+remu\s+5\s+0x00000005\s
+#? ^note:\s+x / 0 does not trap
+#! DIFFERENT
+div -2147483648 -1
+#? ^\s+div\s+-2147483648\s+0x80000000\s
+#? ^\s+rem\s+0\s+0x00000000\s
+#? ^\s+divu\s+0\s+0x00000000\s
+#? ^\s+remu\s+2147483648\s+0x80000000\s
+#? ^note:\s+-2\^31 / -1 overflows without a trap
+#! DIFFERENT
+mul 123456 -789
+#? ^\s+mul\s+-97406784\s+0xfa31b0c0\s
+#? ^\s+mulh\s+-1\s+0xffffffff\s
+#? ^\s+mulhsu\s+123455\s+0x0001e23f\s
+#? ^\s+mulhu\s+123455\s+0x0001e23f\s
+#! DIFFERENT
+mul 0x80000000 0x80000000
+#? ^\s+mul\s+0\s+0x00000000\s
+#? ^\s+mulh\s+1073741824\s+0x40000000\s
+#? ^\s+mulhsu\s+-1073741824\s+0xc0000000\s
+#? ^\s+mulhu\s+1073741824\s+0x40000000\s
+#! DIFFERENT
+mul -1 -1
+#? ^\s+mul\s+1\s+0x00000001\s
+#? ^\s+mulh\s+0\s+0x00000000\s
+#? ^\s+mulhsu\s+-1\s+0xffffffff\s
+#? ^\s+mulhu\s+4294967294\s+0xfffffffe\s
+#! DIFFERENT
+zba 0x1000 3
+#? ^\s+sh1add\s+8195\s+0x00002003\s
+#? ^\s+sh2add\s+16387\s+0x00004003\s
+#? ^\s+sh3add\s+32771\s+0x00008003\s
+#?dut ^source:\s+the CPU's Zba instructions, equal to the rv32i software model$
+#?golden ^source:\s+rv32i software model: the CPU has no Zba$
+#! DIFFERENT
+div 12 x
+#? ^error: numbers are decimal
+div 1
+#? ^Incorrect command parameter
+# FreeRTOS+CLI's reply to an unknown command
+frobnicate
+#? ^Command not recognised
+echo Hello, HaDes-V+!
+#? ^Hello, HaDes-V\+!$
+# line editing: Backspace (0x08) and DEL (0x7f) delete the character before them
+echo abX\x08c xyZ\x7fz
+#? ^abc xyz$
+# Ctrl-C cancels the line (it produces the prompt itself, hence no Enter: \c)
+echo never printed\x03\c
+#> ^echo never printed\^C$
+#! ^never printed$
+# Ctrl-U erases the line
+echo erased\x15echo kept
+#? ^kept$
+#! ^erased
+# the Up arrow recalls the previous line
+\e[A
+#> ^echo kept$
+#? ^kept$
+# a lone Esc key does not swallow the key after it: a letter, Enter, or Ctrl-C
+\eecho esc letter
+#> ^echo esc letter$
+#? ^esc letter$
+echo esc enter\e
+#? ^esc enter$
+echo esc ctrl-c\e\x03\c
+#> ^echo esc ctrl-c\^C$
+#! esc ctrl-c
+# CR LF is one end of line, and a bare LF is one as well
+echo crlf\r\n\c
+#? ^crlf$
+echo lf\n\c
+#? ^lf$
+# an empty line and a line of blanks only print a new prompt
+
+\x20\x20\x20
+# a line longer than 80 characters is rejected as a whole
+echo 12345678901234567890123456789012345678901234567890123456789012345678901234567890 too long
+#? ^error: line too long \(at most 80 characters\)
+#! too long$
+# no character was lost on the way in
+uart
+#? ^received:\s+\d+$
+#? ^dropped:\s+0 \(receive queue full\)$
+#? ^overruns:\s+0 \(lost in the UART\)$
+halt
+#? ^halted$
+#? ^FRTOS-RESULT: PASS
