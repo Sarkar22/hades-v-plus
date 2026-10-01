@@ -30,10 +30,11 @@ FreeRTOS V11.1.0+, unmodified, running in machine mode.
 | GNU make, a POSIX shell, coreutils | any recent Linux | `make --version` |
 | Verilator | 5.042 | `verilator --version` |
 | RISC-V GCC with newlib-nano, in `/opt/riscv32i/bin` | GCC 12.2.0, binutils 2.39 | see below |
-| git | 2.43 (2.25 or newer is needed) | `git --version` |
+| git | 2.43 | `git --version` |
 | Python 3 | 3.12 (3.8 or newer) | `python3 --version` |
-| Network access to github.com | for the one-time download of FreeRTOS | |
-| Free disk space | about 100 MB: FreeRTOS sources 50 MB, builds 30 MB and more | `df -h .` |
+| Free disk space | 30 MB and more for the builds | `df -h .` |
+
+No network access is needed: the FreeRTOS sources are part of the repository.
 
 Check the tools:
 
@@ -50,26 +51,18 @@ The third command must print a full path ending in `libc_nano.a`. If it prints o
 
 ## 2. One-time setup
 
-### 2.1 Download FreeRTOS
+### 2.1 The FreeRTOS sources
 
-The FreeRTOS sources are not part of this repository. Download them once, at the exact
-commits that were tested:
+The FreeRTOS sources are part of this repository, in
+[`third_party/freertos/`](../third_party/freertos/README.md): the kernel and its RISC-V port
+from FreeRTOS-Kernel at commit `8be86d4a24fd4091f8f4192018423ab590f408db`, and the standard
+demo tasks from FreeRTOS/FreeRTOS at commit `f4fcc3b228643144727e9257ba12db1cb632b6e6`, both
+unmodified. There is nothing to download; the Makefile uses them by default.
 
-```bash
-make freertos-fetch
-```
-
-By default they are placed in the repository's parent directory. To keep them somewhere
-else, set `FREERTOS_HOME` first and keep it set for later commands, for example
-`export FREERTOS_HOME=$HOME/freertos`.
-
-The last lines of the output confirm the two commits:
-
-```text
-FreeRTOS sources ready in <FREERTOS_HOME>:
-  FreeRTOS-Kernel  8be86d4a24fd4091f8f4192018423ab590f408db
-  FreeRTOS (demo)  f4fcc3b228643144727e9257ba12db1cb632b6e6
-```
+To build against another FreeRTOS checkout instead, set `FREERTOS_HOME` to a directory that
+holds clones of both repositories side by side (`FreeRTOS-Kernel/` and `FreeRTOS/`) and keep
+it set for later commands, or set `FREERTOS_KERNEL` and `FREERTOS_DEMO` individually. Only
+the commits above are tested.
 
 ### 2.2 Choose where to build
 
@@ -128,8 +121,7 @@ Notes:
   C and SystemVerilog tests, `synthesis`, `show`, `clean`) follow it.
 
 Every later section assumes that you are in the repository directory, with
-`FREERTOS_HOME` set if you moved the FreeRTOS sources and `HADES_BUILD_DIR` set if your
-filesystem needs it.
+`HADES_BUILD_DIR` set if your filesystem needs it.
 
 ## 3. Boot FreeRTOS
 
@@ -444,9 +436,9 @@ Everything generated is inside `$HADES_BUILD_DIR`:
 | `freertos-campaign/<set>/` | Stress-campaign results: `summary.md`, `results.csv`, `results.json`, `runs/.../sim.log`. |
 | `ref/` | Copies of the golden-model libraries that the simulators link against. |
 
-The FreeRTOS sources are in `$FREERTOS_HOME/FreeRTOS-Kernel` and
-`$FREERTOS_HOME/FreeRTOS/FreeRTOS/Demo`. Your own programs are in the repository, in
-`test/freertos/<name>/`.
+The FreeRTOS sources are in the repository, in `third_party/freertos/FreeRTOS-Kernel` and
+`third_party/freertos/FreeRTOS/FreeRTOS/Demo` (or below `$FREERTOS_HOME` if it is set). Your
+own programs are in the repository, in `test/freertos/<name>/`.
 
 `make clean` deletes the whole build directory; the next run rebuilds everything.
 
@@ -458,14 +450,12 @@ command again.
 
 **`sh: 1: test/freertos/...: Permission denied`.** A script was started directly. Use the
 make targets, or run scripts through `sh` or `python3`, for example
-`sh test/freertos/fetch_freertos.sh $FREERTOS_HOME`.
+`sh test/freertos/check_rebuild.sh`.
 
-**`FreeRTOS kernel sources not found at ...`.** `FREERTOS_HOME` is not set in this
-terminal, or `make freertos-fetch` has not been run. Without `FREERTOS_HOME` the Makefile
-looks next to the repository.
-
-**`make freertos-fetch` fails.** It needs network access to github.com. Behind a proxy,
-set `https_proxy`. It can be re-run at any time; it reuses existing clones.
+**`FreeRTOS kernel sources not found at ...`.** `FREERTOS_HOME`, `FREERTOS_KERNEL` or
+`FREERTOS_DEMO` is set to a directory without the FreeRTOS sources: unset it to use the copy
+in `third_party/freertos/`. If files are missing from `third_party/freertos/` itself, restore
+them with `git checkout -- third_party/freertos`.
 
 **`Build directory ... belongs to the checkout ...`.** The build directory was created by
 another copy of the repository. Use a separate `HADES_BUILD_DIR` for each copy, or delete
@@ -514,8 +504,9 @@ and is rebuilt when it changes; the simulators are rebuilt when an RTL file chan
 
 * **Kernel and port.** FreeRTOS-Kernel V11.1.0+ (commit `8be86d4`), with the official
   `portable/GCC/RISC-V` port and the chip header `RISCV_MTIME_CLINT_no_extensions`. The
-  standard demo tasks come from the FreeRTOS repository (commit `f4fcc3b`). Nothing in
-  either is modified; `make freertos-fetch` downloads them.
+  standard demo tasks come from the FreeRTOS repository (commit `f4fcc3b`). Both are
+  included, unmodified, in `third_party/freertos/`; its `README.md` lists every file with its
+  provenance and licence (MIT).
 * **Timer.** The port programs the memory-mapped machine timer: `mtime` at `0x00214004`
   and `mtimecmp` at `0x0021400C`. `mtime` counts clock cycles, so
   `configCPU_CLOCK_HZ` is `TICK × 1000` with a nominal tick rate of 1 kHz.

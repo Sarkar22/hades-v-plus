@@ -2,7 +2,6 @@
 # FreeRTOS programs for HaDes-V+ (included by the top-level Makefile). Guide: docs/FREERTOS.md
 #
 # Front end (knobs on the command line, all optional):
-#   make freertos-fetch                   clone the FreeRTOS sources at the tested commits
 #   make freertos-list                    list the programs (test/freertos/<app>/)
 #   make freertos APP=<app> [CPU=dut|golden] [MARCH=rv32i|rv32im|rv32im_zba] [OPT=-O2|-Os|-O0]
 #                 [TICK=<cycles>] [BPRED=0..3] [SEED=<hex>] [TIMEOUT=<cycles>] [WAVES=1]
@@ -23,19 +22,23 @@
 #   make frtos-elf   FRTOS_APP=<app> [knobs...]      build only (FRTOS_OUT/init.mem, out.elf)
 #   make frtos-model FRTOS_CPU=dut|ref FRTOS_RAM_KB=<n>   build a simulator variant
 #
-# The kernel and the standard demo sources are external (not vendored), see
-# test/freertos/fetch_freertos.sh:
-#   FREERTOS_HOME    directory holding both clones (default: the repository's parent directory)
-#   FREERTOS_KERNEL  FreeRTOS-Kernel checkout   (tested: 8be86d4, V11.1.0+)
-#   FREERTOS_DEMO    FreeRTOS/FreeRTOS/Demo      (tested: FreeRTOS/FreeRTOS f4fcc3b; only
-#                    Demo/Common and Demo/RISC-V_RV32_QEMU_VIRT_GCC are needed)
+# The FreeRTOS sources are vendored, unmodified, in third_party/freertos/ (pinned commits,
+# file list and checksums: third_party/freertos/README.md). Each variable below may instead
+# point to an external checkout with the same layout:
+#   FREERTOS_HOME     directory holding both trees (default: third_party/freertos)
+#   FREERTOS_KERNEL   FreeRTOS-Kernel            (vendored: 8be86d4, V11.1.0+)
+#   FREERTOS_DEMO     FreeRTOS/FreeRTOS/Demo     (vendored: FreeRTOS/FreeRTOS f4fcc3b; only
+#                     Demo/Common and Demo/RISC-V_RV32_QEMU_VIRT_GCC are needed)
+#   FREERTOS_PLUS_CLI FreeRTOS-Plus-CLI          (vendored: FreeRTOS/FreeRTOS f4fcc3b; not yet
+#                     compiled by any program)
 # test/freertos/campaign.py builds and runs many configurations differentially against
 # the golden reference CPU; see test/freertos/README.md.
 # ---------------------------------------------------------------------------------------------
 
-FREERTOS_HOME   ?= $(abspath $(CURDIR)/..)
-FREERTOS_KERNEL ?= $(FREERTOS_HOME)/FreeRTOS-Kernel
-FREERTOS_DEMO   ?= $(FREERTOS_HOME)/FreeRTOS/FreeRTOS/Demo
+FREERTOS_HOME     ?= $(CURDIR)/third_party/freertos
+FREERTOS_KERNEL   ?= $(FREERTOS_HOME)/FreeRTOS-Kernel
+FREERTOS_DEMO     ?= $(FREERTOS_HOME)/FreeRTOS/FreeRTOS/Demo
+FREERTOS_PLUS_CLI ?= $(FREERTOS_HOME)/FreeRTOS/FreeRTOS-Plus/Source/FreeRTOS-Plus-CLI
 
 FRTOS_DIR  = $(TEST_DIR)/freertos
 FRTOS_APPS = $(patsubst $(FRTOS_DIR)/%/app.mk,%,$(wildcard $(FRTOS_DIR)/*/app.mk))
@@ -85,7 +88,7 @@ include $(FRTOS_DIR)/$(FRTOS_APP)/app.mk
 endif
 ifneq ($(filter $(FRTOS_BUILD_GOALS),$(MAKECMDGOALS)),)
 ifeq ($(wildcard $(FREERTOS_KERNEL)/tasks.c),)
-$(error FreeRTOS kernel sources not found at $(FREERTOS_KERNEL). Run 'make freertos-fetch' (it clones into FREERTOS_HOME=$(FREERTOS_HOME)), or set FREERTOS_HOME / FREERTOS_KERNEL / FREERTOS_DEMO. See docs/FREERTOS.md)
+$(error FreeRTOS kernel sources not found at $(FREERTOS_KERNEL). They are part of the repository, in third_party/freertos/: if FREERTOS_HOME, FREERTOS_KERNEL or FREERTOS_DEMO is set, unset it or point it to a complete checkout; if files are missing from third_party/freertos/, restore them with 'git checkout -- third_party/freertos'. See docs/FREERTOS.md)
 endif
 endif
 
@@ -237,7 +240,7 @@ freertos-compare:
 	  $(call frtos_run_sh,ref); \
 	  sh $(FRTOS_DIR)/run.sh --compare $(abspath $(FRTOS_OUT))/run-dut.log $(abspath $(FRTOS_OUT))/run-golden.log
 
-# ---- front end: list, new program, fetch, stress campaign, rebuild check ----
+# ---- front end: list, new program, stress campaign, rebuild check ----
 .PHONY: freertos-list
 freertos-list:
 	@ echo "FreeRTOS programs (make freertos APP=<name>):"
@@ -258,10 +261,6 @@ freertos-new:
 	      $(FRTOS_DIR)/template/app.mk > $(FRTOS_DIR)/$(NAME)/app.mk
 	@ echo "created $(FRTOS_DIR)/$(NAME)/ (app.mk, app_config.h, main.c)"
 	@ echo "edit $(FRTOS_DIR)/$(NAME)/main.c, then run it with:  make freertos APP=$(NAME)"
-
-.PHONY: freertos-fetch
-freertos-fetch:
-	sh $(FRTOS_DIR)/fetch_freertos.sh $(FREERTOS_HOME)
 
 FRTOS_STRESS_SET   = $(if $(filter command line,$(origin SET)),$(SET),validate)
 FRTOS_STRESS_SEEDS = $(if $(filter command line,$(origin SEEDS)),$(SEEDS),2)

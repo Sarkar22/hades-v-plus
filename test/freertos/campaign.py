@@ -359,8 +359,11 @@ def main():
     ap.add_argument("--max-checks", type=int, default=40,
                     help="upper bound on check periods per run (raise it for very long --run-cycles)")
     ap.add_argument("--out", default=os.path.join(tree_build(REPO, "dut")[0], "freertos-campaign"))
-    ap.add_argument("--kernel", default=os.environ.get("FREERTOS_KERNEL"))
-    ap.add_argument("--demo", default=os.environ.get("FREERTOS_DEMO"))
+    ap.add_argument("--kernel", default=os.environ.get("FREERTOS_KERNEL"),
+                    help="FreeRTOS-Kernel tree (default: $FREERTOS_KERNEL, else the Makefile's default, "
+                         "the copy vendored in third_party/freertos or $FREERTOS_HOME)")
+    ap.add_argument("--demo", default=os.environ.get("FREERTOS_DEMO"),
+                    help="FreeRTOS/FreeRTOS/Demo tree (default: $FREERTOS_DEMO, else the Makefile's default)")
     ap.add_argument("--list", action="store_true", help="list the variants and exit")
     ap.add_argument("--no-uart-check", action="store_true",
                     help="do not fail runs whose UART pattern lines arrive corrupted (still counted)")
@@ -384,9 +387,6 @@ def main():
             log(f"{v.name:55s} ram={v.ram_kb}K run={v.run_ticks} ticks ({v.nchecks}x{v.check_ticks})"
                 f" timeout={v.timeout_cycles()} golden={'yes' if v.golden_ok else 'no'}")
         return 0
-    if not args.kernel or not args.demo:
-        ap.error("set --kernel/--demo (or FREERTOS_KERNEL/FREERTOS_DEMO); see test/freertos/README.md")
-
     duts = []
     for d in args.dut or [f"dut={REPO}"]:
         name, _, root = d.partition("=")
@@ -398,7 +398,9 @@ def main():
 
     out = os.path.abspath(args.out)
     os.makedirs(out, exist_ok=True)
-    fenv = {"FREERTOS_KERNEL": os.path.abspath(args.kernel), "FREERTOS_DEMO": os.path.abspath(args.demo)}
+    # FreeRTOS sources: only what was given; otherwise the Makefile's defaults apply
+    fenv = {k: os.path.abspath(v) for k, v in (("FREERTOS_KERNEL", args.kernel),
+                                               ("FREERTOS_DEMO", args.demo)) if v}
     t_start = time.time()
 
     # ---- 1. simulator models (per target and RAM size)

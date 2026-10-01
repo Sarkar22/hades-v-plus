@@ -59,7 +59,7 @@ make test/asm/ops                      # every RV32I instruction, against the go
 make test/c/m_extension                # M hardware diffed against libgcc's software routines
 make test/sv/test_decode_exhaustive    # 11,026 DUT-vs-reference decode checks
 make formal                            # formal proof of the multiply/divide unit (tools: formal/README.md)
-make freertos APP=minimal              # boot FreeRTOS (after make freertos-fetch; guide: docs/FREERTOS.md)
+make freertos APP=minimal              # boot FreeRTOS (guide: docs/FREERTOS.md)
 make synthesis                         # implement for the Basys3 (Vivado)
 make help                              # all available targets
 ```
@@ -585,10 +585,9 @@ This found six defects, all fixed and each covered by a directed regression test
 
 On the fixed core the final differential campaign passed **794 of 794** FreeRTOS runs (102 of them with the branch predictor enabled, about 14.7 billion simulated cycles), with every one of the 523 golden-CPU twin runs agreeing, and the independent model in [`test/trapsweep/`](test/trapsweep) found no architectural error across its full interrupt-offset sweep and random-program fuzzing.
 
-**Running it.** The FreeRTOS sources are not vendored; `make freertos-fetch` clones them at the tested commits. The guide, [docs/FREERTOS.md](docs/FREERTOS.md), covers setup (including building outside a disk that cannot execute programs), reading the output, every setting, and writing your own program.
+**Running it.** The FreeRTOS sources are vendored, unmodified, in [`third_party/freertos/`](third_party/freertos/README.md) at the tested commits, so no download step is needed. The guide, [docs/FREERTOS.md](docs/FREERTOS.md), covers setup (including building outside a disk that cannot execute programs), reading the output, every setting, and writing your own program.
 
 ```bash
-make freertos-fetch                       # once
 make freertos-list                        # available programs
 make freertos APP=minimal                 # boot FreeRTOS on HaDes-V+
 make freertos-compare APP=stress SEED=7   # same program on HaDes-V+ and on the golden CPU
@@ -752,6 +751,7 @@ Testbenches in [test/sv/](test/sv/) instantiate **both** — the DUT and the gol
 - [`rtl/`](rtl): The processor implementation — pipeline stages, register file, instruction decoder, and branch predictor.
 - [`synth/`](synth): Synthesis scripts and FPGA configuration files.
 - [`test/`](test): Test files in assembly (`asm`), C (`c`), and SystemVerilog (`sv`); FreeRTOS programs and the differential campaign (`freertos`); the interrupt-offset sweeps with their independent ISA model (`trapsweep`).
+- [`third_party/`](third_party): Third-party sources, included unmodified: the FreeRTOS kernel, its RISC-V port, the FreeRTOS standard demo tasks and FreeRTOS+CLI, at pinned upstream commits (MIT); see [third_party/freertos/README.md](third_party/freertos/README.md).
 - [`.vscode/`](.vscode): Configuration files for Visual Studio Code.
 
 Refer to the [Instruction Guide][instrguide] for a detailed project structure.
@@ -778,6 +778,8 @@ The following are original contributions by **Emon Sarkar**, added after complet
 - The test suites in [`test/asm/`](test/asm) and [`test/sv/`](test/sv) beyond the upstream set, including the golden-comparison, encoding-sweep, and adversarial suites
 - Repairs to the synthesis flow ([`synth/synth.tcl`](synth/synth.tcl)) and the architectural documentation in this README
 
+**Third-party component: FreeRTOS.** The directory [`third_party/freertos/`](third_party/freertos/README.md) contains unmodified sources of [FreeRTOS](https://www.freertos.org) — the FreeRTOS kernel with its RISC-V port, the FreeRTOS standard demo tasks, and FreeRTOS+CLI — taken from the [FreeRTOS-Kernel](https://github.com/FreeRTOS/FreeRTOS-Kernel) and [FreeRTOS](https://github.com/FreeRTOS/FreeRTOS) repositories at pinned commits. FreeRTOS is Copyright (C) Amazon.com, Inc. or its affiliates and is distributed under the MIT licence; it is neither part of the upstream HaDes-V work nor among the original contributions listed above. Its licence texts, the exact upstream commits and the complete list of vendored files are given in [third_party/freertos/README.md](third_party/freertos/README.md).
+
 If you are looking for the original teaching material rather than this extended version, please go to the upstream source linked above — it is the canonical reference and the appropriate starting point for coursework.
 
 ## License
@@ -788,7 +790,7 @@ This OER and all of its creative material (text, logos, etc.) is licensed under 
 >Tobias Scheipel, David Beikircher, Florian Riedl\
 >TU Graz 2024
 
-All the software files included in the repository are licensed under the **MIT License**. See the [LICENSE](./LICENSE) file for details.
+All the software files included in the repository are licensed under the **MIT License**. See the [LICENSE](./LICENSE) file for details. The third-party FreeRTOS code in [`third_party/freertos/`](third_party/freertos/README.md) is likewise MIT-licensed, but under its own licence and copyright (Amazon.com, Inc. or its affiliates); its licence texts are included in that directory.
 
 Contributions to this OER are welcome and encouraged! The LaTeX sources for the [Instruction Guide][instrguide] can be requested as well. For more OERs, visit [https://www.scheipel.com/oer](https://www.scheipel.com/oer).
 
