@@ -70,7 +70,9 @@ module wishbone_uart #(
     logic tx_intr_enable_sig;
     always_comb begin
         tx_intr_enable_sig = tx_intr_enable_reg;
-        if (wb_write_rx_status) begin
+        // same write as tx_intr_enable_reg (TX status byte, sel[3]); was wb_write_rx_status,
+        // copied from the RX block above (regression: test/asm/uartirq.s)
+        if (wb_write_tx_status) begin
             tx_intr_enable_sig = wb_dat_mosi[TX_IE_IDX];
         end
     end
