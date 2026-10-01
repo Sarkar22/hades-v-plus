@@ -1,0 +1,86 @@
+{
+  "record": "results/m-unit-cycles/2026-08-18_c00c4db",
+  "topic": "m-unit-cycles",
+  "status": "historical",
+  "date": "2026-08-18",
+  "base_commit": "c00c4dbae728820ae6f3f94de568eac87b41a590",
+  "measured_on": "working copy of 1f501f509ccb71b84e499bc3b4aea90f30f1cfe4 with the uncommitted M implementation, whose files were committed as c00c4db at 10:18 (UTC-4) the same morning",
+  "provenance": "the development log of 2026-08-18, 09:26 (loops) and 09:53 (mcost.c), UTC-4",
+  "figures": [
+    {
+      "figure": "Measured: any RV32I ALU op 1.00",
+      "value": "zz_meas_nop 1199 cycles, per-op 1.499, minus 0.499 overhead",
+      "quoted_in": [
+        "docs/EXTENSIONS.md:49"
+      ]
+    },
+    {
+      "figure": "Measured: mul / mulh / mulhsu / mulhu 2.00",
+      "value": "zz_meas_mul 1999 cycles, per-op 2.499; mcost.c mul, mulh, mulhsu, mulhu 0x502 = 1282 cycles each",
+      "quoted_in": [
+        "docs/EXTENSIONS.md:50"
+      ]
+    },
+    {
+      "figure": "Measured: div / divu / rem / remu 34.00",
+      "value": "zz_meas_div 27599 cycles, per-op 34.499; mcost.c div, divu, rem 0x4502 = 17666 cycles each (remu cut off by the 100000-cycle limit)",
+      "quoted_in": [
+        "docs/EXTENSIONS.md:51"
+      ]
+    },
+    {
+      "figure": "Measured: div / rem by zero, or -2^31 / -1 1.00",
+      "value": "zz_meas_dv0 1199 cycles, per-op 1.499; mcost.c div-by-0, remu-by-0, div-ovf 0x302 = 770 cycles each",
+      "quoted_in": [
+        "docs/EXTENSIONS.md:52"
+      ]
+    },
+    {
+      "figure": "over 800 back-to-back operations, loop overhead subtracted",
+      "value": "100 iterations x 8; the overhead, 0.499 per op, taken from the ALU loop",
+      "quoted_in": [
+        "docs/EXTENSIONS.md:54"
+      ]
+    }
+  ],
+  "commands_then": [
+    "make test/asm/zz_meas_nop",
+    "make test/asm/zz_meas_mul",
+    "make test/asm/zz_meas_div",
+    "make test/asm/zz_meas_dv0",
+    "mcost.c: gcc -march=rv32im -O2 (program and private std objects), C-test link command, build/sim/top"
+  ],
+  "replaced_by": "make bench-mcost",
+  "inputs": {
+    "base_commit_trees": {
+      "rtl": "184ba0352d5a21d130d7f31c215b0130c9b85685",
+      "lib": "10e725f3ea301c460e5cc6fe85372f7d7a56ff3b",
+      "defines": "77ae7c8984915dc833bf68e1e5d32b267b8a02bf",
+      "sim": "b9ea689e3115da8714c525858c64d7131505378f",
+      "std": "05909d5f7dd5d23f80a2d11e127fdb79eb8a5468"
+    },
+    "programs_sha256": {
+      "zz_meas_nop.s": "776660792c7518dc3822ed96a897052cae667a1ce89114f0310e3ed16b835a70",
+      "zz_meas_mul.s": "6b01e8d44bad5fbae4dc059c1c60679e2ae835a540617074242692127b03f293",
+      "zz_meas_div.s": "d6a9982f459781d1acdeabbc64878b27d7095357ab1df5ba21ce04beb7ca6495",
+      "zz_meas_dv0.s": "a4af85948a894cbad69e7bd6838e7a632e235c38dfd3f9367d79adae73ebab60",
+      "mcost.c": "d8ac27a826358bd5cc49caa4025d78b5f208fb6c4a589136bdc25594475a4766"
+    },
+    "programs_now": "test/bench/mcost/loop_addi.s, loop_mul.s, loop_div.s, loop_div0.s, mcost.c (unchanged after the license header)"
+  },
+  "host": "not recorded",
+  "tools": {
+    "verilator": "Verilator 5.042 2025-11-02",
+    "gcc": "riscv32-unknown-elf-gcc 12.2.0"
+  },
+  "workers": "not recorded",
+  "wall_time_s": "not recorded",
+  "summary_output": "zz_meas_nop    A=320      B=24300    delta=23980    cycles=1199     per-op=1.499\nzz_meas_div    A=320      B=552300   delta=551980   cycles=27599    per-op=34.499\nzz_meas_mul    A=320      B=40300    delta=39980    cycles=1999     per-op=2.499\nzz_meas_dv0    A=320      B=24300    delta=23980    cycles=1199     per-op=1.499",
+  "reruns_2026_10_01": [
+    "on a simulator built from c00c4db the recovered programs give exactly the same numbers, including the end of the first mcost.c run in the remu line",
+    "make bench-mcost on 03386fd gives the same numbers (results/m-unit-cycles/2026-10-01_03386fd)"
+  ],
+  "caveats": [
+    "The loop overhead was taken from the ALU loop, assuming an ALU operation costs one cycle; make bench-mcost measures it with an empty loop (399 cycles) and gives the same column."
+  ]
+}

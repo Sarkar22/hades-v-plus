@@ -1,0 +1,7 @@
+# Re-checked on 2026-10-01: make check-results CHECK_ARGS=freertos-validate reproduced this record exactly
+# with these files, which changed after the run and before they were committed (the files the
+# run used are in inputs.sha256 or under Inputs). Paths relative to the repository root; check
+# with: sha256sum -c results/freertos-validate/2026-10-01_03386fd/rechecked.sha256
+7dc1cff910406866f8fce3fb59470d0de1b18296830367f58dd6ba90cb54ffbe  Makefile
+a2c75591b33afce57aad8063d93574dbe1d708994528f1df0efba883fb357541  test/bench/bench.mk
+59805a70c512ca82d01d3887c6ae2c49502d37ce3b0bc35e6e0a58c62c65e007  test/freertos/campaign.py

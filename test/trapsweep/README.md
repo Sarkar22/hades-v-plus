@@ -53,7 +53,7 @@ python3 test/trapsweep/sweep.py run                      # every family x ext/ti
 python3 test/trapsweep/sweep.py run --fam csr,exc --src ext --targets dut
 python3 test/trapsweep/sweep.py fuzz --seeds 101-160                 # RV32I programs, DUT + golden
 python3 test/trapsweep/sweep.py fuzz --seeds 201-240 --variant m     # + M/Zba (DUT only)
-python3 test/trapsweep/sweep.py fuzz --seeds 301-330 --variant bp    # + branch predictor on (DUT only)
+python3 test/trapsweep/sweep.py fuzz --seeds 301-360 --variant bp    # + branch predictor on (DUT only)
 python3 test/trapsweep/sweep.py fuzz --seeds 401-430 --variant mt    # + csrrw mtvec (DUT + golden)
 python3 test/trapsweep/sweep.py run --tree ../other-checkout         # test another tree's RTL
 python3 test/trapsweep/sweep.py file my_probe.s                      # a hand-written program
@@ -66,7 +66,7 @@ frtos-model FRTOS_CPU=dut|ref FRTOS_RAM_KB=32` into `build/frtos-model/`
 `sim/top.sv` print every store to the trace window as `TRACE <cycle> <offset>
 <data>`. It is passive: without `+trace` nothing changes. The full `run` (61
 DUT and 51 golden programs, 62,868 + 49,566 iterations, 103,639 DUT trap
-entries, 13.4M + 10.3M cycles) takes about 20 s with the default 6 jobs. Output goes to `build/trapsweep/<mode>/`: `summary.txt`,
+entries, 13.4M + 10.3M cycles; [record](../../results/trapsweep/2026-10-01_03386fd/RECORD.md)) takes about 20 s with the default 6 jobs. Output goes to `build/trapsweep/<mode>/`: `summary.txt`,
 `results.json`, and per program `init.s`, `init.dis`, `ids.txt` (probe
 numbers), `dut/sim.log` and `ref/sim.log`.
 
@@ -164,22 +164,28 @@ None of them is a DUT problem.
 
 Developed during the trap/interrupt hardening of HaDes-V+, where it found two of
 the six bugs fixed in that work (the branch-predictor `next_pc` and the stale
-`mtvec` defects). Results with the current RTL (`sweep.py run`, all families,
-ext/timer/both):
+`mtvec` defects; [record](../../results/history/2026-09-27_6b19d41/RECORD.md)). Results
+with the current RTL (`sweep.py run`, all families, ext/timer/both;
+[record](../../results/trapsweep/2026-10-01_03386fd/RECORD.md)):
 
 * DUT: 61/61 programs ISS-consistent. Only the three `race` programs carry
   flags, and those are the expected bounded-latency ones.
-* golden: 25/51 ISS-consistent. Every flagged probe is a CSRRWI-0 or
-  `mtvec`-write probe, i.e. a known golden deviation.
+* golden: 25/51 ISS-consistent. Apart from the expected `race` flag of
+  `race_ext_0`, every flagged probe is a CSRRWI-0 or `mtvec`-write probe, i.e. a
+  known golden deviation. (`sweep.py` excuses the `race` family on the DUT only,
+  so `race_ext_0` counts as one of the 26 golden programs that are not
+  ISS-consistent.)
 * Before the `mtvec` fix, the DUT failed 32/61 programs, and every flagged
-  probe was one that writes `mtvec`.
+  probe was one that writes `mtvec`
+  ([record](../../results/history/2026-09-27_6b19d41/RECORD.md)).
 * fuzz: `i` 101-160 DUT 60/60, golden 60/60; `m` 201-240 DUT 40/40; `bp`
   301-360 DUT 60/60; `mt` 401-430 DUT 30/30, golden 30/30 (before the `mtvec`
-  fix: DUT 28/30).
+  fix: DUT 28/30, [record](../../results/history/2026-09-27_6b19d41/RECORD.md)).
 
 **Mutation check.** Each RTL fix was reverted on its own in a copy of the
 integrated tree. For every revert, `sweep.py run` (DUT) flags programs outside
-the `race` family, and so does the fix's own directed test in `test/asm/`:
+the `race` family, and so does the fix's own directed test in `test/asm/`
+([record](../../results/history/2026-09-27_6b19d41/RECORD.md)):
 
 | reverted fix | `sweep.py run`, DUT ISS-consistent | families flagged | directed tests that fail |
 |---|---|---|---|

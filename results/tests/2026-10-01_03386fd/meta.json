@@ -1,0 +1,771 @@
+{
+ "topic": "tests",
+ "id": "2026-10-01_03386fd",
+ "title": "Every self-checking suite of docs/VERIFICATION.md, re-run at 03386fd",
+ "status": "repeatable",
+ "date": "2026-10-01",
+ "base_commit": "03386fdda932f4827cded26e8cfc2a2cc531b365",
+ "run_from": "a fresh clone at 03386fd, repository root, default build directory build/ (no HADES_BUILD_DIR)",
+ "inputs": {
+  "git_trees": {
+   "rtl": "031b989be1f25dd20836028c5126a5b1dc562bd7",
+   "lib": "f90a9a64ddc67db6642bc6654545f1509744426b",
+   "defines": "36f0452de823189873ca8ac79d7a662918961ad6",
+   "sim": "0dad5608c126445abb808c5addd7b6e9d4df54c7",
+   "std": "05909d5f7dd5d23f80a2d11e127fdb79eb8a5468",
+   "ref": "b1cd1eebbcd4c675f36085ebfc96416192423721",
+   "test/asm": "31ad8c8119c7fc62ef082fbb6281fc7e8e9cbd40",
+   "test/c": "62c6f3967752d8cb4a231b82b7f0f85a69dd3266",
+   "test/sv": "69d1fb6e089a8de1473c4d31656ec70021b9e24b",
+   "test/freertos": "5cb0c42ab14390f060bd6d09bff6903020ac3432",
+   "third_party/freertos": "57da15398a605dce56c72d420bef3282ba2bb3cc",
+   "Makefile": "c24da7fcabf3a320f4dd556b69de540f75fc6a6e"
+  },
+  "ref_so_sha256": {
+   "libref_cpu_inner.so": "6dd4bdd3ad3462c00f293e9d12c8290a4ed9325917318ae7176cd07398e70c53",
+   "libref_decode_stage_inner.so": "9ce145fb84c37cbc8821a905539d1765aba624e68eb910eccac3c0ef6cb65386",
+   "libref_execute_stage_inner.so": "134a9042764d6054470ea162a5605c53813bfe18070d9d85adb7ed20b12b7ef6",
+   "libref_fetch_stage_inner.so": "c511f2524fde77c16ccf78940c6390658a1f546ac7ec158c6349cf95cc3a9b2b",
+   "libref_instruction_decoder_inner.so": "db3e926834ba5bce98b12824b191fee35d01adbd5da122129f6e928e22e8f599",
+   "libref_memory_stage_inner.so": "7752b252a54a4db856673c41678b24aca88822d8d17fd117e303ff4167505c7e",
+   "libref_register_file_inner.so": "cba27f176b457d700fe1291274f96916ba7cfa95c48f4ad21366f310450936fc",
+   "libref_writeback_stage_inner.so": "160867d03213e7d5dd85acfe68f598a3a59df9b43e66cd95fc266b1e2d9badac"
+  },
+  "program_images": "images.sha256"
+ },
+ "host": {
+  "cpu": "Intel Core Ultra 7 165H",
+  "threads": 22,
+  "os": "Linux"
+ },
+ "tools": {
+  "verilator": "Verilator 5.042 2025-11-02 rev v5.042",
+  "gcc": "riscv32-unknown-elf-gcc () 12.2.0",
+  "binutils": "GNU assembler (GNU Binutils) 2.39",
+  "python": "Python 3.12.3",
+  "make": "GNU Make 4.3",
+  "host_cxx": "g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+  "ccache": "ccache version 4.9.1 (warm cache)",
+  "git": "git version 2.43.0"
+ },
+ "workers": "three streams in parallel (programs, module benches, FreeRTOS), each running one command at a time",
+ "wall_time_s": {
+  "all_suites": 176,
+  "note": "08:24:55 to 08:27:51 local time for the three streams; per-suite wall times in results.csv include builds, which ccache made fast"
+ },
+ "figures": [
+  {
+   "suite": "asm/ops",
+   "command": "make test/asm/ops",
+   "exit_status": 0,
+   "wall_s": 0.4,
+   "output": [
+    "All tests passed! (# Errors: 1 = initial test)"
+   ],
+   "quoted": "All tests passed! (# Errors: 1 = initial test)",
+   "quoted_at": "docs/VERIFICATION.md:36; README.md:49,85"
+  },
+  {
+   "suite": "asm/forwarding",
+   "command": "make test/asm/forwarding",
+   "exit_status": 0,
+   "wall_s": 0.1,
+   "output": [
+    "All tests passed! (# Errors: 1 = initial test)"
+   ],
+   "quoted": "All tests passed! (# Errors: 1 = initial test)",
+   "quoted_at": "docs/VERIFICATION.md:37"
+  },
+  {
+   "suite": "asm/trap",
+   "command": "make test/asm/trap",
+   "exit_status": 0,
+   "wall_s": 0.0,
+   "output": [
+    "All tests passed! (# Errors: 1 = initial test)"
+   ],
+   "quoted": "All tests passed! (# Errors: 1 = initial test)",
+   "quoted_at": "docs/VERIFICATION.md:38"
+  },
+  {
+   "suite": "asm/trapirq",
+   "command": "make test/asm/trapirq",
+   "exit_status": 0,
+   "wall_s": 0.4,
+   "output": [
+    "All tests passed! (# Errors: 1 = initial test)"
+   ],
+   "quoted": "All tests passed! (# Errors: 1 = initial test)",
+   "quoted_at": "docs/VERIFICATION.md:39"
+  },
+  {
+   "suite": "asm/trapmpie",
+   "command": "make test/asm/trapmpie",
+   "exit_status": 0,
+   "wall_s": 0.0,
+   "output": [
+    "All tests passed! (# Errors: 1 = initial test)"
+   ],
+   "quoted": "All tests passed! (# Errors: 1 = initial test)",
+   "quoted_at": "docs/VERIFICATION.md:39"
+  },
+  {
+   "suite": "asm/csrirq",
+   "command": "make test/asm/csrirq",
+   "exit_status": 0,
+   "wall_s": 0.6,
+   "output": [
+    "All tests passed! (# Errors: 1 = initial test)"
+   ],
+   "quoted": "All tests passed! (# Errors: 1 = initial test)",
+   "quoted_at": "docs/VERIFICATION.md:39"
+  },
+  {
+   "suite": "asm/memirq",
+   "command": "make test/asm/memirq",
+   "exit_status": 0,
+   "wall_s": 0.6,
+   "output": [
+    "All tests passed! (# Errors: 1 = initial test)"
+   ],
+   "quoted": "All tests passed! (# Errors: 1 = initial test)",
+   "quoted_at": "docs/VERIFICATION.md:39"
+  },
+  {
+   "suite": "asm/mtvecirq",
+   "command": "make test/asm/mtvecirq",
+   "exit_status": 0,
+   "wall_s": 0.1,
+   "output": [
+    "All tests passed! (# Errors: 1 = initial test)"
+   ],
+   "quoted": "All tests passed! (# Errors: 1 = initial test)",
+   "quoted_at": "docs/VERIFICATION.md:39"
+  },
+  {
+   "suite": "asm/uartirq",
+   "command": "make test/asm/uartirq",
+   "exit_status": 0,
+   "wall_s": 0.2,
+   "output": [
+    "All tests passed! (# Errors: 1 = initial test)"
+   ],
+   "quoted": "All tests passed! (# Errors: 1 = initial test)",
+   "quoted_at": "docs/VERIFICATION.md:40"
+  },
+  {
+   "suite": "asm/mul",
+   "command": "make test/asm/mul",
+   "exit_status": 0,
+   "wall_s": 0.0,
+   "output": [
+    "All tests passed! (# Errors: 1 = initial test)"
+   ],
+   "quoted": "All tests passed! (# Errors: 1 = initial test)",
+   "quoted_at": "docs/VERIFICATION.md:41"
+  },
+  {
+   "suite": "asm/div",
+   "command": "make test/asm/div",
+   "exit_status": 0,
+   "wall_s": 0.1,
+   "output": [
+    "All tests passed! (# Errors: 1 = initial test)"
+   ],
+   "quoted": "All tests passed! (# Errors: 1 = initial test)",
+   "quoted_at": "docs/VERIFICATION.md:41"
+  },
+  {
+   "suite": "asm/zba",
+   "command": "make test/asm/zba",
+   "exit_status": 0,
+   "wall_s": 0.0,
+   "output": [
+    "All tests passed! (# Errors: 1 = initial test)"
+   ],
+   "quoted": "All tests passed! (# Errors: 1 = initial test)",
+   "quoted_at": "docs/VERIFICATION.md:42; docs/EXTENSIONS.md:113"
+  },
+  {
+   "suite": "asm/zbaadv",
+   "command": "make test/asm/zbaadv",
+   "exit_status": 0,
+   "wall_s": 0.1,
+   "output": [
+    "All tests passed! (# Errors: 1 = initial test)"
+   ],
+   "quoted": "All tests passed! (# Errors: 1 = initial test)",
+   "quoted_at": "docs/VERIFICATION.md:42; docs/EXTENSIONS.md:114"
+  },
+  {
+   "suite": "asm/zicntr",
+   "command": "make test/asm/zicntr",
+   "exit_status": 0,
+   "wall_s": 0.1,
+   "output": [
+    "All tests passed! (# Errors: 1 = initial test)"
+   ],
+   "quoted": "All tests passed! (# Errors: 1 = initial test)",
+   "quoted_at": "docs/VERIFICATION.md:43; docs/EXTENSIONS.md:147"
+  },
+  {
+   "suite": "asm/fencei",
+   "command": "make test/asm/fencei",
+   "exit_status": 0,
+   "wall_s": 0.1,
+   "output": [
+    "All tests passed! (# Errors: 1 = initial test)"
+   ],
+   "quoted": "All tests passed! (# Errors: 1 = initial test)",
+   "quoted_at": "docs/VERIFICATION.md:44"
+  },
+  {
+   "suite": "asm/fencerd",
+   "command": "make test/asm/fencerd",
+   "exit_status": 0,
+   "wall_s": 0.1,
+   "output": [
+    "All tests passed! (# Errors: 1 = initial test)"
+   ],
+   "quoted": "All tests passed! (# Errors: 1 = initial test)",
+   "quoted_at": "docs/VERIFICATION.md:44"
+  },
+  {
+   "suite": "asm/bpred",
+   "command": "make test/asm/bpred",
+   "exit_status": 0,
+   "wall_s": 0.1,
+   "output": [
+    "(  4380 ps) Test pass!",
+    "(  6800 ps) Test pass!",
+    "(  7900 ps) Test pass!",
+    "Inital test failed! (# Errors: 0)"
+   ],
+   "quoted": "three `Test pass!` lines, then `Inital test failed! (# Errors: 0)`",
+   "quoted_at": "docs/VERIFICATION.md:45; docs/EXTENSIONS.md:335-337"
+  },
+  {
+   "suite": "asm/bpirq",
+   "command": "make test/asm/bpirq",
+   "exit_status": 0,
+   "wall_s": 1.0,
+   "output": [
+    "M00000000 I00000140",
+    "All tests passed! (# Errors: 1 = initial test)"
+   ],
+   "quoted": "All tests passed! (# Errors: 1 = initial test)",
+   "quoted_at": "docs/VERIFICATION.md:46; docs/EXTENSIONS.md:349"
+  },
+  {
+   "suite": "asm/bpirq2",
+   "command": "make test/asm/bpirq2",
+   "exit_status": 0,
+   "wall_s": 0.7,
+   "output": [
+    "M00000000 I00000180",
+    "All tests passed! (# Errors: 1 = initial test)"
+   ],
+   "quoted": "All tests passed! (# Errors: 1 = initial test)",
+   "quoted_at": "docs/VERIFICATION.md:46; docs/EXTENSIONS.md:350"
+  },
+  {
+   "suite": "asm/bpirq3",
+   "command": "make test/asm/bpirq3",
+   "exit_status": 0,
+   "wall_s": 1.0,
+   "output": [
+    "D00000000 E00000000 F00000000 I000001e0 C00000500",
+    "All tests passed! (# Errors: 1 = initial test)"
+   ],
+   "quoted": "All tests passed! (# Errors: 1 = initial test)",
+   "quoted_at": "docs/VERIFICATION.md:46; docs/EXTENSIONS.md:351"
+  },
+  {
+   "suite": "c/m_extension",
+   "command": "make test/c/m_extension",
+   "exit_status": 0,
+   "wall_s": 1.1,
+   "output": [
+    "M-EXT checks=200 errors=0",
+    "M-EXT PASS",
+    "Inital test failed! (# Errors: 0)"
+   ],
+   "quoted": "`M-EXT checks=200 errors=0`, `M-EXT PASS`, then `Inital test failed! (# Errors: 0)`",
+   "quoted_at": "docs/VERIFICATION.md:47; README.md:89; docs/EXTENSIONS.md:73"
+  },
+  {
+   "suite": "c/bootloader",
+   "command": "make test/c/bootloader",
+   "exit_status": 0,
+   "wall_s": 1.4,
+   "output": [
+    "INFO: Bootloader started!",
+    "INFO: Ready to receive .hex file...",
+    "Simulation timeout!"
+   ],
+   "quoted": "`INFO: Bootloader started!`; ... until the simulation's cycle limit (`Simulation timeout!`)",
+   "quoted_at": "docs/VERIFICATION.md:48"
+  },
+  {
+   "suite": "c/hello_world",
+   "command": "make test/c/hello_world",
+   "exit_status": 0,
+   "wall_s": 0.1,
+   "output": [
+    "Inital test failed! (# Errors: 0)"
+   ],
+   "quoted": "Inital test failed! (# Errors: 0)",
+   "quoted_at": "docs/VERIFICATION.md:88"
+  },
+  {
+   "suite": "c/test_csr",
+   "command": "make test/c/test_csr",
+   "exit_status": 0,
+   "wall_s": 0.1,
+   "output": [
+    "Inital test failed! (# Errors: 0)"
+   ],
+   "quoted": "Inital test failed! (# Errors: 0)",
+   "quoted_at": "docs/VERIFICATION.md:88"
+  },
+  {
+   "suite": "c/test_mcycle",
+   "command": "make test/c/test_mcycle",
+   "exit_status": 0,
+   "wall_s": 0.1,
+   "output": [
+    "Inital test failed! (# Errors: 0)"
+   ],
+   "quoted": "Inital test failed! (# Errors: 0)",
+   "quoted_at": "docs/VERIFICATION.md:88"
+  },
+  {
+   "suite": "c/bp_benchmark",
+   "command": "make test/c/bp_benchmark",
+   "exit_status": 0,
+   "wall_s": 0.4,
+   "output": [
+    "BP benchmark N=100",
+    "M0: cyc=000005a1 NN=00000020 NT=000001cb TN=00000000 TT=00000000",
+    "M3: cyc=000004db NN=00000007 NT=00000004 TN=00000035 TT=0000036f",
+    "Inital test failed! (# Errors: 0)"
+   ],
+   "quoted": "Inital test failed! (# Errors: 0)",
+   "quoted_at": "docs/VERIFICATION.md:88"
+  },
+  {
+   "suite": "c/basys3_demo",
+   "command": "make test/c/basys3_demo",
+   "exit_status": 0,
+   "wall_s": 1.5,
+   "output": [
+    "Simulation timeout!"
+   ],
+   "quoted": "runs until the simulation's cycle limit (`Simulation timeout!`)",
+   "quoted_at": "docs/VERIFICATION.md:88"
+  },
+  {
+   "suite": "sv/test_decode_exhaustive",
+   "command": "make test/sv/test_decode_exhaustive",
+   "exit_status": 0,
+   "wall_s": 0.7,
+   "output": [
+    "All 11026 checks PASSED — dut matches ref!"
+   ],
+   "quoted": "All 11026 checks PASSED — dut matches ref!",
+   "quoted_at": "docs/VERIFICATION.md:54; README.md:51,86"
+  },
+  {
+   "suite": "sv/test_decode_compare",
+   "command": "make test/sv/test_decode_compare",
+   "exit_status": 0,
+   "wall_s": 0.2,
+   "output": [
+    "All 86 checks passed — dut matches ref!"
+   ],
+   "quoted": "All 86 checks passed — dut matches ref!",
+   "quoted_at": "docs/VERIFICATION.md:55"
+  },
+  {
+   "suite": "sv/test_decode_hazard",
+   "command": "make test/sv/test_decode_hazard",
+   "exit_status": 0,
+   "wall_s": 0.2,
+   "output": [
+    "All tests passed! (# Errors:    0)"
+   ],
+   "quoted": "All tests passed! (# Errors: 0)",
+   "quoted_at": "docs/VERIFICATION.md:56"
+  },
+  {
+   "suite": "sv/test_zba_encoding_sweep",
+   "command": "make test/sv/test_zba_encoding_sweep",
+   "exit_status": 0,
+   "wall_s": 0.3,
+   "output": [
+    "WIDTH: $bits(op::t)=6  $bits(instruction::t)=65  (ref inner port is [64:0])",
+    "ENUM: ILLEGAL=49 SH1ADD=50 SH2ADD=51 SH3ADD=52  (ILLEGAL must still be 49)",
+    "ENUM: MUL=53 MULH=54 MULHSU=55 MULHU=56 DIV=57 DIVU=58 REM=59 REMU=60",
+    "=== SWEEP A: every opcode x funct3 x funct7 (rd=x10 rs1=x11 rs2=x12) ===",
+    "    after A: checks=131072 errors=0 zba_hits=3",
+    "=== SWEEP B: OP opcode, all funct7 x funct3, 8 register triples ===",
+    "    after B: checks=139264 errors=0 zba_hits=27",
+    "=== SWEEP C: 150000 random 32-bit words ===",
+    "    after C: checks=289264 errors=0 zba_hits=30",
+    "=== SWEEP D: OP-IMM opcode, all funct7-position x funct3 ===",
+    "    after D: checks=290288 errors=0",
+    "All 290288 encoding checks passed — dut op matches ref everywhere except the Zba and M words"
+   ],
+   "quoted": "All 290288 encoding checks passed — dut op matches ref everywhere except the Zba and M words",
+   "quoted_at": "docs/VERIFICATION.md:57; README.md:87; docs/EXTENSIONS.md:74,89,115,128"
+  },
+  {
+   "suite": "sv/test_m_execute",
+   "command": "make test/sv/test_m_execute",
+   "exit_status": 0,
+   "wall_s": 0.9,
+   "output": [
+    "    MEASURED: multiply = 2 cycles, divide = 34 cycles, early-out divide = 1 cycle(s)",
+    "  Checks: 6268   Errors: 0",
+    "All 6268 M-extension checks passed"
+   ],
+   "quoted": "All 6268 M-extension checks passed",
+   "quoted_at": "docs/VERIFICATION.md:58; README.md:88; docs/EXTENSIONS.md:70"
+  },
+  {
+   "suite": "sv/test_execute_bpred_nextpc",
+   "command": "make test/sv/test_execute_bpred_nextpc",
+   "exit_status": 0,
+   "wall_s": 0.3,
+   "output": [
+    "next_program_counter mismatches vs golden: 0",
+    "All 40000 branch-prediction next-PC checks passed"
+   ],
+   "quoted": "All 40000 branch-prediction next-PC checks passed",
+   "quoted_at": "docs/VERIFICATION.md:59; docs/EXTENSIONS.md:352"
+  },
+  {
+   "suite": "sv/test_execute_compare",
+   "command": "make test/sv/test_execute_compare",
+   "exit_status": 0,
+   "wall_s": 0.7,
+   "output": [
+    "  Tests: 142   Errors: 30",
+    "SOME TESTS FAILED"
+   ],
+   "quoted": "Tests: 142 Errors: 30 (baseline)",
+   "quoted_at": "docs/VERIFICATION.md:60,256"
+  },
+  {
+   "suite": "sv/test_memory_compare",
+   "command": "make test/sv/test_memory_compare",
+   "exit_status": 0,
+   "wall_s": 0.8,
+   "output": [
+    "  Tests: 98   Errors: 6",
+    "SOME TESTS FAILED"
+   ],
+   "quoted": "Tests: 98 Errors: 6 (baseline)",
+   "quoted_at": "docs/VERIFICATION.md:61,257"
+  },
+  {
+   "suite": "sv/test_writeback_compare",
+   "command": "make test/sv/test_writeback_compare",
+   "exit_status": 0,
+   "wall_s": 0.8,
+   "output": [
+    "  Tests: 111   Errors: 7",
+    "SOME TESTS FAILED"
+   ],
+   "quoted": "Tests: 111 Errors: 7 (baseline)",
+   "quoted_at": "docs/VERIFICATION.md:62,258"
+  },
+  {
+   "suite": "sv/test_writeback_special_irq",
+   "command": "make test/sv/test_writeback_special_irq",
+   "exit_status": 0,
+   "wall_s": 0.7,
+   "output": [
+    "  Tests: 51   Errors: 24",
+    "SOME TESTS FAILED"
+   ],
+   "quoted": "Tests: 51 Errors: 24 (baseline)",
+   "quoted_at": "docs/VERIFICATION.md:63,259"
+  },
+  {
+   "suite": "sv/test_writeback_persephone_case1",
+   "command": "make test/sv/test_writeback_persephone_case1",
+   "exit_status": 0,
+   "wall_s": 0.2,
+   "output": [
+    "- test/sv/test_writeback_persephone_case1.sv:226: Verilog $finish"
+   ],
+   "quoted": "prints both stages' outputs; no verdict of its own",
+   "quoted_at": "docs/VERIFICATION.md:89"
+  },
+  {
+   "suite": "sv/test_writeback_persephone_case2",
+   "command": "make test/sv/test_writeback_persephone_case2",
+   "exit_status": 0,
+   "wall_s": 0.2,
+   "output": [
+    "- test/sv/test_writeback_persephone_case2.sv:217: Verilog $finish"
+   ],
+   "quoted": "prints both stages' outputs; no verdict of its own",
+   "quoted_at": "docs/VERIFICATION.md:89"
+  },
+  {
+   "suite": "sv/test_writeback_persephone_case13",
+   "command": "make test/sv/test_writeback_persephone_case13",
+   "exit_status": 0,
+   "wall_s": 0.2,
+   "output": [
+    "- test/sv/test_writeback_persephone_case13.sv:310: Verilog $finish"
+   ],
+   "quoted": "prints both stages' outputs; no verdict of its own",
+   "quoted_at": "docs/VERIFICATION.md:89"
+  },
+  {
+   "suite": "sv/test_example",
+   "command": "make test/sv/test_example",
+   "exit_status": 2,
+   "wall_s": 0.1,
+   "output": [
+    "%Error-FUNCTIMECTL: test/sv/test_example.sv:134:9: Functions cannot contain time-controlling statements (IEEE 1800-2023 13.4)",
+    "%Error-FUNCTIMECTL: test/sv/test_example.sv:134:25: Functions cannot contain time-controlling statements (IEEE 1800-2023 13.4)",
+    "%Error-FUNCTIMECTL: test/sv/test_example.sv:139:9: Functions cannot contain time-controlling statements (IEEE 1800-2023 13.4)",
+    "%Error-FUNCTIMECTL: test/sv/test_example.sv:139:25: Functions cannot contain time-controlling statements (IEEE 1800-2023 13.4)",
+    "%Error-FUNCTIMECTL: test/sv/test_example.sv:140:9: Functions cannot contain time-controlling statements (IEEE 1800-2023 13.4)",
+    "%Error-FUNCTIMECTL: test/sv/test_example.sv:140:25: Functions cannot contain time-controlling statements (IEEE 1800-2023 13.4)",
+    "%Error: Exiting due to 6 error(s)"
+   ],
+   "quoted": "does not build with Verilator 5.042 (`%Error-FUNCTIMECTL: ... Functions cannot contain time-controlling statements`)",
+   "quoted_at": "docs/VERIFICATION.md:90"
+  },
+  {
+   "suite": "freertos minimal",
+   "command": "make freertos APP=minimal",
+   "exit_status": 0,
+   "wall_s": 3.2,
+   "output": [
+    "  minimal: RAM 32 KiB, image+bss 15808 bytes (text 9536, rodata 856, data 16, bss 5400)",
+    "(224280 ps) Test fail!",
+    "  config: tick=10000cyc preempt=1 slice=1 heap_4 isa=rv32i opt=2 ram=32K bpred=0",
+    "  seed: switches=00000000 seed=641ed1ca",
+    "  ticks=309 notifications=113 idle=145732 isr-stack-peak=172/2048",
+    "FRTOS-RESULT: PASS mtime=0000000000305be6",
+    "(63414400 ps) Test pass!",
+    "FREERTOS RESULT: PASS  app=minimal cpu=dut isa=rv32i opt=-O2 tick=10000 bpred=0 seed=0 cycles=3169254",
+    "  UART pattern lines intact: 3/3"
+   ],
+   "quoted": "FREERTOS RESULT: PASS, cycles=3169254",
+   "quoted_at": "docs/VERIFICATION.md:72; README.md:53; docs/FREERTOS.md:160-176,189,192,198,201"
+  },
+  {
+   "suite": "freertos stress",
+   "command": "make freertos APP=stress",
+   "exit_status": 0,
+   "wall_s": 4.5,
+   "output": [
+    "  stress: RAM 32 KiB, image+bss 31964 bytes (text 20716, rodata 2316, data 20, bss 8912)",
+    "  ticks=501 irq-profile=1 ext-irqs=746 sem=743 ntfy=614 crit-yields=514 uart-lines=37",
+    "FRTOS-RESULT: PASS mtime=00000000004eaf2f",
+    "FREERTOS RESULT: PASS  app=stress cpu=dut isa=rv32i opt=-O2 tick=10000 bpred=0 seed=0 cycles=5156655",
+    "  UART pattern lines intact: 57/57"
+   ],
+   "quoted": "FREERTOS RESULT: PASS, cycles=5156655",
+   "quoted_at": "docs/VERIFICATION.md:73; docs/FREERTOS.md:257,261"
+  },
+  {
+   "suite": "freertos mzba (rv32im_zba)",
+   "command": "make freertos APP=mzba MARCH=rv32im_zba",
+   "exit_status": 0,
+   "wall_s": 4.3,
+   "output": [
+    "  mzba: RAM 32 KiB, image+bss 25084 bytes (text 14108, rodata 2388, data 16, bss 8572)",
+    "  ticks=501 divstorm=82 mrand=743 array=274 isr=1887 rt1=219 rt2=10317",
+    "FRTOS-RESULT: PASS mtime=00000000005603eb",
+    "FREERTOS RESULT: PASS  app=mzba cpu=dut isa=rv32im_zba opt=-O2 tick=10000 bpred=0 seed=0 cycles=5637099",
+    "  UART pattern lines intact: 59/59"
+   ],
+   "quoted": "FREERTOS RESULT: PASS, cycles=5637099",
+   "quoted_at": "docs/VERIFICATION.md:74; docs/EXTENSIONS.md:123"
+  },
+  {
+   "suite": "freertos full",
+   "command": "make freertos APP=full",
+   "exit_status": 0,
+   "wall_s": 89.6,
+   "output": [
+    "  full: RAM 256 KiB, image+bss 208864 bytes (text 78500, rodata 3000, data 52, bss 127312)",
+    "FRTOS-RESULT: PASS mtime=0000000008fb366f",
+    "- Verilator: $finish at 3ms; walltime 87.191 s; speed 34.571 us/s",
+    "FREERTOS RESULT: PASS  app=full cpu=dut isa=rv32i opt=-O2 tick=10000 bpred=0 seed=0 cycles=150681199",
+    "  UART pattern lines intact: 3/3"
+   ],
+   "quoted": "FREERTOS RESULT: PASS, cycles=150681199",
+   "quoted_at": "docs/VERIFICATION.md:75; README.md:92,116"
+  },
+  {
+   "suite": "freertos-compare stress seed 7",
+   "command": "make freertos-compare APP=stress SEED=7",
+   "exit_status": 0,
+   "wall_s": 8.2,
+   "output": [
+    "FREERTOS RESULT: PASS  app=stress cpu=dut isa=rv32i opt=-O2 tick=10000 bpred=0 seed=7 cycles=5156380",
+    "FREERTOS RESULT: PASS  app=stress cpu=golden isa=rv32i opt=-O2 tick=10000 bpred=0 seed=7 cycles=5155907",
+    "COMPARE  dut: PASS   (5156380 cycles)   golden: PASS   (5155907 cycles)",
+    "AGREE: the program passed on both CPUs. (Cycle counts differ legitimately: the golden"
+   ],
+   "quoted": "AGREE: HaDes-V+ 5156380 cycles, golden CPU 5155907",
+   "quoted_at": "docs/VERIFICATION.md:76; docs/FREERTOS.md:258; docs/ARCHITECTURE.md:163"
+  },
+  {
+   "suite": "freertos-compare minimal",
+   "command": "make freertos-compare APP=minimal",
+   "exit_status": 0,
+   "wall_s": 5.0,
+   "output": [
+    "FREERTOS RESULT: PASS  app=minimal cpu=dut isa=rv32i opt=-O2 tick=10000 bpred=0 seed=0 cycles=3169254",
+    "FREERTOS RESULT: PASS  app=minimal cpu=golden isa=rv32i opt=-O2 tick=10000 bpred=0 seed=0 cycles=3169246",
+    "COMPARE  dut: PASS   (3169254 cycles)   golden: PASS   (3169246 cycles)",
+    "AGREE: the program passed on both CPUs. (Cycle counts differ legitimately: the golden"
+   ],
+   "quoted": "COMPARE  dut: PASS   (3169254 cycles)   golden: PASS   (3169246 cycles)",
+   "quoted_at": "docs/FREERTOS.md:223-243"
+  },
+  {
+   "suite": "freertos-check-rebuild",
+   "command": "make freertos-check-rebuild",
+   "exit_status": 0,
+   "wall_s": 16.6,
+   "output": [
+    "step 1 [ok] knobs: (defaults)",
+    "step 2 [ok] knobs: FRTOS_TICK=5000",
+    "step 3 [ok] knobs: FRTOS_TICK=5000",
+    "step 4 [ok] knobs: FRTOS_TICK=5000 FRTOS_BPRED=3",
+    "step 5 [ok] knobs: FRTOS_MARCH=rv32im",
+    "step 6 [ok] knobs: FRTOS_MARCH=rv32im FRTOS_OPT=-Os",
+    "step 7 [ok] knobs: FRTOS_PREEMPT=0",
+    "step 8 [ok] knobs: (defaults)",
+    "REBUILD CHECK: PASS (8 runs, every run used the configuration it was given)"
+   ],
+   "quoted": "REBUILD CHECK: PASS (8 runs, every run used the configuration it was given)",
+   "quoted_at": "docs/VERIFICATION.md:78; docs/FREERTOS.md:337-344; test/freertos/README.md:78-82"
+  },
+  {
+   "suite": "freertos-shell-test",
+   "command": "make freertos-shell-test",
+   "exit_status": 0,
+   "wall_s": 3.1,
+   "output": [
+    "  shell: RAM 32 KiB, image+bss 31616 bytes (text 20972, rodata 4624, data 28, bss 5992)",
+    "FREERTOS SHELL RESULT: PASS  app=shell cpu=dut isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=2278845",
+    "  typed lines: 39, prompts: 39, expectations met: 120/120"
+   ],
+   "quoted": "FREERTOS SHELL RESULT: PASS, cycles=2278845, expectations met: 120/120",
+   "quoted_at": "docs/VERIFICATION.md:79; README.md:93; docs/FREERTOS.md:625-639; test/freertos/README.md:102-103"
+  },
+  {
+   "suite": "freertos-shell-compare",
+   "command": "make freertos-shell-compare",
+   "exit_status": 0,
+   "wall_s": 3.9,
+   "output": [
+    "FREERTOS SHELL RESULT: PASS  app=shell cpu=dut isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=2278845",
+    "  typed lines: 39, prompts: 39, expectations met: 120/120",
+    "FREERTOS SHELL RESULT: PASS  app=shell cpu=golden isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=2225212",
+    "  typed lines: 39, prompts: 39, expectations met: 121/121",
+    "SHELL COMPARE: SAME  40 blocks, 158 lines equal after normalising numbers;",
+    "  lines labelled source:/cpu:/mode:/accuracy: (M, Zba, Zicntr, branch predictor) excluded"
+   ],
+   "quoted": "SHELL COMPARE: SAME  40 blocks, 158 lines equal after normalising numbers",
+   "quoted_at": "docs/VERIFICATION.md:80; README.md:93; docs/FREERTOS.md:644-655; test/freertos/README.md:102-103"
+  },
+  {
+   "suite": "freertos-shell-tty-test",
+   "command": "make freertos-shell-tty-test",
+   "exit_status": 0,
+   "wall_s": 35.0,
+   "output": [
+    "  PASS  paste          13 lines pasted at once (104 characters): all ran, none dropped",
+    "TTY TEST: PASS  (22 of 22 cases passed)"
+   ],
+   "quoted": "TTY TEST: PASS  (22 of 22 cases passed)",
+   "quoted_at": "docs/VERIFICATION.md:81; docs/FREERTOS.md:688-698"
+  },
+  {
+   "suite": "freertos template with IRQ (myapp)",
+   "command": "make freertos-compare APP=myapp DEFS=-DTEMPLATE_WITH_IRQ=1",
+   "exit_status": 0,
+   "wall_s": 2.3,
+   "output": [
+    "  received 20 items in order; main/ISR stack used 172/1024 bytes; external interrupts 128",
+    "FREERTOS RESULT: PASS  app=myapp cpu=dut isa=rv32i opt=-O2 tick=10000 bpred=0 seed=0 cycles=1097006",
+    "  received 20 items in order; main/ISR stack used 172/1024 bytes; external interrupts 128",
+    "FREERTOS RESULT: PASS  app=myapp cpu=golden isa=rv32i opt=-O2 tick=10000 bpred=0 seed=0 cycles=1096985",
+    "COMPARE  dut: PASS   (1097006 cycles)   golden: PASS   (1096985 cycles)",
+    "AGREE: the program passed on both CPUs. (Cycle counts differ legitimately: the golden"
+   ],
+   "quoted": "PASS after 20 items; `external interrupts 128`",
+   "quoted_at": "docs/FREERTOS.md:349,386-396"
+  },
+  {
+   "suite": "freertos-list",
+   "command": "make freertos-list",
+   "exit_status": 0,
+   "wall_s": "",
+   "output": [
+    "  brk        RTOS-level breaker: interrupt storms, tick catch-up, task churn, fence.i, deliberate exceptions; 64 KiB",
+    "  full       the FreeRTOS standard demo task set (official RISC-V QEMU full_demo) + RegTest; 256 KiB, simulation only",
+    "  minimal    two application tasks + idle (notification ping-pong, idle progress, tick drift); 32 KiB",
+    "  mzba       M and Zba code under the RTOS, checked against an rv32i software build of the same code; 32 KiB",
+    "  shell      interactive command shell (FreeRTOS+CLI) on the UART; make freertos-shell; 32 KiB",
+    "  stress     RegTest, desynchronised queues, ISR-fed semaphores, critical-section and slow-bus checks; 32 KiB",
+    "  template   starting point for your own program (copy it: make freertos-new NAME=<name>)"
+   ],
+   "quoted": "the program list",
+   "quoted_at": "docs/FREERTOS.md:135-147"
+  },
+  {
+   "suite": "campaign.py --set standard --list",
+   "command": "python3 test/freertos/campaign.py --set standard --list",
+   "exit_status": 0,
+   "wall_s": "",
+   "output": [
+    "55 variants listed"
+   ],
+   "quoted": "SET=standard runs 55 configurations",
+   "quoted_at": "docs/FREERTOS.md:301"
+  },
+  {
+   "suite": "vendored FreeRTOS checksums",
+   "command": "cd third_party/freertos && sha256sum -c MANIFEST",
+   "exit_status": 0,
+   "wall_s": 0.0,
+   "output": [
+    "76 files ': OK', 0 other lines"
+   ],
+   "quoted": "76 files; each matches MANIFEST",
+   "quoted_at": "third_party/freertos/README.md:41-47,74"
+  }
+ ],
+ "files": {
+  "results.csv": "one row per suite: command, exit status, wall time, verbatim output, text as quoted, where quoted",
+  "baseline-diffs.txt": "every differing check of the four golden-comparison benches (30+6+7+24 lines)",
+  "images.sha256": "sha256 of the init.mem image of every program run"
+ },
+ "related_records": [
+  "results/trapsweep/2026-10-01_03386fd",
+  "results/formal/2026-09-28_588d76a",
+  "results/freertos-validate/2026-10-01_03386fd (make freertos-stress)"
+ ],
+ "caveats": [
+  "Every result equals the documented one. Where the documentation quotes a line it collapses runs of spaces: the benches print 'All tests passed! (# Errors:    0)' and '  Tests: 142   Errors: 30'.",
+  "make test/sv/test_example exits with status 2: the documented Verilator build error (FUNCTIMECTL), not a test failure.",
+  "Wall times were measured with a warm ccache (every simulator compile was a cache hit), so first builds on a fresh machine take longer; the documented 'about 20 seconds' and 'about 15 seconds' for the first simulator builds (docs/FREERTOS.md:155,229) were therefore not measured.",
+  "make freertos-stress (the validate campaign, docs/VERIFICATION.md:77, README.md:91) is recorded separately under results/freertos-validate/; the formal proof (docs/VERIFICATION.md:82) under results/formal/; the trap sweep (docs/VERIFICATION.md:71) under results/trapsweep/.",
+  "The template row follows docs/FREERTOS.md section 8 literally: make freertos-new NAME=myapp, then make freertos-compare APP=myapp DEFS=-DTEMPLATE_WITH_IRQ=1 (the copy was removed again before make freertos-list was run).",
+  "The size line in the recorded output of minimal, stress, mzba, full and freertos-shell-test is printed only when the command links the program (a new build directory, in the order of the commands, or after removing build/test/freertos/<app>/out.elf); results/check.sh removes that file before each of these commands."
+ ]
+}

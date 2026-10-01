@@ -1,0 +1,122 @@
+{
+ "record": "results/m-unit-cycles/2026-10-01_03386fd",
+ "topic": "m-unit-cycles",
+ "status": "repeatable",
+ "date": "2026-10-01",
+ "base_commit": "03386fdda932f4827cded26e8cfc2a2cc531b365",
+ "figures": [
+  {
+   "figure": "Measured column: any RV32I ALU op 1.00",
+   "value": "loop_addi (1199 - 399) / 800 = 1.00",
+   "quoted_in": [
+    "docs/EXTENSIONS.md:49"
+   ]
+  },
+  {
+   "figure": "Measured column: mul / mulh / mulhsu / mulhu 2.00",
+   "value": "loop_mul (1999 - 399) / 800 = 2.00; mcost.c mul, mulh, mulhsu, mulhu 1282 cycles each: 2.00",
+   "quoted_in": [
+    "docs/EXTENSIONS.md:50"
+   ]
+  },
+  {
+   "figure": "Measured column: div / divu / rem / remu 34.00",
+   "value": "loop_div (27599 - 399) / 800 = 34.00; mcost.c div, divu, rem, remu 17666 cycles each: 34.00",
+   "quoted_in": [
+    "docs/EXTENSIONS.md:51"
+   ]
+  },
+  {
+   "figure": "Measured column: div / rem by zero, or -2^31 / -1 1.00",
+   "value": "loop_div0 (1199 - 399) / 800 = 1.00; mcost.c div-by-0, remu-by-0, div-ovf 770 cycles each: 1.00",
+   "quoted_in": [
+    "docs/EXTENSIONS.md:52"
+   ]
+  },
+  {
+   "figure": "over 800 back-to-back operations, loop overhead subtracted",
+   "value": "100 iterations x 8; loop overhead 399 cycles (loop_empty)",
+   "quoted_in": [
+    "docs/EXTENSIONS.md:54"
+   ]
+  },
+  {
+   "figure": "Cycles in Execute column (stage level, related)",
+   "value": "MEASURED: multiply = 2 cycles, divide = 34 cycles, early-out divide = 1 cycle(s)",
+   "quoted_in": [
+    "docs/EXTENSIONS.md:47-52"
+   ]
+  }
+ ],
+ "commands": [
+  "make bench-mcost",
+  "make test/sv/test_m_execute"
+ ],
+ "inputs": {
+  "base_commit_trees": {
+   "rtl": "031b989be1f25dd20836028c5126a5b1dc562bd7",
+   "lib": "f90a9a64ddc67db6642bc6654545f1509744426b",
+   "defines": "36f0452de823189873ca8ac79d7a662918961ad6",
+   "sim": "0dad5608c126445abb808c5addd7b6e9d4df54c7",
+   "std": "05909d5f7dd5d23f80a2d11e127fdb79eb8a5468",
+   "ref": "b1cd1eebbcd4c675f36085ebfc96416192423721"
+  },
+  "files_sha256": {
+   "Makefile": "1dcbe87eb8bef2f178223568dff041ee1e5a2dcb5ff1ed7ec5dd30de42be28ff",
+   "test/bench/bench.mk": "1bd837d36516358dff9b3a236696f5707d387017702062f4a37a834879fca1a2",
+   "test/bench/bench.py": "f7aa19b1f0e7456b3f7dcf9e862e1bce6a8e382575d4fe7d455cdd3de0f8b1d6",
+   "test/bench/mcost/loop_empty.s": "de672f5f7063f0f4c0eef307a2ed814a08db42a4d5250fd86b7a7da8f7244d8a",
+   "test/bench/mcost/loop_addi.s": "754954cc17e0acfe961095c87cf9623dd34d5fa8c140a44bfff419e921840070",
+   "test/bench/mcost/loop_mul.s": "98fb894b2bf5ada399f63e2327879224a65e0b03a813871d167951c8e566fd9e",
+   "test/bench/mcost/loop_div.s": "305fde42a2a21acf5578507932eb9641b8e4e94fb5b9e44c0589876d0c4e8d7e",
+   "test/bench/mcost/loop_div0.s": "bd2c64946fd86b2961073b77b2edc4f00c31beb60b3c6828bfdd46005b335aaa",
+   "test/bench/mcost/mcost.c": "8646f6b8997142fc8549df44ac74fd6ae9181bf9f1b1ea737503f3b1986a1908"
+  }
+ },
+ "outputs_sha256": {
+  "build/test/bench/mcost/loop_empty/init.mem": "d685c4004702b3379fd6be3f4b5f6c1a40e03fc0cfaa88f4829d247ca06cfde9",
+  "build/test/bench/mcost/loop_addi/init.mem": "44f561ef0fd77d2a0aca89e56ed6dea85dee4a0d1e3b1f814cc5feeb158113e7",
+  "build/test/bench/mcost/loop_mul/init.mem": "57a3b62e93f3325af208a0e70b8efdc55df7a3d94b9da35acce418d68691146c",
+  "build/test/bench/mcost/loop_div/init.mem": "009972bd8788f9a289545a82904d2b4b93883e76fad8ed7b150288200597d252",
+  "build/test/bench/mcost/loop_div0/init.mem": "29592b7d2b7edf7e7cf9b75879d9bd9fb9867f09a12986b3cf01ef50d3222ff2",
+  "build/test/bench/mcost/mcost/init.mem": "e4dcee959b2eca72b11551c937b67fdc3e2684b58da42dc9490ce6c535850a84",
+  "build/test/bench/mcost/mcost/out.elf": "1f83235434a52982d95eb950080bb2b485531d1593af101d8cdf33a169b1b549"
+ },
+ "host": {
+  "cpu": "Intel Core Ultra 7 165H",
+  "threads": 22,
+  "os": "Linux"
+ },
+ "tools": {
+  "verilator": "Verilator 5.042 2025-11-02 rev v5.042",
+  "gcc": "riscv32-unknown-elf-gcc () 12.2.0",
+  "binutils": "GNU assembler (GNU Binutils) 2.39",
+  "python": "Python 3.12.3",
+  "make": "GNU Make 4.3"
+ },
+ "workers": 1,
+ "wall_time_s": {
+  "make bench-mcost (simulator built, programs built and run)": 0.36,
+  "make bench-mcost (runs only)": 0.14
+ },
+ "summary_output": "M-unit cycle costs (test/bench/mcost)\n\n  800-op loops: 100 iterations of 8 back-to-back instructions, timed between two\n  test-peripheral markers (20 time units per cycle)\n  program     loop body           cycles   per op  per op, loop overhead subtracted\n  loop_empty  (empty body)           399    0.499  -\n  loop_addi   addi s1, t5, 0        1199    1.499  1.00\n  loop_mul    mul  s1, t5, t6       1999    2.499  2.00\n  loop_div    div  s1, t5, t6      27599   34.499  34.00\n  loop_div0   div  s1, t5, zero     1199    1.499  1.00\n  loop overhead (loop_empty): 399 cycles, 0.499 per op\n\n  mcost.c (rv32im -O2): 64 iterations of 8 identical instructions (512), mcycle;\n  per op = (cycles - cycles of base-add) / 512 + 1, the 1 being the ADD measured above\n  base-add        770     1.00\n  mul            1282     2.00\n  mulh           1282     2.00\n  mulhsu         1282     2.00\n  mulhu          1282     2.00\n  div           17666    34.00\n  divu          17666    34.00\n  rem           17666    34.00\n  remu          17666    34.00\n  div-by-0        770     1.00\n  remu-by-0       770     1.00\n  div-ovf         770     1.00\n\n  docs/EXTENSIONS.md \"Measured\" column   documented  800-op loops  mcost.c\n  any RV32I ALU op                             1.00          1.00  (reference)\n  mul / mulh / mulhsu / mulhu                  2.00          2.00  2.00 2.00 2.00 2.00\n  div / divu / rem / remu                     34.00         34.00  34.00 34.00 34.00 34.00\n  div / rem by zero, or -2^31 / -1             1.00          1.00  1.00 1.00 1.00\n\nBENCH MCOST: PASS\n",
+ "test_m_execute_output": "MEASURED: multiply = 2 cycles, divide = 34 cycles, early-out divide = 1 cycle(s)\nChecks: 6268   Errors: 0",
+ "caveats": [
+  "The 800-operation loops are the programs of the 2026-08-18 measurement; loop_empty.s, which measures the loop overhead, was added on 2026-10-01 (the 2026-08-18 measurement subtracted the overhead implied by the ALU loop, 0.499 cycles per operation, which is the same 399 cycles).",
+  "Operands: t5 = 1000003, t6 = 7 for the loops; mcost.c uses 0xDEADBEEF and 0x0000000D. The divider takes the same time for any operands except the early-out cases (divide by zero, -2^31 / -1).",
+  "rem by zero is not measured separately (remu by zero and div by zero are); -2^31 / -1 is measured for div only.",
+  "mcost.c needs more than the simulator default of 100000 cycles; make bench-mcost runs it with +timeout=5000000.",
+  "Assembly ELFs embed a random temporary object name, so only their init.mem images are fingerprinted; the C ELF is reproducible.",
+  "The fingerprints under inputs are those of the files the run used (Makefile sha256 1dcbe87eb8bef2f178223568dff041ee1e5a2dcb5ff1ed7ec5dd30de42be28ff, without the check-results target). Files that changed afterwards, before they were committed, are listed with their new sha256 in rechecked.sha256, with which make check-results reproduced this record exactly. Correction (2026-10-01): the Makefile fingerprint had been changed to that of the extended file (2cd15d508f09973d61d90e439fcb9f58f72b723e31c5bbaa0f5c17ca1bdc834a); it again names the file the run used."
+ ],
+ "rechecked": {
+  "date": "2026-10-01",
+  "command": "make check-results CHECK_ARGS=m-unit-cycles",
+  "result": "reproduced exactly",
+  "files": {
+   "Makefile": "7dc1cff910406866f8fce3fb59470d0de1b18296830367f58dd6ba90cb54ffbe",
+   "test/bench/bench.mk": "a2c75591b33afce57aad8063d93574dbe1d708994528f1df0efba883fb357541"
+  },
+  "file": "rechecked.sha256"
+ }
+}

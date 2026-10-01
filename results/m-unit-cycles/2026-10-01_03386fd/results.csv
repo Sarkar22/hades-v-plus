@@ -1,0 +1,18 @@
+program,measured,ops,marker_a_time,marker_b_time,cycles,per_op,per_op_overhead_subtracted,documented
+test/bench/mcost/loop_empty.s,(empty loop: the overhead),0,320,8300,399,,,
+test/bench/mcost/loop_addi.s,"addi s1, t5, 0",800,320,24300,1199,1.499,1.00,1.00
+test/bench/mcost/loop_mul.s,"mul s1, t5, t6",800,320,40300,1999,2.499,2.00,2.00
+test/bench/mcost/loop_div.s,"div s1, t5, t6",800,320,552300,27599,34.499,34.00,34.00
+test/bench/mcost/loop_div0.s,"div s1, t5, zero",800,320,24300,1199,1.499,1.00,1.00
+test/bench/mcost/mcost.c,base-add,512,,,770,1.504,1.00,1.00
+test/bench/mcost/mcost.c,mul,512,,,1282,2.504,2.00,2.00
+test/bench/mcost/mcost.c,mulh,512,,,1282,2.504,2.00,2.00
+test/bench/mcost/mcost.c,mulhsu,512,,,1282,2.504,2.00,2.00
+test/bench/mcost/mcost.c,mulhu,512,,,1282,2.504,2.00,2.00
+test/bench/mcost/mcost.c,div,512,,,17666,34.504,34.00,34.00
+test/bench/mcost/mcost.c,divu,512,,,17666,34.504,34.00,34.00
+test/bench/mcost/mcost.c,rem,512,,,17666,34.504,34.00,34.00
+test/bench/mcost/mcost.c,remu,512,,,17666,34.504,34.00,34.00
+test/bench/mcost/mcost.c,div-by-0,512,,,770,1.504,1.00,1.00
+test/bench/mcost/mcost.c,remu-by-0,512,,,770,1.504,1.00,1.00
+test/bench/mcost/mcost.c,div-ovf,512,,,770,1.504,1.00,1.00

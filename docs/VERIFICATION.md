@@ -27,7 +27,7 @@ Test suites are additionally validated by **mutation testing**: faults are delib
 
 ## Suites and Results
 
-Every suite runs from the repository root. The results below are what the commands print in this version of the repository, with Verilator 5.042 and GCC 12.2.0. The simulations are deterministic, so the results are the same on every run.
+Every suite runs from the repository root. The results below are what the commands print in this version of the repository, with Verilator 5.042 and GCC 12.2.0. The simulations are deterministic, so the results are the same on every run. Each result is recorded with the exact output under [results/](../results/README.md): those of the first two tables in [results/tests](../results/tests/2026-10-01_03386fd/RECORD.md), those of the third in the record that its last column names. `make check-results` re-runs the repeatable records and compares the output with the stored values.
 
 ### Programs on the Complete Core
 
@@ -66,22 +66,22 @@ The four comparisons marked *baseline* report differences from the frozen stages
 
 ### System Level
 
-| Suite | Command | Result |
-|---|---|---|
-| Trap and interrupt sweep | `python3 test/trapsweep/sweep.py run` | `DUT: 61/61 programs ISS-consistent`; golden CPU 25/51 (its known deviations) |
-| FreeRTOS, smallest program | `make freertos APP=minimal` | `FREERTOS RESULT: PASS`, `cycles=3169254` |
-| FreeRTOS stress program | `make freertos APP=stress` | `FREERTOS RESULT: PASS`, `cycles=5156655` |
-| FreeRTOS with M and Zba code | `make freertos APP=mzba MARCH=rv32im_zba` | `FREERTOS RESULT: PASS`, `cycles=5637099` |
-| FreeRTOS standard demo task set | `make freertos APP=full` | `FREERTOS RESULT: PASS`, `cycles=150681199` |
-| One program on both CPUs | `make freertos-compare APP=stress SEED=7` | `AGREE`: HaDes-V+ 5156380 cycles, golden CPU 5155907 |
-| Differential campaign | `make freertos-stress` | `CAMPAIGN RESULT: PASS (28 runs: 0 DUT run(s) not passed, 0 golden run(s) not passed, 0 build failure(s))` |
-| Rebuild after a changed setting | `make freertos-check-rebuild` | `REBUILD CHECK: PASS (8 runs, every run used the configuration it was given)` |
-| Scripted shell session | `make freertos-shell-test` | `FREERTOS SHELL RESULT: PASS`, `cycles=2278845`, `expectations met: 120/120` |
-| The same session on both CPUs | `make freertos-shell-compare` | `SHELL COMPARE: SAME  40 blocks, 158 lines equal after normalising numbers` |
-| The interactive console | `make freertos-shell-tty-test` | `TTY TEST: PASS  (22 of 22 cases passed)` |
-| Formal proof of the M unit | `make formal` | `FORMAL RESULT: PASS (mode=default)`: 72 required checks and 4 negative controls |
+| Suite | Command | Result | Record |
+|---|---|---|---|
+| Trap and interrupt sweep | `python3 test/trapsweep/sweep.py run` | `DUT: 61/61 programs ISS-consistent`; golden CPU 25/51 (its known deviations) | [trapsweep](../results/trapsweep/2026-10-01_03386fd/RECORD.md) |
+| FreeRTOS, smallest program | `make freertos APP=minimal` | `FREERTOS RESULT: PASS`, `cycles=3169254` | [tests](../results/tests/2026-10-01_03386fd/RECORD.md) |
+| FreeRTOS stress program | `make freertos APP=stress` | `FREERTOS RESULT: PASS`, `cycles=5156655` | [tests](../results/tests/2026-10-01_03386fd/RECORD.md) |
+| FreeRTOS with M and Zba code | `make freertos APP=mzba MARCH=rv32im_zba` | `FREERTOS RESULT: PASS`, `cycles=5637099` | [tests](../results/tests/2026-10-01_03386fd/RECORD.md) |
+| FreeRTOS standard demo task set | `make freertos APP=full` | `FREERTOS RESULT: PASS`, `cycles=150681199` | [tests](../results/tests/2026-10-01_03386fd/RECORD.md) |
+| One program on both CPUs | `make freertos-compare APP=stress SEED=7` | `AGREE`: HaDes-V+ 5156380 cycles, golden CPU 5155907 | [tests](../results/tests/2026-10-01_03386fd/RECORD.md) |
+| Differential campaign | `make freertos-stress` | `CAMPAIGN RESULT: PASS (28 runs: 0 DUT run(s) not passed, 0 golden run(s) not passed, 0 build failure(s))` | [freertos-validate](../results/freertos-validate/2026-10-01_03386fd/RECORD.md) |
+| Rebuild after a changed setting | `make freertos-check-rebuild` | `REBUILD CHECK: PASS (8 runs, every run used the configuration it was given)` | [tests](../results/tests/2026-10-01_03386fd/RECORD.md) |
+| Scripted shell session | `make freertos-shell-test` | `FREERTOS SHELL RESULT: PASS`, `cycles=2278845`, `expectations met: 120/120` | [tests](../results/tests/2026-10-01_03386fd/RECORD.md) |
+| The same session on both CPUs | `make freertos-shell-compare` | `SHELL COMPARE: SAME  40 blocks, 158 lines equal after normalising numbers` | [tests](../results/tests/2026-10-01_03386fd/RECORD.md) |
+| The interactive console | `make freertos-shell-tty-test` | `TTY TEST: PASS  (22 of 22 cases passed)` | [tests](../results/tests/2026-10-01_03386fd/RECORD.md) |
+| Formal proof of the M unit | `make formal` | `FORMAL RESULT: PASS (mode=default)`: 72 required checks and 4 negative controls | [formal](../results/formal/2026-09-28_588d76a/RECORD.md) |
 
-The formal result is the recorded run in [formal/README.md](../formal/README.md#4-results-and-runtimes); the SHA-256 of the proved `rtl/execute_stage.sv` recorded there is that of the file in this version of the repository. The formal tools are listed under [Tools](../formal/README.md#tools).
+The formal result is the recorded run in [formal/README.md](../formal/README.md#4-results-and-runtimes); the SHA-256 of the proved `rtl/execute_stage.sv` recorded there is that of the file in this version of the repository ([record](../results/formal/2026-09-28_588d76a/RECORD.md)). The formal tools are listed under [Tools](../formal/README.md#tools).
 
 The repository also contains programs and benches that print no verdict of their own; they are not listed above:
 
@@ -116,13 +116,13 @@ DUT: 61/61 programs ISS-consistent
 golden: 25/51 programs ISS-consistent (see the probe list: known golden deviations are tagged)
 ```
 
-Every program the golden CPU fails is explained by its known deviations ([Known Divergences](#known-divergences)). The sweep found two of the six trap and interrupt defects listed below: the predicted-branch next PC and the stale `mtvec`. The families, the random-program fuzzing, the trace protocol and the mutation check are documented in [test/trapsweep/README.md](../test/trapsweep/README.md).
+Of the 26 programs that the golden CPU fails, 25 are explained by its known deviations ([Known Divergences](#known-divergences)). The 26th, `race_ext_0`, carries only the expected flag of the `race` family, a bounded interrupt latency ([Expected flags](../test/trapsweep/README.md#expected-flags)), which `sweep.py` excuses for HaDes-V+ only ([record](../results/trapsweep/2026-10-01_03386fd/RECORD.md)). The sweep found two of the six trap and interrupt defects listed below: the predicted-branch next PC and the stale `mtvec` ([record](../results/history/2026-09-27_6b19d41/RECORD.md)). The families, the random-program fuzzing, the trace protocol and the mutation check are documented in [test/trapsweep/README.md](../test/trapsweep/README.md).
 
 ## FreeRTOS Differential Campaigns
 
-**FreeRTOS is used here as a test, not a demo.** A system that merely boots proves little: interrupt-handling defects appear only when an interrupt meets a particular instruction in a particular pipeline cycle, and during development a tick-synchronised demo ran more than 5,000 ticks on a core that still had three such defects. The programs in [`test/freertos/`](../test/freertos) therefore randomise their interrupt timing from a run seed, check themselves continuously (queue sequences, critical sections, register integrity across context switches, tick drift, the UART transcript), and run both on HaDes-V+ and on the frozen golden CPU from [`ref/`](../ref). A run that passes on the golden CPU and fails on HaDes-V+ is a defect of the core.
+**FreeRTOS is used here as a test, not a demo.** A system that merely boots proves little: interrupt-handling defects appear only when an interrupt meets a particular instruction in a particular pipeline cycle, and according to the development log, a tick-synchronised demo ran more than 5,000 ticks on a core that still had three such defects (the run itself was not kept and the figure could not be verified; [record](../results/history/2026-09-26_97ef211/RECORD.md)). The programs in [`test/freertos/`](../test/freertos) therefore randomise their interrupt timing from a run seed, check themselves continuously (queue sequences, critical sections, register integrity across context switches, tick drift, the UART transcript), and run both on HaDes-V+ and on the frozen golden CPU from [`ref/`](../ref). A run that passes on the golden CPU and fails on HaDes-V+ is a defect of the core.
 
-Running FreeRTOS this way found the first four of the six trap and interrupt defects below; the [trap sweep](#trap-and-interrupt-sweep) found the last two. All six are fixed, and each is covered by a directed regression test that fails when its fix alone is reverted:
+Running FreeRTOS this way found the first four of the six trap and interrupt defects below; the [trap sweep](#trap-and-interrupt-sweep) found the last two. All six are fixed, and each is covered by a directed regression test that fails when its fix alone is reverted ([record](../results/history/2026-09-27_6b19d41/RECORD.md)):
 
 | Defect | Effect under FreeRTOS | Regression |
 |---|---|---|
@@ -133,11 +133,16 @@ Running FreeRTOS this way found the first four of the six trap and interrupt def
 | With the branch predictor on, an interrupt after a correctly predicted taken branch resumed on the not-taken path | Assertions, lost yields and hangs | [bpirq.s](../test/asm/bpirq.s) and variants |
 | An interrupt right after `csrw mtvec` used the old vector (the golden CPU shares this defect) | None in practice (FreeRTOS writes `mtvec` once) | [mtvecirq.s](../test/asm/mtvecirq.s) |
 
-On the fixed core the final differential campaign passed **794 of 794** FreeRTOS runs (102 of them with the branch predictor enabled, about 14.7 billion simulated cycles), with every one of the 523 golden-CPU twin runs agreeing, and the independent model in [`test/trapsweep/`](../test/trapsweep) found no architectural error across its full interrupt-offset sweep and random-program fuzzing. These figures were recorded when the FreeRTOS support was added (commits 6b19d41 and 62b0407). The campaign sets and seeds of those 794 runs were not recorded, so that campaign cannot be repeated run for run; the validation campaign below, and the larger sets named after it, can.
+On the fixed core the final differential campaign passed **794 of 794** FreeRTOS runs (102 of them with the branch predictor enabled, about 14.7 billion simulated cycles), with every one of the 523 golden-CPU twin runs agreeing, and the independent model in [`test/trapsweep/`](../test/trapsweep) found no architectural error across its full interrupt-offset sweep and random-program fuzzing. That campaign ran on 2026-09-27 as six `campaign.py` commands, on a working tree based on 97ef211 whose changes were committed the next day as 0d25ee6 and 6b19d41. Its sets, seeds and run lengths were recorded, and the six commands are now the suite `sep2026` of `campaign.py`. Re-run at 03386fd on 2026-10-01, the suite reproduced the campaign: the same 794 DUT runs and 523 golden runs, all passing, with 14,684,200,429 DUT cycles, and every per-run value of 2026-09-27 that survives ([record](../results/freertos-campaign/2026-10-01_03386fd/RECORD.md); the campaign of 2026-09-27: [record](../results/freertos-campaign/2026-09-27_6b19d41/RECORD.md)). The `validate` and `standard` sets share five variants and the seeds 0001 to 0008, so 40 of the DUT runs, and 40 of the golden runs, repeat another run exactly: 754 of the 794 DUT runs are distinct. The suite takes about 80 minutes with 12 parallel simulations; `--wall-limit 0` lifts the per-run wall-clock limit, which on a busy machine could otherwise stop a long run, and `--compare` checks the re-run run for run against the record:
+
+```bash
+python3 test/freertos/campaign.py --suite sep2026 --jobs 12 --wall-limit 0 \
+    --compare results/freertos-campaign/2026-10-01_03386fd/results.csv
+```
 
 ### The Validation Campaign
 
-`make freertos-stress` runs the `validate` set of [test/freertos/campaign.py](../test/freertos/campaign.py): seven builds of the `stress`, `minimal` and `mzba` programs, each run with two interrupt-timing seeds on HaDes-V+ (`dut`) and on the golden CPU. A variant's name gives the program (`noyield`: without `taskYIELD()` inside critical sections), the instruction set, the optimisation level, preemption and time slicing (`p1s1`), the tick in clock cycles and the heap implementation; a result gives the verdict and the simulated clock cycles. The result in this version of the repository:
+`make freertos-stress` runs the `validate` set of [test/freertos/campaign.py](../test/freertos/campaign.py): seven builds of the `stress`, `minimal` and `mzba` programs, each run with two interrupt-timing seeds on HaDes-V+ (`dut`) and on the golden CPU. A variant's name gives the program (`noyield`: without `taskYIELD()` inside critical sections), the instruction set, the optimisation level, preemption and time slicing (`p1s1`), the tick in clock cycles and the heap implementation; a result gives the verdict and the simulated clock cycles. The result in this version of the repository ([record](../results/freertos-validate/2026-10-01_03386fd/RECORD.md)):
 
 | variant | seed | dut | golden |
 |---|---|---|---|
@@ -165,6 +170,13 @@ On the fixed core the final differential campaign passed **794 of 794** FreeRTOS
 CAMPAIGN RESULT: PASS (28 runs: 0 DUT run(s) not passed, 0 golden run(s) not passed, 0 build failure(s))
 ```
 
+The record keeps every run with its verdict and cycle count. Run directly with `--compare`, the campaign is checked run for run against it:
+
+```bash
+python3 test/freertos/campaign.py --set validate --seeds 2 --strict --jobs 4 \
+    --compare results/freertos-validate/2026-10-01_03386fd/results.csv
+```
+
 The larger sets (`standard`, `full`, `realtick`, `bpred`, `breaker`, `breaker2`, `breaker-long` and others) are described in [test/freertos/README.md](../test/freertos/README.md#differential-campaign); [FREERTOS.md](FREERTOS.md#6-run-the-stress-tests) shows how to run them.
 
 ## Formal Verification of the M Unit
@@ -185,11 +197,11 @@ The proof runs on the real RTL. The only change is one inserted `include` line i
 sv2v translation, and the script checks that nothing else changed.
 
 ```bash
-make formal         # the proofs, lemma checks, covers and sanity checks (about 1-2 min)
-make formal-full    # also the slow bitwuzla lemma proof and a mutation campaign (about 25-35 min)
+make formal         # the proofs, lemma checks, covers and sanity checks (about a minute)
+make formal-full    # also the slow bitwuzla lemma proof and a mutation campaign (about 25 minutes; longer on a loaded machine)
 ```
 
-Each run ends with `FORMAL RESULT: PASS` or `FORMAL RESULT: FAIL`. The tools
+Each run ends with `FORMAL RESULT: PASS` or `FORMAL RESULT: FAIL`. The run of record, made on 2026-09-28 on the same proved files as this version, took 1 min 07 s and 24 min 33 s ([record](../results/formal/2026-09-28_588d76a/RECORD.md)). The tools
 (SymbiYosys/Yosys, sv2v, bitwuzla, Yices, z3) install in user space, for example with
 `pip install yowasp-yosys z3-solver` plus three release binaries.
 [formal/README.md](../formal/README.md) explains the installation, the proof structure, the
@@ -232,8 +244,8 @@ misstated:
 
 The evidence for the mutation testing described under [Approach](#approach) is documented with the suites it checks:
 
-- **The trap and interrupt fixes.** Each of the six fixes was reverted on its own. For every revert, the trap sweep flags programs outside the expected `race` family, and the fix's own directed regression test fails. The reverts and the families they flag are tabulated in [test/trapsweep/README.md](../test/trapsweep/README.md#provenance-and-results).
-- **The multiply/divide unit.** `make formal-full` runs 19 mutants of the M unit against 32 proofs. Every mutant except `diff32` is rejected; `diff32` is an equivalent mutant, because it changes a bit that the proof shows to be always zero. The repository's `test_m_execute` bench detects every mutant except `diff32` as well. Details: [formal/README.md](../formal/README.md#3-how-the-proof-works).
+- **The trap and interrupt fixes.** Each of the six fixes was reverted on its own. For every revert, the trap sweep flags programs outside the expected `race` family, and the fix's own directed regression test fails. The reverts and the families they flag are tabulated in [test/trapsweep/README.md](../test/trapsweep/README.md#provenance-and-results) ([record](../results/history/2026-09-27_6b19d41/RECORD.md)).
+- **The multiply/divide unit.** `make formal-full` runs 19 mutants of the M unit against 32 proofs. Every mutant except `diff32` is rejected; `diff32` is an equivalent mutant, because it changes a bit that the proof shows to be always zero. The repository's `test_m_execute` bench detects every mutant except `diff32` as well; that was checked during development, outside the formal package, and `make formal-full` does not repeat it ([record](../results/formal/2026-09-28_588d76a/RECORD.md)). Details: [formal/README.md](../formal/README.md#3-how-the-proof-works).
 
 ## Known Divergences
 
@@ -249,7 +261,7 @@ The golden CPU and the golden stages in [`ref/`](../ref) are the upstream implem
 
 ### Module-Bench Baselines
 
-The benches that compare a pipeline stage with its golden stage print every check on which the two differ. In this version of the repository four of them report a fixed number of differences. These counts are the baseline: a change in a count is a change of behaviour that has to be explained.
+The benches that compare a pipeline stage with its golden stage print every check on which the two differ. In this version of the repository four of them report a fixed number of differences. These counts are the baseline: a change in a count is a change of behaviour that has to be explained. Each of the differing checks is recorded verbatim in [baseline-diffs.txt](../results/tests/2026-10-01_03386fd/baseline-diffs.txt), so that a change can be compared line by line.
 
 | Bench | Result | The differing checks concern |
 |---|---|---|

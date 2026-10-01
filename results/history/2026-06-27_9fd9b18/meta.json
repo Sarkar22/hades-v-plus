@@ -1,0 +1,37 @@
+{
+ "topic": "history",
+ "id": "2026-06-27_9fd9b18",
+ "title": "RISC-V Community Challenge: 56/56",
+ "status": "historical",
+ "date": "2026-06-27",
+ "base_commit": "9fd9b18",
+ "sources": [
+  "development log of 2026-08-17",
+  "Credly badges linked from README.md"
+ ],
+ "figures": [
+  {
+   "figure": "56/56 across Fetch, Decode, Register File, Instruction Decoder, Execute, Memory and Writeback",
+   "quoted_at": [
+    "README.md:62",
+    "README.md:11"
+   ],
+   "value": {
+    "Fetch": "8/8",
+    "Decode": "4/4",
+    "Register File": "4/4",
+    "Instruction Decoder": "4/4",
+    "Execute": "10/10",
+    "Memory": "10/10",
+    "Writeback": "16/16"
+   }
+  }
+ ],
+ "caveats": [
+  "Closed-source grader; not re-runnable here.",
+  "Breakdown from the development log.",
+  "6baec2c in the log line is the hash, before the history was rewritten, of the commit now 9fd9b18. Correction (2026-10-01): the log line is now quoted verbatim; it was first paraphrased."
+ ],
+ "host": "not recorded (the grading system)",
+ "log_line_verbatim": "Final persephone run (27.06.2026) scored commit `6baec2c` at full marks on every module (Fetch 8/8, Decode 4/4, RegFile 4/4, InstrDecoder 4/4, Execute 10/10, Memory 10/10, Writeback 16/16)."
+}

@@ -1,0 +1,85 @@
+{
+ "topic": "fpga-timing",
+ "id": "2026-08-17_15b0b85",
+ "title": "Implementation of the branch-predictor bitstream: WNS +0.221 ns",
+ "status": "historical",
+ "date": "2026-08-17",
+ "base_commit": "15b0b85381ca807db63e8773d46c281c41c3506e",
+ "base_commit_note": "synthesized sources identical at 6c80a9e, 7ec449c and 15b0b85; 15b0b85 adds only the bitstream files",
+ "commands": [
+  "git checkout 15b0b85",
+  "make synthesis XILINX_VIVADO=<Vivado 2024.2 installation directory>"
+ ],
+ "inputs": {
+  "git_trees": {
+   "rtl": "a8f9747d507b5ae806db6bb9b8f352f7fd8fcf13",
+   "lib": "9273a2fb0857718dc9e0ca7d2f98afbba2bdab03",
+   "defines": "699b7071bdae814c98f9eb7e18a141b5f9cab705",
+   "synth": "774b210bcaa097aac7812d08aa9d419851be5cbd",
+   "std": "05909d5f7dd5d23f80a2d11e127fdb79eb8a5468",
+   "test/c/bootloader.c": "5e15beb78e087276670f5a5539881bc6be433333"
+  },
+  "outputs": {
+   "bitstream/hades-v-bpred-FIXED.bit": "0abe0ec3e5a9cdff0d4774db0772bc00d9776c8f7f4dcf49ba753179090f0943",
+   "bitstream/hades-v-bpred-FIXED.bin": "3c3a2f605a41f604ab8f356c7a7a3949822dace2469ff8254f148d18c6276bd9"
+  }
+ },
+ "host": {
+  "cpu": "Intel Core Ultra 7 165H",
+  "threads": 22,
+  "os": "Linux"
+ },
+ "tools": {
+  "vivado": "Vivado v.2024.2 (lin64) Build 5239630 Fri Nov 08 22:34:34 MST 2024"
+ },
+ "wall_time_s": 523,
+ "wall_time_note": "Vivado session 01:41:47 to 01:50:30",
+ "figures": [
+  {
+   "figure": "+0.221 ns recorded with the branch-predictor bitstream (commit 15b0b85)",
+   "quoted_at": [
+    "docs/EXTENSIONS.md:85"
+   ],
+   "sources": [
+    "commit 15b0b85 message",
+    "build report timing_pnr.rpt (excerpt in timing-excerpt.txt)"
+   ],
+   "value": {
+    "WNS_ns": 0.221,
+    "TNS_ns": 0.0,
+    "failing_endpoints": 0,
+    "total_endpoints": 10511,
+    "WHS_ns": 0.019
+   }
+  },
+  {
+   "figure": "worst path",
+   "quoted_at": [],
+   "value": {
+    "source": "mcu/cpu/i_memory/instruction_reg_out_reg[csr][4]/C",
+    "destination": "mcu/ram/memory_reg_bram_6/WEBWE[3]",
+    "data_path_ns": 9.182,
+    "route_pct": 79.503,
+    "logic_levels": 11
+   }
+  },
+  {
+   "figure": "utilization",
+   "quoted_at": [],
+   "value": {
+    "slice_luts": 4752,
+    "slice_registers": 2909,
+    "bram_tiles": 46,
+    "dsp": 0
+   }
+  }
+ ],
+ "caveats": [
+  "Single run; not repeated.",
+  "Reports kept outside the repository; excerpts only."
+ ],
+ "files": [
+  "timing-excerpt.txt",
+  "utilization-excerpt.txt"
+ ]
+}

@@ -1,0 +1,37 @@
+# sha256 of the memory image (init.mem) of every program run for this record, as built by the
+# commands of RECORD.md in a clone at 03386fd (paths relative to the repository root; build/ is
+# the default build directory). The images contain no path of the build machine; the ELF files
+# do (debug information), so they are not listed.
+1df8d6c88ec59d42c1105b3bb9464a14a0f5530413062941d2818c9a84b9d150  build/test/asm/bpirq2/init.mem
+3683d20737d0c523481c3681b8881251503c35adf60ddfc85c0fdcaab98b79f8  build/test/asm/bpirq3/init.mem
+85ed04e85a3e75fce889599b1633b1590204e1bdbd194a9297e71b3b712a3d1b  build/test/asm/bpirq/init.mem
+90ae83f11dba56f620c79681641b668fd7e0fcf45b286f9711d1b80e6763dcf8  build/test/asm/bpred/init.mem
+ee9b35da33c07b613e10fc4b56e1ddb032feb7b563186d8a2d6d352cb9eb9895  build/test/asm/csrirq/init.mem
+da3882475af89ce146c9a1ff10f11113cdfc6aba54e233e46795085cfd2d2b5a  build/test/asm/div/init.mem
+5652eb7b2b532e84d96ea996ca40cfe92ffc5169ea9aca02329d31fcd2e56155  build/test/asm/fencei/init.mem
+6c6f70a07ba0448dfb6d0cf464ccf002de5bfa08c6512af919fa4053f97bcfe3  build/test/asm/fencerd/init.mem
+a708c10eeddeb1ec3f86d8e07e971a50be64eed34728a44b6269608440fe5f15  build/test/asm/forwarding/init.mem
+30ef37b1535ebfeeb7c3657c51ef8cc6e2fd5359e97a863e04ad0aebcaebac5a  build/test/asm/memirq/init.mem
+4770b6f814a092f0b4b540934f861364b25a0709d72d1dc9cae741fb29def31c  build/test/asm/mtvecirq/init.mem
+d4a79fad12a9e27a5ae81fc61c0601d006c87e8e03d9e6a72564d2609f6b7d40  build/test/asm/mul/init.mem
+8e85aeda033b2951236ab930f4bf2df7ce585271e0ea75324dcf29aae76af8fe  build/test/asm/ops/init.mem
+7cdd7c4c7db47ea4fb1c91dab5b637fe952b23e0416d59563f4cb27001395832  build/test/asm/trap/init.mem
+3ccd95548403e021f6f356624d32b95099778bc9a96fa3b768113b973a85e221  build/test/asm/trapirq/init.mem
+cfe6832eafdb011064d7069c9edaed656fb0e174bb6e5f058d2583db37008b25  build/test/asm/trapmpie/init.mem
+d4cc6e81a333149ad0de02297d495c4fe31b0111f8d633496dc25ac4d4281b80  build/test/asm/uartirq/init.mem
+f599bfab1987e0f3581b9bc9243992108d6c27b781dfeeeb31179a3c4ab8c8b3  build/test/asm/zbaadv/init.mem
+1ebc809f5004d3a21891a37cb89785d4ec8647b91924220424258da7c912929f  build/test/asm/zba/init.mem
+bce2a4e416e785bfbcc419d547c12c735193fdfb522a782731cd27c39ec5c6dc  build/test/asm/zicntr/init.mem
+5a0a317c523941e8b418331f96e3059281eca40dd4896f643b8e303604a3d99b  build/test/c/basys3_demo/init.mem
+8ec30757055b6264eab695c5cbfc875a3a67c293731ae30dff150b718a7d2ad0  build/test/c/bootloader/init.mem
+5a6e6652053a05f0e27c5ab5437a758e0b6d28babef63d43e4ebe0157a3de990  build/test/c/bp_benchmark/init.mem
+7411e16f466c694755e950365193675fb65eebbc65e37bf928bf6e7e04b5d084  build/test/c/hello_world/init.mem
+8110f89e1bbcee572db43002a04ee48bb695aed21b4f7cc8b6280ab554f0094b  build/test/c/m_extension/init.mem
+bce595e371ea4b339f9aa8d7513cce84b161f25d03a20f4c8f25d8782ee5a072  build/test/c/test_csr/init.mem
+08dfe12c83f3c90999a944f647a2c3ee1ab694252fb92855f2cf8063791d6300  build/test/c/test_mcycle/init.mem
+165cd4a916d15bef5435dc9ce499730815834f87dce22b555b30434518dbdcf7  build/test/freertos/minimal/init.mem
+7a46aed0df5609dfce1fc8cae4b526b42186415256534340cbae39dc5e6f9899  build/test/freertos/stress/init.mem
+6f21a9f686b07b6e6a1d57f41aa086387ed38052eef8f768d5048a9e118e9632  build/test/freertos/mzba/init.mem
+42836fa0227abb8dd3b3543fdc830fa43cd970e1c26f0d2230bb3cf68e6ef55f  build/test/freertos/full/init.mem
+609daec5abfb65903a8461c9893d1830d60792ab6dbfddf1c9724e9de9c12327  build/test/freertos/shell/init.mem
+672f1243ff280a5f75b2d602f4ccdafc03c37b705c5681308cf8ffdf9732c17e  build/test/freertos/myapp/init.mem

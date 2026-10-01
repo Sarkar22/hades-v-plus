@@ -1,0 +1,146 @@
+{
+ "record": "freertos-campaign",
+ "title": "FreeRTOS differential campaign of 2026-09-27: the final campaign on the fixed core",
+ "status": "historical",
+ "status_note": "The per-run results were not kept, so the campaign cannot be compared run for run. Superseded by results/freertos-campaign/2026-10-01_03386fd/, which repeats the same six commands as one suite (--suite sep2026) and reproduces the run counts, the per-set cycle totals and every per-run value that survives in the development log.",
+ "superseded_by": "results/freertos-campaign/2026-10-01_03386fd",
+ "provenance": "the development log of 2026-09-27",
+ "quoted_in": [
+  "docs/VERIFICATION.md:136: \"On the fixed core the final differential campaign passed **794 of 794** FreeRTOS runs (102 of them with the branch predictor enabled, about 14.7 billion simulated cycles), with every one of the 523 golden-CPU twin runs agreeing\""
+ ],
+ "figures": {
+  "dut_runs": 794,
+  "dut_passed": 794,
+  "dut_bpred_on": 102,
+  "golden_runs": 523,
+  "golden_passed": 523,
+  "dut_gcycles": 14.68,
+  "golden_gcycles": 10.58,
+  "summary_as_recorded": "FreeRTOS campaigns: DUT 794/794 PASS (102 of them predictor-on). Golden 523/523 PASS.",
+  "per_set": [
+   {
+    "set": "breaker",
+    "dut_runs": 120,
+    "dut_bpred_on": 40,
+    "golden_runs": 80,
+    "dut_gcycles": 2.39,
+    "golden_gcycles": 1.61,
+    "wall_s": 758
+   },
+   {
+    "set": "breaker2",
+    "dut_runs": 64,
+    "dut_bpred_on": 16,
+    "golden_runs": 40,
+    "dut_gcycles": 1.25,
+    "golden_gcycles": 0.79,
+    "wall_s": 405
+   },
+   {
+    "set": "breaker-long",
+    "dut_runs": 18,
+    "dut_bpred_on": 6,
+    "golden_runs": 15,
+    "dut_gcycles": 1.8,
+    "golden_gcycles": 1.5,
+    "wall_s": 708
+   },
+   {
+    "set": "validate",
+    "dut_runs": 112,
+    "dut_bpred_on": 0,
+    "golden_runs": 112,
+    "dut_gcycles": 0.58,
+    "golden_gcycles": 0.58,
+    "wall_s": 234
+   },
+   {
+    "set": "bpred",
+    "dut_runs": 40,
+    "dut_bpred_on": 40,
+    "golden_runs": 36,
+    "dut_gcycles": 1.53,
+    "golden_gcycles": 1.49,
+    "wall_s": 686
+   },
+   {
+    "set": "standard",
+    "dut_runs": 440,
+    "dut_bpred_on": 0,
+    "golden_runs": 240,
+    "dut_gcycles": 7.13,
+    "golden_gcycles": 4.61,
+    "wall_s": 2321
+   }
+  ],
+  "gcycles_note": "per set, the sum of the predictor-off and predictor-on figures of the log, each given to 0.01 billion",
+  "surviving_per_run_values": {
+   "exact": 37,
+   "to_0.01_million": 14,
+   "file": "results.csv"
+  }
+ },
+ "commands": [
+  "nice python3 test/freertos/campaign.py --jobs 6 --set breaker --seeds 8 --seed-base 0x101 --run-cycles 20000000",
+  "nice python3 test/freertos/campaign.py --jobs 6 --set breaker2 --seeds 8 --seed-base 0x401 --run-cycles 20000000",
+  "nice python3 test/freertos/campaign.py --jobs 6 --set breaker-long --seeds 3 --seed-base 0x301 --run-cycles 100000000 --max-checks 100000",
+  "nice python3 test/freertos/campaign.py --jobs 6 --set validate --seeds 16",
+  "nice python3 test/freertos/campaign.py --jobs 6 --set bpred --seeds 4 --seed-base 0x201 --run-cycles 10000000",
+  "nice python3 test/freertos/campaign.py --jobs 6 --set standard --seeds 8"
+ ],
+ "equivalent_now": "python3 test/freertos/campaign.py --suite sep2026",
+ "inputs": {
+  "base_commit": "97ef211",
+  "tree": "97ef211 plus uncommitted changes: the six trap and interrupt fixes and the FreeRTOS support, committed on 2026-09-28 as 0d25ee6 and 6b19d41; edits made between the campaign and those commits are not recorded separately, and the tree itself was in temporary storage that was later lost",
+  "freertos_sources": "FREERTOS_KERNEL and FREERTOS_DEMO pointed at external checkouts, which the log shows at FreeRTOS-Kernel 8be86d4 (V11.1.0+) and FreeRTOS/FreeRTOS f4fcc3b: the commits vendored later into third_party/freertos by 6bf71d4",
+  "filed_under": "6b19d41, the later of the two commits that committed the measured tree (results/README.md, Layout of a record); 97ef211 itself still has the six defects"
+ },
+ "tools": {
+  "verilator": "Verilator 5.042",
+  "gcc": "riscv32-unknown-elf-gcc 12.2.0",
+  "binutils": "2.39",
+  "python": "Python 3.12 (patch level not recorded)"
+ },
+ "host": {
+  "cpu": "not recorded",
+  "threads": 22,
+  "os": "Linux"
+ },
+ "run": {
+  "date": "2026-09-27",
+  "started": "2026-09-27 22:28:16 EDT (2026-09-28T02:28:16Z)",
+  "finished": "2026-09-27 23:53:28 EDT (2026-09-28T03:53:28Z)",
+  "wall_s": 5112,
+  "workers": 6,
+  "order": "the six commands one after the other"
+ },
+ "caveats": [
+  "The six commands, their seeds and lengths, the per-set totals and the per-run values come from the development log of 2026-09-27. The campaign's own output directories (each with results.csv, results.json, summary.md and one sim.log per run) were in temporary storage that was lost on 2026-09-28.",
+  "The wall time of breaker2 (405 s) is the time between its start and end in the list of start and end times; its own wall-time line was not kept. Every wall time includes building the simulator models and the programs.",
+  "During the breaker command (at 22:30 EDT), sim/top.sv was edited (the initial values of the two variables of the +trace snoop, which prints only with +trace). Every breaker run used the simulator models built before the edit; breaker2 rebuilt them when it started, and the later commands used the rebuilt models. After the campaign the breaker set was run again on the rebuilt models: the log reports identical status and cycles in all 120 DUT runs, and in all 80 golden runs when compared with the earlier campaign of that evening (its breaker set ran from 19:13 to 19:26 EDT), which was itself identical to this one.",
+  "The figures were first quoted in README.md by commit 62b0407 (2026-09-28) and moved to docs/VERIFICATION.md by commit 499d488.",
+  "Correction (2026-10-01): this record was first filed as 2026-09-27_97ef211, the base commit of the measured tree, against the rule of results/README.md for work not yet committed; it was renamed to 2026-09-27_6b19d41, and the comparison with the re-run was run again after the rename."
+ ],
+ "confirmation": {
+  "by": "results/freertos-campaign/2026-10-01_03386fd",
+  "command": "python3 test/freertos/campaign.py --suite sep2026 --jobs 12 --wall-limit 0",
+  "variant_definitions": "the six commands list the same variants (names, RAM sizes, run lengths, cycle limits) with the campaign.py of 6b19d41 and with that of 03386fd",
+  "tree_differences": "from 6b19d41 to 03386fd rtl/ is unchanged; lib/wishbone/wishbone_uart.sv (03386fd) and sim/ (console bridge, cbae9b9) changed",
+  "run_counts": "identical: 794 DUT runs (102 predictor on), 523 golden runs, all passed, none diverged; 40 DUT and 40 golden repeat runs",
+  "per_set_tabulation": "identical, all 6 lines, computed from the re-run's results.csv in the same way",
+  "exact_per_run_values": {
+   "compared": 37,
+   "identical": 37,
+   "command": "python3 test/freertos/campaign.py --results results/freertos-campaign/2026-09-27_6b19d41/results.csv --compare results/freertos-campaign/2026-10-01_03386fd/results.csv",
+   "verdict": "COMPARE RESULT: IDENTICAL (the 37 runs in common; 1280 stored runs were not run here; every compared column equal)",
+   "uart_lines": "the two breaker runs: 117 (DUT) and 116 (golden) pattern lines, as in the log"
+  },
+  "progress_line_values": {
+   "compared": 14,
+   "identical": 14,
+   "precision": "0.01 million cycles"
+  },
+  "rounding_note": "golden totals print as 0.80 (breaker2) and 10.59 (all) billion in the re-run against 0.79 and 10.58 here: the figures here are sums of two values each rounded to 0.01 billion (breaker2: 0.63 + 0.16); the re-run rounds the exact sums once (796,621,910 and 10,588,742,084 cycles)",
+  "wall_time": "not comparable: the re-run used one pool of 12 workers for all six entries"
+ }
+}

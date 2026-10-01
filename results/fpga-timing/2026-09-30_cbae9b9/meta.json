@@ -1,0 +1,141 @@
+{
+ "topic": "fpga-timing",
+ "id": "2026-09-30_cbae9b9",
+ "title": "Vivado 2024.2 implementation of the RTL of cbae9b9: WNS +0.016 ns",
+ "status": "needs Vivado",
+ "date": "2026-09-30",
+ "base_commit": "cbae9b9",
+ "base_commit_note": "synthesized sources identical to 499d488; differ from 03386fd only in lib/wishbone/wishbone_uart.sv (one token)",
+ "commands": [
+  "git checkout cbae9b9",
+  "make synthesis XILINX_VIVADO=<Vivado 2024.2 installation directory>"
+ ],
+ "inputs": {
+  "git_trees": {
+   "rtl": "031b989be1f25dd20836028c5126a5b1dc562bd7",
+   "lib": "fc6d9f8f3f684a11f5d5d1314edac9b84283493a",
+   "defines": "36f0452de823189873ca8ac79d7a662918961ad6",
+   "synth": "e3daf996a9888deb3461729e7b38821ff92089e2",
+   "std": "05909d5f7dd5d23f80a2d11e127fdb79eb8a5468",
+   "test/c/bootloader.c": "5e15beb78e087276670f5a5539881bc6be433333"
+  },
+  "outputs": {
+   "hades-v.bin": {
+    "md5": "e6ce9038129844e0b035e6e6feca0523",
+    "sha256": "ca500952c604e7801c358b49f5479a72199093161342b9e24a9d657ba3c2bb66",
+    "bytes": 1153280
+   },
+   "hades-v.bit_header": {
+    "design": "top;COMPRESS=TRUE;UserID=0XFFFFFFFF;Version=2024.2",
+    "part": "7a35tcpg236",
+    "date": "2026/09/30 23:54:18"
+   }
+  }
+ },
+ "host": {
+  "cpu": "Intel Core Ultra 7 165H",
+  "threads": 22,
+  "os": "Linux"
+ },
+ "tools": {
+  "vivado": "Vivado v.2024.2 (lin64) Build 5239630 Fri Nov 08 22:34:34 MST 2024",
+  "gcc": "riscv32-unknown-elf-gcc () 12.2.0"
+ },
+ "workers": "Vivado default (8 threads)",
+ "wall_time_s": 705.45,
+ "figures": [
+  {
+   "figure": "WNS +0.016 ns, no failing endpoint",
+   "quoted_at": [
+    "README.md:114",
+    "docs/BUILDING.md:65",
+    "docs/EXTENSIONS.md:85"
+   ],
+   "value": {
+    "WNS_ns": 0.016,
+    "TNS_ns": 0.0,
+    "failing_endpoints": 0,
+    "total_endpoints": 11070
+   }
+  },
+  {
+   "figure": "0 failing endpoints of 11070",
+   "quoted_at": [
+    "docs/EXTENSIONS.md:85"
+   ],
+   "value": 11070
+  },
+  {
+   "figure": "a repeated run gives the same result",
+   "quoted_at": [
+    "README.md:114",
+    "docs/BUILDING.md:65",
+    "docs/EXTENSIONS.md:85"
+   ],
+   "value": "two runs on 2026-09-28 (development log) and this run: hades-v.bin md5 e6ce9038129844e0b035e6e6feca0523 in all three; WNS 0.016, 0 of 11070, WHS 0.069"
+  },
+  {
+   "figure": "worst path: BRAM read (falling edge) -> branch predictor -> PC adder -> Fetch pc_reg, half a period",
+   "quoted_at": [
+    "README.md:114",
+    "docs/BUILDING.md:65",
+    "docs/EXTENSIONS.md:85"
+   ],
+   "value": {
+    "source": "mcu/ram/memory_reg_bram_3/CLKARDCLK (falling edge RAMB36E1)",
+    "destination": "mcu/cpu/i_fetch/pc_reg[26]/D",
+    "requirement_ns": 10.0,
+    "data_path_ns": 9.801,
+    "logic_ns": 5.15,
+    "logic_pct": 52.547,
+    "route_ns": 4.651,
+    "route_pct": 47.453,
+    "logic_levels": "14 (CARRY4=7 LUT3=1 LUT4=1 LUT5=1 LUT6=3 MUXF7=1)"
+   }
+  },
+  {
+   "figure": "14 logic levels, 7 carry-chain stages, about 53 % in logic",
+   "quoted_at": [
+    "docs/EXTENSIONS.md:85"
+   ],
+   "value": "14 (CARRY4=7 ...), logic 52.547%"
+  },
+  {
+   "figure": "(not quoted) hold",
+   "quoted_at": [],
+   "value": {
+    "WHS_ns": 0.069,
+    "failing": 0
+   }
+  },
+  {
+   "figure": "(not quoted) utilization",
+   "quoted_at": [],
+   "value": {
+    "slice_luts": 5482,
+    "slice_registers": 3091,
+    "ramb36": 46,
+    "ramb18": 0,
+    "dsp": 4,
+    "bonded_iob": 66
+   }
+  }
+ ],
+ "verbatim": [
+  "      0.016        0.000                      0                11070        0.069        0.000                      0                11070        2.633        0.000                       0                  3200",
+  "All user specified timing constraints are met.",
+  "INFO: [Route 35-20] Post Routing Timing Summary | WNS=-1.028 | TNS=-34.704| WHS=0.069  | THS=0.000  |",
+  "INFO: [Physopt 32-668] Current Timing Summary | WNS=0.016 | TNS=0.000 | WHS=0.069 | THS=0.000 |"
+ ],
+ "caveats": [
+  "Routing alone ended at WNS -1.028 ns; the post-route phys_opt_design of synth/synth.tcl reached +0.016 ns.",
+  "The 03386fd RTL (UART fix) was not implemented.",
+  "write_bitstream does not check timing.",
+  "Not validated on hardware."
+ ],
+ "files": [
+  "timing-summary.txt",
+  "worst-paths.txt",
+  "utilization.txt"
+ ]
+}

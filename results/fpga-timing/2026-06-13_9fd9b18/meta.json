@@ -1,0 +1,53 @@
+{
+ "topic": "fpga-timing",
+ "id": "2026-06-13_9fd9b18",
+ "title": "Implementation of the baseline bitstream: WNS +0.242 ns",
+ "status": "historical",
+ "date": "2026-06-13",
+ "base_commit": "9fd9b18ce3a1b1c0e17de3e17059254b7c269335",
+ "base_commit_note": "the commit that added the bitstream and quotes the figure; the bitstream was built from a tree outside the history (baseline core without the branch predictor + the rd decode fix later committed as f8e2232)",
+ "sources": [
+  "commit 9fd9b18 message",
+  "commit 6c80a9e message",
+  "bitstream header"
+ ],
+ "figures": [
+  {
+   "figure": "+0.242 ns (upper end of the recorded range)",
+   "quoted_at": [
+    "docs/BUILDING.md:65",
+    "docs/EXTENSIONS.md:85"
+   ],
+   "value": {
+    "WNS_ns": 0.242
+   }
+  },
+  {
+   "figure": "+0.004 ns with default directives",
+   "quoted_at": [],
+   "value": {
+    "WNS_ns": 0.004
+   },
+   "source": "commit 6c80a9e"
+  }
+ ],
+ "outputs": {
+  "bitstream/hades-v-baseline-FIXED.bit": {
+   "sha256": "ac6469c82f9df1b1a2a690d5abb271b0898383afacc90234c1a059159891312d",
+   "bytes": 1118785,
+   "header": "top;COMPRESS=TRUE;UserID=0XFFFFFFFF;Version=2024.2 / 7a35tcpg236 / 2026/06/13 11:38:35"
+  },
+  "bitstream/hades-v-baseline-FIXED.bin": {
+   "sha256": "b844d884f65c120848e50e73a5e4d338b17f8b4b5f106f4da318f3c789847c32",
+   "bytes": 1118672
+  }
+ },
+ "tools": {
+  "vivado": "2024.2 (bitstream header)"
+ },
+ "caveats": [
+  "No report or log survives.",
+  "The exact source tree is not in the history."
+ ],
+ "host": "not recorded"
+}

@@ -1,0 +1,72 @@
+{
+ "topic": "history",
+ "id": "2026-09-30_6bf71d4",
+ "title": "Vendored FreeRTOS file set: 239 configurations, 64 files used",
+ "status": "historical",
+ "date": "2026-09-30",
+ "base_commit": "6bf71d4",
+ "sources": [
+  "development log of 2026-09-30"
+ ],
+ "figures": [
+  {
+   "figure": "239 configurations",
+   "quoted_at": [
+    "third_party/freertos/README.md:75-76"
+   ],
+   "value": {
+    "configurations": 239,
+    "failed_builds": 30,
+    "images": 209
+   }
+  },
+  {
+   "figure": "64 files; the other 12",
+   "quoted_at": [
+    "third_party/freertos/README.md:77-79"
+   ],
+   "value": {
+    "used": 64,
+    "other": 12,
+    "used_breakdown": {
+     "FreeRTOS-Kernel": 27,
+     "kernel_include_headers_of_those": 14,
+     "demo_sources": 18,
+     "demo_headers": 18,
+     "RegTest.S": 1
+    },
+    "other_breakdown": {
+     "licence_files": 3,
+     "FreeRTOS+CLI_sources": 2,
+     "unused_kernel_headers": 7
+    }
+   }
+  },
+  {
+   "figure": "14 of 21 kernel headers included",
+   "quoted_at": [
+    "third_party/freertos/README.md:89"
+   ],
+   "value": 14
+  },
+  {
+   "figure": "76 files, 2,091,517 bytes",
+   "quoted_at": [
+    "third_party/freertos/README.md:74"
+   ],
+   "covered_by": "results/tests/2026-10-01_03386fd"
+  }
+ ],
+ "caveats": [
+  "30 configurations failed to build; the README does not say so."
+ ],
+ "host": {
+  "cpu": "Intel Core Ultra 7 165H",
+  "threads": 22,
+  "os": "Linux"
+ },
+ "tools": {
+  "gcc": "12.2.0",
+  "verilator": "5.042"
+ }
+}

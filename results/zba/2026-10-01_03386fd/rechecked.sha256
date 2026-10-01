@@ -1,0 +1,6 @@
+# Re-checked on 2026-10-01: make check-results CHECK_ARGS=zba reproduced this record exactly
+# with these files, which changed after the run and before they were committed (the files the
+# run used are in inputs.sha256 or under Inputs). Paths relative to the repository root; check
+# with: sha256sum -c results/zba/2026-10-01_03386fd/rechecked.sha256
+7dc1cff910406866f8fce3fb59470d0de1b18296830367f58dd6ba90cb54ffbe  Makefile
+a2c75591b33afce57aad8063d93574dbe1d708994528f1df0efba883fb357541  test/bench/bench.mk

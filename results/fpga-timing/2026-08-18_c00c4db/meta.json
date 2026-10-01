@@ -1,0 +1,155 @@
+{
+ "topic": "fpga-timing",
+ "id": "2026-08-18_c00c4db",
+ "title": "Timing when M was added: -0.120 ns at c00c4db, +0.026 ns at 1f501f5",
+ "status": "historical",
+ "date": "2026-08-18",
+ "base_commit": "c00c4dbae728820ae6f3f94de568eac87b41a590",
+ "parent_commit": "1f501f509ccb71b84e499bc3b4aea90f30f1cfe4",
+ "sources": [
+  "commit c00c4db message",
+  "README.md at c00c4db, line 159",
+  "development log of 2026-08-18"
+ ],
+ "commands": [
+  "git checkout c00c4db && make synthesis XILINX_VIVADO=<Vivado 2024.2>",
+  "git checkout 1f501f5 && make synthesis XILINX_VIVADO=<Vivado 2024.2>"
+ ],
+ "inputs": {
+  "c00c4db": {
+   "rtl": "184ba0352d5a21d130d7f31c215b0130c9b85685",
+   "defines": "77ae7c8984915dc833bf68e1e5d32b267b8a02bf"
+  },
+  "1f501f5": {
+   "rtl": "d990b12c0ed76026f7143c4e36357b943afd7325",
+   "defines": "5593f63e4478a326c1ce53f365d6385f16362689"
+  },
+  "common": {
+   "lib": "10e725f3ea301c460e5cc6fe85372f7d7a56ff3b",
+   "synth": "774b210bcaa097aac7812d08aa9d419851be5cbd",
+   "std": "05909d5f7dd5d23f80a2d11e127fdb79eb8a5468",
+   "test/c/bootloader.c": "5e15beb78e087276670f5a5539881bc6be433333"
+  }
+ },
+ "host": {
+  "cpu": "Intel Core Ultra 7 165H",
+  "threads": 22,
+  "os": "Linux"
+ },
+ "tools": {
+  "vivado": "Vivado v.2024.2 (lin64) Build 5239630"
+ },
+ "runs": [
+  {
+   "run": "make synthesis",
+   "tree": "M (c00c4db)",
+   "WNS_ns": -0.12,
+   "TNS_ns": -0.24,
+   "failing": 2,
+   "endpoints": 11214,
+   "WHS_ns": 0.047,
+   "luts": 5376,
+   "regs": 3146,
+   "dsp": 4,
+   "worst_path": {
+    "source": "mcu/cpu/i_memory/instruction_reg_out_reg[csr][6]/C",
+    "destination": "mcu/cpu/i_writeback/mcause_reg[16]/CE",
+    "requirement_ns": 20.0,
+    "data_path_ns": 19.824,
+    "route_pct": 84.564,
+    "logic_levels": "21 (LUT2=1 LUT3=1 LUT4=1 LUT5=5 LUT6=13)"
+   }
+  },
+  {
+   "run": "make synthesis",
+   "tree": "1f501f5",
+   "WNS_ns": 0.026,
+   "failing": 0,
+   "WHS_ns": 0.054,
+   "luts": 4966,
+   "regs": 2937,
+   "dsp": 0,
+   "TNS_ns": 0.0,
+   "endpoints": 10595
+  },
+  {
+   "run": "same directives + extra reports",
+   "tree": "M",
+   "worst_slack_ns": -1.054,
+   "luts": 5309,
+   "regs": 3106,
+   "dsp": 4,
+   "multiply_path_slack_ns": 6.151,
+   "divider_path_slack_ns": 10.191,
+   "m_cells_in_40_worst_paths": 0,
+   "WNS_ns": -1.054,
+   "TNS_ns": -13.45,
+   "failing": 27,
+   "endpoints": 11025,
+   "WHS_ns": 0.027
+  },
+  {
+   "run": "same directives + extra reports",
+   "tree": "1f501f5 (M set aside)",
+   "worst_slack_ns": -0.883,
+   "luts": 4918,
+   "regs": 2906,
+   "dsp": 0,
+   "WNS_ns": -0.883,
+   "TNS_ns": -6.537,
+   "failing": 15,
+   "endpoints": 10433,
+   "WHS_ns": 0.01,
+   "worst_path_detail": "Data Path Delay: 20.571ns (logic 3.256ns (15.828%) route 17.315ns (84.172%)), 21 levels"
+  }
+ ],
+ "figures": [
+  {
+   "figure": "WNS -0.120 ns, 2 failing endpoints of 11214 (c00c4db)",
+   "quoted_at": [
+    "docs/EXTENSIONS.md:85",
+    "README.md:114",
+    "docs/BUILDING.md:65"
+   ]
+  },
+  {
+   "figure": "+0.026 ns on the parent",
+   "quoted_at": [
+    "docs/EXTENSIONS.md:85"
+   ]
+  },
+  {
+   "figure": "0.15 ns that M cost",
+   "quoted_at": [
+    "docs/EXTENSIONS.md:85"
+   ],
+   "value": 0.146
+  },
+  {
+   "figure": "no M cell in the 40 worst paths; multiply +6.15 ns, divider +10.19 ns",
+   "quoted_at": [
+    "docs/EXTENSIONS.md:85",
+    "docs/EXTENSIONS.md:87"
+   ]
+  },
+  {
+   "figure": "21-level, ~85 %-route path from the Memory instruction register to mcause",
+   "quoted_at": [
+    "docs/EXTENSIONS.md:85",
+    "README.md:114"
+   ]
+  },
+  {
+   "figure": "M's ~9 % area growth",
+   "quoted_at": [
+    "docs/EXTENSIONS.md:85"
+   ],
+   "value": "LUTs +8.3 % (make synthesis pair 4966->5376), +8.0 % (script pair 4918->5309); 9.3 % only for 4918->5376"
+  }
+ ],
+ "caveats": [
+  "Reports not kept; numbers as printed in the development log.",
+  "The 6.15/10.19 ns and the 40-worst-paths statement come from a run of the same tree with extra reporting commands whose worst slack was -1.054 ns, not from the -0.120 ns run.",
+  "'~9 %' corresponds to a pair of runs from different scripts; like-for-like pairs give +8.0 to +8.3 % LUTs."
+ ]
+}

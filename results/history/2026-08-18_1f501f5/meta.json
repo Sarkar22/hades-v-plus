@@ -1,0 +1,47 @@
+{
+ "topic": "history",
+ "id": "2026-08-18_1f501f5",
+ "title": "Zba mutation counts of commit 1f501f5",
+ "status": "historical",
+ "date": "2026-08-18",
+ "base_commit": "1f501f5",
+ "sources": [
+  "commit 1f501f5 message",
+  "development log of 2026-08-18"
+ ],
+ "figures": [
+  {
+   "figure": "operand swap 38 errors, sign-preserving shift 10 errors, wrong shift amount 15 errors",
+   "quoted_at": [
+    "commit 1f501f5 message"
+   ],
+   "value": {
+    "operand_swap": "Some test(s) failed! (# Errors: 38)",
+    "sign_preserving_shift": "Some test(s) failed! (# Errors: 10)",
+    "wrong_shift_amount": "Some test(s) failed! (# Errors: 15)",
+    "decoder_arms_removed": "Some test(s) failed! (# Errors: 2)",
+    "memory_forwarding_suppressed": "Some test(s) failed! (# Errors: 2)"
+   }
+  },
+  {
+   "figure": "Test suites are additionally validated by mutation testing",
+   "quoted_at": [
+    "docs/VERIFICATION.md:26"
+   ]
+  }
+ ],
+ "command": "make test/asm/zba (on each mutated tree)",
+ "caveats": [
+  "Mutants not kept.",
+  "Error counts include the deliberate initial-test failure."
+ ],
+ "host": {
+  "cpu": "Intel Core Ultra 7 165H",
+  "threads": 22,
+  "os": "Linux"
+ },
+ "tools": {
+  "verilator": "5.042",
+  "gcc": "12.2.0"
+ }
+}

@@ -59,7 +59,7 @@ make help                            # the main targets and their settings
 
 The upstream [HaDes-V][upstream] is an **Open Educational Resource** developed by [Tobias Scheipel](https://www.scheipel.com), David Beikircher, and Florian Riedl of the Embedded Architectures & Systems Group at Graz University of Technology, and released under the MIT and CC BY 4.0 licences. This repository preserves that work and its licences in full — see [Attribution and Upstream](#attribution-and-upstream). Everything described under [*Extensions*](docs/EXTENSIONS.md) is additional work by Emon Sarkar.
 
-Development proceeded in two phases. The base core was implemented for the **RISC-V Community Challenge with HaDes-V**, a programme issued by The Linux Foundation, in which each pipeline module of a submitted design is assessed against a reference implementation. This submission scored full marks at every stage — 56/56 across Fetch, Decode, Register File, Instruction Decoder, Execute, Memory and Writeback — earning all three tiers: [Bronze](https://www.credly.com/badges/1f02699c-a9f7-4590-82f9-97f688cd0b7f/public_url), [Silver](https://www.credly.com/badges/6d03e72d-23fc-494a-bcad-b93a1da5c283/public_url) and [Gold](https://www.credly.com/badges/a78e3644-1597-450d-8020-f03662391719/public_url). The extensions catalogued below were developed subsequently and independently of the challenge.
+Development proceeded in two phases. The base core was implemented for the **RISC-V Community Challenge with HaDes-V**, a programme issued by The Linux Foundation, in which each pipeline module of a submitted design is assessed against a reference implementation. This submission scored full marks at every stage — 56/56 across Fetch, Decode, Register File, Instruction Decoder, Execute, Memory and Writeback ([record](results/history/2026-06-27_9fd9b18/RECORD.md)) — earning all three tiers: [Bronze](https://www.credly.com/badges/1f02699c-a9f7-4590-82f9-97f688cd0b7f/public_url), [Silver](https://www.credly.com/badges/6d03e72d-23fc-494a-bcad-b93a1da5c283/public_url) and [Gold](https://www.credly.com/badges/a78e3644-1597-450d-8020-f03662391719/public_url). The extensions catalogued below were developed subsequently and independently of the challenge.
 
 ## What HaDes-V+ Adds
 
@@ -67,33 +67,35 @@ The upstream core implements **RV32I + Zicsr** (its `FENCE.I` was present but un
 
 | Addition | Summary | Detail |
 |---|---|---|
-| **M** — multiply/divide | All eight instructions. 2-cycle registered multiply, 34-cycle restoring divider, and the first self-generated stall in the Execute stage | [§](docs/EXTENSIONS.md#m--multiply-and-divide) |
-| **Zba** — address generation | `sh1add`/`sh2add`/`sh3add`, which replace the `slli` + `add` pair of a scaled array index; GCC emits them for ordinary indexing code | [§](docs/EXTENSIONS.md#zba--scaled-index-address-generation) |
+| **M** — multiply/divide | All eight instructions. 2-cycle registered multiply, 34-cycle restoring divider ([record](results/m-unit-cycles/2026-10-01_03386fd/RECORD.md)), and the first self-generated stall in the Execute stage | [§](docs/EXTENSIONS.md#m--multiply-and-divide) |
+| **Zba** — address generation | `sh1add`/`sh2add`/`sh3add`, which replace the `slli` + `add` pair of a scaled array index; GCC emits them for ordinary indexing code when it optimises (`-O2`, `-Os`) | [§](docs/EXTENSIONS.md#zba--scaled-index-address-generation) |
 | **Zicntr** — user counters | `cycle`, `time`, `instret` (+ high halves), with `time` shadowing the real memory-mapped `mtime` | [§](docs/EXTENSIONS.md#zicntr--user-mode-counters) |
-| **Zifencei** — documented & tested | `FENCE.I` was implemented but never actually verified upstream; now tested against a measured 3-slot staleness window | [§](docs/EXTENSIONS.md#zifencei--instruction-fetch-synchronisation) |
+| **Zifencei** — documented & tested | `FENCE.I` was implemented but never actually verified upstream; now tested ([fencei.s](test/asm/fencei.s)), and the 3-slot staleness window that it closes is measured (`make bench-fencei-window`, [record](results/fencei-window/2026-10-01_03386fd/RECORD.md)) | [§](docs/EXTENSIONS.md#zifencei--instruction-fetch-synchronisation) |
 | **Branch predictor** | Four run-time selectable algorithms — never-taken (the reset default), always-taken, backward-taken and bimodal 2-bit counters — with four outcome counters as CSRs; a correctly predicted branch causes no pipeline flush | [§](docs/EXTENSIONS.md#branch-predictor-extension) |
 | **FreeRTOS** | The official RISC-V port boots unmodified; one-command build and run, a differential stress campaign against the golden CPU, a template for your own programs, and an interactive command shell (FreeRTOS+CLI) you type into from your terminal | [§](docs/FREERTOS.md) |
 
-Nine correctness fixes to the upstream design are also included. Two predate the RTOS work: a decoder defect that corrupted registers on stores and branches (which prevented the bootloader from running at all), and a forwarding defect that leaked a garbage value for `FENCE` instructions carrying a non-zero reserved field. Six are trap and interrupt defects: four exposed by running FreeRTOS under randomised interrupt timing, and two by the interrupt-offset sweep against the independent instruction-set model; see [the defects and their regression tests](docs/VERIFICATION.md#freertos-differential-campaigns). The ninth is in the UART: a byte store to a status byte drove the transmit interrupt from the wrong enable bit for one cycle, which could raise an interrupt without a source ([test/asm/uartirq.s](test/asm/uartirq.s)).
+Nine correctness fixes to the upstream design are also included. Two predate the RTOS work: a decoder defect that corrupted registers on stores and branches (which prevented the bootloader from running at all), and a forwarding defect that leaked a garbage value for `FENCE` instructions carrying a non-zero reserved field. Six are trap and interrupt defects: four exposed by running FreeRTOS under randomised interrupt timing, and two by the interrupt-offset sweep against the independent instruction-set model ([record](results/history/2026-09-27_6b19d41/RECORD.md)); see [the defects and their regression tests](docs/VERIFICATION.md#freertos-differential-campaigns). The ninth is in the UART: a byte store to a status byte drove the transmit interrupt from the wrong enable bit for one cycle, which could raise an interrupt without a source ([test/asm/uartirq.s](test/asm/uartirq.s)).
 
 ## Verification at a Glance
 
 Each result below summarises what the command prints in this version of the repository; the formal result is the recorded run in [formal/README.md](formal/README.md#4-results-and-runtimes), made on the same RTL. A *differential* run executes the same program, with the same randomised interrupt timing, on HaDes-V+ and on the golden CPU, and compares the verdicts. [docs/VERIFICATION.md](docs/VERIFICATION.md) describes the methods and lists every self-checking suite with its result.
 
-| Check | Command | Result |
-|---|---|---|
-| Every RV32I instruction, self-checking | `make test/asm/ops` | `All tests passed!` |
-| Decode stage, including forwarding and hazards, against the golden Decode stage | `make test/sv/test_decode_exhaustive` | 11,026 checks, all equal |
-| Decoder sweep: every opcode × funct3 × funct7 combination and 150,000 random words decode as in the golden decoder, except the new M and Zba encodings, which must decode to exactly their own operations | `make test/sv/test_zba_encoding_sweep` | 290,288 checks passed |
-| M unit: all eight instructions and the stall protocol | `make test/sv/test_m_execute` | 6,268 checks passed |
-| M instructions against libgcc's software routines | `make test/c/m_extension` | `M-EXT PASS` after 200 checks; the testbench's summary line then reads `Inital test failed! (# Errors: 0)` ([why](docs/VERIFICATION.md#the-testbenchs-verdict-line)) |
-| Interrupts swept over every cycle offset, checked by an independent instruction-set model | `python3 test/trapsweep/sweep.py run` | 61 of 61 programs consistent |
-| FreeRTOS differential campaign on HaDes-V+ and the golden CPU | `make freertos-stress` | 28 of 28 runs `PASS` |
-| FreeRTOS standard demo task set | `make freertos APP=full` | `PASS` after 150,681,199 cycles |
-| Scripted shell session; the same session on the golden CPU | `make freertos-shell-test`, `make freertos-shell-compare` | 120 of 120 expectations met; transcripts `SAME` |
-| Formal proof, by k-induction, that the multiply/divide unit computes the RISC-V result for all operand pairs | `make formal` | `FORMAL RESULT: PASS`, 72 required checks ([recorded run](formal/README.md#4-results-and-runtimes)) |
+[results/](results/README.md) holds a record of each of these results and of the other figures that the documentation quotes: the command, the inputs, the output as printed, and whether it can be re-run (its index also names the few approximate figures that have none). `make check-results` re-runs the repeatable records and compares their output with the stored values.
 
-Four comparisons of single pipeline stages with the golden stages report a fixed number of expected differences, each explained under [Known Divergences](docs/VERIFICATION.md#known-divergences). The tests are themselves checked by [mutation testing](docs/VERIFICATION.md#mutation-testing): each trap and interrupt fix, reverted on its own, makes its regression test fail and the interrupt sweep flag programs.
+| Check | Command | Result | Record |
+|---|---|---|---|
+| Every RV32I instruction, self-checking | `make test/asm/ops` | `All tests passed!` | [record](results/tests/2026-10-01_03386fd/RECORD.md) |
+| Decode stage, including forwarding and hazards, against the golden Decode stage | `make test/sv/test_decode_exhaustive` | 11,026 checks, all equal | [record](results/tests/2026-10-01_03386fd/RECORD.md) |
+| Decoder sweep: every opcode × funct3 × funct7 combination and 150,000 random words decode as in the golden decoder, except the new M and Zba encodings, which must decode to exactly their own operations | `make test/sv/test_zba_encoding_sweep` | 290,288 checks passed | [record](results/tests/2026-10-01_03386fd/RECORD.md) |
+| M unit: all eight instructions and the stall protocol | `make test/sv/test_m_execute` | 6,268 checks passed | [record](results/tests/2026-10-01_03386fd/RECORD.md) |
+| M instructions against libgcc's software routines | `make test/c/m_extension` | `M-EXT PASS` after 200 checks; the testbench's summary line then reads `Inital test failed! (# Errors: 0)` ([why](docs/VERIFICATION.md#the-testbenchs-verdict-line)) | [record](results/tests/2026-10-01_03386fd/RECORD.md) |
+| Interrupts swept over every cycle offset, checked by an independent instruction-set model | `python3 test/trapsweep/sweep.py run` | 61 of 61 programs consistent | [record](results/trapsweep/2026-10-01_03386fd/RECORD.md) |
+| FreeRTOS differential campaign on HaDes-V+ and the golden CPU | `make freertos-stress` | 28 of 28 runs `PASS` | [record](results/freertos-validate/2026-10-01_03386fd/RECORD.md) |
+| FreeRTOS standard demo task set | `make freertos APP=full` | `PASS` after 150,681,199 cycles | [record](results/tests/2026-10-01_03386fd/RECORD.md) |
+| Scripted shell session; the same session on the golden CPU | `make freertos-shell-test`, `make freertos-shell-compare` | 120 of 120 expectations met; transcripts `SAME` | [record](results/tests/2026-10-01_03386fd/RECORD.md) |
+| Formal proof, by k-induction, that the multiply/divide unit computes the RISC-V result for all operand pairs | `make formal` | `FORMAL RESULT: PASS`, 72 required checks ([recorded run](formal/README.md#4-results-and-runtimes)) | [record](results/formal/2026-09-28_588d76a/RECORD.md) |
+
+Four comparisons of single pipeline stages with the golden stages report a fixed number of expected differences, each explained under [Known Divergences](docs/VERIFICATION.md#known-divergences). The tests are themselves checked by [mutation testing](docs/VERIFICATION.md#mutation-testing): each trap and interrupt fix, reverted on its own, makes its regression test fail and the interrupt sweep flag programs ([record](results/history/2026-09-27_6b19d41/RECORD.md)).
 
 ## Documentation
 
@@ -107,11 +109,13 @@ Four comparisons of single pipeline stages with the golden stages report a fixed
 | [formal/README.md](formal/README.md) | The formal proof of the multiply/divide unit in full |
 | [test/freertos/README.md](test/freertos/README.md) | The FreeRTOS programs and the differential campaign in depth |
 | [test/trapsweep/README.md](test/trapsweep/README.md) | The interrupt-offset sweeps and the independent ISA model |
+| [test/bench/README.md](test/bench/README.md) | The measurement programs behind the Zba, M-unit and `FENCE.I` figures |
+| [results/README.md](results/README.md) | The records of the figures quoted in the documentation, and how to re-run them |
 | [third_party/freertos/README.md](third_party/freertos/README.md) | Provenance and licence of the vendored FreeRTOS sources |
 
 ## Status and Limitations
 
-- **FPGA timing at 50 MHz is marginal.** The current RTL meets timing with a worst negative slack of **+0.016 ns** (Vivado 2024.2; a repeated run gives the same result). Its worst path runs from the block RAM's read port through the branch predictor to the Fetch PC, within half a clock period. The commit that added the M extension missed timing by 0.120 ns on a different path, from the Memory stage's instruction register to `mcause`: small RTL changes move the worst path and its slack. See [Synthesis and FPGA Timing](docs/BUILDING.md#synthesis-and-fpga-timing).
+- **FPGA timing at 50 MHz is marginal.** The RTL meets timing with a worst negative slack of **+0.016 ns** (Vivado 2024.2; a repeated run gives the same result), measured at commit cbae9b9; the current RTL differs from it only by the one-line UART fix and has not itself been implemented ([record](results/fpga-timing/2026-09-30_cbae9b9/RECORD.md)). Its worst path runs from the block RAM's read port through the branch predictor to the Fetch PC, within half a clock period. The commit that added the M extension missed timing by 0.120 ns on a different path, from the Memory stage's instruction register to `mcause` ([record](results/fpga-timing/2026-08-18_c00c4db/RECORD.md)): small RTL changes move the worst path and its slack. See [Synthesis and FPGA Timing](docs/BUILDING.md#synthesis-and-fpga-timing).
 - **Not yet validated on physical hardware.** All results are from Verilator simulation and Vivado implementation.
 - **Simulation first.** The programs (assembly, C, FreeRTOS and the shell) run on a cycle-accurate Verilator model of the complete microcontroller; the module benches simulate single pipeline stages. The simulated RAM is the board's 32 KiB by default; programs that need more (the FreeRTOS standard demo set uses 256 KiB) run with a larger simulated RAM, which the board does not have.
 

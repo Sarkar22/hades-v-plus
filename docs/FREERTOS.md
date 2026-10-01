@@ -4,7 +4,10 @@
 
 This guide shows how to boot FreeRTOS on the HaDes-V+ core in simulation, how to check a
 run against the golden reference CPU, how to run the stress tests, and how to write and run
-a FreeRTOS program of your own. Every command below can be copied as it stands.
+a FreeRTOS program of your own. Every command below can be copied as it stands. The outputs
+shown are those of this version of the repository and are recorded under
+[results/](../results/README.md#freertos), except the numbers of the interactive session in
+section 9, which depend on the moment a key is typed.
 
 The simulations are cycle-accurate Verilator models of the complete microcontroller (core,
 RAM, UART, timer, test peripheral). The FreeRTOS port is the official RISC-V port of
@@ -271,7 +274,7 @@ make freertos-stress
 
 It builds the program variants and the simulators they need (a 64 KiB variant for the
 `-O0` build), runs everything, and prints progress lines, a table of all runs and a
-summary. It takes a minute or two once the simulators exist. The summary ends like this:
+summary. It takes about a minute once the simulators exist. The summary ends like this:
 
 ```text
 ### Verdict
@@ -292,6 +295,18 @@ How to read it:
 * The table, a CSV and JSON file and one log per run are written to
   `$HADES_BUILD_DIR/freertos-campaign/validate/`.
 
+The result in this version of the repository is recorded run by run in
+[results/freertos-validate](../results/freertos-validate/2026-10-01_03386fd/RECORD.md). The
+campaign's command with `--compare` checks a re-run against it: every run must have the same
+verdict, cycle count and program image (wall times are never compared). It ends with
+`COMPARE RESULT: IDENTICAL`; on a difference it lists the runs that differ, ends with
+`COMPARE RESULT: DIFFERENT` and exits with status 4:
+
+```bash
+python3 test/freertos/campaign.py --set validate --seeds 2 --strict --jobs 4 \
+    --compare results/freertos-validate/2026-10-01_03386fd/results.csv
+```
+
 More seeds, more parallel jobs, or another set of configurations:
 
 ```bash
@@ -302,6 +317,25 @@ make freertos-stress SEEDS=8 JOBS=6
 (checked by the programs' own self-checks, since the golden CPU cannot run them) and the
 full FreeRTOS demo; `SET=bpred` runs the programs with the branch predictor on. See
 `test/freertos/README.md` for all sets.
+
+`campaign.py` also runs *suites*: several sets, each with its own seeds and run length, in
+one pool of parallel simulations. The suite `sep2026` is the final campaign on the fixed
+core, run on 2026-09-27: 794 runs on HaDes-V+ and 523 on the golden CPU, quoted in
+[VERIFICATION.md](VERIFICATION.md#freertos-differential-campaigns). Its re-run is recorded
+in [results/freertos-campaign](../results/freertos-campaign/2026-10-01_03386fd/RECORD.md); it
+takes about 80 minutes with 12 parallel simulations:
+
+```bash
+python3 test/freertos/campaign.py --suite sep2026 --list      # its runs
+python3 test/freertos/campaign.py --suite sep2026 --jobs 12 --wall-limit 0 \
+    --compare results/freertos-campaign/2026-10-01_03386fd/results.csv
+```
+
+`--wall-limit 0` lifts the per-run wall-clock limit, which on a busy machine could stop a
+long run. `--record DIR` writes the record of a campaign into a new directory, by
+convention `results/<topic>/<date>_<commit>/` ([results/README.md](../results/README.md)).
+All options are described in
+[test/freertos/README.md](../test/freertos/README.md#differential-campaign).
 
 ## 7. The branch predictor, and changing a setting
 
@@ -467,7 +501,8 @@ not echoed).
 The copy of the UART output, `console.log`, is written as the characters arrive, so it is
 complete however the simulation ends.
 
-The simulation runs at about 1.6 to 1.9 million clock cycles per second on a current PC,
+The simulation runs at about 1.6 to 1.9 million clock cycles per second on a current PC
+(less when the machine is busy),
 about 30 times slower than the 50 MHz board, and it has no cycle limit in this mode
 (`TIMEOUT=` sets one). The RTOS tick is 10000 cycles by default, so `uptime` advances by
 one RTOS second (1000 ticks) every 5 to 6 seconds of real time; `TICK=50000` gives the
@@ -839,7 +874,9 @@ environment, so an unrelated variable such as `CPU` cannot change a run.)
 | `SCRIPT` | a file (`test/freertos/<app>/session.txt`) | `freertos-shell-test` and `freertos-shell-compare`: the command script to type. |
 | `VERBOSE` | `1` | Show the compiler output instead of writing it to `build.log`. |
 
-For `make freertos-stress`: `SEEDS` (2), `JOBS` (4) and `SET` (`validate`).
+For `make freertos-stress`: `SEEDS` (2), `JOBS` (4) and `SET` (`validate`). `campaign.py`
+itself takes further options, among them `--suite`, `--compare` and `--record` (section 6;
+all of them in [test/freertos/README.md](../test/freertos/README.md#differential-campaign)).
 
 The underlying variables (`FRTOS_APP`, `FRTOS_MARCH`, ...) and the lower-level targets
 `make test/freertos/<name>`, `make frtos-elf` and `make frtos-model` are described in

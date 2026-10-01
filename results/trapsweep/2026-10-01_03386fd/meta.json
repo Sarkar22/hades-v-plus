@@ -1,0 +1,188 @@
+{
+ "topic": "trapsweep",
+ "id": "2026-10-01_03386fd",
+ "title": "Trap and interrupt sweep and fuzz sets at 03386fd",
+ "status": "repeatable",
+ "date": "2026-10-01",
+ "base_commit": "03386fdda932f4827cded26e8cfc2a2cc531b365",
+ "commands": [
+  "python3 test/trapsweep/sweep.py list",
+  "python3 test/trapsweep/sweep.py run --jobs 3",
+  "python3 test/trapsweep/sweep.py fuzz --seeds 101-160 --jobs 3 --out build/trapsweep/fuzz-i",
+  "python3 test/trapsweep/sweep.py fuzz --seeds 201-240 --variant m --jobs 3 --out build/trapsweep/fuzz-m",
+  "python3 test/trapsweep/sweep.py fuzz --seeds 301-360 --variant bp --jobs 3 --out build/trapsweep/fuzz-bp",
+  "python3 test/trapsweep/sweep.py fuzz --seeds 401-430 --variant mt --jobs 3 --out build/trapsweep/fuzz-mt"
+ ],
+ "documented_command": "python3 test/trapsweep/sweep.py run (default 6 jobs)",
+ "inputs": {
+  "git_trees": {
+   "test/trapsweep": "c086ff7c5bb97ee8fbd223bb80d5fa9f06ed780f",
+   "rtl": "031b989be1f25dd20836028c5126a5b1dc562bd7",
+   "lib": "f90a9a64ddc67db6642bc6654545f1509744426b",
+   "defines": "36f0452de823189873ca8ac79d7a662918961ad6",
+   "sim": "0dad5608c126445abb808c5addd7b6e9d4df54c7",
+   "ref": "b1cd1eebbcd4c675f36085ebfc96416192423721",
+   "test/freertos": "5cb0c42ab14390f060bd6d09bff6903020ac3432"
+  }
+ },
+ "host": {
+  "cpu": "Intel Core Ultra 7 165H",
+  "threads": 22,
+  "os": "Linux"
+ },
+ "tools": {
+  "verilator": "Verilator 5.042 2025-11-02 rev v5.042",
+  "gcc": "riscv32-unknown-elf-gcc () 12.2.0",
+  "binutils": "2.39",
+  "python": "Python 3.12.3",
+  "make": "GNU Make 4.3"
+ },
+ "workers": 3,
+ "wall_time_s": {
+  "run": 24.7,
+  "fuzz_i": 3.6,
+  "fuzz_m": 2.2,
+  "fuzz_bp": 3.5,
+  "fuzz_mt": 2.0
+ },
+ "figures": [
+  {
+   "figure": "DUT: 61/61 programs ISS-consistent",
+   "quoted_at": [
+    "docs/VERIFICATION.md:71",
+    "docs/VERIFICATION.md:115",
+    "README.md:90",
+    "test/trapsweep/README.md:170"
+   ],
+   "output": "DUT: 61/61 programs ISS-consistent",
+   "reproduced": true
+  },
+  {
+   "figure": "golden: 25/51 programs ISS-consistent",
+   "quoted_at": [
+    "docs/VERIFICATION.md:71",
+    "docs/VERIFICATION.md:116",
+    "test/trapsweep/README.md:172"
+   ],
+   "output": "golden: 25/51 programs ISS-consistent (see the probe list: known golden deviations are tagged)",
+   "reproduced": true
+  },
+  {
+   "figure": "574 probes in 15 families, 532 distinct",
+   "quoted_at": [
+    "docs/VERIFICATION.md:102",
+    "docs/VERIFICATION.md:108",
+    "test/trapsweep/README.md:27-28"
+   ],
+   "output": "sweep.py list: 15 families, 574 probes, pre_i 42",
+   "reproduced": true
+  },
+  {
+   "figure": "61 DUT and 51 golden programs, 62,868 + 49,566 iterations, 103,639 DUT trap entries, 13.4M + 10.3M cycles",
+   "quoted_at": [
+    "test/trapsweep/README.md:67-69"
+   ],
+   "output": {
+    "programs": [
+     61,
+     51
+    ],
+    "iterations": [
+     62868,
+     49566
+    ],
+    "dut_trap_entries": 103639,
+    "golden_trap_entries": 82498,
+    "cycles": [
+     13351707,
+     10289454
+    ]
+   },
+   "reproduced": true
+  },
+  {
+   "figure": "about 20 s with the default 6 jobs",
+   "quoted_at": [
+    "test/trapsweep/README.md:69"
+   ],
+   "output": "24.7 s with 3 jobs",
+   "reproduced": "not comparable (different job count)"
+  },
+  {
+   "figure": "csr_ext_0 ... groups_bad=148 ... 2205 iterations, 614 differ",
+   "quoted_at": [
+    "test/trapsweep/README.md:79-80"
+   ],
+   "output": "csr_ext_0 | dut:done ref:done | ISS[dut] groups_bad=0 violations=0 notes=0 ISS[ref] groups_bad=148 violations=0 notes=0 | DUT-vs-golden: 2205 iterations, 614 differ",
+   "reproduced": true
+  },
+  {
+   "figure": "probe csrrw a1,mtvec,a0: golden k=10 gives mepc=0x45444",
+   "quoted_at": [
+    "test/trapsweep/README.md:136-137"
+   ],
+   "output": "ref probe  56 csrrw a1,mtvec,a0 (->B) bad k=[10, 27]; k=10 rtl: 01c:33eed 010:45444 ...",
+   "reproduced": true
+  },
+  {
+   "figure": "DUT flags only in the three race programs",
+   "quoted_at": [
+    "test/trapsweep/README.md:170-171"
+   ],
+   "output": "race_ext_0 (2 violations), race_timer_0 (1), race_both_0 (1)",
+   "reproduced": true
+  },
+  {
+   "figure": "golden: every flagged probe is a CSRRWI-0 or mtvec-write probe",
+   "quoted_at": [
+    "test/trapsweep/README.md:172-173",
+    "docs/VERIFICATION.md:119"
+   ],
+   "output": "all 102 golden flagged-probe lines tagged (10 CSRRWI-0, 92 mtvec-write); of the 23 golden VIOLATION lines 22 carry the mtvec tag and 1 is the race probe sw zero,4(s11) in race_ext_0; the other 4 of the 129 flag lines in flags.txt are the DUT's race violations",
+   "reproduced": "yes, apart from the expected race flag (see caveats)"
+  },
+  {
+   "figure": "fuzz i 101-160 DUT 60/60, golden 60/60",
+   "quoted_at": [
+    "test/trapsweep/README.md:176"
+   ],
+   "output": "DUT: 60/60 programs ISS-consistent / golden: 60/60 programs ISS-consistent",
+   "reproduced": true
+  },
+  {
+   "figure": "fuzz m 201-240 DUT 40/40",
+   "quoted_at": [
+    "test/trapsweep/README.md:176"
+   ],
+   "output": "DUT: 40/40 programs ISS-consistent",
+   "reproduced": true
+  },
+  {
+   "figure": "fuzz bp 301-360 DUT 60/60",
+   "quoted_at": [
+    "test/trapsweep/README.md:176-177"
+   ],
+   "output": "DUT: 60/60 programs ISS-consistent",
+   "reproduced": true
+  },
+  {
+   "figure": "fuzz mt 401-430 DUT 30/30, golden 30/30",
+   "quoted_at": [
+    "test/trapsweep/README.md:177"
+   ],
+   "output": "DUT: 30/30 programs ISS-consistent / golden: 30/30 programs ISS-consistent",
+   "reproduced": true
+  }
+ ],
+ "related_records": [
+  "results/history/2026-09-27_6b19d41",
+  "results/tests/2026-10-01_03386fd"
+ ],
+ "caveats": [
+  "Run with --jobs 3 instead of the default 6; results do not depend on the job count.",
+  "The golden CPU is flagged in race_ext_0 (the race probe sw zero,4(s11)), not in race_timer_0 or race_both_0; that flag is the expected bounded-latency race, not a tagged golden deviation.",
+  "test/trapsweep/README.md:56 shows --seeds 301-330 for the bp fuzz example while its results line (176) uses 301-360; the 301-360 range was run.",
+  "sweep.py excuses the race family on the DUT only (dut_ok = ok or fam in EXPECTED; ref_ok = ok), so race_ext_0 is one of the 26 golden programs counted as not ISS-consistent (results.json: dut_ok true, ref_ok false); docs/VERIFICATION.md:119 holds for 25 of the 26",
+  "Correction (2026-10-01): the fuzz commands were first recorded without --out; all four sets then share build/trapsweep/fuzz/ and each replaces the previous set's results.json and summary.txt. Each set now has its own --out directory, as in results/check.sh, which derives results.csv, flags.txt and fuzz.csv from those directories and compares them (make check-results CHECK_ARGS=trapsweep)."
+ ]
+}

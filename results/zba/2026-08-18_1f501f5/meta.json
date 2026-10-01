@@ -1,0 +1,71 @@
+{
+  "record": "results/zba/2026-08-18_1f501f5",
+  "topic": "zba",
+  "status": "historical",
+  "date": "2026-08-18",
+  "base_commit": "1f501f509ccb71b84e499bc3b4aea90f30f1cfe4",
+  "measured_on": "working copy of 80dfaca8b7291f42db329e30fd23fbc46089896a with the uncommitted Zba implementation, committed as 1f501f5 at 00:44 (UTC-4) the same night",
+  "provenance": "the development log of 2026-08-18, 00:22-00:37 (UTC-4)",
+  "figures": [
+    {
+      "figure": "20.3 % fewer cycles",
+      "value": "zba_bench CYC 0000b126 (45350) -> 00008d25 (36133), -20.32 %",
+      "quoted_in": [
+        "docs/EXTENSIONS.md:123"
+      ]
+    },
+    {
+      "figure": "1.26x",
+      "value": "1.2551x",
+      "quoted_in": [
+        "docs/EXTENSIONS.md:123"
+      ]
+    },
+    {
+      "figure": "6-8 % smaller code",
+      "value": "out.bin: zba_bench 940 -> 868 bytes (-7.7 %), zba_arr 1680 -> 1576 bytes (-6.2 %)",
+      "quoted_in": [
+        "docs/EXTENSIONS.md:123"
+      ]
+    },
+    {
+      "figure": "16,704 in-program operand comparisons with zero discrepancies",
+      "value": "zba_diff CASES 0x0e22 (3618) + 3 x 0x110a (4362) = 16704; BAD 0, EXTRA 0, ZBA DIFF OK in all four runs",
+      "quoted_in": [
+        "docs/EXTENSIONS.md:123"
+      ]
+    }
+  ],
+  "commands_then": "ad-hoc build script (per-variant directory, private std objects compiled with the variant flags; flags -O2 -march=rv32i or -march=rv32i_zba, plus -DSKIP_POOL -DN_RANDOM=1400 -DSEED=<seed>u for the random runs), each image run with build/sim/top at the default 100000-cycle limit; replaced by: make bench-zba",
+  "inputs": {
+    "base_commit_trees": {
+      "rtl": "d990b12c0ed76026f7143c4e36357b943afd7325",
+      "lib": "10e725f3ea301c460e5cc6fe85372f7d7a56ff3b",
+      "defines": "5593f63e4478a326c1ce53f365d6385f16362689",
+      "sim": "b9ea689e3115da8714c525858c64d7131505378f",
+      "std": "05909d5f7dd5d23f80a2d11e127fdb79eb8a5468"
+    },
+    "programs_sha256": {
+      "zba_bench.c": "9e9b491f12994d844d0098358b175b9db1c5b4a833aebfe0386791baf67bd1a9",
+      "zba_arr.c": "228121fe3d58b2bb251016f5513adc05839291c23f420fe60212b1fb07c0fe64",
+      "zba_diff.c": "2a41bad7d24dd6dfc5a7455b1a96b81695f85c518d4de745bc82af063cfa0e80"
+    },
+    "programs_now": "test/bench/zba/ (unchanged after the license header)"
+  },
+  "host": "not recorded",
+  "tools": {
+    "verilator": "Verilator 5.042 2025-11-02",
+    "gcc": "riscv32-unknown-elf-gcc () 12.2.0"
+  },
+  "workers": "not recorded",
+  "wall_time_s": "not recorded",
+  "summary_output": "bench off 45350, on 36133, saved 9217, reduction 20.32%, speedup 1.2551x\narr   off 23386, on 22234, saved 1152, reduction 4.93%\ncases: main 3618 + 3x 4362 = 16704\ncycles: main 51127, rnd 75441\nper-comparison cost 14.1 cycles\n--- code size ---\nzba_arr_off: 1680\nzba_arr_on: 1576\nzba_bench_off: 940\nzba_bench_on: 868",
+  "reruns_2026_10_01": [
+    "make bench-zba on 03386fd reproduces every figure (results/zba/2026-10-01_03386fd)",
+    "the images built by make bench-zba are byte-identical to those of the recovered build script and print the same lines on a simulator built from 1f501f5"
+  ],
+  "caveats": [
+    "Measured on the working copy committed minutes later as 1f501f5, not on the commit itself; 1f501f5 gives the same numbers.",
+    "A deliberate RTL fault (sh2add shifting by 4) was run between the measurement runs and reverted; zba_diff and zba_arr detected it. The quoted runs were made on the correct RTL."
+  ]
+}

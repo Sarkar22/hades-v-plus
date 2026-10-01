@@ -1,0 +1,20 @@
+P1 2d47272d
+P2 d2b891fc
+P3 13f51b20
+P4 5dc557b7
+P5 5082b68e
+P6 7dc9f82d
+P7 356f0e1e
+P8 78565846
+SUM 78565846
+CYCLES 00005b5a
+- sim/top.sv:131: Verilog $finish
+
+Inital test failed! (# Errors: 0)
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!! TEST DONE !!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+- S i m u l a t i o n   R e p o r t: Verilator 5.042 2025-11-02
+- Verilator: $finish at 619ns; walltime 0.027 s; speed 22.106 us/s
+- Verilator: cpu 0.028 s on 1 threads; alloced 175 MB

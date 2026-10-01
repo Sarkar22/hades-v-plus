@@ -1,0 +1,8 @@
+case,distance_bytes,gap,result,expected
+sw+4  (0 nops in gap),4,nop x0,OLD (STALE),OLD (STALE)
+sw+8  (1 nop  in gap),8,nop x1,OLD (STALE),OLD (STALE)
+sw+12 (2 nops in gap),12,nop x2,OLD (STALE),OLD (STALE)
+sw+16 (3 nops in gap),16,nop x3,NEW (fresh),NEW (fresh)
+sw+20 (4 nops in gap),20,nop x4,NEW (fresh),NEW (fresh)
+sw+8  (fence.i in gap),8,fence.i,NEW (fresh),NEW (fresh)
+sw+12 (2 stalling lw ),12,lw x2 from the stall register,OLD (STALE),OLD (STALE)

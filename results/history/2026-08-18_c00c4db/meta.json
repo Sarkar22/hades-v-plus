@@ -1,0 +1,43 @@
+{
+ "topic": "history",
+ "id": "2026-08-18_c00c4db",
+ "title": "M: 20 flushes of the div.s sweep land on an unfinished divide",
+ "status": "historical",
+ "date": "2026-08-18",
+ "base_commit": "c00c4db",
+ "sources": [
+  "development log of 2026-08-18",
+  "commit c00c4db message"
+ ],
+ "figures": [
+  {
+   "figure": "20 of the sweep's flushes land on an unfinished divide",
+   "quoted_at": [
+    "docs/EXTENSIONS.md:72"
+   ],
+   "value": {
+    "flushes_on_unfinished_divide": 20,
+    "flushes_on_finished_unretired": 0
+   },
+   "method": "temporary instrumentation of execute_stage counting flushes by FSM state"
+  },
+  {
+   "figure": "899k+ checks, 17747 stall-protocol checks, 6000 randomised sequences, seven mutations killed",
+   "quoted_at": [
+    "commit c00c4db message"
+   ]
+  }
+ ],
+ "caveats": [
+  "Instrumentation removed; not re-measured after 0d25ee6."
+ ],
+ "host": {
+  "cpu": "Intel Core Ultra 7 165H",
+  "threads": 22,
+  "os": "Linux"
+ },
+ "tools": {
+  "verilator": "5.042",
+  "gcc": "12.2.0"
+ }
+}

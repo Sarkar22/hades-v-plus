@@ -1,0 +1,99 @@
+# Excerpt of reports/timing_pnr.rpt of the 2026-08-17 build whose bitstream is bitstream/hades-v-bpred-FIXED.bit
+# (commit 15b0b85). Verbatim; only the Host line is left out.
+
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2024 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2024.2 (lin64) Build 5239630 Fri Nov 08 22:34:34 MST 2024
+| Date         : Mon Aug 17 01:47:11 2026
+| Command      : report_timing_summary -file reports/timing_pnr.rpt
+| Design       : top
+| Device       : 7a35t-cpg236
+| Speed File   : -1  PRODUCTION 1.23 2018-06-13
+| Design State : Physopt postRoute
+---------------------------------------------------------------------------------------------------------------------------------------------
+[...]
+| Design Timing Summary
+| ---------------------
+------------------------------------------------------------------------------------------------
+
+    WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints     WPWS(ns)     TPWS(ns)  TPWS Failing Endpoints  TPWS Total Endpoints  
+    -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------     --------     --------  ----------------------  --------------------  
+      0.221        0.000                      0                10511        0.019        0.000                      0                10511        2.633        0.000                       0                  3018  
+
+
+All user specified timing constraints are met.
+
+
+------------------------------------------------------------------------------------------------
+| Clock Summary
+| -------------
+------------------------------------------------------------------------------------------------
+
+Clock            Waveform(ns)         Period(ns)      Frequency(MHz)
+-----            ------------         ----------      --------------
+sys_clk_pin      {0.000 5.000}        10.000          100.000         
+  clk            {0.000 10.000}       20.000          50.000          
+  clk_106mhz     {0.000 4.717}        9.434           106.000         
+    clk_vga      {0.000 19.861}       39.722          25.175          
+    clk_vga_fb   {0.000 9.434}        18.868          53.000          
+  clk_106mhz_fb  {0.000 25.000}       50.000          20.000          
+  clk_fb         {0.000 5.000}        10.000          100.000         
+
+
+------------------------------------------------------------------------------------------------
+| Intra Clock Table
+| -----------------
+------------------------------------------------------------------------------------------------
+
+Clock                WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints     WPWS(ns)     TPWS(ns)  TPWS Failing Endpoints  TPWS Total Endpoints  
+-----                -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------     --------     --------  ----------------------  --------------------  
+sys_clk_pin                                                                                                                                                        3.000        0.000                       0                     2  
+  clk                  0.221        0.000                      0                 9875        0.019        0.000                      0                 9875        9.500        0.000                       0                  2848  
+  clk_106mhz                                                                                                                                                       2.717        0.000                       0                     3  
+    clk_vga           26.232        0.000                      0                  636        0.145        0.000                      0                  636       18.881        0.000                       0                   159  
+    clk_vga_fb                                                                                                                                                    17.619        0.000                       0                     2  
+  clk_106mhz_fb                                                                                                                                                    2.633        0.000                       0                     2  
+  clk_fb                                                                                                                                                           8.751        0.000                       0                     2  
+
+
+------------------------------------------------------------------------------------------------
+[...]
+Max Delay Paths
+--------------------------------------------------------------------------------------
+Slack (MET) :             0.221ns  (required time - arrival time)
+  Source:                 mcu/cpu/i_memory/instruction_reg_out_reg[csr][4]/C
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            mcu/ram/memory_reg_bram_6/WEBWE[3]
+                            (falling edge-triggered cell RAMB36E1 clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            10.000ns  (clk fall@10.000ns - clk rise@0.000ns)
+  Data Path Delay:        9.182ns  (logic 1.882ns (20.497%)  route 7.300ns (79.503%))
+  Logic Levels:           11  (LUT4=3 LUT5=2 LUT6=6)
+  Clock Path Skew:        0.016ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    5.801ns = ( 15.801 - 10.000 ) 
+    Source Clock Delay      (SCD):    6.109ns
+    Clock Pessimism Removal (CPR):    0.325ns
+  Clock Uncertainty:      0.082ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.147ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk rise edge)        0.000     0.000 r  
+    W5                                                0.000     0.000 r  clk_100mhz (IN)
+[...]
+Min Delay Paths
+--------------------------------------------------------------------------------------
+Slack (MET) :             0.019ns  (arrival time - required time)
+  Source:                 mcu/cpu/i_execute/next_program_counter_reg_out_reg[0]/C
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Destination:            mcu/cpu/i_memory/next_program_counter_reg_out_reg[0]/D
+                            (rising edge-triggered cell FDRE clocked by clk  {rise@0.000ns fall@10.000ns period=20.000ns})
+  Path Group:             clk
+  Path Type:              Hold (Min at Fast Process Corner)
+  Requirement:            0.000ns  (clk rise@0.000ns - clk rise@0.000ns)
+  Data Path Delay:        0.347ns  (logic 0.141ns (40.609%)  route 0.206ns (59.391%))
+  Logic Levels:           0  
+[...]

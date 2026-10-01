@@ -1,0 +1,33 @@
+# FreeRTOS campaign record: program images and source fingerprints.
+# The sha256sum lines name the files the campaign built, relative to its output directory (--out).
+# After re-running the command of RECORD.md: cd <out> && grep -v '^#' <this file> | sha256sum -c
+# init.mem is the program image the simulators load. The ELF files also carry debug information
+# that holds the absolute path of the checkout, so their hashes match only at the same path:
+# they are kept as '# elf' comments, which sha256sum -c does not check.
+# Correction (2026-10-01): the ELF lines were first written as sha256sum lines, so that the
+# check above reported them as FAILED anywhere but at the original path.
+#
+# base commit 03386fdda932f4827cded26e8cfc2a2cc531b365
+# tree 031b989be1f25dd20836028c5126a5b1dc562bd7  rtl
+# tree f90a9a64ddc67db6642bc6654545f1509744426b  lib
+# tree 36f0452de823189873ca8ac79d7a662918961ad6  defines
+# tree 0dad5608c126445abb808c5addd7b6e9d4df54c7  sim
+# tree b1cd1eebbcd4c675f36085ebfc96416192423721  ref
+# tree 5cb0c42ab14390f060bd6d09bff6903020ac3432  test/freertos  (working tree: modified test/freertos/campaign.py sha256 cda2771aafd5473ed305ae1086483e8d90ae9efc56e1f3fd81f59c5a330705be)
+# tree 57da15398a605dce56c72d420bef3282ba2bb3cc  third_party/freertos
+# file c24da7fcabf3a320f4dd556b69de540f75fc6a6e  Makefile  (working tree: modified Makefile sha256 1dcbe87eb8bef2f178223568dff041ee1e5a2dcb5ff1ed7ec5dd30de42be28ff)
+# file (not in the commit)  test/bench/bench.mk  (working tree: untracked test/bench/bench.mk sha256 1bd837d36516358dff9b3a236696f5707d387017702062f4a37a834879fca1a2)
+0cef9d4419eedac11cfeff00bf24a5609a9d701520ef620825538762d496a5d0  elf/stress.rv32i.O2.p1s1.t10000.h4/init.mem
+# elf babf2c928776397635790e408b7308f54403b973098cec79a65dc30b1a3471b0  elf/stress.rv32i.O2.p1s1.t10000.h4/out.elf
+11cdba1147a1e62dd8fc6e5993c411d1a4e3e577dd0ebe65de75d0d9b35a21cb  elf/stress.noyield.rv32i.O2.p1s1.t10000.h4/init.mem
+# elf d491cc89868fa70b9ea22fb3bdb65c2c44a22b96aa8c4b9c4333b80694b5fbf4  elf/stress.noyield.rv32i.O2.p1s1.t10000.h4/out.elf
+d801874aa302f18c2c238413db7762a15e73dd78b07060b29e07f7cc6eb0114e  elf/stress.noyield.rv32i.Os.p1s1.t5000.h4/init.mem
+# elf fae653d46127aba0db6d3b739c9e56987bfc639f28522da0311e61294d51bb38  elf/stress.noyield.rv32i.Os.p1s1.t5000.h4/out.elf
+fd5857d55768d5423f2928cc7a6daefc9e6295189beae0cc46d6354b5098e99c  elf/stress.noyield.rv32i.O0.p1s1.t10000.h4/init.mem
+# elf b22d994e5200f629ea0d8343397ebc3e6e2cc55c71aaeb9af2b6af7ce0940fcf  elf/stress.noyield.rv32i.O0.p1s1.t10000.h4/out.elf
+f2e353552b4b4129ad753d448347ea1c78fa7331b934cb28d016557673d7a867  elf/stress.noyield.rv32i.O2.p0s1.t10000.h4/init.mem
+# elf d967618318fef640a7dbf706d017085288c26c0f39374f0f59de18a6227d9df8  elf/stress.noyield.rv32i.O2.p0s1.t10000.h4/out.elf
+76b059de758c7e021f0ad0126a819fb7feb79827154ff9bc9da4ee0a195e145f  elf/minimal.rv32i.O2.p1s1.t10000.h4/init.mem
+# elf 75985d27def33d521193253ff89d2594b050c2162244c169431dda8fe1270ba0  elf/minimal.rv32i.O2.p1s1.t10000.h4/out.elf
+d1a223f0543594e934d899fef3365ef8b5624d0b06eb66b8200b4ed8ab9627c8  elf/mzba.rv32i.O2.p1s1.t10000.h4/init.mem
+# elf b40fc7535459e3244659925c667b89eb07485332626ce323529796e270a66cb0  elf/mzba.rv32i.O2.p1s1.t10000.h4/out.elf

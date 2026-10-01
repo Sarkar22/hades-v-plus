@@ -1,0 +1,49 @@
+{
+ "topic": "history",
+ "id": "2026-09-26_97ef211",
+ "title": "Tick-synchronised demo passed more than 5,000 ticks on a defective core",
+ "status": "historical",
+ "verifiable": false,
+ "date": "2026-09-26",
+ "base_commit": "97ef211",
+ "sources": [
+  "development log of 2026-09-26",
+  "commit 0d25ee6 message"
+ ],
+ "figures": [
+  {
+   "figure": "more than 5,000 ticks on a core that still had three such defects",
+   "quoted_at": [
+    "docs/VERIFICATION.md:123"
+   ],
+   "value": {
+    "ticks": 5005,
+    "defects_known_then": [
+     "A",
+     "B",
+     "C"
+    ],
+    "defects_present": [
+     "A",
+     "B",
+     "C",
+     "D",
+     "E",
+     "F"
+    ]
+   }
+  }
+ ],
+ "caveats": [
+  "No log or program of the run was kept; an independent check the same night could not verify it."
+ ],
+ "host": {
+  "cpu": "Intel Core Ultra 7 165H",
+  "threads": 22,
+  "os": "Linux"
+ },
+ "tools": {
+  "verilator": "5.042",
+  "gcc": "12.2.0"
+ }
+}

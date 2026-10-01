@@ -1,0 +1,96 @@
+{
+ "record": "results/fencei-window/2026-10-01_03386fd",
+ "topic": "fencei-window",
+ "status": "repeatable",
+ "date": "2026-10-01",
+ "base_commit": "03386fdda932f4827cded26e8cfc2a2cc531b365",
+ "figures": [
+  {
+   "figure": "a measured 3-slot staleness window",
+   "value": "sw+4, sw+8, sw+12 stale (OLD); sw+16, sw+20 fresh (NEW)",
+   "quoted_in": [
+    "README.md:73",
+    "docs/EXTENSIONS.md:199"
+   ]
+  },
+  {
+   "figure": "Forcing extra stall cycles into the gap does not narrow it",
+   "value": "sw+12 with two stalling loads in the gap (6 cycles where two nops take 3, i.e. 3 extra stall cycles): OLD",
+   "quoted_in": [
+    "docs/EXTENSIONS.md:199"
+   ]
+  },
+  {
+   "figure": "FENCE.I control (not quoted as a number)",
+   "value": "sw+8 with fence.i in the gap: NEW",
+   "quoted_in": []
+  },
+  {
+   "figure": "sw+12 is simulator-specific",
+   "value": "same-cycle cross-port read/write of the block RAM; Verilator returns the old word, undefined on Xilinx block RAM",
+   "quoted_in": [
+    "docs/EXTENSIONS.md:200"
+   ]
+  }
+ ],
+ "commands": [
+  "make bench-fencei-window"
+ ],
+ "inputs": {
+  "base_commit_trees": {
+   "rtl": "031b989be1f25dd20836028c5126a5b1dc562bd7",
+   "lib": "f90a9a64ddc67db6642bc6654545f1509744426b",
+   "defines": "36f0452de823189873ca8ac79d7a662918961ad6",
+   "sim": "0dad5608c126445abb808c5addd7b6e9d4df54c7",
+   "std": "05909d5f7dd5d23f80a2d11e127fdb79eb8a5468",
+   "ref": "b1cd1eebbcd4c675f36085ebfc96416192423721"
+  },
+  "files_sha256": {
+   "Makefile": "1dcbe87eb8bef2f178223568dff041ee1e5a2dcb5ff1ed7ec5dd30de42be28ff",
+   "test/bench/bench.mk": "1bd837d36516358dff9b3a236696f5707d387017702062f4a37a834879fca1a2",
+   "test/bench/bench.py": "f7aa19b1f0e7456b3f7dcf9e862e1bce6a8e382575d4fe7d455cdd3de0f8b1d6",
+   "test/bench/fencei-window/fencei_stale.s": "1facb5fef2f226199b583c9a347c739c6b7f86b8912c633db4cd9264a741cfc3",
+   "test/bench/fencei-window/stall_probe.s": "25433b355bc66514286262700328105d3fa5b56d7934a8a45c24d6a81d0cd3e0"
+  }
+ },
+ "outputs_sha256": {
+  "build/test/bench/fencei-window/fencei_stale/init.mem": "a9a120f2209a6b7e8c434b378564d3be2d9117b98ac0c0ef9f6435063fae2ed2",
+  "build/test/bench/fencei-window/stall_probe/init.mem": "a6b1e2c06f3966f6ed45b7f8343bb3e442163065931bdf63a0631a7cc700f151"
+ },
+ "host": {
+  "cpu": "Intel Core Ultra 7 165H",
+  "threads": 22,
+  "os": "Linux"
+ },
+ "tools": {
+  "verilator": "Verilator 5.042 2025-11-02 rev v5.042",
+  "gcc": "riscv32-unknown-elf-gcc () 12.2.0",
+  "binutils": "GNU assembler (GNU Binutils) 2.39",
+  "python": "Python 3.12.3",
+  "make": "GNU Make 4.3"
+ },
+ "workers": 1,
+ "wall_time_s": {
+  "make bench-fencei-window (simulator built, programs built and run)": 0.06,
+  "make bench-fencei-window (runs only)": 0.04
+ },
+ "summary_output": "FENCE.I staleness window (test/bench/fencei-window/fencei_stale.s)\nA store patches the instruction D bytes after it, which then runs; the gap holds nops\n(or the instruction named); OLD = the word before the store executed, NEW = the patched one.\n\n  sw+4  (0 nops in gap)   : OLD (STALE)\n  sw+8  (1 nop  in gap)   : OLD (STALE)\n  sw+12 (2 nops in gap)   : OLD (STALE)\n  sw+16 (3 nops in gap)   : NEW (fresh)\n  sw+20 (4 nops in gap)   : NEW (fresh)\n  sw+8  (fence.i in gap)  : NEW (fresh)\n  sw+12 (2 stalling lw )  : OLD (STALE)\n\n  the program's own checks: All tests passed! (# Errors: 1 = initial test)\n  stall_probe.s, cycles between two mcycle reads: two nops 3, the two loads of the\n  \"2 stalling lw\" case 6, two loads that do not stall 3\n\n  window: the 3 instruction slots after the store (sw+4, sw+8, sw+12) run the old\n  word, sw+16 and later the new one; FENCE.I at sw+8 gives the new word; 3 stall\n  cycles in the gap leave sw+12 old.\n  caveat: at sw+12 the fetch reads the word in the same cycle as the store writes it,\n  through the other port of the block RAM. Verilator returns the old word; on a Xilinx\n  block RAM the data read in that case is undefined, so sw+12 is \"not reliably fresh\".\n\nBENCH FENCEI-WINDOW: PASS\n",
+ "caveats": [
+  "The program measures by omitting FENCE.I in software; no RTL is changed.",
+  "sw+12 is a same-cycle cross-port read/write collision in the block RAM: deterministic (old word) in Verilator, undefined on Xilinx block RAM, so on the FPGA sw+12 is not reliably fresh rather than certainly stale.",
+  "The program checks the window itself (assert values RESULT_D04..D20); its first check fails on purpose, as in every assembly test, so a correct run ends in \"All tests passed! (# Errors: 1 = initial test)\".",
+  "Assembly ELFs embed a random temporary object name, so only the init.mem images are fingerprinted.",
+  "The fingerprints under inputs are those of the files the run used (Makefile sha256 1dcbe87eb8bef2f178223568dff041ee1e5a2dcb5ff1ed7ec5dd30de42be28ff, without the check-results target). Files that changed afterwards, before they were committed, are listed with their new sha256 in rechecked.sha256, with which make check-results reproduced this record exactly. Correction (2026-10-01): the Makefile fingerprint had been changed to that of the extended file (2cd15d508f09973d61d90e439fcb9f58f72b723e31c5bbaa0f5c17ca1bdc834a); it again names the file the run used."
+ ],
+ "rechecked": {
+  "date": "2026-10-01",
+  "command": "make check-results CHECK_ARGS=fencei-window",
+  "result": "reproduced exactly",
+  "files": {
+   "Makefile": "7dc1cff910406866f8fce3fb59470d0de1b18296830367f58dd6ba90cb54ffbe",
+   "test/bench/bench.mk": "a2c75591b33afce57aad8063d93574dbe1d708994528f1df0efba883fb357541",
+   "test/bench/fencei-window/fencei_stale.s": "425c83c849c5b766aa261b5611c87f4ba8cb983e1e26337fcaaa782c022b0999"
+  },
+  "file": "rechecked.sha256"
+ }
+}

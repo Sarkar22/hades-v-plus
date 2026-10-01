@@ -1,0 +1,79 @@
+{
+ "topic": "history",
+ "id": "2026-08-17_15b0b85",
+ "title": "The bitstreams in bitstream/",
+ "status": "historical",
+ "date": "2026-08-17",
+ "base_commit": "15b0b85",
+ "sources": [
+  "commit 9fd9b18 message",
+  "commit 6c80a9e message",
+  "commit 15b0b85 message",
+  "bitstream headers",
+  "surviving build output of 2026-08-17"
+ ],
+ "files": {
+  "hades-v-baseline-FIXED.bit": {
+   "bytes": 1118785,
+   "sha256": "ac6469c82f9df1b1a2a690d5abb271b0898383afacc90234c1a059159891312d",
+   "header": [
+    "top;COMPRESS=TRUE;UserID=0XFFFFFFFF;Version=2024.2",
+    "7a35tcpg236",
+    "2026/06/13 11:38:35"
+   ],
+   "commit": "9fd9b18"
+  },
+  "hades-v-baseline-FIXED.bin": {
+   "bytes": 1118672,
+   "sha256": "b844d884f65c120848e50e73a5e4d338b17f8b4b5f106f4da318f3c789847c32",
+   "commit": "9fd9b18"
+  },
+  "hades-v-bpred-FIXED.bit": {
+   "bytes": 1099593,
+   "sha256": "0abe0ec3e5a9cdff0d4774db0772bc00d9776c8f7f4dcf49ba753179090f0943",
+   "header": [
+    "top;COMPRESS=TRUE;UserID=0XFFFFFFFF;Version=2024.2",
+    "7a35tcpg236",
+    "2026/08/17 01:47:29"
+   ],
+   "commit": "15b0b85"
+  },
+  "hades-v-bpred-FIXED.bin": {
+   "bytes": 1099480,
+   "sha256": "3c3a2f605a41f604ab8f356c7a7a3949822dace2469ff8254f148d18c6276bd9",
+   "commit": "15b0b85"
+  }
+ },
+ "figures": [
+  {
+   "figure": "bitstreams of two earlier revisions ... built before Zicntr, Zba, M, the FENCE fix and the trap fixes",
+   "quoted_at": [
+    "docs/BUILDING.md:80"
+   ]
+  },
+  {
+   "figure": "not yet run on a physical board",
+   "quoted_at": [
+    "README.md:18",
+    "README.md:115"
+   ]
+  }
+ ],
+ "related_records": [
+  "results/fpga-timing/2026-06-13_9fd9b18",
+  "results/fpga-timing/2026-08-17_15b0b85"
+ ],
+ "caveats": [
+  "Neither has been run on a board.",
+  "The baseline's source tree is not in the history."
+ ],
+ "host": {
+  "cpu": "Intel Core Ultra 7 165H",
+  "threads": 22,
+  "os": "Linux",
+  "note": "for the 2026-08-17 build; not recorded for 2026-06-13"
+ },
+ "tools": {
+  "vivado": "2024.2"
+ }
+}

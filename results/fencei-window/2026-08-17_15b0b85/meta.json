@@ -1,0 +1,74 @@
+{
+  "record": "results/fencei-window/2026-08-17_15b0b85",
+  "topic": "fencei-window",
+  "status": "historical",
+  "date": "2026-08-17",
+  "base_commit": "15b0b85381ca807db63e8773d46c281c41c3506e",
+  "measured_on": "clean working copy of 15b0b85 with only the new program added; the documentation text was committed in 37e2d6759ab9c51ed021e81f7dae657d7af29a80 later that evening",
+  "provenance": "the development log of 2026-08-17, 19:16-19:25 (UTC-4)",
+  "figures": [
+    {
+      "figure": "a measured 3-slot staleness window",
+      "value": "sw+4, sw+8, sw+12: OLD (STALE); sw+16, sw+20: NEW (fresh)",
+      "quoted_in": [
+        "README.md:73",
+        "docs/EXTENSIONS.md:199"
+      ]
+    },
+    {
+      "figure": "Forcing extra stall cycles into the gap does not narrow it",
+      "value": "sw+12 (2 stalling lw): OLD (STALE); probe: two nops 3 cycles, the two stalling loads 6, two plain loads 3",
+      "quoted_in": [
+        "docs/EXTENSIONS.md:199"
+      ]
+    },
+    {
+      "figure": "FENCE.I control",
+      "value": "sw+8 (fence.i in gap): NEW (fresh)",
+      "quoted_in": []
+    },
+    {
+      "figure": "The sw+12 case is simulator-specific",
+      "value": "same-cycle cross-port read/write collision in the block RAM (inferred from the RTL)",
+      "quoted_in": [
+        "docs/EXTENSIONS.md:200"
+      ]
+    }
+  ],
+  "commands_then": [
+    "make test/asm/fencei_stale",
+    "make test/asm/zz_probe"
+  ],
+  "replaced_by": "make bench-fencei-window",
+  "inputs": {
+    "base_commit_trees": {
+      "rtl": "a8f9747d507b5ae806db6bb9b8f352f7fd8fcf13",
+      "lib": "9273a2fb0857718dc9e0ca7d2f98afbba2bdab03",
+      "defines": "699b7071bdae814c98f9eb7e18a141b5f9cab705",
+      "sim": "b9ea689e3115da8714c525858c64d7131505378f",
+      "std": "05909d5f7dd5d23f80a2d11e127fdb79eb8a5468"
+    },
+    "programs_sha256": {
+      "fencei_stale.s": "920a95c924a978d4608c7cf730e389aff86165b25c06255228d3ad719f5d21ac",
+      "zz_probe.s (now stall_probe.s)": "530d1a3a819baf0cf125b6b8fba241fbac8483bd753d922532e8f15d7553a03c"
+    },
+    "programs_now": "test/bench/fencei-window/fencei_stale.s, stall_probe.s (unchanged after the license header)"
+  },
+  "host": "not recorded",
+  "tools": {
+    "verilator": "Verilator 5.042 2025-11-02",
+    "gcc": "riscv32-unknown-elf-gcc 12.2.0",
+    "binutils": "2.39"
+  },
+  "workers": "not recorded",
+  "wall_time_s": "not recorded",
+  "summary_output": "--- fence.i negative control: instruction patched at sw+D, no fence.i ---\n  sw+4  (0 nops in gap) : OLD (STALE)\n  sw+8  (1 nop  in gap) : OLD (STALE)\n  sw+12 (2 nops in gap) : OLD (STALE)\n  sw+16 (3 nops in gap) : NEW (fresh)\n  sw+20 (4 nops in gap) : NEW (fresh)\n  sw+8  (fence.i in gap): NEW (fresh)\n  sw+12 (2 stalling lw ) : OLD (STALE)\n( 71260 ps) Test pass!\n( 71380 ps) Test pass!\n( 71500 ps) Test pass!\n( 71620 ps) Test pass!\n( 71740 ps) Test pass!\n( 71860 ps) Test pass!\n( 71980 ps) Test pass!\n( 72100 ps) Test pass!\n( 72200 ps) Test pass!\n( 72300 ps) Test pass!\n( 72400 ps) Test pass!\n( 72500 ps) Test pass!\n( 72600 ps) Test pass!\n( 72700 ps) Test pass!\n( 72800 ps) Test pass!\n- sim/top.sv:94: Verilog $finish\n\nAll tests passed! (# Errors: 1 = initial test)\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n!!!!!!!!!!!!!!!!!!!! TEST DONE !!!!!!!!!!!!!!!!!!!!",
+  "reruns_2026_10_01": [
+    "on a simulator built from 15b0b85 the recovered programs print exactly the same lines, including the times of the 15 passing checks, and the probe prints 3 6 3",
+    "make bench-fencei-window on 03386fd gives the same result (results/fencei-window/2026-10-01_03386fd)"
+  ],
+  "caveats": [
+    "FENCE.I removed means the program does not execute FENCE.I; no RTL was changed.",
+    "sw+12 is a same-cycle cross-port block-RAM read/write: old word in Verilator, undefined on Xilinx block RAM; the mechanism was inferred from the RTL, not confirmed in a waveform."
+  ]
+}

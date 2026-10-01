@@ -1,0 +1,78 @@
+# Every check on which a HaDes-V+ pipeline stage differs from its frozen golden stage
+# (lines '[n] <check> FAIL|COMB <signal>: dut=... ref=...' of each bench, verbatim),
+# base commit 03386fd, Verilator 5.042. A change in these lines is a change of behaviour.
+
+## make test/sv/test_execute_compare   (Tests: 142   Errors: 30; 30 difference lines)
+[1] 1a_JALR_odd_comb COMB jump_addr: dut=44444442 ref=44444443
+[2] 1a_JALR_odd_reg FAIL next_pc: dut=44444442 ref=44444443
+[2] 1a_JALR_odd_reg FAIL jump_addr: dut=44444442 ref=44444443
+[3] 1b_JALR_odd_comb COMB fwd: dut={dv=1,d=00002004,a=3} ref={dv=0,d=00002004,a=3}
+[3] 1b_JALR_odd_comb COMB jump_addr: dut=88888884 ref=88888885
+[4] 1b_JALR_odd_reg FAIL next_pc: dut=88888884 ref=88888885
+[4] 1b_JALR_odd_reg FAIL fwd: dut={dv=1,d=00002004,a=3} ref={dv=0,d=00002004,a=3}
+[4] 1b_JALR_odd_reg FAIL sf_out: dut=0 ref=2
+[4] 1b_JALR_odd_reg FAIL jump_addr: dut=88888884 ref=88888885
+[7] 1d_JALR_bit0_comb COMB fwd: dut={dv=1,d=00004004,a=7} ref={dv=0,d=00004004,a=7}
+[7] 1d_JALR_bit0_comb COMB jump_addr: dut=00002000 ref=00002001
+[8] 1d_JALR_bit0_reg FAIL next_pc: dut=00002000 ref=00002001
+[8] 1d_JALR_bit0_reg FAIL fwd: dut={dv=1,d=00004004,a=7} ref={dv=0,d=00004004,a=7}
+[8] 1d_JALR_bit0_reg FAIL sf_out: dut=0 ref=2
+[8] 1d_JALR_bit0_reg FAIL jump_addr: dut=00002000 ref=00002001
+[11] 2a_JALR_pre_stall FAIL next_pc: dut=aaaaaaac ref=aaaaaaad
+[11] 2a_JALR_pre_stall FAIL fwd: dut={dv=1,d=00005004,a=10} ref={dv=0,d=00005004,a=10}
+[11] 2a_JALR_pre_stall FAIL sf_out: dut=0 ref=2
+[11] 2a_JALR_pre_stall FAIL jump_addr: dut=aaaaaaac ref=aaaaaaad
+[13] 2b_STALL_reg FAIL next_pc: dut=aaaaaaac ref=aaaaaaad
+[13] 2b_STALL_reg FAIL sf_out: dut=0 ref=2
+[107] 11a_JAL_bubble_reg FAIL next_pc: dut=00021000 ref=00020004
+[125] 13_exc0_reg FAIL next_pc: dut=00041000 ref=00040004
+[127] 13_exc1_reg FAIL next_pc: dut=00041004 ref=00040008
+[129] 13_exc2_reg FAIL next_pc: dut=00041008 ref=0004000c
+[131] 13_exc3_reg FAIL next_pc: dut=0004100c ref=00040010
+[133] 13_exc4_reg FAIL next_pc: dut=00041010 ref=00040014
+[135] 13_exc5_reg FAIL next_pc: dut=00041014 ref=00040018
+[137] 13_exc6_reg FAIL next_pc: dut=00041018 ref=0004001c
+[139] 13_exc7_reg FAIL next_pc: dut=0004101c ref=00040020
+
+## make test/sv/test_memory_compare   (Tests: 98   Errors: 6; 6 difference lines)
+[37] 8a_LW_misalign_comb COMB fwd: dut={dv=0,d=dead0000,a=1} ref={dv=0,d=00dead00,a=1}
+[38] 8a_LW_misalign_reg FAIL rd_data: dut=dead0000 ref=00dead00
+[38] 8a_LW_misalign_reg FAIL fwd: dut={dv=0,d=dead0000,a=1} ref={dv=0,d=00dead00,a=1}
+[41] 8c_LH_misalign_comb COMB fwd: dut={dv=0,d=00000000,a=2} ref={dv=0,d=ffffad00,a=2}
+[42] 8c_LH_misalign_reg FAIL rd_data: dut=00000000 ref=ffffad00
+[42] 8c_LH_misalign_reg FAIL fwd: dut={dv=0,d=00000000,a=2} ref={dv=0,d=ffffad00,a=2}
+
+## make test/sv/test_writeback_compare   (Tests: 111   Errors: 7; 7 difference lines)
+[17] 6a_CSRRW_mstatus_comb COMB fwd: dut={dv=1,d=00000080,a=7} ref={dv=1,d=00000000,a=7}
+[25] 8a_CSRRWI_comb COMB fwd: dut={dv=1,d=abcd0000,a=11} ref={dv=1,d=00000000,a=11}
+[26] 8a_CSRRWI_reg FAIL fwd: dut={dv=1,d=00000015,a=11} ref={dv=1,d=00000000,a=11}
+[30] 8c_CSRRCI_reg FAIL fwd: dut={dv=1,d=00000014,a=13} ref={dv=1,d=00000015,a=13}
+[63] 13a_MRET_int_comb COMB jump_addr: dut=80000200 ref=00070100
+[95] 21a_csr_enable_int_comb COMB sb_out: dut=2 ref=0
+[95] 21a_csr_enable_int_comb COMB jump_addr: dut=80000200 ref=00000000
+
+## make test/sv/test_writeback_special_irq   (Tests: 51   Errors: 24; 24 difference lines)
+[3] B1_csrrs_mstatus_comb COMB fwd: dut={dv=1,d=00000080,a=1} ref={dv=1,d=00000000,a=1}
+[3] B1_csrrs_mstatus_comb COMB sb: dut=2 ref=0
+[3] B1_csrrs_mstatus_comb COMB jump: dut=dabbad00 ref=00000000
+[4] B1_csrrs_mstatus_reg FAIL fwd: dut={dv=1,d=00000080,a=1} ref={dv=1,d=00000008,a=1}
+[7] B3_read_mepc_comb COMB fwd: dut={dv=1,d=00040014,a=1} ref={dv=1,d=00000000,a=1}
+[7] B3_read_mepc_comb COMB sb: dut=0 ref=2
+[7] B3_read_mepc_comb COMB jump: dut=00000000 ref=dabbad00
+[8] B3_read_mepc_reg FAIL fwd: dut={dv=1,d=faceb00c,a=1} ref={dv=1,d=0004001c,a=1}
+[9] C1_int_imm FAIL fwd: dut={dv=1,d=00000080,a=1} ref={dv=1,d=00000088,a=1}
+[16] C5_read_mcause_comb COMB fwd: dut={dv=1,d=8000000b,a=3} ref={dv=1,d=00000001,a=3}
+[17] C5_read_mcause_reg FAIL fwd: dut={dv=1,d=8000000b,a=3} ref={dv=1,d=00000001,a=3}
+[24] D4_mstatus_comb COMB fwd: dut={dv=1,d=00000080,a=5} ref={dv=1,d=00000000,a=5}
+[25] D4_mstatus_reg FAIL fwd: dut={dv=1,d=00000080,a=5} ref={dv=1,d=00000000,a=5}
+[26] D5_mepc_comb COMB fwd: dut={dv=1,d=00040018,a=6} ref={dv=1,d=0004001c,a=6}
+[27] D5_mepc_reg FAIL fwd: dut={dv=1,d=00040018,a=6} ref={dv=1,d=0004001c,a=6}
+[29] E2_mret_int_comb COMB jump: dut=dabbad00 ref=0004005c
+[33] E4_mstatus_check_comb COMB fwd: dut={dv=1,d=00000080,a=1} ref={dv=1,d=00000088,a=1}
+[33] E4_mstatus_check_comb COMB sb: dut=0 ref=2
+[33] E4_mstatus_check_comb COMB jump: dut=00000000 ref=dabbad00
+[43] F3_mstatus_check_comb COMB fwd: dut={dv=1,d=00000080,a=1} ref={dv=1,d=00000000,a=1}
+[44] F3_mstatus_check_reg FAIL fwd: dut={dv=1,d=00000080,a=1} ref={dv=1,d=00000000,a=1}
+[45] F4_mret_comb COMB jump: dut=dabbad00 ref=00040018
+[47] F5_mcause_check_comb COMB fwd: dut={dv=1,d=8000000b,a=2} ref={dv=1,d=00000001,a=2}
+[48] F5_mcause_check_reg FAIL fwd: dut={dv=1,d=8000000b,a=2} ref={dv=1,d=00000001,a=2}

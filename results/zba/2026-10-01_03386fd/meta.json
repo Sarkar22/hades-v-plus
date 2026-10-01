@@ -1,0 +1,172 @@
+{
+ "record": "results/zba/2026-10-01_03386fd",
+ "topic": "zba",
+ "status": "repeatable",
+ "date": "2026-10-01",
+ "base_commit": "03386fdda932f4827cded26e8cfc2a2cc531b365",
+ "figures": [
+  {
+   "figure": "20.3 % fewer cycles",
+   "value": "45350 -> 36133 cycles, -20.3 % (zba_bench, -O2)",
+   "quoted_in": [
+    "docs/EXTENSIONS.md:123"
+   ]
+  },
+  {
+   "figure": "1.26x",
+   "value": "1.2551x (45350 / 36133)",
+   "quoted_in": [
+    "docs/EXTENSIONS.md:123"
+   ]
+  },
+  {
+   "figure": "6-8 % smaller code",
+   "value": "zba_bench 940 -> 868 bytes (-7.7 %), zba_arr 1680 -> 1576 bytes (-6.2 %), out.bin sizes at -O2",
+   "quoted_in": [
+    "docs/EXTENSIONS.md:123"
+   ]
+  },
+  {
+   "figure": "16,704 in-program operand comparisons with zero discrepancies",
+   "value": "3618 + 4362 + 4362 + 4362 = 16704 checks in 4 zba_diff runs, 0 mismatches, ZBA DIFF OK in all 4",
+   "quoted_in": [
+    "docs/EXTENSIONS.md:123"
+   ]
+  },
+  {
+   "figure": "not quoted at 03386fd: -Os",
+   "value": "zba_bench 43814 -> 37670 cycles (-14.0 %), 924 -> 892 bytes (-3.5 %)",
+   "quoted_in": [
+    "docs/EXTENSIONS.md (Zba, Verification), since this record was added",
+    "test/bench/README.md, since this record was added"
+   ]
+  },
+  {
+   "figure": "not quoted at 03386fd: -O0",
+   "value": "GCC emits no Zba instruction; both builds identical (1904 bytes, 147659 cycles)",
+   "quoted_in": [
+    "docs/EXTENSIONS.md (Zba, Verification), since this record was added",
+    "test/bench/README.md, since this record was added"
+   ]
+  }
+ ],
+ "commands": [
+  "make bench-zba",
+  "make bench-zba OPT=-Os",
+  "make bench-zba OPT=-O0"
+ ],
+ "inputs": {
+  "base_commit_trees": {
+   "rtl": "031b989be1f25dd20836028c5126a5b1dc562bd7",
+   "lib": "f90a9a64ddc67db6642bc6654545f1509744426b",
+   "defines": "36f0452de823189873ca8ac79d7a662918961ad6",
+   "sim": "0dad5608c126445abb808c5addd7b6e9d4df54c7",
+   "std": "05909d5f7dd5d23f80a2d11e127fdb79eb8a5468",
+   "ref": "b1cd1eebbcd4c675f36085ebfc96416192423721"
+  },
+  "files_sha256": {
+   "Makefile": "1dcbe87eb8bef2f178223568dff041ee1e5a2dcb5ff1ed7ec5dd30de42be28ff",
+   "test/bench/bench.mk": "1bd837d36516358dff9b3a236696f5707d387017702062f4a37a834879fca1a2",
+   "test/bench/bench.py": "f7aa19b1f0e7456b3f7dcf9e862e1bce6a8e382575d4fe7d455cdd3de0f8b1d6",
+   "test/bench/zba/zba_bench.c": "ac19ebb04a37c0f1c1691f0a4e51d956a0778cfe71a4eceb966d6c8d69fd12ab",
+   "test/bench/zba/zba_arr.c": "5f570f6b3c3c41b321764938c7fdfe43a358f29f86ca892e25f8c6a51accb02d",
+   "test/bench/zba/zba_diff.c": "5c1e89dbdcbab697138a5cb5d0192e69960d9433d23bb406338ccc788c5d41c1"
+  }
+ },
+ "outputs_sha256": {
+  "build/test/bench/zba/O2/zba_bench-rv32i/init.mem": "f48ccf25ba818f0b5250016e85ff6e2691ec716166fff2db431a9d5e87841279",
+  "build/test/bench/zba/O2/zba_bench-rv32i/out.elf": "85cc729f24abf49648bf0e2107aab47edc24e01f03f3ccfb3bc51e55448f1f5e",
+  "build/test/bench/zba/O2/zba_bench-rv32i_zba/init.mem": "5182e8e43f6966cdecf0f60bad70fa52eb1b3c9221db37c1f8064873e43656b7",
+  "build/test/bench/zba/O2/zba_bench-rv32i_zba/out.elf": "f8397ab4f62fa4c8c35bb5a8329df8c38e5f206e52b19b94039849356cce22e7",
+  "build/test/bench/zba/O2/zba_arr-rv32i/init.mem": "d71dda8eb2e15d093dc40f814a0cccb3b8f615380de2f0543a31f26a5a30d39a",
+  "build/test/bench/zba/O2/zba_arr-rv32i/out.elf": "641142cd2d75b240c8ce2d4972de372b6d3a590271a4dc59605a79023b0a2741",
+  "build/test/bench/zba/O2/zba_arr-rv32i_zba/init.mem": "01ee9bb1f063efa3d98a614e97f79ea194df0393391fde0d2c9c30595f19c57e",
+  "build/test/bench/zba/O2/zba_arr-rv32i_zba/out.elf": "c84f77a97eed15f24ce59b7ff8294e882d75785bc3bd73b898cbee98d5b82129",
+  "build/test/bench/zba/O2/zba_diff/init.mem": "8faa431c106f39c464cf5c44278860d666b23a20b454c0394992c3825a9c975e",
+  "build/test/bench/zba/O2/zba_diff/out.elf": "82804d644182bffaf0302ffdf0e0ca9d2ba55243899b8f92fa7f50f7e873d026",
+  "build/test/bench/zba/O2/zba_diff-B5297A4D/init.mem": "e295f2bbb7e513d0e985136ec3301921e785e8777694deed02369637bd6b196e",
+  "build/test/bench/zba/O2/zba_diff-B5297A4D/out.elf": "6c00decdb3849d2cdcd2602fe4b73215333ae231db29580c62096e2899aea106",
+  "build/test/bench/zba/O2/zba_diff-1F123BB5/init.mem": "a502b116428e0c814365d3c332ad82ecb94e7030bb97619ec0eb989f14e63b92",
+  "build/test/bench/zba/O2/zba_diff-1F123BB5/out.elf": "8cddb0adb70447492dda87caf2c7a8364e7f7c1d1fc292aa06f7755657643924",
+  "build/test/bench/zba/O2/zba_diff-9E3779B9/init.mem": "eddfbd0853b275cd4b39e42090d16d8a8e013651e191dc42e0580ee4bae86c17",
+  "build/test/bench/zba/O2/zba_diff-9E3779B9/out.elf": "fda1c073e675be3adb312427a5a23406d3ec99d289d262f24dd78e7835fb3ce5",
+  "build/test/bench/zba/Os/zba_bench-rv32i/init.mem": "2299215dd81249ab60de59b90903a1c7196fd412e73d426eec1ce4c4e2e4069a",
+  "build/test/bench/zba/Os/zba_bench-rv32i/out.elf": "ef323dbaa9e6b36abb8709c8da81beb823c8e5aec7d6ebc27c3597c3b67e6ded",
+  "build/test/bench/zba/Os/zba_bench-rv32i_zba/init.mem": "3be624a11dc76d362c0512c4de49abdb93a83b3175ba6709fd549b63d7446f85",
+  "build/test/bench/zba/Os/zba_bench-rv32i_zba/out.elf": "d18174610658ee2205cebf0ab04f330decf3eeb9d75c01a255ed4d0fb12503f5",
+  "build/test/bench/zba/Os/zba_arr-rv32i/init.mem": "deab845a7be5b2423c4dce81a98037943e4b5be61ebba19fe59c952ebd1c56f5",
+  "build/test/bench/zba/Os/zba_arr-rv32i/out.elf": "d03c24ac211b86243a43e979287f8ef15825511083fca27eb536adfa7b898f55",
+  "build/test/bench/zba/Os/zba_arr-rv32i_zba/init.mem": "eb12452de7329000627e27b4489a7b6f91e5d3289fb70e9ce58ce40f36890082",
+  "build/test/bench/zba/Os/zba_arr-rv32i_zba/out.elf": "0fa2a7a9881b210b143b4fb1b3e39a3176d9f5278c020e240846871e2b844e1a",
+  "build/test/bench/zba/Os/zba_diff/init.mem": "147e71ac84cd0b6239afb7506a9436539aa2fb828f008570abb9dcca51c723d5",
+  "build/test/bench/zba/Os/zba_diff/out.elf": "7181a4b212e3d131530c4748bcef035e70348d6965fe139e514833caecf35633",
+  "build/test/bench/zba/Os/zba_diff-B5297A4D/init.mem": "77b34e37a28bc4b5ce6fa05238ba4d24ce9306bf1bd88241c7772e1df194871d",
+  "build/test/bench/zba/Os/zba_diff-B5297A4D/out.elf": "819dac70237f1c6631fab9abbe74326abcf327829bd355837b9ce964c04549c3",
+  "build/test/bench/zba/Os/zba_diff-1F123BB5/init.mem": "56a21cd6fdaf7af95b7435e11389f727a10c8e454ece9ede88a329edaf15b7a7",
+  "build/test/bench/zba/Os/zba_diff-1F123BB5/out.elf": "16bbd7cb8c2fd8db81f225dc3d7694bba08fd893eff4ee8a6c6f26713a848fe1",
+  "build/test/bench/zba/Os/zba_diff-9E3779B9/init.mem": "e91bbbb8c873ff934b74697ad9e5522cde0448cc588a635363685918f2cd03fc",
+  "build/test/bench/zba/Os/zba_diff-9E3779B9/out.elf": "e541cb8c0dc2fe8639b6bbe81055d2aebe0f166d311538b3c6fcff3d99d75230",
+  "build/test/bench/zba/O0/zba_bench-rv32i/init.mem": "0df0dadc799e266f26204b625eb2a848a1b0afdb48c732723e9d6c0eddce2549",
+  "build/test/bench/zba/O0/zba_bench-rv32i/out.elf": "c7054902c922f7d611aceb0c12c961f470af52d690a77bb9c392f2b721c02b99",
+  "build/test/bench/zba/O0/zba_bench-rv32i_zba/init.mem": "0df0dadc799e266f26204b625eb2a848a1b0afdb48c732723e9d6c0eddce2549",
+  "build/test/bench/zba/O0/zba_bench-rv32i_zba/out.elf": "ed33dc0c2a589e564122a797e2333dcd3f6b4fb75cfe9b6ecfb1e7f78d828d0d",
+  "build/test/bench/zba/O0/zba_arr-rv32i/init.mem": "ee70215648aa2a0034065c3aac1cf65d7b3461c0c98d64a0211bfc48f0823d08",
+  "build/test/bench/zba/O0/zba_arr-rv32i/out.elf": "14e36d3cfca5943b5006c5d45e534670307ae76b1744f1607f4869a5910eadfc",
+  "build/test/bench/zba/O0/zba_arr-rv32i_zba/init.mem": "ee70215648aa2a0034065c3aac1cf65d7b3461c0c98d64a0211bfc48f0823d08",
+  "build/test/bench/zba/O0/zba_arr-rv32i_zba/out.elf": "d9193771e13a9fc78149a56f03dee8b5e8d2c0652429030c4009d8c703395f39",
+  "build/test/bench/zba/O0/zba_diff/init.mem": "b1cd4e15e0059940a43c95aa54c07ca5af26ad4d9353ba4850a495a2f1cc1a32",
+  "build/test/bench/zba/O0/zba_diff/out.elf": "f6fb3392d30d268bc8db2e3ff3d44e6fd03f0a223804cf098628e96f2a7af16f",
+  "build/test/bench/zba/O0/zba_diff-B5297A4D/init.mem": "fc027de91c5174d91c1b1aa4b47fe9c24ab2dd5e72acfce6501809f75e935861",
+  "build/test/bench/zba/O0/zba_diff-B5297A4D/out.elf": "482304bb6058f85e40187dde4aa50ca549a268ee35390011e691a00e5937344a",
+  "build/test/bench/zba/O0/zba_diff-1F123BB5/init.mem": "843aeddf883128bc8ddfdb1b7c3fbf51baede9dc0c0ee70822ae01507153b24c",
+  "build/test/bench/zba/O0/zba_diff-1F123BB5/out.elf": "283252f3847dd445d8eb076e62f1bc3fd4cea8a1fef8fa9abf07adb75928edba",
+  "build/test/bench/zba/O0/zba_diff-9E3779B9/init.mem": "109f38d054761c2d5251e79026af9dc3e4e5815cba66424f9d59e617318471b1",
+  "build/test/bench/zba/O0/zba_diff-9E3779B9/out.elf": "f2bcea39326d397e9414f447f0da154020d81aee2dd2807e80f2b8ea237f80c6"
+ },
+ "host": {
+  "cpu": "Intel Core Ultra 7 165H",
+  "threads": 22,
+  "os": "Linux"
+ },
+ "tools": {
+  "verilator": "Verilator 5.042 2025-11-02 rev v5.042",
+  "gcc": "riscv32-unknown-elf-gcc () 12.2.0",
+  "binutils": "GNU assembler (GNU Binutils) 2.39",
+  "python": "Python 3.12.3",
+  "make": "GNU Make 4.3"
+ },
+ "workers": 1,
+ "wall_time_s": {
+  "make bench (clean tree, simulator built from the ccache)": 2.52,
+  "make bench (clean tree, ccache disabled, two runs)": [
+   12.7,
+   23.64
+  ],
+  "make bench-zba OPT=-Os (simulator built)": 4.23,
+  "make bench-zba OPT=-O0 (simulator built)": 1.48
+ },
+ "summary_output": {
+  "-O2": "Zba benchmark (test/bench/zba), -O2: each program built for -march=rv32i and for -march=rv32i_zba\n\n  variant               image bytes  Zba instrs  timed cycles  result\n  zba_bench-rv32i               940           0         45350  CHK ca5f039c\n  zba_bench-rv32i_zba           868          16         36133  CHK ca5f039c\n  zba_arr-rv32i                1680           0         23386  SUM 78565846\n  zba_arr-rv32i_zba            1576          27         22234  SUM 78565846\n  zba_diff                     2588          15         51127  CASES 3618 BAD 0 EXTRA 0, ZBA DIFF OK\n  zba_diff-B5297A4D            2392          12         75441  CASES 4362 BAD 0 EXTRA 0, ZBA DIFF OK\n  zba_diff-1F123BB5            2392          12         75439  CASES 4362 BAD 0 EXTRA 0, ZBA DIFF OK\n  zba_diff-9E3779B9            2392          12         75439  CASES 4362 BAD 0 EXTRA 0, ZBA DIFF OK\n\n  zba_bench: 45350 -> 36133 cycles (-20.3 %, 1.2551x), 940 -> 868 bytes (-7.7 %), CHK equal: yes\n             Zba instructions in the rv32i_zba build: 5 sh1add, 6 sh2add, 5 sh3add\n  zba_arr:   1680 -> 1576 bytes (-6.2 %), P1-P8 and SUM equal: yes; CYCLES 23386 -> 22234 (the window includes waiting for the UART)\n  zba_diff:  16704 checks in 4 runs (3618 + 4362 + 4362 + 4362), 0 mismatches, ZBA DIFF OK in 4 of 4\n\nBENCH ZBA: PASS\n",
+  "-Os": "Zba benchmark (test/bench/zba), -Os: each program built for -march=rv32i and for -march=rv32i_zba\n\n  variant               image bytes  Zba instrs  timed cycles  result\n  zba_bench-rv32i               924           0         43814  CHK ca5f039c\n  zba_bench-rv32i_zba           892          10         37670  CHK ca5f039c\n  zba_arr-rv32i                1652           0         24609  SUM 78565846\n  zba_arr-rv32i_zba            1572          21         23329  SUM 78565846\n  zba_diff                     1956          15         40721  CASES 3618 BAD 0 EXTRA 0, ZBA DIFF OK\n  zba_diff-B5297A4D            1768          12         62803  CASES 4362 BAD 0 EXTRA 0, ZBA DIFF OK\n  zba_diff-1F123BB5            1768          12         62801  CASES 4362 BAD 0 EXTRA 0, ZBA DIFF OK\n  zba_diff-9E3779B9            1768          12         62801  CASES 4362 BAD 0 EXTRA 0, ZBA DIFF OK\n\n  zba_bench: 43814 -> 37670 cycles (-14.0 %, 1.1631x), 924 -> 892 bytes (-3.5 %), CHK equal: yes\n             Zba instructions in the rv32i_zba build: 5 sh1add, 3 sh2add, 2 sh3add\n  zba_arr:   1652 -> 1572 bytes (-4.8 %), P1-P8 and SUM equal: yes; CYCLES 24609 -> 23329 (the window includes waiting for the UART)\n  zba_diff:  16704 checks in 4 runs (3618 + 4362 + 4362 + 4362), 0 mismatches, ZBA DIFF OK in 4 of 4\n\nBENCH ZBA: PASS\n",
+  "-O0": "Zba benchmark (test/bench/zba), -O0: each program built for -march=rv32i and for -march=rv32i_zba\n\n  variant               image bytes  Zba instrs  timed cycles  result\n  zba_bench-rv32i              1904           0        147659  CHK ca5f039c\n  zba_bench-rv32i_zba          1904           0        147659  CHK ca5f039c\n  zba_arr-rv32i                3052           0         44089  SUM 78565846\n  zba_arr-rv32i_zba            3052           0         44089  SUM 78565846\n  zba_diff                     3384          15        144075  CASES 3618 BAD 0 EXTRA 0, ZBA DIFF OK\n  zba_diff-B5297A4D            2908          12        220660  CASES 4362 BAD 0 EXTRA 0, ZBA DIFF OK\n  zba_diff-1F123BB5            2908          12        220660  CASES 4362 BAD 0 EXTRA 0, ZBA DIFF OK\n  zba_diff-9E3779B9            2908          12        220660  CASES 4362 BAD 0 EXTRA 0, ZBA DIFF OK\n\n  zba_bench: 147659 -> 147659 cycles (+0.0 %, 1.0000x), 1904 -> 1904 bytes (+0.0 %), CHK equal: yes\n             Zba instructions in the rv32i_zba build: 0 sh1add, 0 sh2add, 0 sh3add\n  zba_arr:   3052 -> 3052 bytes (+0.0 %), P1-P8 and SUM equal: yes; CYCLES 44089 -> 44089 (the window includes waiting for the UART)\n  zba_diff:  16704 checks in 4 runs (3618 + 4362 + 4362 + 4362), 0 mismatches, ZBA DIFF OK in 4 of 4\n\nBENCH ZBA: PASS\n"
+ },
+ "caveats": [
+  "Cycles are those of the Verilator model of the RTL at the base commit; zba_bench is a deliberately dense address-generation workload, the best case rather than a typical program.",
+  "Image bytes are the size of out.bin (code, read-only and initialised data), not of .text alone.",
+  "zba_arr CYCLES includes waiting for the UART inside its timed window and is not a speed figure.",
+  "The program images (init.mem) are byte-identical to those built by the build script of 2026-08-18; run on a simulator built from 1f501f5 they print the same lines (see results/zba/2026-08-18_1f501f5).",
+  "The ELF files are reproducible bit for bit; logs/ holds the run log of each program with colour codes removed.",
+  "The fingerprints under inputs are those of the files the run used (Makefile sha256 1dcbe87eb8bef2f178223568dff041ee1e5a2dcb5ff1ed7ec5dd30de42be28ff, without the check-results target). Files that changed afterwards, before they were committed, are listed with their new sha256 in rechecked.sha256, with which make check-results reproduced this record exactly. Correction (2026-10-01): the Makefile fingerprint had been changed to that of the extended file (2cd15d508f09973d61d90e439fcb9f58f72b723e31c5bbaa0f5c17ca1bdc834a); it again names the file the run used.",
+  "Correction (2026-10-01): the -Os and -O0 figures were first described as not quoted in the documentation; they were not quoted at 03386fd, and docs/EXTENSIONS.md and test/bench/README.md quote them since this record was added."
+ ],
+ "rechecked": {
+  "date": "2026-10-01",
+  "command": "make check-results CHECK_ARGS=zba",
+  "result": "reproduced exactly",
+  "files": {
+   "Makefile": "7dc1cff910406866f8fce3fb59470d0de1b18296830367f58dd6ba90cb54ffbe",
+   "test/bench/bench.mk": "a2c75591b33afce57aad8063d93574dbe1d708994528f1df0efba883fb357541"
+  },
+  "file": "rechecked.sha256"
+ }
+}

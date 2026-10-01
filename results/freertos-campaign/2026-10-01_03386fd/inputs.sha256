@@ -1,0 +1,221 @@
+# FreeRTOS campaign record: program images and source fingerprints.
+# The sha256sum lines name the files the campaign built, relative to its output directory (--out).
+# After re-running the command of RECORD.md: cd <out> && grep -v '^#' <this file> | sha256sum -c
+# init.mem is the program image the simulators load. The ELF files also carry debug information
+# that holds the absolute path of the checkout, so their hashes match only at the same path:
+# they are kept as '# elf' comments, which sha256sum -c does not check.
+# Correction (2026-10-01): the ELF lines were first written as sha256sum lines, so that the
+# check above reported them as FAILED anywhere but at the original path.
+#
+# base commit 03386fdda932f4827cded26e8cfc2a2cc531b365
+# tree 031b989be1f25dd20836028c5126a5b1dc562bd7  rtl
+# tree f90a9a64ddc67db6642bc6654545f1509744426b  lib
+# tree 36f0452de823189873ca8ac79d7a662918961ad6  defines
+# tree 0dad5608c126445abb808c5addd7b6e9d4df54c7  sim
+# tree b1cd1eebbcd4c675f36085ebfc96416192423721  ref
+# tree 5cb0c42ab14390f060bd6d09bff6903020ac3432  test/freertos  (working tree: modified test/freertos/campaign.py sha256 cda2771aafd5473ed305ae1086483e8d90ae9efc56e1f3fd81f59c5a330705be)
+# tree 57da15398a605dce56c72d420bef3282ba2bb3cc  third_party/freertos
+# file c24da7fcabf3a320f4dd556b69de540f75fc6a6e  Makefile  (working tree: modified Makefile sha256 1dcbe87eb8bef2f178223568dff041ee1e5a2dcb5ff1ed7ec5dd30de42be28ff)
+# file (not in the commit)  test/bench/bench.mk  (working tree: untracked test/bench/bench.mk sha256 1bd837d36516358dff9b3a236696f5707d387017702062f4a37a834879fca1a2)
+76b51c06ddcf937ec9e1ef7d67ea6b9193fe55c15266138248ac27cc81e59c7b  breaker/elf/brk.rv32i.O2.p1s1.t10000.h4/init.mem
+# elf abc8c9d95b615ca97b795850494a260a311ce6e743f279951b38fbc8f01de3e8  breaker/elf/brk.rv32i.O2.p1s1.t10000.h4/out.elf
+c5c71257bb4a8f501be663774b978fa1956303c13e1a0239bfb50ae201d067b7  breaker/elf/brk.rv32i.Os.p1s0.t5000.h4/init.mem
+# elf 245a01e7b0d9c3241ad3ded2edeff4d9ccf10322ec2a84b890019b10103683ae  breaker/elf/brk.rv32i.Os.p1s0.t5000.h4/out.elf
+abcca02193e8e4bf1ad54f55af506e60028f2a58936586af4be65f024adcb8cc  breaker/elf/brk.rv32i.O0.p1s1.t10000.h4/init.mem
+# elf 8cf3c8050f0595a9a4fa4aa519632efe458f6c7be3c2e5ef1ce26f98ae1bdb93  breaker/elf/brk.rv32i.O0.p1s1.t10000.h4/out.elf
+b03e49d899aecf6ce35a82d72af9518e36ac85df8227e383df433fdb442ae167  breaker/elf/brk.rv32i.O2.p0s1.t10000.h4/init.mem
+# elf 5011127b84c05c97a87c8b1387cfd63d651e539e67b5f13c0f534d89b91f2b40  breaker/elf/brk.rv32i.O2.p0s1.t10000.h4/out.elf
+1a789429fb401be8af3301ab4f269e76273e33fc2d4f4d829ac194987415c5d1  breaker/elf/brk.rv32i.O2.p1s1.t3000.h4/init.mem
+# elf d08cece3942d13bf32421c2392474a426050ce4a0e376213d462bce83f301378  breaker/elf/brk.rv32i.O2.p1s1.t3000.h4/out.elf
+e20e64baa753877fdd25dccefdaeb893d3cbf825223b6db27c62d70edc576df3  breaker/elf/brk.rv32i.Os.p1s1.t50000.h4/init.mem
+# elf f46dc95efc69a0409b4f0834290b3ff3640245f383634a3cc857cde1c63d2ee6  breaker/elf/brk.rv32i.Os.p1s1.t50000.h4/out.elf
+0e255b38f41659f02d36da21e56d00431bfb095ef1993d721177ef90b4ae9d47  breaker/elf/brk.rv32i.O2.p1s1.t10000.h4.bp3/init.mem
+# elf 35c3f438467b418f39754038a48340767b2dccf7bcd41b9b34f44986a180078e  breaker/elf/brk.rv32i.O2.p1s1.t10000.h4.bp3/out.elf
+e9834c62615acc668dd59d94c12fbc1cc96c6e97898a64dea14be3299fc1d580  breaker/elf/brk.rv32i.O2.p1s1.t10000.h4.bp1/init.mem
+# elf 1f4eb432c31fc7aca622f31dd358280cbe1386301588eb89544f84cd1994b178  breaker/elf/brk.rv32i.O2.p1s1.t10000.h4.bp1/out.elf
+fa456d7590e2ef537b56db23551602a6130208798859dc82d4143b14d5cdd3ab  breaker/elf/brk.rv32i.Os.p1s0.t5000.h4.bp2/init.mem
+# elf f39ab8b38f32ce9ff1b53fc39b9d829f52d17835b0f6aa5c91ddf18583301895  breaker/elf/brk.rv32i.Os.p1s0.t5000.h4.bp2/out.elf
+ea468b6c71be05b61aac820e401963ea1c39f2f3c103f2b1e4a3c2c0796df299  breaker/elf/brk.bpdyn.rv32i.O2.p1s1.t10000.h4.bp3/init.mem
+# elf 8b8f617a4ff542903eec10cce5bc983577d314afb0bce3f5f20fbd14b4ba05cc  breaker/elf/brk.bpdyn.rv32i.O2.p1s1.t10000.h4.bp3/out.elf
+a65f03b31116639461f7e475af85d2a92e02bf0807cafb8d74807cfc2077ca19  breaker/elf/brk.rv32im.O2.p1s1.t10000.h4/init.mem
+# elf 7d9fa10fce49e0cdf21a0b1317a0acd18b4464648624509e1ba8ff231aafd40b  breaker/elf/brk.rv32im.O2.p1s1.t10000.h4/out.elf
+1b4189ac7db0f6373a703ffdbab7c9657cf654097f7358bef1424305e115f49f  breaker/elf/brk.rv32im.O2.p1s1.t1500.h4/init.mem
+# elf 96080d32b9ba8264ba1cd03ad1087211e5d9240223df322976f8dfd631e02e60  breaker/elf/brk.rv32im.O2.p1s1.t1500.h4/out.elf
+fdd65b9ee34ee95907fe42372fde44f118610a7d4459f48ea7f17453b648bd4f  breaker/elf/brk.rv32im_zba.Os.p1s0.t5000.h4/init.mem
+# elf 98778b0eadaba401c7b805352c0a8ea7708bda166002924607c946b61b69708e  breaker/elf/brk.rv32im_zba.Os.p1s0.t5000.h4/out.elf
+2c78ad35e14011bc984a1caff6abcb55cea7e927bb4cb3ef76375f0e5cc25cdc  breaker/elf/brk.rv32im.O0.p1s1.t10000.h4/init.mem
+# elf bb75f4c0a446cc21b5c117f59a58528593f02db3f77b467c9f7c3d0702da4d35  breaker/elf/brk.rv32im.O0.p1s1.t10000.h4/out.elf
+03cab956592ab3b8690e4f29debb4b92617d47025df05f5d6396fc1caf01721c  breaker/elf/brk.bpdyn.rv32im.O2.p1s1.t10000.h4.bp3/init.mem
+# elf 3f6b00c87a444a0a518039da6d499eff9447a8ef614f18319b28598638389521  breaker/elf/brk.bpdyn.rv32im.O2.p1s1.t10000.h4.bp3/out.elf
+ecf392d9100f3ea5d404487bdcbfd0f0d8a8c472bd0dddcf39260eb3b338beb4  breaker2/elf/brk.storm.rv32i.O2.p1s1.t10000.h4/init.mem
+# elf edb1d08fb9828da7c420c8298d4a21211a33f4b7138a5432e77ba1ec53246de6  breaker2/elf/brk.storm.rv32i.O2.p1s1.t10000.h4/out.elf
+8f9df98ea15cb5e163cf1b6104d07af2580a0e41d12e82ff3932ec323bbc9d6c  breaker2/elf/brk.storm.rv32i.Os.p1s0.t3000.h4/init.mem
+# elf a9a04b22b0a1014abafd3a1eb3df3c03641b76f774ea2368973efd62ff9ec691  breaker2/elf/brk.storm.rv32i.Os.p1s0.t3000.h4/out.elf
+93a58d7195b0ed3db8fd26c2454247fea6937923c53312d8e973e56d2cf21d7b  breaker2/elf/brk.storm.rv32i.O0.p1s1.t10000.h4/init.mem
+# elf 606aa4ca1c71a44a405c9b5b0de878688ca4048eaf76d3c505bb57fdb87f161a  breaker2/elf/brk.storm.rv32i.O0.p1s1.t10000.h4/out.elf
+d1ca94ed14ea8ffc519daa5f674801bb951dfcc85832e6157bfce2ef4f3d7c76  breaker2/elf/brk.storm.rv32i.O2.p0s1.t10000.h4/init.mem
+# elf 40f73190a1b458fbad353d38a1733b82b82026de33d7760543f867db27276041  breaker2/elf/brk.storm.rv32i.O2.p0s1.t10000.h4/out.elf
+703fb07bc32d865358167fca8e32dfd7dbcf914ca94717bb298f7c2247260d3a  breaker2/elf/brk.storm.rv32im.O2.p1s1.t1500.h4/init.mem
+# elf aa8175ad018bbde2ea2e6f50811906c084d521d31bb1ade005eaa92eb13d0b79  breaker2/elf/brk.storm.rv32im.O2.p1s1.t1500.h4/out.elf
+c4c55e7957f2502bffc2c87b8703564fb0eb966aba8dbbc92c7ce6bfb0672470  breaker2/elf/brk.storm.rv32im_zba.Os.p1s1.t10000.h4/init.mem
+# elf 7d91f6f0339010665a1db4c1158862201bb01ce5db8e9c58333174e808d62b52  breaker2/elf/brk.storm.rv32im_zba.Os.p1s1.t10000.h4/out.elf
+1972ff630fe9e41db0c44bb553fafbd4e149dae20bded606e5e3b96fcb48d3ca  breaker2/elf/brk.storm.rv32i.O2.p1s1.t10000.h4.bp3/init.mem
+# elf 97374b5dabe9c8fbc5c9c56fc315df18ce11806db5d759fb5937b13cad6c1f4d  breaker2/elf/brk.storm.rv32i.O2.p1s1.t10000.h4.bp3/out.elf
+89e66c3139f840fea9a6aedb55ca578c76a8f7016be5bc8d784745b1aa041c4a  breaker2/elf/brk.stormbpdyn.rv32im.O2.p1s1.t10000.h4.bp3/init.mem
+# elf b84e9328bf67c04579c1806dd7480c39e4b997db7baef526bf4ef38936cbd621  breaker2/elf/brk.stormbpdyn.rv32im.O2.p1s1.t10000.h4.bp3/out.elf
+3a47129d1065d221fb09676275921a483b12a1fc530383acf34af19b23ae41ef  breaker-long/elf/brk.rv32i.O2.p1s1.t10000.h4/init.mem
+# elf f56ab3aee29a123813fc2f32eaa3d9f1824738559ae22c3d22989e7ad2f16bac  breaker-long/elf/brk.rv32i.O2.p1s1.t10000.h4/out.elf
+d88509eb5874b9b6e329db6a1bbaf6d4aeccae533685d492d8f7079c758db3b4  breaker-long/elf/brk.rv32i.Os.p1s0.t5000.h4/init.mem
+# elf 17c4ca7899aa9407c96f8cc3f8b90dbb0bef6d4209d5cf8a99dc8149f26614f4  breaker-long/elf/brk.rv32i.Os.p1s0.t5000.h4/out.elf
+cc0942c3aaaf463a1b115781d7b6cbeff759408b4e6dee40e881ae0ea62148b5  breaker-long/elf/brk.bpdyn.rv32i.O2.p1s1.t10000.h4.bp3/init.mem
+# elf e48d6e0ff9fe6ab50d219462469beeb42f0cc3e82c7a6a59f6a489190fe5707b  breaker-long/elf/brk.bpdyn.rv32i.O2.p1s1.t10000.h4.bp3/out.elf
+3bfb4a41ad5126fdde6fd68da7f8ef7c757f12d363738211efabca9f4e0d575e  breaker-long/elf/brk.rv32im.O2.p1s1.t10000.h4/init.mem
+# elf f9e8dde717d2ad698a66f8a388e141fc2700b406daaeaadfb72b26a6d2e112ab  breaker-long/elf/brk.rv32im.O2.p1s1.t10000.h4/out.elf
+38f0d8e8975e9a97ab25f43a9ddca2450ded87c7b256218aab22aa25cd6560ae  breaker-long/elf/stress.rv32i.O2.p1s1.t10000.h4/init.mem
+# elf f7c83ac4bedfb840ef6a52d94f7ad9f6bbb8b5c70980c225ac55ebbb0043b316  breaker-long/elf/stress.rv32i.O2.p1s1.t10000.h4/out.elf
+aedaa5808de19ae015fda133e1c472a43f276c3c4b6cf1d1a498be082b9d13c4  breaker-long/elf/stress.rv32i.O2.p1s1.t10000.h4.bp3/init.mem
+# elf 68d82da2db01b98c4efa3ae7ee1d3de47d81d3d9ab7c25e0aefdc7b530e1c80b  breaker-long/elf/stress.rv32i.O2.p1s1.t10000.h4.bp3/out.elf
+0cef9d4419eedac11cfeff00bf24a5609a9d701520ef620825538762d496a5d0  validate/elf/stress.rv32i.O2.p1s1.t10000.h4/init.mem
+# elf babf2c928776397635790e408b7308f54403b973098cec79a65dc30b1a3471b0  validate/elf/stress.rv32i.O2.p1s1.t10000.h4/out.elf
+11cdba1147a1e62dd8fc6e5993c411d1a4e3e577dd0ebe65de75d0d9b35a21cb  validate/elf/stress.noyield.rv32i.O2.p1s1.t10000.h4/init.mem
+# elf d491cc89868fa70b9ea22fb3bdb65c2c44a22b96aa8c4b9c4333b80694b5fbf4  validate/elf/stress.noyield.rv32i.O2.p1s1.t10000.h4/out.elf
+d801874aa302f18c2c238413db7762a15e73dd78b07060b29e07f7cc6eb0114e  validate/elf/stress.noyield.rv32i.Os.p1s1.t5000.h4/init.mem
+# elf fae653d46127aba0db6d3b739c9e56987bfc639f28522da0311e61294d51bb38  validate/elf/stress.noyield.rv32i.Os.p1s1.t5000.h4/out.elf
+fd5857d55768d5423f2928cc7a6daefc9e6295189beae0cc46d6354b5098e99c  validate/elf/stress.noyield.rv32i.O0.p1s1.t10000.h4/init.mem
+# elf b22d994e5200f629ea0d8343397ebc3e6e2cc55c71aaeb9af2b6af7ce0940fcf  validate/elf/stress.noyield.rv32i.O0.p1s1.t10000.h4/out.elf
+f2e353552b4b4129ad753d448347ea1c78fa7331b934cb28d016557673d7a867  validate/elf/stress.noyield.rv32i.O2.p0s1.t10000.h4/init.mem
+# elf d967618318fef640a7dbf706d017085288c26c0f39374f0f59de18a6227d9df8  validate/elf/stress.noyield.rv32i.O2.p0s1.t10000.h4/out.elf
+76b059de758c7e021f0ad0126a819fb7feb79827154ff9bc9da4ee0a195e145f  validate/elf/minimal.rv32i.O2.p1s1.t10000.h4/init.mem
+# elf 75985d27def33d521193253ff89d2594b050c2162244c169431dda8fe1270ba0  validate/elf/minimal.rv32i.O2.p1s1.t10000.h4/out.elf
+d1a223f0543594e934d899fef3365ef8b5624d0b06eb66b8200b4ed8ab9627c8  validate/elf/mzba.rv32i.O2.p1s1.t10000.h4/init.mem
+# elf b40fc7535459e3244659925c667b89eb07485332626ce323529796e270a66cb0  validate/elf/mzba.rv32i.O2.p1s1.t10000.h4/out.elf
+f456c1178f724dc99bede0888ea6a514dfb6eee0de6a702f07fcbc4e33aaf6ca  bpred/elf/stress.rv32i.O2.p1s1.t10000.h4.bp1/init.mem
+# elf 487e4cca6558fe4a555e254a5f1a96f45ad93586666399aa7394873e59d52329  bpred/elf/stress.rv32i.O2.p1s1.t10000.h4.bp1/out.elf
+0033e15bc2010803456a23cded11c3541c8d2ce47478ab7b41d89cdffd915670  bpred/elf/stress.rv32i.O2.p1s1.t10000.h4.bp2/init.mem
+# elf b274f180fa24bea43679e41ee5f8b5f6ec18bdd938e04457644b9479b4691bc9  bpred/elf/stress.rv32i.O2.p1s1.t10000.h4.bp2/out.elf
+ade95cdb0707751ddfcf677f5c724c9182b8af1f8733113c0d7f78b2c788b7e7  bpred/elf/stress.rv32i.O2.p1s1.t10000.h4.bp3/init.mem
+# elf 9379efe2d130bf15260c77b500ed6babfdf42cb9b1d73faf9cbc81089ccf609a  bpred/elf/stress.rv32i.O2.p1s1.t10000.h4.bp3/out.elf
+8e85898a730fc24ce66cab61f379b29790ec0d32c7849eebaa548a5a4c6f90ef  bpred/elf/stress.noyield.rv32i.Os.p1s1.t5000.h4.bp3/init.mem
+# elf 222a9af0edafaae15de7c288d458a6c5d09510d16b8158f97d6463191fb63ea7  bpred/elf/stress.noyield.rv32i.Os.p1s1.t5000.h4.bp3/out.elf
+3aae7800a3c80c4df8a414d1eb2b52f232a87a9e906592e2f94ec81e1f983d51  bpred/elf/stress.rv32i.O0.p1s1.t10000.h4.bp2/init.mem
+# elf cccb25592841fdd4eb6b701c91498c435ab4384049f9f98af94c2aa9133f767e  bpred/elf/stress.rv32i.O0.p1s1.t10000.h4.bp2/out.elf
+7d8539d0d7786b2d969cbb98c7e77001d5e5eb11826ea85f6aae7fc5914c252a  bpred/elf/minimal.rv32i.O2.p1s1.t10000.h4.bp3/init.mem
+# elf 1eb8f2ed92b00755c14559ec20173d6bc34254025190cf96b1ec4c2f2256bd83  bpred/elf/minimal.rv32i.O2.p1s1.t10000.h4.bp3/out.elf
+471cf874a87311bf583921a35283bd068c983e97eff8be2f53d713a812a154ae  bpred/elf/mzba.rv32i.O2.p1s1.t10000.h4.bp3/init.mem
+# elf ce797e5ad2d7d5b6d3ea8fa4b2bc8af714f555df01e4a7484913e10b93eb0600  bpred/elf/mzba.rv32i.O2.p1s1.t10000.h4.bp3/out.elf
+a126d12d620553e9c0f35fbf1b48175ff76bb9bc7b8d506ced27e7b438c091b2  bpred/elf/mzba.rv32im_zba.O2.p1s1.t10000.h4.bp3/init.mem
+# elf f2ced2ce0e9a1a2efc84b4940011ac86f8d04807b1b6fee6d959df24b9e16a3c  bpred/elf/mzba.rv32im_zba.O2.p1s1.t10000.h4.bp3/out.elf
+237b9efbf70653971b4b2f1401d69ef3144dd0b221af37e8e319a2847564fd84  bpred/elf/full.rv32i.O2.p1s1.t10000.h4.bp3/init.mem
+# elf 6ecc6dc0be0f78c0af363b5609ac428fb118f9a5b5cab2900c57d4b7c5035607  bpred/elf/full.rv32i.O2.p1s1.t10000.h4.bp3/out.elf
+51fd82646a710ccd5cec9c57d8b29ddbbf4a193d4213e8dceeb7d2fece15499f  bpred/elf/full.rv32i.Os.p1s1.t10000.h4.bp1/init.mem
+# elf 37dcdfbb6543245d1c6400a258e12fafc3485ee39a6261a9598169973a70cf18  bpred/elf/full.rv32i.Os.p1s1.t10000.h4.bp1/out.elf
+76b059de758c7e021f0ad0126a819fb7feb79827154ff9bc9da4ee0a195e145f  standard/elf/minimal.rv32i.O2.p1s1.t10000.h4/init.mem
+# elf 75985d27def33d521193253ff89d2594b050c2162244c169431dda8fe1270ba0  standard/elf/minimal.rv32i.O2.p1s1.t10000.h4/out.elf
+bfea7850846ef8b6711ca0deb647b2b236bdcf5e3026d5f649e415b239f63c74  standard/elf/minimal.rv32i.Os.p1s0.t5000.h1/init.mem
+# elf 32c7b2776dda9758824ba20c261b1c4f8b7466d8b7e6c4617a3d7ba1bd4c1f17  standard/elf/minimal.rv32i.Os.p1s0.t5000.h1/out.elf
+4feb7eb83a8f28e7f7e857cf4e83d5670b40c4d9f52fe01158efb3b961e2fa3e  standard/elf/minimal.rv32i.O0.p1s1.t10000.h4/init.mem
+# elf 8a1debac212bff20ac93e1a25df7b10f6af85ecb50bc8e290015f1da4627f69f  standard/elf/minimal.rv32i.O0.p1s1.t10000.h4/out.elf
+a16d08561895315670643052f181fa63480b23ada46cefc9ac77b5546e1f3cc0  standard/elf/minimal.rv32i.O2.p0s1.t10000.h1/init.mem
+# elf 4d409211f70709b61b3b47d6cbddb9709105721895262869386ecabc041ed70e  standard/elf/minimal.rv32i.O2.p0s1.t10000.h1/out.elf
+858ded958c366ca39d72ac612d0ef9367b26cd240b4159e97aa07412ff601de5  standard/elf/minimal.rv32i.Os.p0s0.t50000.h4/init.mem
+# elf d9d5da84c7f95954865739db6eb024885f32b0a8197511975aa311dfa8ce95cf  standard/elf/minimal.rv32i.Os.p0s0.t50000.h4/out.elf
+acc27955e0f6eb63f9aa5092ae663ee52d32e1594fa0d2b31d4a7833f61e4a0e  standard/elf/minimal.rv32i.O2.p1s1.t500.h4/init.mem
+# elf 8fb9fa1793b4405ac8de325fb21b06caf57d1131c784cbad004b3ff2385ea8e3  standard/elf/minimal.rv32i.O2.p1s1.t500.h4/out.elf
+88961b67440359e3a6d1910fb8400e2a0170c68e6d20899f7a6a734012689450  standard/elf/minimal.rv32i.O0.p1s0.t1500.h1/init.mem
+# elf 79517a61d6da1a2b5531c94a3198e72194e04525ca75f46e628e6f0bdf2d4aa7  standard/elf/minimal.rv32i.O0.p1s0.t1500.h1/out.elf
+4844a1b8c97c8f1ec919f4b69953d5aa6fc4900aafdca6976f772a71982ebde7  standard/elf/minimal.rv32im.O2.p1s1.t10000.h4/init.mem
+# elf a740db47b174ad4f6be49f9236b0e0e67b36108d2fa0577675fe5f53a17adf2a  standard/elf/minimal.rv32im.O2.p1s1.t10000.h4/out.elf
+c8cd5f2fa50ecbe9c3880f0b5740a8283167f6c7276ef8b01a145457d59cb548  standard/elf/minimal.rv32im.O0.p0s1.t5000.h1/init.mem
+# elf 38e96168a7c632a9e9ef134f33ba1e8c45e37d65d25cf4589407c5a2f72b2a8b  standard/elf/minimal.rv32im.O0.p0s1.t5000.h1/out.elf
+ceb249037f2dd52eb513c5057ca043d99770445516e7e27f9d7ba7f24a0981c8  standard/elf/minimal.rv32im.Os.p1s0.t500.h4/init.mem
+# elf e0da32894f6819a13b4e483bb561eed2fc72ccbe71289fde0251a835a4d68d20  standard/elf/minimal.rv32im.Os.p1s0.t500.h4/out.elf
+2f3ca06d61472d0f9257470bb550ef961a38b3f88bb233205661e390841fa7df  standard/elf/minimal.rv32im_zba.O2.p1s1.t5000.h1/init.mem
+# elf 1fa833b6e3303b850da153f86f8374f1f7cf11ef3c49ca5842985355b6b31d1b  standard/elf/minimal.rv32im_zba.O2.p1s1.t5000.h1/out.elf
+97cdf316a72d87ecc2aa6bd0a16af32a871e8a6d34d41213058b9a015f428c50  standard/elf/minimal.rv32im_zba.Os.p0s1.t10000.h4/init.mem
+# elf 33bfa5fa0e015bacd73b19b2749054d76d44c6e381ac37efc52a78595c6d019a  standard/elf/minimal.rv32im_zba.Os.p0s1.t10000.h4/out.elf
+bae4e63d49f1f0b10528bff291fff0194982b9489aade9bc4370e4e3e168861f  standard/elf/minimal.rv32im_zba.O0.p1s1.t50000.h4/init.mem
+# elf 2041a0ec4f99f09ca7b809f024eaa404f810b22df99eb2b19761bc3dfd122f79  standard/elf/minimal.rv32im_zba.O0.p1s1.t50000.h4/out.elf
+0cef9d4419eedac11cfeff00bf24a5609a9d701520ef620825538762d496a5d0  standard/elf/stress.rv32i.O2.p1s1.t10000.h4/init.mem
+# elf babf2c928776397635790e408b7308f54403b973098cec79a65dc30b1a3471b0  standard/elf/stress.rv32i.O2.p1s1.t10000.h4/out.elf
+11cdba1147a1e62dd8fc6e5993c411d1a4e3e577dd0ebe65de75d0d9b35a21cb  standard/elf/stress.noyield.rv32i.O2.p1s1.t10000.h4/init.mem
+# elf d491cc89868fa70b9ea22fb3bdb65c2c44a22b96aa8c4b9c4333b80694b5fbf4  standard/elf/stress.noyield.rv32i.O2.p1s1.t10000.h4/out.elf
+d39eeca4c05034310bb2ab4e8e2b4f3df200d70a5b13d2e6778067b8d56efbeb  standard/elf/stress.rv32i.Os.p1s0.t5000.h1/init.mem
+# elf cb90e8f15f6214d6f28983426edb0684a89b2cb26bdbece90e9816800e4efbcd  standard/elf/stress.rv32i.Os.p1s0.t5000.h1/out.elf
+4620acf38a184750e75af9b60bdc738fc1bbe6bb9b8317d54eb61fe950ea4482  standard/elf/stress.noyield.rv32i.Os.p1s0.t5000.h1/init.mem
+# elf 7e1bb4bf2f3411ae4c7cba0eae9d160765032ef01b9362594828e4df5fd43539  standard/elf/stress.noyield.rv32i.Os.p1s0.t5000.h1/out.elf
+902925372a9b24fcc76354eed8d76a35f16d53fce17857b963276e385b90ca73  standard/elf/stress.rv32i.O0.p1s1.t10000.h4/init.mem
+# elf 092f3fa361c1db1c13af88d93cdfea51f7daa19803a5e5a32afa926b1f8c728b  standard/elf/stress.rv32i.O0.p1s1.t10000.h4/out.elf
+fd5857d55768d5423f2928cc7a6daefc9e6295189beae0cc46d6354b5098e99c  standard/elf/stress.noyield.rv32i.O0.p1s1.t10000.h4/init.mem
+# elf b22d994e5200f629ea0d8343397ebc3e6e2cc55c71aaeb9af2b6af7ce0940fcf  standard/elf/stress.noyield.rv32i.O0.p1s1.t10000.h4/out.elf
+14a1540e36a9d5eaf38fbbe7be3206b71331e822e8c0980ffdfcf0dbe6f885ec  standard/elf/stress.rv32i.O2.p0s1.t10000.h1/init.mem
+# elf 356afd1ea03bd2f6f05ee1d5de7893fdf49877b66461320534111dd75cd32c44  standard/elf/stress.rv32i.O2.p0s1.t10000.h1/out.elf
+29f945348d0f6bebf5a19af976722098e84d88c9bbbf4d0288939b1606ec34de  standard/elf/stress.noyield.rv32i.O2.p0s1.t10000.h1/init.mem
+# elf f1d1867a51696f50f8a5054f7733aaa13860bec076798c867cbfe9d0b4d33d44  standard/elf/stress.noyield.rv32i.O2.p0s1.t10000.h1/out.elf
+081583e18662cdf594a6cdd47c24c9acca10c055b78f81ccf6d722a362acebdc  standard/elf/stress.rv32i.Os.p0s0.t50000.h4/init.mem
+# elf 47650efbc25a470bdb8b9a7eb8c8a0519279798ca1b3bc280c0c49bc4e1af034  standard/elf/stress.rv32i.Os.p0s0.t50000.h4/out.elf
+2f0f0383393294698eaf4819ef218d01b89f403f8c8d4fc63cf9dc61efbf3e54  standard/elf/stress.noyield.rv32i.Os.p0s0.t50000.h4/init.mem
+# elf c5bbb17fddeeb673db6ec52d2cc618128f489a8c3d4ef375b6e9f5415fc91b45  standard/elf/stress.noyield.rv32i.Os.p0s0.t50000.h4/out.elf
+9603c9f353163a96053ac6d53c5d655d39fd79c5b05c72b209959b385fc241aa  standard/elf/stress.rv32i.O2.p1s1.t500.h4/init.mem
+# elf 97f1801623c8ba216b0f572958ccda1aed01738692372cfeed3597df2c417b83  standard/elf/stress.rv32i.O2.p1s1.t500.h4/out.elf
+295c5484d660ad3d9b61a8e3788c82f2257277d1d7a1391813f52078a08e20e9  standard/elf/stress.noyield.rv32i.O2.p1s1.t500.h4/init.mem
+# elf a5b051a1f4d4a18d7f6ee63679a009a8ef97b017583d80c295277282e23815ac  standard/elf/stress.noyield.rv32i.O2.p1s1.t500.h4/out.elf
+7fc3f104ca982b53c3469b65a9fb3e3964016606c131741c28986622b97f54bb  standard/elf/stress.rv32i.O0.p1s0.t1500.h1/init.mem
+# elf 21728cb81c6da053fb105136f6911313a2fa5e46d41aa3deba673522f9b5f41e  standard/elf/stress.rv32i.O0.p1s0.t1500.h1/out.elf
+9e837206ba36d23d2c342b7f7973c6dfc3a30d95154fe0dec94af2f2bb6f9e10  standard/elf/stress.noyield.rv32i.O0.p1s0.t1500.h1/init.mem
+# elf e902c35869dc5bced9ebce42397f6e57d301cfde3a81398c1e3578f53153842e  standard/elf/stress.noyield.rv32i.O0.p1s0.t1500.h1/out.elf
+200aaab94ec26678161a76699a86772017f975e845f2111c31e1166de5f731a3  standard/elf/stress.rv32im.O2.p1s1.t10000.h4/init.mem
+# elf f7d9b6538fc8ad9730f93220cf8525c25be4e2bd221f58a872727b1c07309a39  standard/elf/stress.rv32im.O2.p1s1.t10000.h4/out.elf
+ab0fe89a5a5be9dd3af9180d59c0eccecad83c0f40d2b334f67b8e85b75bdbac  standard/elf/stress.noyield.rv32im.O2.p1s1.t10000.h4/init.mem
+# elf af6845149ea49fe5d057d179799ac49722e7b55fa5f8e76ef547c042b1c9333f  standard/elf/stress.noyield.rv32im.O2.p1s1.t10000.h4/out.elf
+f62105e2a092326c2ee3397e43d2a70abc728ecec39d9312992d7fd844f486f3  standard/elf/stress.rv32im.O0.p0s1.t5000.h1/init.mem
+# elf ba04e95c3ef21e1cc66b3ed8681928db4f7c0f5086459b0ae643814a654b2fb7  standard/elf/stress.rv32im.O0.p0s1.t5000.h1/out.elf
+5879e945cb809752d4f36a503cf7d39489a93cf927e1d60401c292cb4c0d2204  standard/elf/stress.noyield.rv32im.O0.p0s1.t5000.h1/init.mem
+# elf ef375c87bc74e89398dff2cc9b996ed191d59f6c55567f4367a6be9547c22a48  standard/elf/stress.noyield.rv32im.O0.p0s1.t5000.h1/out.elf
+121499d07dbb00c56dd16db32e0b45596d0f370814a7c31b3f513ac3c9880a59  standard/elf/stress.rv32im.Os.p1s0.t500.h4/init.mem
+# elf e9ffa22e34eef8fb30504e7e2dbb57b8ec762f96218e18321a4ee5177d14be36  standard/elf/stress.rv32im.Os.p1s0.t500.h4/out.elf
+63453b045821764138cacb2c71a896ec658932d795a8c1a3bde5ecf38d78f230  standard/elf/stress.noyield.rv32im.Os.p1s0.t500.h4/init.mem
+# elf 5bb14a4202eb06464a4d8922651d2f3acf3241abcf004ede3cffd1e8b5af1b54  standard/elf/stress.noyield.rv32im.Os.p1s0.t500.h4/out.elf
+7ac0ee0eba5656fb37853a3c2a96ffabb573897c165d597a5bf4aa75d793fec3  standard/elf/stress.rv32im_zba.O2.p1s1.t5000.h1/init.mem
+# elf 02102b3ac21fc4357ce830398ba4ffb0a6b35d78097be345a9a8f5c2dbe6ed06  standard/elf/stress.rv32im_zba.O2.p1s1.t5000.h1/out.elf
+243de817ed9f70f1330a5ad22045b1e56a5ffafe938f05f921e77e7d5a669305  standard/elf/stress.noyield.rv32im_zba.O2.p1s1.t5000.h1/init.mem
+# elf 7c4a9c96a6e600fe09ec7c65b32a1e7b16e1b945c74cdde5eabee84124f25b42  standard/elf/stress.noyield.rv32im_zba.O2.p1s1.t5000.h1/out.elf
+ca5dd421c4ef85adb3b0915e4091881968656e1ef6ddab5e31abb28b4e88222c  standard/elf/stress.rv32im_zba.Os.p0s1.t10000.h4/init.mem
+# elf da1979fbfc01fd2dab520399ad74e9c0c52f1eaa2cbdeb0ab5e93ee48ef85848  standard/elf/stress.rv32im_zba.Os.p0s1.t10000.h4/out.elf
+de4738550b907813d3a9909994de83582639ac00c33957bb8e79a00bfe62b510  standard/elf/stress.noyield.rv32im_zba.Os.p0s1.t10000.h4/init.mem
+# elf d42a24b7bbb95f576e94efa3b4aae933fd26eaebf6ef674ab802d0f71d057313  standard/elf/stress.noyield.rv32im_zba.Os.p0s1.t10000.h4/out.elf
+e661e1c43aed8faadb76203ee0b560aa9fc6bf6602cb72f988bdae49cfcab2af  standard/elf/stress.rv32im_zba.O0.p1s1.t50000.h4/init.mem
+# elf 7a33f2e00d251c6f0d53ca6dd30b3d7f239a10bf94896dbbe5c16c3651ef1da1  standard/elf/stress.rv32im_zba.O0.p1s1.t50000.h4/out.elf
+eb27ad45611a2026185ff497fff07d2cb689c93236a7fdd35c88c7f56cafb2b6  standard/elf/stress.noyield.rv32im_zba.O0.p1s1.t50000.h4/init.mem
+# elf fd30cef1fc66b6bdebda1fd91dcd784668e1ff2b960c4a47f05f77e75e03e6d9  standard/elf/stress.noyield.rv32im_zba.O0.p1s1.t50000.h4/out.elf
+d1a223f0543594e934d899fef3365ef8b5624d0b06eb66b8200b4ed8ab9627c8  standard/elf/mzba.rv32i.O2.p1s1.t10000.h4/init.mem
+# elf b40fc7535459e3244659925c667b89eb07485332626ce323529796e270a66cb0  standard/elf/mzba.rv32i.O2.p1s1.t10000.h4/out.elf
+962997dd77bed02109e9c5f88f73674b7ce408b72a5f275f17ada5fab80f0216  standard/elf/mzba.rv32i.Os.p1s0.t5000.h1/init.mem
+# elf 36630382326a7a68dbe1b4f1369a0ed0db28165e69e3855fb66fd4507522b8e9  standard/elf/mzba.rv32i.Os.p1s0.t5000.h1/out.elf
+959d88b45708d43c313d1c7fe77597e49eb5551b989c0868376a08f4f169cbdc  standard/elf/mzba.rv32i.O0.p1s1.t10000.h4/init.mem
+# elf 6c3a40e3dd621e4253bbf01c434e90e48db35e4e900a27a9344695b7e67e6e06  standard/elf/mzba.rv32i.O0.p1s1.t10000.h4/out.elf
+8efdac1478c9f9d7b974eb7c5556eab2f1f8348eb75cedc2b4ed29911cd4fb23  standard/elf/mzba.rv32i.O2.p0s1.t10000.h1/init.mem
+# elf fb85394901ccb0757475cf6779dffa942b9eb6a91443fa604095877271e0913f  standard/elf/mzba.rv32i.O2.p0s1.t10000.h1/out.elf
+5d17e47a6342910b0e254c98f26cefebb734e5c2b84c77ad8f5553a080150758  standard/elf/mzba.rv32i.Os.p0s0.t50000.h4/init.mem
+# elf 173ecc4a32613a6009f5575f2998a3f145b5f7c73ae2e6034dd28cfbbef2255b  standard/elf/mzba.rv32i.Os.p0s0.t50000.h4/out.elf
+c9b8af0ac016a74c4775121b2e11ebff5fc9858a35347d97348dc2171be88cb1  standard/elf/mzba.rv32i.O2.p1s1.t500.h4/init.mem
+# elf 96b8cfbbda5f0e54cd55b06772eaebdcf1f71e88408a68344cc1dc96d9246520  standard/elf/mzba.rv32i.O2.p1s1.t500.h4/out.elf
+13a44163936fb9e5bdb3449cc4e006ae72436ca5bdb5ab272c6ca9bdb09a4855  standard/elf/mzba.rv32i.O0.p1s0.t1500.h1/init.mem
+# elf 7159881f2586e2afcec489a0927c82e68db6b466bc6c2fccc8833516279c7927  standard/elf/mzba.rv32i.O0.p1s0.t1500.h1/out.elf
+cd906b6214b327cb97a6f6319bbe93742f252091416e3cc3977330c6a1402f5b  standard/elf/mzba.rv32im.O2.p1s1.t10000.h4/init.mem
+# elf e2c069c9cdf6057fb8edb6055b8fff4ae9019a152a769e3b9d11198881462a46  standard/elf/mzba.rv32im.O2.p1s1.t10000.h4/out.elf
+a9caaa821d28db44fac1adb558b28c93c8d54f0475f6c038aed6b907ff5c92ce  standard/elf/mzba.rv32im.O0.p0s1.t5000.h1/init.mem
+# elf 97a2a00cae84edec998dc4aa3b5a882193781fb2cfe64f6aac8d4a0aab8c0797  standard/elf/mzba.rv32im.O0.p0s1.t5000.h1/out.elf
+fe3c3f7fb2dca0e7cd143b69df6b3751a6c5a3d8257a1a9f40cc64215796e3a7  standard/elf/mzba.rv32im.Os.p1s0.t500.h4/init.mem
+# elf 5f06b1ef53c35745b9086bbaf591e540d1995f10287167b29c425acebb5306bf  standard/elf/mzba.rv32im.Os.p1s0.t500.h4/out.elf
+42a3611c584e229adf5d2daf948fe8dec74a1ed27a76ae6ea21d726d41378fa3  standard/elf/mzba.rv32im_zba.O2.p1s1.t5000.h1/init.mem
+# elf 381257659ee33be73f6e0a30365540151365823c2860ec7b121fa4044a08166a  standard/elf/mzba.rv32im_zba.O2.p1s1.t5000.h1/out.elf
+82dd8ca6035fd238196b7e7a18f9c26dd1b029c78d9398fc3c51d8a5696cb007  standard/elf/mzba.rv32im_zba.Os.p0s1.t10000.h4/init.mem
+# elf b52ec6131081dbd96e6a2012faa3e4e9232f2411964bf2f1b188289ed4d3dbd9  standard/elf/mzba.rv32im_zba.Os.p0s1.t10000.h4/out.elf
+301d6a8c8dd8cfbf63b67c7a2df16df1d05d8061b35ca281420bcc1f80f0ec1e  standard/elf/mzba.rv32im_zba.O0.p1s1.t50000.h4/init.mem
+# elf 8dc90da8be659c6cd73e33a9cec289c672c977dd309dbb36fda3d79d3bd0f667  standard/elf/mzba.rv32im_zba.O0.p1s1.t50000.h4/out.elf
+42836fa0227abb8dd3b3543fdc830fa43cd970e1c26f0d2230bb3cf68e6ef55f  standard/elf/full.rv32i.O2.p1s1.t10000.h4/init.mem
+# elf 6edb0f71455f9f94fb78501f38ec53aa902caffa3a02d2352fa7336442be96c1  standard/elf/full.rv32i.O2.p1s1.t10000.h4/out.elf
+08a90441482504faf20ec673a3b54a38843a36230bffdeae1618ae8ce06739c8  standard/elf/full.rv32im_zba.O2.p1s1.t10000.h4/init.mem
+# elf 3597134f26c5167a2f004582f10f8d7e84b9b6d641a69fc3b1cde3d49416e942  standard/elf/full.rv32im_zba.O2.p1s1.t10000.h4/out.elf
+1553eea471f311bf8bec919ada395ad8259523e22084b8170c2ad370c83dabf4  standard/elf/full.rv32i.Os.p1s1.t10000.h4/init.mem
+# elf 06623646f77e0c7700667c63b09a1d1b017bb7412423bd67aa98e28859db4e09  standard/elf/full.rv32i.Os.p1s1.t10000.h4/out.elf

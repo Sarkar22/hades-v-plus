@@ -1,0 +1,117 @@
+{
+ "topic": "history",
+ "id": "2026-09-27_6b19d41",
+ "title": "The six trap and interrupt fixes: discovery and single-fix reverts",
+ "status": "historical",
+ "date": "2026-09-27",
+ "base_commit": "6b19d41",
+ "base_commit_note": "integrated tree committed the next day as 0d25ee6 (RTL) and 6b19d41 (trap sweep)",
+ "sources": [
+  "commit 0d25ee6 message",
+  "development log of 2026-09-27"
+ ],
+ "figures": [
+  {
+   "figure": "four found by FreeRTOS, two by the sweep",
+   "quoted_at": [
+    "README.md:77",
+    "docs/VERIFICATION.md:119",
+    "docs/VERIFICATION.md:125",
+    "test/trapsweep/README.md:165-167"
+   ]
+  },
+  {
+   "figure": "each fix's directed test fails when that fix alone is reverted",
+   "quoted_at": [
+    "README.md:96",
+    "docs/VERIFICATION.md:125",
+    "docs/VERIFICATION.md:235"
+   ]
+  },
+  {
+   "figure": "revert table 17/61, 46/61, 9/61, 39/61, 58/61, 29/61 with families and directed tests",
+   "quoted_at": [
+    "test/trapsweep/README.md:180-191"
+   ],
+   "value": {
+    "A": {
+     "consistent": "17/61",
+     "directed_fail": [
+      "trapirq",
+      "bpirq3"
+     ]
+    },
+    "B": {
+     "consistent": "46/61",
+     "directed_fail": [
+      "trapmpie"
+     ]
+    },
+    "C": {
+     "consistent": "9/61",
+     "directed_fail": [
+      "csrirq",
+      "mtvecirq"
+     ]
+    },
+    "D": {
+     "consistent": "39/61",
+     "directed_fail": [
+      "memirq"
+     ]
+    },
+    "E_bp_next_pc": {
+     "consistent": "58/61",
+     "directed_fail": [
+      "bpirq",
+      "bpirq2",
+      "bpirq3"
+     ],
+     "fuzz_bp_301_360": "20/60"
+    },
+    "F_live_mtvec": {
+     "consistent": "29/61",
+     "directed_fail": [
+      "mtvecirq"
+     ]
+    }
+   }
+  },
+  {
+   "figure": "fuzz bp 301-360 20/60 with the next_pc fix reverted",
+   "quoted_at": [
+    "test/trapsweep/README.md:193-194"
+   ]
+  },
+  {
+   "figure": "before the mtvec fix the DUT failed 32/61",
+   "quoted_at": [
+    "test/trapsweep/README.md:174-175"
+   ]
+  },
+  {
+   "figure": "fuzz mt before the mtvec fix: DUT 28/30",
+   "quoted_at": [
+    "test/trapsweep/README.md:177-178"
+   ]
+  },
+  {
+   "figure": "writeback_compare 9 -> 7 errors",
+   "quoted_at": [],
+   "source": "commit 0d25ee6"
+  }
+ ],
+ "host": {
+  "cpu": "Intel Core Ultra 7 165H",
+  "threads": 22,
+  "os": "Linux"
+ },
+ "tools": {
+  "verilator": "5.042",
+  "gcc": "12.2.0",
+  "python": "3.12"
+ },
+ "caveats": [
+  "Reverted trees not kept; reconstructable from the 0d25ee6 diff."
+ ]
+}

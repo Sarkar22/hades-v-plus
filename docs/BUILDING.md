@@ -39,7 +39,7 @@ The versions this repository is tested with:
 
 ## Building, Running, and Debugging
 
-All flows are driven by [Makefile](../Makefile) targets; the main ones are listed below, and `make help` prints a longer list with the FreeRTOS and formal targets:
+All flows are driven by [Makefile](../Makefile) targets; the main ones are listed below, and `make help` prints a longer list with the FreeRTOS, formal and benchmark targets:
 
 ```
 make test/asm/<name>     # assemble, simulate, and run an asm program
@@ -50,6 +50,8 @@ make bootloader          # build the UART bootloader image
 make synthesis           # synthesise the full MCU for Basys3 via Vivado
 make clean               # wipe build artefacts
 make freertos APP=<name> # build and run a FreeRTOS program (make freertos-list, docs/FREERTOS.md)
+make bench               # the measurement programs behind the Zba, M-unit and FENCE.I figures (test/bench/README.md)
+make check-results       # re-run the repeatable records of results/ and compare (results/README.md)
 ```
 
 All build output goes to `build/` inside the repository unless `BUILD_DIR=/abs/path` is given on the command line or `HADES_BUILD_DIR` is set in the environment; every target follows it. This is how to work from a checkout on a disk that cannot execute programs (such as an NTFS data disk): the simulators are built and run from the build directory, and the golden-model libraries are copied there.
@@ -62,7 +64,7 @@ The simulator is [Verilator][verilator]; synthesis uses [Vivado][vivado], tested
 
 The Makefile finds Vivado through `XILINX_VIVADO`, whose default is `/opt/Xilinx/Vivado/2023.2/`. The flow is tested with Vivado 2024.2 (2023.2 is untested), so give the installation on the command line, for example `make synthesis XILINX_VIVADO=/tools/Xilinx/Vivado/2024.2`.
 
-Timing at 50 MHz is marginal. The current RTL meets timing with a worst negative slack of +0.016 ns and no failing endpoint (Vivado 2024.2; a repeated run gives the same result). The worst path runs from the block RAM, which delivers the fetched instruction on the falling clock edge, through the branch predictor and its PC adder to the Fetch stage's PC register, so it has half a clock period. Small RTL changes move the worst path and change its slack: the recorded results of earlier revisions range from −0.120 ns to +0.242 ns. `write_bitstream` does not check timing, so a bitstream is produced even when timing fails: read `timing_pnr.rpt` after every run. The critical path, its history and the effect of the M extension on it are analysed in the FPGA timing note under [M — Implementation Notes](EXTENSIONS.md#implementation-notes).
+Timing at 50 MHz is marginal. The RTL meets timing with a worst negative slack of +0.016 ns and no failing endpoint (Vivado 2024.2; a repeated run gives the same result), measured at commit cbae9b9; the current RTL differs from it only by the one-line UART fix of 03386fd and has not itself been implemented ([record](../results/fpga-timing/2026-09-30_cbae9b9/RECORD.md)). The worst path runs from the block RAM, which delivers the fetched instruction on the falling clock edge, through the branch predictor and its PC adder to the Fetch stage's PC register, so it has half a clock period. Small RTL changes move the worst path and change its slack: the recorded `make synthesis` results of earlier revisions range from −0.120 ns to +0.242 ns, and the same RTL implemented with extra reporting commands ended about 1 ns lower ([records](../results/README.md#fpga-timing)). `write_bitstream` does not check timing, so a bitstream is produced even when timing fails: read `timing_pnr.rpt` after every run. The critical path, its history and the effect of the M extension on it are analysed in the FPGA timing note under [M — Implementation Notes](EXTENSIONS.md#implementation-notes).
 
 ## Regenerating the Screenshots
 
@@ -77,18 +79,19 @@ The output is kept as the terminal showed it: the script only removes lines that
 
 ## Repository Structure
 
-- [`bitstream/`](../bitstream): Basys3 bitstreams of two earlier revisions, the base core and the base core with the branch predictor, built before the Zicntr, Zba and M extensions, the `FENCE` forwarding fix and the trap and interrupt fixes.
+- [`bitstream/`](../bitstream): Basys3 bitstreams of two earlier revisions, the base core and the base core with the branch predictor, built before the Zicntr, Zba and M extensions, the `FENCE` forwarding fix and the trap and interrupt fixes ([record](../results/history/2026-08-17_15b0b85/RECORD.md)).
 - [`defines/`](../defines): HDL constants and definitions.
 - [`docs/`](../docs): User guides; [FREERTOS.md](FREERTOS.md) covers running FreeRTOS on the core. [ARCHITECTURE.md](ARCHITECTURE.md), [EXTENSIONS.md](EXTENSIONS.md), [VERIFICATION.md](VERIFICATION.md) and [BUILDING.md](BUILDING.md) describe the core, its extensions, its verification and its build; [`img/`](img) holds the screenshots and [`tools/`](tools) the script that records them.
 - [`lib/`](../lib): Peripheral modules (e.g., UART, timer).
 - [`ref/`](../ref): Precompiled reference libraries.
 - [`formal/`](../formal): Formal proof of the multiply/divide unit (SymbiYosys, k-induction); see [formal/README.md](../formal/README.md).
+- [`results/`](../results/README.md): The records of the figures that the documentation quotes: the command, the inputs, the output as printed, and whether it can be re-run; `make check-results` re-runs the repeatable ones and compares the output with the stored values.
 - [`rtl/`](../rtl): The processor implementation — pipeline stages, register file, instruction decoder, and branch predictor.
 - [`saves/`](../saves): GTKWave signal layouts for `make show`.
 - [`sim/`](../sim): The simulation top level with the test device and the console bridge, and the Verilator file lists.
 - [`std/`](../std): The bare-metal C runtime: linker script, start-up code, bootloader and peripheral headers.
 - [`synth/`](../synth): Synthesis scripts and FPGA configuration files.
-- [`test/`](../test): Test files in assembly (`asm`), C (`c`), and SystemVerilog (`sv`); FreeRTOS programs and the differential campaign (`freertos`); the interrupt-offset sweeps with their independent ISA model (`trapsweep`).
+- [`test/`](../test): Test files in assembly (`asm`), C (`c`), and SystemVerilog (`sv`); FreeRTOS programs and the differential campaign (`freertos`); the interrupt-offset sweeps with their independent ISA model (`trapsweep`); the measurement programs behind the Zba, M-unit and `FENCE.I` figures, run by `make bench` (`bench`, see [test/bench/README.md](../test/bench/README.md)).
 - [`third_party/`](../third_party): Third-party sources, included unmodified: the FreeRTOS kernel, its RISC-V port, the FreeRTOS standard demo tasks and FreeRTOS+CLI, at pinned upstream commits (MIT); see [third_party/freertos/README.md](../third_party/freertos/README.md).
 - [`.vscode/`](../.vscode): Configuration files for Visual Studio Code.
 

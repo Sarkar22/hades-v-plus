@@ -8,8 +8,8 @@ reachable state** (unbounded, by k-induction), under any interleaving of Memory
 `STALL`/`JUMP` and of resets. No bug was found in the M unit.
 
 ```sh
-make formal          # every proof obligation + lemma checks + covers + spec/sv2v checks (a few minutes)
-make formal-full     # also H6 by bitwuzla and the mutation campaign (about 35 minutes)
+make formal          # every proof obligation + lemma checks + covers + spec/sv2v checks (about a minute)
+make formal-full     # also H6 by bitwuzla and the mutation campaign (about 25 minutes; longer on a loaded machine)
 ```
 
 Both targets write only to `$(BUILD_DIR)/formal/` and finish with one line,
@@ -195,7 +195,7 @@ exactly where the broken hint is false:
 
 ## 4. Results and runtimes
 
-Run of record: `make formal-full` in this tree, 2026-09-28. It reported
+Run of record: `make formal-full` in this tree, 2026-09-28 ([record](../results/formal/2026-09-28_588d76a/RECORD.md)). It reported
 `FORMAL RESULT: PASS (mode=full)` after 24 min 33 s:
 
 - 74 required checks, all PASS;

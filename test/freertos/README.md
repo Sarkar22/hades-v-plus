@@ -10,6 +10,9 @@ pipeline cycle. These programs randomise that timing per run, and
 (including a build directory outside a disk that cannot execute programs), booting a
 program, comparing with the golden CPU, the stress campaign, and writing your own program
 from [template/](template/). This file documents the programs and the campaign in depth.
+Their results in this version of the repository are recorded in
+[results/tests](../../results/tests/2026-10-01_03386fd/RECORD.md) and in the campaign records
+named under [Differential campaign](#differential-campaign).
 
 ## Setup
 
@@ -138,7 +141,8 @@ checks all end the run at once.
   the demo's priority-0 tasks (semtest polling pair, MessageBuffer
   non-blocking/coherence tasks) can starve for a whole check period or trip
   MessageBufferDemo's coherence assert, and the golden CPU failed 3 of 12
-  seeds that way. MessageBufferDemo's "space available coherence" sub-test
+  seeds that way ([record](../../results/history/2026-09-27_97ef211/RECORD.md)).
+  MessageBufferDemo's "space available coherence" sub-test
   (`configRUN_ADDITIONAL_TESTS`, on in the official demo) is off: it trips on
   an ABA race in `xStreamBufferSpacesAvailable()` that any CPU can hit (see
   `full/app_config.h`).
@@ -217,6 +221,48 @@ Each ELF is built once and run with `--seeds` interrupt-timing seeds on every
   self-checks are the oracle.
 * Nothing reads the Zicntr `time` CSR (0 on the golden CPU); time comes from the
   memory-mapped `mtime`.
+
+**Suites, records and comparisons.**
+
+```bash
+python3 test/freertos/campaign.py --suite sep2026 --list                # the runs of a suite
+python3 test/freertos/campaign.py --suite sep2026 --jobs 12 --wall-limit 0 \
+    --compare results/freertos-campaign/2026-10-01_03386fd/results.csv  # about 80 minutes
+python3 test/freertos/campaign.py --set validate --seeds 2 --strict \
+    --record "results/freertos-validate/$(date +%F)_$(git rev-parse --short HEAD)"  # write a record
+python3 test/freertos/campaign.py --results a.csv --compare b.csv       # two stored results
+```
+
+* `--suite NAME` runs several sets in one pool of `--jobs` workers, each with its own
+  seeds, seed base, run length and check limit, as the separate `--set` commands would;
+  each entry builds and logs into `<out>/<entry>/` (by default under
+  `build/freertos-campaign/<suite>/`). It cannot be combined with `--set`, `--seeds`,
+  `--seed-base`, `--run-cycles` or `--max-checks`. `sep2026` is the final campaign on the
+  fixed core, run on 2026-09-27: 794 DUT runs, 102 of them with the branch predictor on,
+  and 523 golden runs, from the six commands that `--help` lists. Its `validate` and
+  `standard` entries share 5 variants and the seeds 0001-0008, so 40 DUT and 40 golden runs
+  are run twice, which also checks that the simulations are deterministic.
+* `--wall-limit SECONDS` is a per-run wall-clock limit, a safety net against a simulator
+  that stops making progress (default `max(600, cycle limit / 150000)`; `0`: none). A run
+  it stops is a `CRASH` that a re-run need not repeat, so give `0` for long suites on a
+  busy machine.
+* `--record DIR` writes a record of the campaign into DIR, by convention
+  `results/<topic>/<date>_<commit>/` ([results/README.md](../../results/README.md)):
+  `RECORD.md`, `meta.json`, `results.csv` (one row per run), `summary.md` and
+  `inputs.sha256` (program images and source fingerprints). It never overwrites an
+  existing record. `--quoted-in 'FILE:LINE: TEXT'` notes where a figure of the campaign
+  is quoted, `--note TEXT` adds a caveat; both can be repeated.
+* `--compare FILE` compares the campaign run for run with a stored `results.csv`, keyed by
+  set, variant, seed and target: status, reason, cycles, UART line counts, run shape and
+  program image, never wall time. It ends with `COMPARE RESULT: IDENTICAL` or
+  `COMPARE RESULT: DIFFERENT` and exits with status 4 on a difference. With
+  `--results OTHER.csv`, nothing is run and OTHER.csv is compared with FILE.
+
+The campaigns that the documentation quotes are recorded in
+[results/freertos-validate](../../results/freertos-validate/2026-10-01_03386fd/RECORD.md)
+(`make freertos-stress`) and
+[results/freertos-campaign](../../results/freertos-campaign/2026-10-01_03386fd/RECORD.md)
+(`--suite sep2026`).
 
 **Reproducing one run.** Every run directory holds `cmd.txt` (the `make
 frtos-elf` variables of its ELF and the exact simulator command) next to its

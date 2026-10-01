@@ -1,0 +1,122 @@
+{
+ "topic": "formal",
+ "id": "2026-09-28_588d76a",
+ "title": "Formal proof of the M unit: run of record",
+ "status": "needs formal tools",
+ "date": "2026-09-28",
+ "base_commit": "588d76a",
+ "base_commit_note": "run on the tree committed as 588d76a; every proof input is identical at 03386fd",
+ "source": "development log of 2026-09-28; formal/README.md section 4",
+ "commands": [
+  "make formal",
+  "make formal-full"
+ ],
+ "inputs": {
+  "formal": "5a241ad565400c8327054e67f2369d96d08fb73a",
+  "rtl/execute_stage.sv": "5e05a633f7a62a8d80da37c71d6a5cdfae44aa7d",
+  "rtl/execute_stage.sv_sha256": "847dc0189ecc3bd61ad4d9d66ea414165fc16c9daa16e392f91e3b3f36fab1bb",
+  "defines": "36f0452de823189873ca8ac79d7a662918961ad6",
+  "test/sv/test_m_execute.sv": "e554dd0fb7b42209d9f82746a6418710a1fb3af1",
+  "test/sv/test_execute_compare.sv": "58412f2da1633cbc769643b4823d53e9e41658de",
+  "test/sv/test_execute_bpred_nextpc.sv": "d61060e6c4a88886794562b1778fa6c1935f5d08",
+  "test/sv/files.txt": "8b137891791fe96927ad78e64b0aad7bded08bdc",
+  "ref": "b1cd1eebbcd4c675f36085ebfc96416192423721",
+  "97ef211:rtl/execute_stage.sv_sha256": "50bed4cf0a13fec392dc0ced2cddc3d6a720f4f63e27df5962ca9b801a7f5111"
+ },
+ "host": {
+  "cpu": "Intel Core Ultra 7 165H",
+  "threads": 22,
+  "os": "Linux"
+ },
+ "tools": {
+  "yosys": "YoWASP Yosys 0.69 (SBY, yosys-smtbmc)",
+  "bitwuzla": "0.9.1",
+  "yices": "2.7.0",
+  "z3": "z3-solver wheel, reports 5.1.0",
+  "sv2v": "0.0.13",
+  "verilator": "5.042"
+ },
+ "workers": 4,
+ "wall_time_s": {
+  "full": 1473.189,
+  "default": 66.813
+ },
+ "verbatim": {
+  "full": [
+   "required checks: 74, not PASS: none",
+   "negative controls: 4, not FAIL (as required): none",
+   "second-solver runs not PASS (reported only, each also proven by the required engine): fmul_ops_mulh_f3_bwn:TIMEOUT(300s) fmul_ops_mulhsu_f3_bwn:TIMEOUT(300s) iface_a1_mulh_bwn:TIMEOUT(600s) iface_a1_mulhsu_bwn:TIMEOUT(600s)",
+   "mutants: 18 rejected, 1 survived (diff32 is a proven-equivalent mutant, see README); unexpected survivors: none",
+   "FORMAL RESULT: PASS (mode=full)",
+   "real\t24m33.189s"
+  ],
+  "default": [
+   "required checks: 72, not PASS: none",
+   "negative controls: 4, not FAIL (as required): none",
+   "FORMAL RESULT: PASS (mode=default)",
+   "real\t1m6.813s"
+  ],
+  "no_tools_2026_09_28": [
+   "MISSING: sby/yowasp-sby yosys/yowasp-yosys yosys-smtbmc bitwuzla yices-smt2 z3 sv2v  -- see formal/README.md (Tools); nothing was run",
+   "exit status 2"
+  ]
+ },
+ "figures": [
+  {
+   "figure": "FORMAL RESULT: PASS (mode=default): 72 required checks and 4 negative controls",
+   "quoted_at": [
+    "docs/VERIFICATION.md:82",
+    "README.md:94"
+   ]
+  },
+  {
+   "figure": "FORMAL RESULT: PASS (mode=full) after 24 min 33 s: 74 required, 4 negative controls, 20 second-solver runs, 608 mutant runs; default 1 min 07 s",
+   "quoted_at": [
+    "formal/README.md:198-207"
+   ]
+  },
+  {
+   "figure": "proved file SHA-256 847dc018...fab1bb equals the file in this version",
+   "quoted_at": [
+    "docs/VERIFICATION.md:84",
+    "README.md:81",
+    "formal/README.md:209"
+   ],
+   "checked_2026_10_01": true
+  },
+  {
+   "figure": "97ef211 SHA-256 50bed4cf...5111",
+   "quoted_at": [
+    "formal/README.md:464-465"
+   ],
+   "checked_2026_10_01": true
+  },
+  {
+   "figure": "19 mutants, 18 rejected, diff32 equivalent, 32 proofs",
+   "quoted_at": [
+    "docs/VERIFICATION.md:218-219",
+    "docs/VERIFICATION.md:236",
+    "formal/README.md:180-189",
+    "formal/README.md:254-267"
+   ]
+  },
+  {
+   "figure": "runtimes about 1-2 min / 25-35 min",
+   "quoted_at": [
+    "docs/VERIFICATION.md:188-189",
+    "formal/README.md:11-12"
+   ]
+  },
+  {
+   "figure": "per-check tables",
+   "quoted_at": [
+    "formal/README.md:215-265"
+   ],
+   "note": "SUMMARY.txt of this run, not re-checked"
+  }
+ ],
+ "caveats": [
+  "Not repeated on 2026-10-01: Yosys, SymbiYosys, yosys-smtbmc, bitwuzla, Yices and z3 were not installed and none of the tools was on PATH (only an sv2v binary was present); without them run.sh stops with FORMAL RESULT: FAIL (missing tools) and exit status 2 (formal/README.md:373-374).",
+  "An earlier full run the same day reported the same summary after real 144m11.982s."
+ ]
+}

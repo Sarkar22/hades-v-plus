@@ -1,0 +1,44 @@
+{
+ "topic": "history",
+ "id": "2026-09-27_97ef211",
+ "title": "Full demo with time slicing off: golden CPU failed 3 of 12 seeds",
+ "status": "historical",
+ "date": "2026-09-27",
+ "base_commit": "97ef211",
+ "base_commit_note": "development tree based on 97ef211; the golden CPU result depends on the program and the frozen golden model only",
+ "sources": [
+  "development log of 2026-09-27"
+ ],
+ "figures": [
+  {
+   "figure": "the golden CPU failed 3 of 12 seeds",
+   "quoted_at": [
+    "test/freertos/README.md:137-141"
+   ],
+   "value": {
+    "variant": "full.rv32i.Os.p1s0.t10000.h4",
+    "seeds": "0001-000c",
+    "golden_failed": [
+     "0005",
+     "0009",
+     "000a"
+    ],
+    "golden_passed": 9
+   }
+  }
+ ],
+ "caveats": [
+  "The full program's configuration changed afterwards; the result would not necessarily repeat.",
+  "Run logs not kept."
+ ],
+ "host": {
+  "cpu": "Intel Core Ultra 7 165H",
+  "threads": 22,
+  "os": "Linux"
+ },
+ "tools": {
+  "verilator": "5.042",
+  "gcc": "12.2.0",
+  "python": "3.12"
+ }
+}
