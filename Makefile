@@ -114,8 +114,7 @@ help:
 	@echo "  bootloader  Build the bootloader"
 	@echo "  synthesis   Synthesize the MCU using Vivado"
 	@echo ""
-	@echo "FreeRTOS (guide: docs/FREERTOS.md):"
-	@echo "  freertos-fetch    Clone the FreeRTOS sources at the tested commits into FREERTOS_HOME"
+	@echo "FreeRTOS (guide: docs/FREERTOS.md; sources vendored in third_party/freertos):"
 	@echo "  freertos-list     List the FreeRTOS programs"
 	@echo "  freertos          Build and run one program: make freertos APP=minimal [CPU=golden]"
 	@echo "                    [MARCH=rv32im_zba] [OPT=-Os] [TICK=5000] [BPRED=3] [SEED=2a] [TIMEOUT=<cycles>]"
@@ -278,9 +277,9 @@ $(BUILD_DIR)/$(SV_DIR)/%/top.mk: $(REF_SO_DEPS)
 #                               FreeRTOS Programs                              #
 ################################################################################
 
-# Multi-file FreeRTOS programs in test/freertos/<app>/ (kernel sources are external,
-# see docs/FREERTOS.md and test/freertos/README.md): make freertos APP=<app>,
-# make test/freertos/<app>
+# Multi-file FreeRTOS programs in test/freertos/<app>/ (the FreeRTOS sources are vendored
+# in third_party/freertos/, see docs/FREERTOS.md and test/freertos/README.md):
+# make freertos APP=<app>, make test/freertos/<app>
 include $(TEST_DIR)/freertos/freertos.mk
 
 ################################################################################

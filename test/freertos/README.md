@@ -13,18 +13,13 @@ from [template/](template/). This file documents the programs and the campaign i
 
 ## Setup
 
-The FreeRTOS sources are not vendored. Fetch them at the tested commits:
-
-```bash
-make freertos-fetch                              # clones into FREERTOS_HOME (default: the repo's parent dir)
-sh test/freertos/fetch_freertos.sh /path/to/deps # or anywhere, then:
-export FREERTOS_KERNEL=/path/to/deps/FreeRTOS-Kernel          # 8be86d4 (V11.1.0+)
-export FREERTOS_DEMO=/path/to/deps/FreeRTOS/FreeRTOS/Demo     # FreeRTOS/FreeRTOS f4fcc3b
-```
-
-The Makefile finds the sources through `FREERTOS_HOME` (or the two variables above);
-`campaign.py` and `test/trapsweep` need `FREERTOS_KERNEL`/`FREERTOS_DEMO` (or
-`--kernel`/`--demo`) when run directly. All build output follows `BUILD_DIR` /
+The FreeRTOS sources are vendored, unmodified, in
+[`third_party/freertos/`](../../third_party/freertos/README.md): FreeRTOS-Kernel `8be86d4`
+(V11.1.0+) and, from FreeRTOS/FreeRTOS `f4fcc3b`, the standard demo tasks, RegTest and
+FreeRTOS+CLI. There is nothing to fetch: the Makefile and `campaign.py` use them by default.
+To build against an external checkout instead, set `FREERTOS_HOME` (a directory holding
+`FreeRTOS-Kernel/` and `FreeRTOS/` side by side), or `FREERTOS_KERNEL` / `FREERTOS_DEMO`
+(for `campaign.py` also `--kernel` / `--demo`). All build output follows `BUILD_DIR` /
 `HADES_BUILD_DIR` (see docs/FREERTOS.md); the paths below assume the default `build/`.
 
 ## Front end
