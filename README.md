@@ -74,7 +74,7 @@ The upstream core implements **RV32I + Zicsr** (its `FENCE.I` was present but un
 | **Branch predictor** | Four run-time selectable algorithms — never-taken (the reset default), always-taken, backward-taken and bimodal 2-bit counters — with four outcome counters as CSRs; a correctly predicted branch causes no pipeline flush | [§](docs/EXTENSIONS.md#branch-predictor-extension) |
 | **FreeRTOS** | The official RISC-V port boots unmodified; one-command build and run, a differential stress campaign against the golden CPU, a template for your own programs, and an interactive command shell (FreeRTOS+CLI) you type into from your terminal | [§](docs/FREERTOS.md) |
 
-Eight correctness fixes to the base core are also included. Two predate the RTOS work: a decoder defect that corrupted registers on stores and branches (which prevented the bootloader from running at all), and a forwarding defect that leaked a garbage value for `FENCE` instructions carrying a non-zero reserved field. The other six are trap and interrupt defects: four exposed by running FreeRTOS under randomised interrupt timing, and two by the interrupt-offset sweep against the independent instruction-set model; see [the defects and their regression tests](docs/VERIFICATION.md#freertos-differential-campaigns).
+Nine correctness fixes to the upstream design are also included. Two predate the RTOS work: a decoder defect that corrupted registers on stores and branches (which prevented the bootloader from running at all), and a forwarding defect that leaked a garbage value for `FENCE` instructions carrying a non-zero reserved field. Six are trap and interrupt defects: four exposed by running FreeRTOS under randomised interrupt timing, and two by the interrupt-offset sweep against the independent instruction-set model; see [the defects and their regression tests](docs/VERIFICATION.md#freertos-differential-campaigns). The ninth is in the UART: a byte store to a status byte drove the transmit interrupt from the wrong enable bit for one cycle, which could raise an interrupt without a source ([test/asm/uartirq.s](test/asm/uartirq.s)).
 
 ## Verification at a Glance
 
@@ -129,7 +129,7 @@ The following are original contributions by **Emon Sarkar**, added after complet
 
 - The **M**, **Zba**, and **Zicntr** extensions, and the substantiation of **Zifencei**
 - The **bimodal branch predictor** and its performance-counter CSRs
-- Eight correctness fixes to the base core: decoder `rd` handling for S/B-type instructions, `FENCE` forwarding suppression in the Memory stage, and six trap/interrupt defects found by running FreeRTOS and the trap sweep
+- Nine correctness fixes to the upstream design: decoder `rd` handling for S/B-type instructions, `FENCE` forwarding suppression in the Memory stage, six trap/interrupt defects found by running FreeRTOS and the trap sweep, and the UART's transmit-interrupt enable
 - The formal proof of the multiply/divide unit ([`formal/`](formal))
 - FreeRTOS support ([`test/freertos/`](test/freertos), [docs/FREERTOS.md](docs/FREERTOS.md)) and the independent trap-sweep model ([`test/trapsweep/`](test/trapsweep))
 - The test suites in [`test/asm/`](test/asm) and [`test/sv/`](test/sv) beyond the upstream set, including the golden-comparison, encoding-sweep, and adversarial suites

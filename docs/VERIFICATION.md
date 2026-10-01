@@ -37,6 +37,7 @@ Every suite runs from the repository root. The results below are what the comman
 | Data forwarding | `make test/asm/forwarding` | the same |
 | Exceptions and interrupts | `make test/asm/trap` | the same |
 | Interrupts against traps and bus accesses | `make test/asm/trapirq`, `make test/asm/trapmpie`, `make test/asm/csrirq`, `make test/asm/memirq`, `make test/asm/mtvecirq` | the same, each |
+| UART interrupt enables written by byte and halfword stores ([uartirq.s](../test/asm/uartirq.s)) | `make test/asm/uartirq` | the same |
 | M | `make test/asm/mul`, `make test/asm/div` | the same, each |
 | Zba | `make test/asm/zba`, `make test/asm/zbaadv` | the same, each |
 | Zicntr | `make test/asm/zicntr` | the same |
