@@ -4,7 +4,7 @@
 #   make freertos-shell-test APP=loader SCRIPT=test/freertos/loader/session-ext.txt
 #   make freertos-shell-test APP=loader SCRIPT=test/freertos/loader/session-ext.txt CPU=golden
 # The format is that of session.txt in this directory.
-#? ^  apps: 'load' receives an app into the 128 KiB slot at 0x00060000, 'run' runs it$
+#? ^  apps: 'load <name>' \(for example 'load hello'\), then 'run \[args\]'$
 load
 #< rv32im_zba/compute.hex
 #? ^loaded compute: \d+ bytes at 0x00060000, entry 0x[0-9a-f]{8}, CRC32 0x[0-9a-f]{8}$
@@ -16,6 +16,12 @@ run
 #?dut ^app: compute exited with code 0 after \d+ cycles$
 #?golden ^error: compute was built for rv32im_zba, but this CPU has no M and no Zba$
 #!golden ^compute:
+# The same build by name: <march>/<name>, as UPLOAD= takes it.
+load rv32im_zba/compute
+#? ^load: waiting for rv32im_zba/compute \(Ctrl-C cancels\)$
+#? ^loaded compute: \d+ bytes at 0x00060000, entry 0x[0-9a-f]{8}, CRC32 0x[0-9a-f]{8}$
+app
+#? ^isa:       rv32im_zba$
 uart
 #? ^dropped:\s+0 \(receive queue full\)$
 #? ^overruns:\s+0 \(lost in the UART\)$

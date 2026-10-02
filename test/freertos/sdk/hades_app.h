@@ -73,6 +73,7 @@ typedef int ( * HadesAppEntry_t )( const HadesApi_t * pxApi, int iArgc, char ** 
 #define HADES_CON_ACK              0x06u         /* a record line was accepted */
 #define HADES_CON_INPUT            0x11u         /* DC1: waiting for input */
 #define HADES_CON_FILE             0x12u         /* DC2: waiting for a file */
+#define HADES_CON_NAME             0x14u         /* DC4: around the name of the file wanted */
 #define HADES_CON_NAK              0x15u         /* a record line was rejected */
 
 /* ------------------------------------------------------------------------- for apps -- */

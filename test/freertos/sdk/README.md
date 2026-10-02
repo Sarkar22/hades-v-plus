@@ -8,10 +8,16 @@ the specification, with the image format and the load protocol, is
 ```bash
 make freertos-app NAME=<name> [MARCH=rv32i|rv32im|rv32i_zba|rv32im_zba] [OPT=-O2|-Os|-O0]   # one app
 make freertos-apps                                   # the examples (-O2) and the loader's test files
-make freertos-shell APP=loader UPLOAD=<name>         # 'load' in the shell receives the app
+make freertos-shell APP=loader                       # the shell: 'load <name>', then 'run [args]'
+make freertos-shell APP=loader UPLOAD=<name>         # also: 'load' without a name receives the app
 make freertos-send UPLOAD=<name>                     # to a running 'make freertos-shell APP=loader PTY=1',
                                                      # at its prompt: the simulator types 'load' and sends it
 ```
+
+In the shell, `load hello` loads the example `hello` and `run Ada` runs it;
+`load <march>/<name>` loads another build and `load <file>.hex` a file. The simulator finds
+the file and sends it as it is (it builds nothing); a name it does not know gives the list of
+the apps.
 
 | File | Contents |
 |---|---|
@@ -29,7 +35,8 @@ against `crt0.S`, `app.ld`, newlib-nano and libgcc, and placed at the fixed addr
 `0x00060000`. The output goes to `${HADES_BUILD_DIR:-build}/test/freertos/sdk/<march>/`:
 `<name>.hex` (the file to send), `.bin` (the image), `.elf`, `.dis`, `.map`. An app is rebuilt
 when one of its sources, an SDK file or its flags change; `UPLOAD=<name>` keeps the
-optimisation level of its last build.
+optimisation level of its last build. `load <name>` sends `<name>.hex` from the `rv32i/`
+directory, `load <march>/<name>` the file of another build.
 
 Rules for an app (in full: SPEC.md, section 6.3): use only the API of `hades_app.h` to talk
 to the shell; use RV32I, and M and Zba only if the app was built for them (the golden CPU runs

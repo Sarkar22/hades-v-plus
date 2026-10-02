@@ -867,28 +867,29 @@ console pacing, run semantics, test plan) is
 ### Start it and run an example
 
 ```bash
-make freertos-shell APP=loader UPLOAD=hello
+make freertos-shell APP=loader
 ```
 
 This builds the shell with the loader, the 256 KiB console simulator and the example apps,
-and starts the simulation as in section 9. `UPLOAD=hello` names the file that the simulator
-sends whenever the shell asks for one: type `load`, then run the app with `run` and its
-arguments (a session on HaDes-V+):
+and starts the simulation as in section 9. Type `load` and the name of an app, then run the
+app with `run` and its arguments (a session on HaDes-V+):
 
 ```text
+[console] the apps for 'load <name>': compute crash hello selfmod upper
+...
 HaDes-V+ shell on FreeRTOS V11.1.0+ with FreeRTOS+CLI
   config: tick=10000cyc preempt=1 slice=1 heap_4 isa=rv32i opt=-Os ram=256K bpred=0
-  apps: 'load' receives an app into the 128 KiB slot at 0x00060000, 'run' runs it
+  apps: 'load <name>' (for example 'load hello'), then 'run [args]'
 Type 'help' for the list of commands.
-hades> load
-load: waiting for an Intel HEX file (Ctrl-C cancels)
+hades> load hello
+load: waiting for hello (Ctrl-C cancels)
 [console] sending .../test/freertos/sdk/rv32i/hello.hex (1017 bytes)
 loaded hello: 340 bytes at 0x00060000, entry 0x00060040, CRC32 0xbccb2e01
-hades> run world
-Hello, world!
+hades> run Ada
+Hello, Ada!
 argv[0] = hello
-argv[1] = world
-app: hello exited with code 1 after 37150 cycles
+argv[1] = Ada
+app: hello exited with code 1 after 36656 cycles
 hades> app
 name:      hello (ABI 1)
 image:     340 bytes at 0x00060000, entry 0x00060040, CRC32 0xbccb2e01
@@ -898,10 +899,27 @@ hades> halt
 halted
 ```
 
+The simulator lists the apps when it starts and sends the file of the app that `load` names:
+the name of an app (its RV32I build), `<march>/<name>` for another build, for example
+`load rv32im_zba/compute`, or the path of a `.hex` file (absolute, or relative to the SDK's
+build directory, `${HADES_BUILD_DIR:-build}/test/freertos/sdk/`). A name it does not know
+loads nothing, and the answer lists the apps:
+
+```text
+hades> load helo
+load: waiting for helo (Ctrl-C cancels)
+load failed: no app 'helo' (the apps: compute crash hello selfmod upper)
+```
+
 The file is read at every `load`, so an app rebuilt in another terminal while the simulation
-runs is sent the next time. `UPLOAD` takes the name of an app (its RV32I build),
-`<march>/<name>` for another build, for example `UPLOAD=rv32im_zba/compute`, or the path of a
-`.hex` file. Every other command of section 9 works as before.
+runs is sent the next time. `run` before a successful `load` answers
+`error: no app loaded (try 'load hello')`. Every other command of section 9 works as before.
+
+`load` without a name takes the file that arrives. `make freertos-shell APP=loader
+UPLOAD=hello` names the file that the simulator sends to every such `load`; `UPLOAD` takes
+the same forms as `load` (a relative `.hex` path is relative to the directory where `make`
+runs).
+Without `UPLOAD=`, paste the file (next section).
 
 The example apps, in `test/freertos/sdk/apps/`, are built for RV32I (`compute` also for
 `rv32im_zba`):
@@ -918,14 +936,15 @@ The example apps, in `test/freertos/sdk/apps/`, are built for RV32I (`compute` a
 
 The shell asks for a file when you type `load`, and the simulator's console bridge
 (`sim/console.cpp`) sends it one line at a time: the next line only after the shell has
-acknowledged the previous one, so no character is lost however long the file is. There is no
-key or escape sequence to start an upload: `load` starts it, from whichever side.
+acknowledged the previous one, so no character is lost however long the file is. A name
+after `load` tells the bridge which file to send, in every mode. There is no key or escape
+sequence to start an upload: `load` starts it, from whichever side.
 
 | Mode | How the file is sent |
 |---|---|
-| Terminal (`make freertos-shell APP=loader`) | With `UPLOAD=<app>`, every `load` receives that app's file. Without it, type `load` and paste the contents of the `.hex` file into the terminal. |
-| Pseudo-terminal (`PTY=1`) | In another terminal: `make freertos-send UPLOAD=<app>`. It builds the app if needed and asks the simulator to type `load` and send the file, which it does only while the shell waits at its prompt with nothing typed (after a `load` typed by hand, it sends the file to that `load`). `UPLOAD=` on the `freertos-shell` command line works as well. |
-| Scripted session (`freertos-shell-test`) | A line `#< <file>` after the typed `load` line sends that file, relative to the SDK's build directory (`#< rv32i/hello.hex`); `#: <text>` types a line into a running app. |
+| Terminal (`make freertos-shell APP=loader`) | `load <name>`: the app's file. `load` alone: with `UPLOAD=<app>`, that app's file; without it, paste the contents of the `.hex` file into the terminal. |
+| Pseudo-terminal (`PTY=1`) | `load <name>` typed in the terminal program, as in the terminal mode. Or, in another terminal: `make freertos-send UPLOAD=<app>`. It builds the app if needed and asks the simulator to type `load` and send the file, which it does only while the shell waits at its prompt with nothing typed (after a `load` typed by hand, it sends the file to that `load`). `UPLOAD=` on the `freertos-shell` command line works as well. |
+| Scripted session (`freertos-shell-test`) | A typed line `load <name>`, or a line `#< <file>` after the typed `load` line, which sends that file, relative to the SDK's build directory (`#< rv32i/hello.hex`); `#: <text>` types a line into a running app. |
 
 A session in the pseudo-terminal mode takes three terminals:
 
@@ -939,9 +958,10 @@ make freertos-send UPLOAD=hello                        # 3: at the prompt of ter
 send: 'load' and .../test/freertos/sdk/rv32i/hello.hex (1017 bytes) -> .../test/freertos/loader/pty
 ```
 
-The shell's answer, `loaded hello: ...`, appears in `screen`; type `run` there. When the shell
-is busy (a command or an app is running) or something is typed on its command line, nothing
-is sent, and `make freertos-send` fails with the reason:
+The shell's answer, `loaded hello: ...`, appears in `screen`; type `run` there. (`load hello`
+typed in `screen` does the same without the third terminal.) When the shell is busy (a
+command or an app is running) or something is typed on its command line, nothing is sent, and
+`make freertos-send` fails with the reason:
 
 ```text
 freertos-send: not sent: the shell is not at its prompt (a command or an app is running)
@@ -969,7 +989,7 @@ image (4551 bytes) in 4.7 million cycles (measured with `uptime` before and afte
 
 | Command | What it does |
 |---|---|
-| `load` | Unloads the current app, clears the slot, prints `load: waiting for an Intel HEX file (Ctrl-C cancels)` and receives the file. Every record is checked (checksum, address inside the slot, contiguous from the slot base) before its bytes are written; at the end the image is checked (magic `HAPP`, ABI version, sizes, entry, the room it needs in the slot, CRC-32), saved and made executable (`fence.i`). One line reports the result: `loaded <name>: ...`, `load failed: <reason>` or `load cancelled`. After a failed or cancelled load no app is loaded, so nothing of an older image can be run. A Ctrl-C after a rejected line gives that line's error rather than `load cancelled`. A `.` is printed for every KiB of image stored in the slot. |
+| `load [name]` | Unloads the current app, clears the slot, prints `load: waiting for an Intel HEX file (Ctrl-C cancels)` (with a name: `load: waiting for <name> (Ctrl-C cancels)`, and the simulator sends that app's file) and receives the file; more than one word gives `usage: load [name]` and changes nothing. Every record is checked (checksum, address inside the slot, contiguous from the slot base) before its bytes are written; at the end the image is checked (magic `HAPP`, ABI version, sizes, entry, the room it needs in the slot, CRC-32), saved and made executable (`fence.i`). One line reports the result: `loaded <name>: ...`, `load failed: <reason>` or `load cancelled`. After a failed or cancelled load no app is loaded, so nothing of an older image can be run. A Ctrl-C after a rejected line gives that line's error rather than `load cancelled`. A `.` is printed for every KiB of image stored in the slot. |
 | `run [args...]` | Restores the image from its saved copy (so every run starts from the image as loaded), then runs it as the task `app` with `argv[0]` = the app's name and up to 8 arguments (separated by blanks; no quoting). While it runs, the terminal belongs to the app. Ctrl-C stops it, also one typed right after the Enter of `run`, and discards what was typed and not yet read by the app. Afterwards one line reports how it ended (below). |
 | `app` | The loaded app: name, size, entry, CRC-32, instruction set, and how it uses the slot; `no app loaded` if there is none. |
 
@@ -1000,6 +1020,7 @@ load failed: line 2: address 0x00050000 is outside the app slot (0x00060000-0x00
 load failed: bad magic 0x50504158 (an app image starts with 0x50504148, "HAPP")
 load failed: tiny needs 131224 bytes of the slot (image 72, bss 0, stack 131072, saved copy 80); the slot has 131072
 load failed: CRC32 mismatch: the image has 0xb5c16588, its header says 0xa0537c91
+load failed: no app 'helo' (the apps: compute crash hello selfmod upper)
 ```
 
 `python3 test/freertos/sdk/appimg.py info <file.hex>` applies the same checks on the host
@@ -1033,7 +1054,7 @@ int main( int argc, char ** argv )
 ```bash
 make freertos-app NAME=myapp                          # rv32i, -O2
 make freertos-app NAME=myapp MARCH=rv32im_zba OPT=-Os # M and Zba: HaDes-V+ only
-make freertos-shell APP=loader UPLOAD=myapp
+make freertos-shell APP=loader                        # then: load myapp
 ```
 
 `make freertos-app` prints one line with the sizes, the CRC-32 and the file it wrote:
@@ -1046,13 +1067,15 @@ It compiles with `-ffunction-sections -fdata-sections`, links with the SDK's sta
 (`crt0.S`, which writes the 64-byte image header and clears `.bss`) and linker script
 (`app.ld`, which places the app at the slot base, `0x00060000`), and writes the image and its
 HEX file. `make freertos-apps` builds every example and the loader's test files, at `-O2`.
-`UPLOAD=myapp` (with `freertos-shell` or `freertos-send`) rebuilds the app when its sources
-have changed, at the optimisation level of its last build, so it sends the build that
-`make freertos-app` made. Then:
+`load myapp` sends the file as `make freertos-app` wrote it (run `make freertos-app` again,
+also while the simulation runs, and the next `load` sends the new build), and
+`load rv32im_zba/myapp` the other build. `UPLOAD=myapp` (with `freertos-shell` or
+`freertos-send`) rebuilds the app when its sources have changed, at the optimisation level of
+its last build, so it sends the build that `make freertos-app` made. Then:
 
 ```text
-hades> load
-load: waiting for an Intel HEX file (Ctrl-C cancels)
+hades> load myapp
+load: waiting for myapp (Ctrl-C cancels)
 [console] sending .../test/freertos/sdk/rv32i/myapp.hex (882 bytes)
 loaded myapp: 292 bytes at 0x00060000, entry 0x00060040, CRC32 0x6496e1cd
 hades> run Ada Bob
@@ -1143,7 +1166,7 @@ best effort:
 make freertos-loader-test                # loader/session.txt and session-ext.txt on HaDes-V+
 make freertos-loader-test CPU=golden     # the same on the golden CPU
 make freertos-loader-compare             # both CPUs; the transcripts of session.txt compared
-make freertos-shell-tty-test APP=loader  # uploads, pastes, send requests, input and Ctrl-C through a terminal
+make freertos-shell-tty-test APP=loader  # names, uploads, pastes, send requests, input and Ctrl-C through a terminal
 ```
 
 `test/freertos/loader/session.txt` loads and runs every example app (`hello` with arguments,
@@ -1152,15 +1175,17 @@ make freertos-shell-tty-test APP=loader  # uploads, pastes, send requests, input
 returns, Ctrl-C in its loop, and Ctrl-C typed right after the Enter of `run`) and runs another
 app afterwards, sends every rejected test file of SPEC.md, section 9.5 (after a successful load
 of a valid image, so that the check that nothing runs is meaningful) and the files that hold a
-Ctrl-C, empty lines or records after their end, and checks that `uart` lost no character. `session-ext.txt` runs `compute` built for `rv32im_zba`, which the golden CPU
-refuses. The verdict:
+Ctrl-C, empty lines or records after their end, loads two apps and a test file by name and
+asks for an unknown name, and checks that `uart` lost no character. `session-ext.txt` runs
+`compute` built for `rv32im_zba` (and loads it by name, `load rv32im_zba/compute`), which the
+golden CPU refuses. The verdict:
 
 ```text
 LOADER COMPARE: PASS  session.txt: dut PASS, golden PASS, transcripts SAME; session-ext.txt: dut PASS, golden PASS
 ```
 
 after the verdict line of each session (`FREERTOS SHELL RESULT: PASS ... expectations met:
-131/131`) and the comparison (`SHELL COMPARE: SAME  75 blocks, 261 lines equal after
+146/146`) and the comparison (`SHELL COMPARE: SAME  84 blocks, 292 lines equal after
 normalising numbers`). `make` exits with status 0 only if every part passed. The logs are
 `session-<cpu>.log` and `session-ext-<cpu>.log` (with the UART transcripts `.uart`) in
 `${HADES_BUILD_DIR:-build}/test/freertos/loader/`.
@@ -1200,7 +1225,7 @@ environment, so an unrelated variable such as `CPU` cannot change a run.)
 | `WAVES` | `1` | Also write a waveform, `sim.fst` (large for long runs). |
 | `PTY` | `1` | `freertos-shell` only: connect the UART to a pseudo-terminal for `screen` or `picocom` instead of this terminal. |
 | `SCRIPT` | a file (`test/freertos/<app>/session.txt`) | `freertos-shell-test` and `freertos-shell-compare`: the command script to type. |
-| `UPLOAD` | an app: `<name>`, `<march>/<name>` or a `.hex` file | `freertos-shell APP=loader`: the file sent whenever `load` asks for one; `freertos-send`: the file to send (section 10). |
+| `UPLOAD` | an app: `<name>`, `<march>/<name>` or a `.hex` file | `freertos-shell APP=loader`: the file sent whenever `load` without a name asks for one; `freertos-send`: the file to send (section 10). |
 | `VERBOSE` | `1` | Show the compiler output instead of writing it to `build.log`. |
 
 For `make freertos-stress`: `SEEDS` (2), `JOBS` (4) and `SET` (`validate`). `campaign.py`
@@ -1278,10 +1303,11 @@ reason names the line or the field. `python3 test/freertos/sdk/appimg.py info <f
 the same reason on the host. A file written by `objcopy -O ihex` is refused (`record type 02
 is not supported`): send the `.hex` file that `make freertos-app` writes.
 
-**`load` waits and nothing arrives.** In the terminal mode without `UPLOAD=`, the simulator
-prints a hint: paste the file, or press Ctrl-C and restart with `UPLOAD=<app>`. In the
-pseudo-terminal mode, run `make freertos-send UPLOAD=<app>` in another terminal: it sends the
-file to the waiting `load`. It fails with `no loader session with a pseudo-terminal is
+**`load` waits and nothing arrives.** `load` without a name waits for a file. In the terminal
+mode without `UPLOAD=`, the simulator prints a hint: paste the file, or press Ctrl-C and type
+`load <name>`. In the pseudo-terminal mode, press Ctrl-C and type `load <name>`, or run
+`make freertos-send UPLOAD=<app>` in another terminal: it sends the file to the waiting
+`load`. It fails with `no loader session with a pseudo-terminal is
 running` when the session was not started with `APP=loader PTY=1`.
 
 **`freertos-send: not sent: ...`.** The simulator types `load` only while the shell waits at

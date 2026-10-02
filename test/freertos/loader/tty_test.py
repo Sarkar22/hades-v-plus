@@ -15,6 +15,12 @@
 #                ahead waits for the prompt that ends the upload); the copy is replaced by
 #                tiny.hex, and the next 'load' gives 'loaded tiny' (the file is read at every
 #                request); 'run' gives code 7
+#   name         +console_app_dir=<SDK_OUT>/rv32i and +console_upload=<tiny.hex>: the start-up
+#                note lists the apps; 'load hello' and 'run Ada' typed ahead at once give
+#                'loaded hello' and 'Hello, Ada!' (the name decides, and the input waits for the
+#                prompt); 'load crash' gives 'loaded crash'; 'load' without a name receives the
+#                +console_upload file, tiny; 'load nosuchapp' fails with the list of the apps,
+#                and 'app' then gives 'no app loaded'
 #   paste        no +console_upload: 'load', then all of hello.hex written to the terminal at
 #                once, followed by an empty line, two records after its end-of-file record
 #                and the command 'app': 'loaded hello'; the empty line and the records are
@@ -25,7 +31,8 @@
 #                "ok" and the client sees 'loaded hello', types 'run', sees code 0; while
 #                'run loop' of crash runs, a request is refused and nothing reaches the app;
 #                Ctrl-C; 'load' typed by the client, then a request: "ok waiting", 'loaded
-#                hello'; then 'halt'
+#                hello'; 'load selfmod' typed by the client: 'loaded selfmod', and 'run' gives
+#                'selfmod: PASS'; then 'halt'
 #   pty-cat      +console_pty, a client in exclusive mode; a second writer writes 'load', CR
 #                and compute.hex into the device, as 'cat' does; the client types Ctrl-C while
 #                the file arrives: 'load cancelled', and the rest of the file does not reach
@@ -64,7 +71,7 @@ T = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(T)
 
 LOADED = rb'loaded %s: \d+ bytes at 0x00060000, entry 0x[0-9a-f]{8}, CRC32 0x[0-9a-f]{8}\n'
-CONTROL = b'\x06\x11\x12\x15'   # ACK, DC1, DC2, NAK: for the bridge; a terminal does not show them
+CONTROL = b'\x06\x11\x12\x14\x15'   # ACK, DC1, DC2, DC4, NAK: for the bridge; not shown by a terminal
 
 
 class Session(T.Session):
@@ -134,6 +141,36 @@ def case_upload(sim, d, up):
         s.close()
 
 
+def case_name(sim, d, up):
+    s = Session(sim, d, ['+console_upload=testfiles/tiny.hex', f'+console_upload_dir={up}',
+                         f'+console_app_dir={os.path.join(up, "rv32i")}'])
+    try:
+        T.boot(s)
+        m = s.expect(rb"\[console\] the apps for 'load <name>': ([^\n]*)\n", 10)
+        apps = m.group(1).decode().split()
+        assert all(a in apps for a in ('compute', 'crash', 'hello', 'selfmod', 'upper')), m.group(0)
+        start = len(s.out)
+        s.type(b'load hello\rrun Ada\r')                                 # typed ahead
+        s.expect(rb'load: waiting for hello \(Ctrl-C cancels\)\n'
+                 rb'\[console\] sending \S+/rv32i/hello\.hex \(\d+ bytes\)\n' + LOADED % b'hello' +
+                 rb'hades> run Ada\nHello, Ada!\n(.*\n)*app: hello exited with code 1 after \d+ cycles\nhades> $',
+                 120, start)
+        out = s.command(b'load crash')
+        assert re.search(LOADED % b'crash', out), out
+        out = s.command(b'load')                                         # no name: +console_upload
+        assert b'loaded tiny: 72 bytes at 0x00060000, entry 0x00060040, CRC32 0xa0537c91\n' in out, out
+        out = s.command(b'load nosuchapp')
+        m = re.search(rb"\nload failed: no app 'nosuchapp' \(the apps: ([^\n]*)\)\n", out)
+        assert m and m.group(1).decode().split() == apps, out
+        out = s.command(b'app')
+        assert b'\nno app loaded\n' in out, out
+        finish(s)
+        return (f"apps listed at start-up ({' '.join(apps)}); load hello and run Ada typed ahead: loaded, "
+                f"Hello, Ada!; load crash: loaded; load: the +console_upload file; load nosuchapp: the list, no app")
+    finally:
+        s.close()
+
+
 def case_paste(sim, d, up):
     s = Session(sim, d, [f'+console_upload_dir={up}'])
     try:
@@ -194,7 +231,8 @@ def pty_end(s, fd, got, link):
 
 def case_pty_send(sim, d, up):
     link = os.path.join(d, 'tty-test-pty')
-    s = Session(sim, d, ['+console_pty', f'+console_pty_link={link}', f'+console_upload_dir={up}'])
+    s = Session(sim, d, ['+console_pty', f'+console_pty_link={link}', f'+console_upload_dir={up}',
+                         f'+console_app_dir={os.path.join(up, "rv32i")}'])
     try:
         fd, dev = T.open_device(s, link)
         fcntl.ioctl(fd, termios.TIOCEXCL)                                # as screen does
@@ -230,9 +268,18 @@ def case_pty_send(sim, d, up):
         assert answer == 'ok waiting', answer
         got = device_until(s, fd, got, rb'crash stopped by Ctrl-C(.|\r|\n)*' +
                            (LOADED % b'hello').replace(rb'\n', rb'\r\n') + rb'hades> ')
+        mark = len(got)
+        T.device_type(fd, b'load selfmod\r')                            # by name, typed by the client
+        got = device_until(s, fd, got, rb'load: waiting for selfmod \(Ctrl-C cancels\)\r\n(\.*\r\n)?' +
+                           (LOADED % b'selfmod').replace(rb'\n', rb'\r\n') + rb'hades> ')
+        T.device_type(fd, b'run\r')
+        got = device_until(s, fd, got,
+                           rb'selfmod: PASS\r\napp: selfmod exited with code 0 after \d+ cycles\r\nhades> ')
+        assert b'load failed' not in got[mark:], got[mark:]
         pty_end(s, fd, got, link)
         return (f'{dev} held in exclusive mode by the client; send requests: hello ok, loaded, code 0; '
-                f'while an app ran: "{refused}"; to a load typed by hand: ok waiting, loaded')
+                f'while an app ran: "{refused}"; to a load typed by hand: ok waiting, loaded; '
+                f'load selfmod typed by the client: loaded, PASS')
     finally:
         s.close()
 
@@ -366,8 +413,8 @@ def case_ctrl_c_load(sim, d, up):
         s.close()
 
 
-CASES = [('upload', case_upload), ('paste', case_paste), ('pty-send', case_pty_send),
-         ('pty-cat', case_pty_cat), ('input', case_input), ('ctrl-c', case_ctrl_c),
+CASES = [('upload', case_upload), ('name', case_name), ('paste', case_paste),
+         ('pty-send', case_pty_send), ('pty-cat', case_pty_cat), ('input', case_input), ('ctrl-c', case_ctrl_c),
          ('ctrl-c-ahead', case_ctrl_c_ahead), ('ctrl-c-load', case_ctrl_c_load)]
 
 

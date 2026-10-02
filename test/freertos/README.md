@@ -41,12 +41,13 @@ make freertos-shell PTY=1                        # the same on a pseudo-terminal
 make freertos-shell-test [SCRIPT=file]           # shell/session.txt typed in, transcript checked
 make freertos-shell-compare                      # the scripted session on DUT and golden, compared
 make freertos-shell-tty-test                     # shell/tty_test.py: keys, paste, quitting, terminal restore
-make freertos-shell APP=loader UPLOAD=hello      # the shell with the app loader; 'load' receives sdk/apps/hello
+make freertos-shell APP=loader                   # the shell with the app loader: 'load hello', then 'run'
+make freertos-shell APP=loader UPLOAD=hello      # the same; 'load' without a name receives sdk/apps/hello
 make freertos-send UPLOAD=hello                  # to a running 'make freertos-shell APP=loader PTY=1'
 make freertos-app NAME=hello [MARCH=] [OPT=]     # build one app of sdk/apps/; freertos-apps: all of them
 make freertos-loader-test [CPU=golden]           # loader/session.txt and session-ext.txt, one verdict
 make freertos-loader-compare                     # both on DUT and golden, session.txt compared
-make freertos-shell-tty-test APP=loader          # loader/tty_test.py: uploads, pastes, send requests, input, Ctrl-C
+make freertos-shell-tty-test APP=loader          # loader/tty_test.py: names, uploads, pastes, send requests, input, Ctrl-C
 ```
 
 The short knobs (`APP CPU MARCH OPT TICK SEED TIMEOUT BPRED PREEMPT SLICE HEAP DEFS

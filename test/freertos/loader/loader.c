@@ -15,9 +15,11 @@
  * Commands
  *   load   receives an Intel HEX file into the slot. Every record line is answered with one
  *          byte, ACK or NAK, and the simulator's console bridge (sim/console.cpp) types the
- *          next line only after that answer; DC2 tells it that a file is wanted. The records
- *          are checked as they arrive, the image after the end-of-file record (header, sizes,
- *          entry, CRC-32). Ctrl-C cancels.
+ *          next line only after that answer; DC2 tells it that a file is wanted. 'load <name>'
+ *          names the file, between two DC4 before the DC2: the bridge sends that app's file,
+ *          or, if it has none, a line '!<reason>', which ends the load with that reason. The
+ *          records are checked as they arrive, the image after the end-of-file record
+ *          (header, sizes, entry, CRC-32). Ctrl-C cancels.
  *   run    checks the saved copy, restores the image from it and runs it as the task "app"
  *          (priority 1, below the console task): entry(api, argc, argv). The console task
  *          waits for the end and reports it: a return from main(), app_exit(), Ctrl-C (taken
@@ -39,6 +41,7 @@
 #include <string.h>
 #include "FreeRTOS.h"
 #include "task.h"
+#include "FreeRTOS_CLI.h"
 #include "hades_hal.h"
 #include "shell.h"
 
@@ -544,11 +547,18 @@ static int prvCheckImage( HadesAppHeader_t * pxHeader )
 BaseType_t loader_cmd_load( char * pcOut, size_t xOutLen, const char * pcCommand )
 {
     enum { LOAD_END, LOAD_CANCEL, LOAD_IDLE } eHow;
-    int iStarted = 0, iRead = 0;
+    int iStarted = 0, iRead = 0, iReason = 0;
+    size_t xReason = 0;
     char cLast = '\0';
     HadesAppHeader_t xH;
+    BaseType_t xNameLen = 0, xMoreLen = 0;
+    const char * const pcName = FreeRTOS_CLIGetParameter( pcCommand, 1, &xNameLen );
 
-    ( void ) pcCommand;
+    if( FreeRTOS_CLIGetParameter( pcCommand, 2, &xMoreLen ) != NULL )
+    {
+        shell_snprintf( pcOut, xOutLen, "usage: load [name]\n" );
+        return pdFALSE;
+    }
 
     /* From here on no app is loaded; nothing of an older image may pass for part of the new
      * one. */
@@ -559,7 +569,17 @@ BaseType_t loader_cmd_load( char * pcOut, size_t xOutLen, const char * pcCommand
     xLoad.ulNextDot = LOADER_DOT_BYTES;
     acError[ 0 ] = '\0';
 
-    shell_puts( "load: waiting for an Intel HEX file (Ctrl-C cancels)\n" );
+    if( pcName == NULL )
+    {
+        shell_puts( "load: waiting for an Intel HEX file (Ctrl-C cancels)\n" );
+    }
+    else
+    {
+        /* The name, between two DC4, tells the console bridge which file to send. */
+        shell_printf( "load: waiting for %c%.*s%c (Ctrl-C cancels)\n", ( int ) HADES_CON_NAME, ( int ) xNameLen,
+                      pcName, ( int ) HADES_CON_NAME );
+    }
+
     hal_putc( ( char ) HADES_CON_FILE );
 
     /* The file, one byte at a time, without echo and without line editing. Before its first
@@ -579,12 +599,26 @@ BaseType_t loader_cmd_load( char * pcOut, size_t xOutLen, const char * pcCommand
 
         if( c == LOADER_CTRL_C )
         {
+            if( iReason )
+            {
+                acError[ 0 ] = '\0';   /* a cancel, not a reason cut short */
+            }
+
             eHow = LOAD_CANCEL;
             break;
         }
 
         if( ( c == '\r' ) || ( c == '\n' ) )
         {
+            if( iReason )
+            {
+                /* The end of the sender's reason; answered, as every line. */
+                prvLoadError( 0, "the sender has no file" );   /* if the reason is empty */
+                hal_putc( ( char ) HADES_CON_NAK );
+                eHow = LOAD_END;
+                break;
+            }
+
             if( ( xLoad.xLen != 0u ) && ( prvLoadLine() != 0 ) )
             {
                 eHow = LOAD_END;
@@ -592,6 +626,25 @@ BaseType_t loader_cmd_load( char * pcOut, size_t xOutLen, const char * pcCommand
             }
 
             xLoad.xLen = 0;   /* an empty line, or the LF of CR LF, is ignored */
+            continue;
+        }
+
+        if( iReason )
+        {
+            if( ( xReason + 1u < sizeof( acError ) ) && ( c >= 0x20 ) && ( c <= 0x7E ) )
+            {
+                acError[ xReason++ ] = ( char ) c;
+                acError[ xReason ] = '\0';
+            }
+
+            continue;
+        }
+
+        if( !iStarted && ( c == '!' ) )
+        {
+            /* Instead of a file, the sender says why it has none: the rest of the line. */
+            iStarted = 1;
+            iReason = 1;
             continue;
         }
 
@@ -977,7 +1030,7 @@ BaseType_t loader_cmd_run( char * pcOut, size_t xOutLen, const char * pcCommand 
 
     if( ulLoaded == 0u )
     {
-        shell_snprintf( pcOut, xOutLen, "error: no app loaded (use 'load' first)\n" );
+        shell_snprintf( pcOut, xOutLen, "error: no app loaded (try 'load hello')\n" );
         return pdFALSE;
     }
 

@@ -58,8 +58,7 @@ static void prvBegin( void )
     #endif
                 "\n" );
     #if SHELL_LOADER
-        shell_printf( "  apps: 'load' receives an app into the %lu KiB slot at 0x%08lx, 'run' runs it\n",
-                      ( uint32_t ) ( HADES_APP_SLOT_SIZE / 1024u ), ( uint32_t ) HADES_APP_SLOT_BASE );
+        shell_puts( "  apps: 'load <name>' (for example 'load hello'), then 'run [args]'\n" );
     #endif
 }
 

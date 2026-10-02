@@ -25,8 +25,9 @@
 #                                         terminal: keys, Ctrl-], signals, terminal restore
 #   make freertos-shell APP=loader [UPLOAD=<app>] [...]   the shell with the app loader
 #                                         (test/freertos/loader, 256 KiB): programs built on
-#                                         the host are sent over the UART and run as a task;
-#                                         UPLOAD= names the file sent whenever 'load' asks.
+#                                         the host are sent over the UART and run as a task:
+#                                         'load <name>', then 'run'. UPLOAD= names the file
+#                                         sent whenever 'load' without a name asks for one.
 #                                         The other console targets take APP=loader as well;
 #                                         the app SDK's targets (freertos-app, freertos-apps,
 #                                         freertos-send) are in test/freertos/sdk/sdk.mk
@@ -375,9 +376,10 @@ freertos-check-rebuild:
 # instead of this terminal), +console_pty_link=<path> (a symlink to it), +console_script=<file>
 # (type a script, one line per prompt), +console_log=<file> (copy of the UART output),
 # +console_prompt=<text> (the program's prompt, which paces scripts and pastes; default
-# "hades> "), +console_upload=<file> and +console_upload_dir=<dir> (the file sent when the
-# program asks for one, and where relative file names are found: the app loader,
-# test/freertos/loader/SPEC.md). See docs/FREERTOS.md, section 9.
+# "hades> "), +console_upload=<file>, +console_upload_dir=<dir> and +console_app_dir=<dir> (the
+# file sent when the program asks for one, the directory of relative file names, and that of
+# the apps the program asks for by name: the app loader, test/freertos/loader/SPEC.md). See
+# docs/FREERTOS.md, section 9.
 FRTOS_CONSOLE_CPP   = $(SIM_DIR)/console.cpp
 frtos_con_model_dir = $(BUILD_DIR)/frtos-model/$(1)-$(FRTOS_RAM_KB)k-console
 frtos_con_sim       = $(BUILD_ABS)/frtos-model/$(1)-$(FRTOS_RAM_KB)k-console/top
