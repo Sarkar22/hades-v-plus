@@ -85,6 +85,10 @@ def tree_build(root, name):
     bd = os.path.abspath(bd)
     if os.path.realpath(root) != os.path.realpath(REPO):
         bd = os.path.join(bd, "other-trees", name)
+    elif os.path.realpath(bd) == os.path.realpath(os.path.join(root, "build")):
+        # The Makefile spells this directory build/ (not relocated): no BUILD_DIR and no
+        # copies of ref/*.so, which only a relocated build directory has a rule for.
+        return os.path.join(root, "build"), {}
     return bd, {"BUILD_DIR": bd}
 
 CYCLE_PS = 20                   # sim/top.sv: 20 time units (ps) per system clock
