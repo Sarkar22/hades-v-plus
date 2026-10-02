@@ -210,7 +210,7 @@ To move to newer upstream commits:
    `python3 test/freertos/campaign.py --set standard`.
 3. Record the new commits in `update.sh` (`KERNEL_PINNED`, `FREERTOS_PINNED`), in this
    file, in the header of `test/freertos/freertos.mk`, in `test/freertos/README.md` and in
-   section 12 of `docs/FREERTOS.md`.
+   section 14 of `docs/FREERTOS.md`.
 
 To vendor an additional file, add its upstream path to the matching list in `update.sh`,
 run it, and add the file to the lists above.

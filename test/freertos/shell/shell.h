@@ -15,6 +15,13 @@
 
 /* ------------------------------------------------------------------ settings -- */
 
+/* 1 in the loader configuration (test/freertos/loader/: these sources compiled with
+ * -DSHELL_LOADER=1, plus loader.c), which adds the commands load, run and app; 0 for the
+ * shell itself, which compiles none of the SHELL_LOADER blocks. */
+#ifndef SHELL_LOADER
+#define SHELL_LOADER            0
+#endif
+
 /* The prompt. The simulation's console bridge (sim/console.cpp) waits for it before it
  * types the next line of a script or of a paste; its +console_prompt= default is the
  * same string. */
@@ -162,5 +169,39 @@ typedef struct
 void swmodel_mul( uint32_t a, uint32_t b, ShellMulResult_t * pxOut );
 void swmodel_div( uint32_t a, uint32_t b, ShellDivResult_t * pxOut );
 uint32_t swmodel_shadd( uint32_t a, uint32_t b, unsigned uShift );
+
+#if SHELL_LOADER
+
+/* ------------------------------- app loader (test/freertos/loader/SPEC.md) -- */
+
+#include "FreeRTOS.h"
+#include "hades_app.h"
+
+/* For the loader (console.c). shell_rx_byte() returns the next received byte (0..255), or
+ * -1 if none arrives within xTicks (portMAX_DELAY: no limit); shell_rx_discard() drops what
+ * has been received and not read; shell_rx_holds() tells whether that contains the byte
+ * ucWanted, and leaves it as it is; shell_output_at_line_start() tells whether the output of
+ * shell_write() is at the start of a line; shell_set_previous() sets the line editor's
+ * previous character (a LF right after a CR is the second half of one line end). */
+int shell_rx_byte( TickType_t xTicks );
+void shell_rx_discard( void );
+int shell_rx_holds( uint8_t ucWanted );
+int shell_output_at_line_start( void );
+void shell_set_previous( char c );
+
+/* The loader (loader.c). main() calls loader_init() before the scheduler starts; the receive
+ * interrupt calls loader_rx_from_isr() for every byte (pdTRUE: the byte is a Ctrl-C that
+ * stops the running app, and is not queued); the exception handler calls loader_exception()
+ * (1: the app raised the exception, and it is contained). */
+void loader_init( void );
+BaseType_t loader_rx_from_isr( uint8_t ucByte, BaseType_t * pxWoken );
+int loader_exception( uint32_t ulCause, uint32_t ulPc );
+
+/* The commands load, run and app (FreeRTOS+CLI callbacks). */
+BaseType_t loader_cmd_load( char * pcOut, size_t xOutLen, const char * pcCommand );
+BaseType_t loader_cmd_run( char * pcOut, size_t xOutLen, const char * pcCommand );
+BaseType_t loader_cmd_app( char * pcOut, size_t xOutLen, const char * pcCommand );
+
+#endif /* SHELL_LOADER */
 
 #endif /* SHELL_H */

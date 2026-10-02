@@ -73,7 +73,7 @@ column *As documented* gives the text as the documentation quotes it.
 | freertos-shell-compare | `make freertos-shell-compare` | `FREERTOS SHELL RESULT: PASS  app=shell cpu=dut isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=2278845`<br>`typed lines: 39, prompts: 39, expectations met: 120/120`<br>`FREERTOS SHELL RESULT: PASS  app=shell cpu=golden isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=2225212`<br>`typed lines: 39, prompts: 39, expectations met: 121/121`<br>`SHELL COMPARE: SAME  40 blocks, 158 lines equal after normalising numbers;` | SHELL COMPARE: SAME  40 blocks, 158 lines equal after normalising numbers | docs/VERIFICATION.md:80; README.md:93; docs/FREERTOS.md:644-655; test/freertos/README.md:102-103 |
 | freertos-shell-tty-test | `make freertos-shell-tty-test` | `TTY TEST: PASS  (22 of 22 cases passed)` | TTY TEST: PASS  (22 of 22 cases passed) | docs/VERIFICATION.md:81; docs/FREERTOS.md:688-698 |
 | freertos template with IRQ (myapp) | `make freertos-compare APP=myapp DEFS=-DTEMPLATE_WITH_IRQ=1` | `received 20 items in order; main/ISR stack used 172/1024 bytes; external interrupts 128`<br>`received 20 items in order; main/ISR stack used 172/1024 bytes; external interrupts 128`<br>`COMPARE  dut: PASS   (1097006 cycles)   golden: PASS   (1096985 cycles)` | PASS after 20 items; `external interrupts 128` | docs/FREERTOS.md:349,386-396 |
-| freertos-list | `make freertos-list` | 7 programs listed, text as documented (brk 64 KiB, full 256 KiB, minimal/mzba/shell/stress 32 KiB, template) | the program list | docs/FREERTOS.md:135-147 |
+| freertos-list | `make freertos-list` | 8 programs listed, text as documented (brk 64 KiB, full 256 KiB, loader 256 KiB, minimal/mzba/shell/stress 32 KiB, template) | the program list | docs/FREERTOS.md:143-152 |
 | campaign.py --set standard --list | `python3 test/freertos/campaign.py --set standard --list` | 55 variants listed | SET=standard runs 55 configurations | docs/FREERTOS.md:301 |
 | vendored FreeRTOS checksums | `cd third_party/freertos && sha256sum -c MANIFEST` | 76 files ': OK', 0 other lines | 76 files; each matches MANIFEST | third_party/freertos/README.md:41-47,74 |
 
@@ -215,3 +215,5 @@ build machine, so a clone anywhere produces the same files with the same tools.
   documented, where quoted.
 - `baseline-diffs.txt`: the 67 differing checks of the four golden-comparison benches.
 - `images.sha256`: SHA-256 of the 33 program images.
+
+**Update, 2026-10-01 (app loader).** The app-loader change adds the FreeRTOS program `loader`, so `make freertos-list` lists eight programs. The stored output of `freertos-list` and its location in docs/FREERTOS.md were updated; every other result of this record is unchanged and was re-checked with `make check-results`.

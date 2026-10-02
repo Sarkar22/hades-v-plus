@@ -1,0 +1,279 @@
+# session.txt -- the scripted session of `make freertos-shell-test APP=loader` (test/freertos/loader,
+# SPEC.md section 10.1); `make freertos-shell-compare APP=loader` runs it on both CPUs, and
+# `make freertos-loader-test` and `make freertos-loader-compare` run it with session-ext.txt.
+#
+# The format is that of test/freertos/shell/session.txt: every line that does not start with
+# '#' is typed, followed by Enter, after the shell's prompt; "#?" requires a line of the output
+# of the typed line before it to match (in the given order), "#!" forbids one, "#>" checks the
+# echoed command line; "#?dut" and "#?golden" apply to one CPU only. Two more kinds of lines
+# belong to the typed line before them and are not typed lines themselves:
+#   #< <file>   the console bridge sends the file when the program asks for one (load); the
+#               file names are relative to the build directory of the SDK, test/freertos/sdk/
+#   #: <text>   the bridge types the text and Enter (none if it ends in \c) when the program
+#               waits for input (a running app)
+# Every app is the RV32I build, so that the session runs on the golden CPU as well.
+#
+# 1. The banner, help and mem.
+#? ^HaDes-V\+ shell on FreeRTOS V11\.\d+\.\d+\+? with FreeRTOS\+CLI$
+#? ^  config: tick=\d+cyc .* heap_\d isa=rv32i\S* opt=-O\S ram=256K
+#? ^  apps: 'load' receives an app into the 128 KiB slot at 0x00060000, 'run' runs it$
+#? ^Type 'help' for the list of commands\.$
+help
+#? ^help:$
+#? ^echo <text>\s
+#? ^load               Receive an app \(Intel HEX\) into the app slot$
+#? ^run \[args\.\.\.\]      Run the loaded app \(Ctrl-C stops it\)$
+#? ^app                The loaded app: name, size, entry, CRC32$
+#? ^halt\s
+#? ^exit\s
+mem
+#? ^heap:\s+\d+ of \d+ bytes free, \d+ at the lowest \(heap_\d\)$
+#? ^RAM:\s+131072 bytes: program and data \d+
+#? interrupt stack 1024 \(\d+ used at most\)$
+#? ^apps:      131072-byte app slot at 0x00060000 \('app' shows what it holds\)$
+# 2. Before any load.
+app
+#? ^no app loaded$
+run
+#? ^error: no app loaded \(use 'load' first\)$
+# 3. The reference image of SPEC.md section 3.6: its entry returns 7.
+load
+#< testfiles/tiny.hex
+#? ^load: waiting for an Intel HEX file \(Ctrl-C cancels\)$
+#? ^loaded tiny: 72 bytes at 0x00060000, entry 0x00060040, CRC32 0xa0537c91$
+app
+#? ^name:      tiny \(ABI 1\)$
+#? ^image:     72 bytes at 0x00060000, entry 0x00060040, CRC32 0xa0537c91$
+#? ^isa:       rv32i$
+#? ^memory:    image 72 \+ bss 0 \+ stack 1024 \+ saved copy 80 = 1176 of 131072 bytes$
+run
+#? ^app: tiny exited with code 7 after \d+ cycles$
+# 4. hello: arguments and exit codes.
+load
+#< rv32i/hello.hex
+#? ^loaded hello: \d+ bytes at 0x00060000, entry 0x[0-9a-f]{8}, CRC32 0x[0-9a-f]{8}$
+app
+#? ^name:      hello \(ABI 1\)$
+#? ^isa:       rv32i$
+run
+#? ^Hello, HaDes-V\+!$
+#? ^argv\[0\] = hello$
+#? ^app: hello exited with code 0 after \d+ cycles$
+run world 42
+#? ^Hello, world!$
+#? ^argv\[0\] = hello$
+#? ^argv\[1\] = world$
+#? ^argv\[2\] = 42$
+#? ^app: hello exited with code 2 after \d+ cycles$
+run 1 2 3 4 5 6 7 8 9
+#? ^error: at most 8 arguments$
+#! ^Hello
+# 5. compute, twice: the second run starts from the restored image.
+load
+#< rv32i/compute.hex
+#? ^loaded compute: \d+ bytes at 0x00060000
+run
+#? ^compute: trace -?\d+, quotients -?\d+, remainders -?\d+, mulhu -?\d+: PASS \(\d+ cycles\)$
+#? ^app: compute exited with code 0 after \d+ cycles$
+run
+#? ^compute: trace -?\d+, quotients -?\d+, remainders -?\d+, mulhu -?\d+: PASS \(\d+ cycles\)$
+#? ^app: compute exited with code 0 after \d+ cycles$
+# 6. selfmod: code written at run time, fence.i, the same addresses rewritten.
+load
+#< rv32i/selfmod.hex
+#? ^loaded selfmod: \d+ bytes at 0x00060000
+run
+#? ^selfmod: PASS$
+#? ^app: selfmod exited with code 0 after \d+ cycles$
+#! ^selfmod: FAIL
+# 7. upper: input typed while the app waits for it.
+load
+#< rv32i/upper.hex
+#? ^loaded upper: \d+ bytes at 0x00060000
+run
+#: hello world
+#: HaDes-V+
+#:
+#? ^upper: type lines; an empty line ends$
+#? ^> hello world$
+#? ^HELLO WORLD$
+#? ^> HaDes-V\+$
+#? ^HADES-V\+$
+#? ^app: upper exited with code 2 after \d+ cycles$
+# 8. crash: every ending is reported, and the shell carries on.
+load
+#< rv32i/crash.hex
+#? ^loaded crash: \d+ bytes at 0x00060000
+run
+#? ^crash: illegal$
+#? ^app: crash stopped by an exception after \d+ cycles: illegal instruction \(mcause 2\) at 0x[0-9a-f]{8} in crash$
+tasks
+#? ^console\s+running\s+2\s+\d+ words$
+#? ^3 tasks$
+#! ^app\s
+uptime
+#? ^ticks:\s+\d+ \(\d+ cycles per tick\)$
+run ebreak
+#? ^crash: ebreak$
+#? ^app: crash stopped by an exception after \d+ cycles: breakpoint \(mcause 3\) at 0x[0-9a-f]{8} in crash$
+run misaligned
+#? ^crash: misaligned$
+#? ^app: crash stopped by an exception after \d+ cycles: load address misaligned \(mcause 4\) at 0x[0-9a-f]{8} in crash$
+run load
+#? ^crash: load$
+#? ^app: crash stopped by an exception after \d+ cycles: load access fault \(mcause 5\) at 0x[0-9a-f]{8} in crash$
+run store
+#? ^crash: store$
+#? ^app: crash stopped by an exception after \d+ cycles: store access fault \(mcause 7\) at 0x[0-9a-f]{8} in crash$
+run null
+#? ^crash: null$
+#? ^app: crash stopped by an exception after \d+ cycles: instruction access fault \(mcause 1\) at 0x00000000, ra 0x[0-9a-f]{8} in crash$
+run stack
+#? ^crash: stack$
+#? ^app: crash stopped by a stack overflow after \d+ cycles \(its stack is \d+ bytes\)$
+# An overflow without a task switch, then a return: FreeRTOS finds it at the switch that the
+# end of the app causes, and the overflow is reported, not the exit.
+run deep
+#? ^crash: deep$
+#? ^app: crash stopped by a stack overflow after \d+ cycles \(its stack is 4096 bytes\)$
+#! ^app: crash exited
+run loop
+#: \x03\c
+#? ^crash: loop$
+#? ^app: crash stopped by Ctrl-C after \d+ cycles$
+# A Ctrl-C typed right after the Enter of 'run' stops an app that never reads input.
+run spin\r\x03\c
+#? ^app: crash stopped by Ctrl-C after \d+ cycles$
+tasks
+#? ^3 tasks$
+#! ^app\s
+# After the crashes another app loads and runs.
+load
+#< testfiles/tiny.hex
+#? ^loaded tiny: 72 bytes at 0x00060000, entry 0x00060040, CRC32 0xa0537c91$
+run
+#? ^app: tiny exited with code 7 after \d+ cycles$
+# 9. A load replaces the loaded app, also when it fails: after each of these, the app loaded
+# before it (tiny) is not run, although every test file differs from tiny in one detail only
+# and the lines before the error were stored in the slot.
+load
+#< testfiles/bad-checksum.hex
+#? ^load failed: line 3: checksum mismatch$
+app
+#? ^no app loaded$
+run
+#? ^error: no app loaded \(use 'load' first\)$
+#! ^app: \S+ (exited|stopped)
+load
+#< testfiles/tiny.hex
+#? ^loaded tiny: 72 bytes
+load
+#< testfiles/bad-address.hex
+#? ^load failed: line 2: address 0x00050000 is outside the app slot \(0x00060000-0x0007ffff\)$
+run
+#? ^error: no app loaded \(use 'load' first\)$
+#! ^app: \S+ (exited|stopped)
+load
+#< testfiles/tiny.hex
+#? ^loaded tiny: 72 bytes
+load
+#< testfiles/bad-size.hex
+#? ^load failed: tiny needs 131224 bytes of the slot \(image 72, bss 0, stack 131072, saved copy 80\); the slot has 131072$
+run
+#? ^error: no app loaded \(use 'load' first\)$
+#! ^app: \S+ (exited|stopped)
+load
+#< testfiles/tiny.hex
+#? ^loaded tiny: 72 bytes
+load
+#< testfiles/bad-magic.hex
+#? ^load failed: bad magic 0x50504158 \(an app image starts with 0x50504148, "HAPP"\)$
+run
+#? ^error: no app loaded \(use 'load' first\)$
+#! ^app: \S+ (exited|stopped)
+load
+#< testfiles/tiny.hex
+#? ^loaded tiny: 72 bytes
+load
+#< testfiles/bad-crc.hex
+#? ^load failed: CRC32 mismatch: the image has 0xb5c16588, its header says 0xa0537c91$
+app
+#? ^no app loaded$
+run
+#? ^error: no app loaded \(use 'load' first\)$
+#! ^app: \S+ (exited|stopped)
+# 10. The other test files of SPEC.md section 9.5, each with its reason.
+load
+#< testfiles/bad-colon.hex
+#? ^load failed: line 2: a record starts with ':'$
+load
+#< testfiles/bad-char.hex
+#? ^load failed: line 4: 'G' is not a hexadecimal digit$
+load
+#< testfiles/bad-length.hex
+#? ^load failed: line 6: malformed record \(it announces 9 data bytes and holds 8\)$
+load
+#< testfiles/bad-long.hex
+#? ^load failed: line 6: record too long \(at most 32 data bytes\)$
+load
+#< testfiles/bad-type.hex
+#? ^load failed: line 1: record type 02 is not supported \(only 00, 01, 04 and 05\)$
+load
+#< testfiles/bad-gap.hex
+#? ^load failed: line 4: address 0x00060030, expected 0x00060020 \(data records must be contiguous, from the slot base\)$
+load
+#< testfiles/bad-abi.hex
+#? ^load failed: ABI version 2 \(this shell runs ABI version 1\)$
+load
+#< testfiles/bad-imagesize.hex
+#? ^load failed: the header says 76 bytes, the file holds 72$
+load
+#< testfiles/bad-flags.hex
+#? ^load failed: unknown flags 0x00000080$
+load
+#< testfiles/bad-name.hex
+#? ^load failed: bad name \(1 to 15 letters, digits, '_' or '-', then NULs\)$
+load
+#< testfiles/bad-entry.hex
+#? ^load failed: entry 0x00060048 is not a word of the image after its header \(0x00060040-0x00060047\)$
+load
+#< testfiles/bad-start.hex
+#? ^load failed: the start address record says 0x00060044, the entry is 0x00060040$
+load
+#< testfiles/cancel.hex
+#? ^load cancelled$
+load
+#< testfiles/cancel-mid.hex
+#? ^load cancelled$
+load
+#< testfiles/bad-cancel.hex
+#? ^load failed: line 2: a record starts with ':'$
+app
+#? ^no app loaded$
+# Empty lines in the file and after it, and records after its end-of-file record: the bridge
+# types nothing after that record, so nothing reaches the command line (no extra prompt).
+load
+#< testfiles/ok-blank.hex
+#? ^loaded tiny: 72 bytes at 0x00060000, entry 0x00060040, CRC32 0xa0537c91$
+load
+#< testfiles/after-eof.hex
+#? ^loaded tiny: 72 bytes at 0x00060000, entry 0x00060040, CRC32 0xa0537c91$
+#! Command not recognised
+run
+#? ^app: tiny exited with code 7 after \d+ cycles$
+# 11. Load again.
+load
+#< rv32i/hello.hex
+#? ^loaded hello: \d+ bytes at 0x00060000
+run again
+#? ^Hello, again!$
+#? ^app: hello exited with code 1 after \d+ cycles$
+# 12. No character was lost on the way in.
+uart
+#? ^received:\s+\d+$
+#? ^dropped:\s+0 \(receive queue full\)$
+#? ^overruns:\s+0 \(lost in the UART\)$
+# 13. The end.
+halt
+#? ^halted$
+#? ^FRTOS-RESULT: PASS

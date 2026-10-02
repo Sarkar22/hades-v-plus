@@ -1,0 +1,24 @@
+# session-ext.txt -- the app loader and the ISA extensions (test/freertos/loader, SPEC.md
+# section 10.2): compute built for rv32im_zba runs on HaDes-V+, and the golden CPU, which has
+# neither M nor Zba, refuses to run it. Not compared between the CPUs:
+#   make freertos-shell-test APP=loader SCRIPT=test/freertos/loader/session-ext.txt
+#   make freertos-shell-test APP=loader SCRIPT=test/freertos/loader/session-ext.txt CPU=golden
+# The format is that of session.txt in this directory.
+#? ^  apps: 'load' receives an app into the 128 KiB slot at 0x00060000, 'run' runs it$
+load
+#< rv32im_zba/compute.hex
+#? ^loaded compute: \d+ bytes at 0x00060000, entry 0x[0-9a-f]{8}, CRC32 0x[0-9a-f]{8}$
+app
+#? ^name:      compute \(ABI 1\)$
+#? ^isa:       rv32im_zba$
+run
+#?dut ^compute: trace -?\d+, quotients -?\d+, remainders -?\d+, mulhu -?\d+: PASS \(\d+ cycles\)$
+#?dut ^app: compute exited with code 0 after \d+ cycles$
+#?golden ^error: compute was built for rv32im_zba, but this CPU has no M and no Zba$
+#!golden ^compute:
+uart
+#? ^dropped:\s+0 \(receive queue full\)$
+#? ^overruns:\s+0 \(lost in the UART\)$
+halt
+#? ^halted$
+#? ^FRTOS-RESULT: PASS

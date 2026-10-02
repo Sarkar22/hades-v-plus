@@ -57,6 +57,10 @@ static void prvBegin( void )
                 " bpred=" STR( FRTOS_BPRED )
     #endif
                 "\n" );
+    #if SHELL_LOADER
+        shell_printf( "  apps: 'load' receives an app into the %lu KiB slot at 0x%08lx, 'run' runs it\n",
+                      ( uint32_t ) ( HADES_APP_SLOT_SIZE / 1024u ), ( uint32_t ) HADES_APP_SLOT_BASE );
+    #endif
 }
 
 int main( void )
@@ -70,6 +74,10 @@ int main( void )
     {
         hal_fail( "shell: xTaskCreate(blink) failed (raise configTOTAL_HEAP_SIZE)", NULL, 0, 0 );
     }
+
+    #if SHELL_LOADER
+        loader_init();
+    #endif
 
     vTaskStartScheduler();
     hal_fail( "vTaskStartScheduler returned", NULL, 0, 0 );

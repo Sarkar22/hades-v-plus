@@ -5,10 +5,12 @@
 #
 #   python3 session.py run --sim <console simulator> --dir <run dir> --script <session.txt>
 #                          [--cpu dut|golden] [--timeout <cycles>] [--seed <hex>] [--label <text>]
-#                          [--prompt <text>] [--waves]
+#                          [--prompt <text>] [--waves] [--sim-arg <argument>]... [--name <name>]
 #       Runs the simulator with +console_script=<script>: the console bridge (sim/console.cpp)
-#       types the script's lines into the UART, one per prompt. The output is streamed and
-#       kept in <dir>/session-<cpu>.log, the UART transcript in <dir>/session-<cpu>.uart.
+#       types the script's lines into the UART, one per prompt. Every --sim-arg is passed on
+#       to the simulator (for example +console_upload_dir=<dir>). The output is streamed and
+#       kept in <dir>/session-<cpu>.log, the UART transcript in <dir>/session-<cpu>.uart
+#       (<dir>/<name>-<cpu>.log and .uart with --name).
 #       Then checks the transcript against the script's expectations and prints one line
 #       "FREERTOS SHELL RESULT: PASS|FAIL|HANG|CRASH ..." (exit status 0 only for PASS). A
 #       simulator that exits with a status other than 0, or is killed by a signal, is a CRASH,
@@ -34,7 +36,11 @@
 # echoed line (for example "^C" when Ctrl-C cancels the line). Expectations before the first
 # typed line apply to the start-up banner. The transcript is rendered as a terminal would
 # show it (backspaces, cursor movement and line erasure applied), so an expectation sees the
-# edited line, not the keystrokes.
+# edited line, not the keystrokes; control characters it does not interpret, such as the
+# bridge's DC1, DC2, ACK and NAK, are left out. "#< <file>" and "#: <text>" lines are read by
+# the bridge only (a file and a text it sends when the program asks for them; see
+# sim/console.cpp): here they are comments, and the expectations after them still belong to
+# the typed line before them.
 # ---------------------------------------------------------------------------------------------
 import argparse
 import os
@@ -247,14 +253,14 @@ def report(status, reasons, info, label, log_path, uart_path):
 # -------------------------------------------------------------------------------- run --
 
 def run(a):
-    log_path = os.path.join(a.dir, f'session-{a.cpu}.log')
-    uart_path = os.path.join(a.dir, f'session-{a.cpu}.uart')
+    log_path = os.path.join(a.dir, f'{a.name}-{a.cpu}.log')
+    uart_path = os.path.join(a.dir, f'{a.name}-{a.cpu}.uart')
     if not os.access(a.sim, os.X_OK):
         print(f'session.py: simulator {a.sim} is missing or not executable', file=sys.stderr)
         return 2
     cmd = [a.sim] + ([] if a.waves else ['+nodump']) + [
         f'+timeout={a.timeout}', f'+switches={a.seed}', f'+console_script={os.path.abspath(a.script)}',
-        f'+console_log={uart_path}', f'+console_prompt={a.prompt}']
+        f'+console_log={uart_path}', f'+console_prompt={a.prompt}'] + a.sim_arg
     print(RULE)
     print(f'SHELL SESSION  {a.label}  script={a.script}  timeout={a.timeout} cycles')
     print("     (the first 'Test fail!' line is the program's deliberate 'initial test' marker)")
@@ -337,6 +343,8 @@ def main():
     r.add_argument('--label', default='')
     r.add_argument('--prompt', default='hades> ')
     r.add_argument('--waves', action='store_true')
+    r.add_argument('--sim-arg', action='append', default=[], metavar='ARGUMENT')
+    r.add_argument('--name', default='session')
     c = sub.add_parser('check')
     c.add_argument('--script', required=True)
     c.add_argument('--cpu', default='dut', choices=['dut', 'golden'])
