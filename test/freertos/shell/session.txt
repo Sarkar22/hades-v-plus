@@ -10,8 +10,9 @@
 # (in the order given); "#!" one that must match none of them. The output does not
 # include the command line itself as the shell echoes it after the prompt; "#>" holds a
 # regular expression for that line. "#?dut", "#!dut", "#?golden" and "#!golden" (and
-# "#>dut", "#>golden") apply only on that CPU (the golden CPU has no M, Zba, Zicntr and
-# branch predictor). Lines before the first typed line check the start-up banner.
+# "#>dut", "#>golden") apply only on that CPU (the golden CPU has no M, Zba, Zbb, Zbs,
+# Zicntr, Zicond and branch predictor). Lines before the first typed line check the
+# start-up banner.
 #
 #? ^HaDes-V\+ shell on FreeRTOS V11\.\d+\.\d+\+? with FreeRTOS\+CLI$
 #? ^  config: tick=\d+cyc .* heap_\d isa=rv32i\S* opt=-O\S ram=\d+K
@@ -35,8 +36,8 @@ help
 version
 #? ^HaDes-V\+ shell: FreeRTOS V11
 #? ^build:\s+rv32i\S* -O\S, GCC \d
-#?dut ^cpu:\s+M yes, Zba yes, Zicntr yes$
-#?golden ^cpu:\s+M no, Zba no, Zicntr no$
+#?dut ^cpu:\s+M yes, Zba yes, Zbb yes, Zbs yes, Zicntr yes, Zicond yes$
+#?golden ^cpu:\s+M no, Zba no, Zbb no, Zbs no, Zicntr no, Zicond no$
 tasks
 #? ^task\s+state\s+priority\s+stack free \(min\)$
 #? ^console\s+running\s+2\s+\d+ words$

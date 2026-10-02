@@ -7,10 +7,10 @@
 #   <out_dir>, and compares the simulation output line by line (only Verilator's
 #   wall-time/footer lines are dropped). Prints one line per bench and exits 1 on
 #   any difference. Default benches: test_m_execute test_execute_compare
-#   test_execute_bpred_nextpc (all exercise execute_stage alone).
+#   test_execute_bpred_nextpc test_ext_execute (all exercise execute_stage alone).
 set -u
 R="$(cd "$1" && pwd)"; W="$(cd "$2" && pwd)"; O="$3"; shift 3
-BENCHES=${*:-"test_m_execute test_execute_compare test_execute_bpred_nextpc"}
+BENCHES=${*:-"test_m_execute test_execute_compare test_execute_bpred_nextpc test_ext_execute"}
 mkdir -p "$O"; O="$(cd "$O" && pwd)"
 # never inherit the calling make's variables (e.g. BUILD_DIR=...) or a relocated build dir
 unset MAKEFLAGS MFLAGS MAKELEVEL HADES_BUILD_DIR BUILD_DIR

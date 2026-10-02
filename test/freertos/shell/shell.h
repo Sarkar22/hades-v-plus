@@ -133,7 +133,7 @@ void shell_console_start( void );
 /* Registers the commands with FreeRTOS+CLI (commands.c). */
 void shell_register_commands( void );
 
-/* Probes the CPU for M, Zba and Zicntr by executing one instruction of each and
+/* Probes the CPU for M, Zba, Zbb, Zbs, Zicntr and Zicond by executing one instruction of each and
  * catching the illegal-instruction trap. Must run in a task (the trap handler
  * saves the context of the running task). */
 void shell_probe_cpu( void );
@@ -143,12 +143,9 @@ typedef struct
     uint8_t ucM;        /* mul/div execute */
     uint8_t ucZba;      /* sh1add/sh2add/sh3add execute */
     uint8_t ucZicntr;   /* the cycle/time/instret CSRs are readable */
-    #if SHELL_LOADER
-        /* For the apps (hades_app.h, ulCpu); the shell itself uses none of them. */
-        uint8_t ucZbb;      /* clz executes */
-        uint8_t ucZbs;      /* bset executes */
-        uint8_t ucZicond;   /* czero.eqz executes */
-    #endif
+    uint8_t ucZbb;      /* clz executes */
+    uint8_t ucZbs;      /* bset executes */
+    uint8_t ucZicond;   /* czero.eqz executes */
 } ShellCpu_t;
 extern ShellCpu_t xShellCpu;
 

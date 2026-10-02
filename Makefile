@@ -138,9 +138,10 @@ help:
 	@echo "  freertos-loader-compare"
 	@echo "                    The loader's scripted sessions on the DUT and on the golden CPU, compared"
 	@echo ""
-	@echo "Formal verification of the M unit (guide: formal/README.md):"
-	@echo "  formal            Re-run the divider/multiplier proofs (a few minutes) [FORMAL_PAR=4]"
-	@echo "  formal-full       Also H6 by bitwuzla and the mutation campaign (~35 min)"
+	@echo "Formal verification of the M and EXT units (guide: formal/README.md):"
+	@echo "  formal            Re-run the M (divider/multiplier) and EXT (Zbb/Zbs/Zicond) proofs (a few minutes) [FORMAL_PAR=4]"
+	@echo "  formal-full       Also H6 by bitwuzla, second solvers and the mutation campaigns (~35 min)"
+	@echo "  formal-ext        Only the EXT (Zbb/Zbs/Zicond) proof (under a minute)"
 	@echo ""
 	@echo "Benchmarks (guide: test/bench/README.md; recorded results: results/):"
 	@echo "  bench-zba         Zba: two C programs for rv32i and rv32i_zba, compared [OPT=-O2]"
@@ -344,17 +345,21 @@ check-results:
 #                              Formal Verification                             #
 ################################################################################
 
-# Formal proof of the M unit (divider + multiplier of rtl/execute_stage.sv), see
-# formal/README.md. Tools (SymbiYosys/Yosys, sv2v, bitwuzla, yices, z3) are found on
-# PATH or through HADES_FORMAL_ENV. Everything is written to $(BUILD_DIR)/formal.
+# Formal proofs of rtl/execute_stage.sv: the M unit (divider + multiplier) and the
+# EXT unit (Zbb, Zbs, Zicond), see formal/README.md. Tools (SymbiYosys/Yosys, sv2v,
+# bitwuzla, yices, z3) are found on PATH or through HADES_FORMAL_ENV. Everything is
+# written to $(BUILD_DIR)/formal ($(BUILD_DIR)/formal-ext for formal-ext).
 FORMAL_PAR ?= 4
 
-.PHONY: formal formal-full
+.PHONY: formal formal-full formal-ext
 formal:
 	bash formal/run.sh --mode default --par $(FORMAL_PAR) --out $(BUILD_ABS)/formal
 
 formal-full:
 	bash formal/run.sh --mode full --par $(FORMAL_PAR) --out $(BUILD_ABS)/formal
+
+formal-ext:
+	bash formal/run.sh --mode ext --par $(FORMAL_PAR) --out $(BUILD_ABS)/formal-ext
 
 ################################################################################
 #                                   Waveform                                   #

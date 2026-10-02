@@ -31,7 +31,7 @@ make test/sv/test_decode_exhaustive  # 11,026 checks against the golden Decode s
 make freertos APP=minimal            # boot FreeRTOS (guide: docs/FREERTOS.md)
 make freertos-stress                 # the differential campaign against the golden CPU
 make ext-check                       # Zbb, Zbs and Zicond against a C model of the ISA text
-make formal                          # formal proof of the M unit; tools: formal/README.md
+make formal                          # formal proofs of the M and EXT units; tools: formal/README.md
 make check-results                   # re-run the recorded results and compare (results/README.md)
 make synthesis                       # implement for the Basys3 (needs Vivado)
 make help                            # the main targets and their settings
@@ -59,9 +59,9 @@ make help                            # the main targets and their settings
 
 | Document | Contents |
 |---|---|
-| [docs/VERIFICATION.md](VERIFICATION.md) | Approach, every self-checking suite with its result, test hierarchy, trap sweep, FreeRTOS campaigns, formal proof, mutation testing, known divergences; at the top, the results at a glance |
+| [docs/VERIFICATION.md](VERIFICATION.md) | Approach, every self-checking suite with its result, test hierarchy, trap sweep, FreeRTOS campaigns, formal proofs, mutation testing, known divergences; at the top, the results at a glance |
 | [results/README.md](../results/README.md) | The records of the figures quoted in the documentation, and how to re-run them |
-| [formal/README.md](../formal/README.md) | The formal proof of the multiply/divide unit in full |
+| [formal/README.md](../formal/README.md) | The formal proofs of the multiply/divide unit and of the Zbb, Zbs and Zicond unit in full |
 | [test/trapsweep/README.md](../test/trapsweep/README.md) | The interrupt-offset sweeps and the independent ISA model |
 | [test/bench/README.md](../test/bench/README.md) | The measurement programs behind the Zba, Zbb, M-unit and `FENCE.I` figures |
 | [test/ext/README.md](../test/ext/README.md) | The reference models of Zbb, Zbs and Zicond and the check of the RTL against them (`make ext-check`, `make ext-exhaustive`) |

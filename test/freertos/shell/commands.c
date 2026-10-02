@@ -7,10 +7,10 @@
  * be called again for more (the task list does that, one line per call). How to add a
  * command: docs/FREERTOS.md, "Add a command".
  *
- * Lines whose content depends on what the CPU implements (M, Zba, Zicntr, the branch
- * predictor) begin with one of the labels "source:", "cpu:", "mode:" or "accuracy:".
- * test/freertos/shell/session.py relies on that when it compares the transcript of the
- * DUT with that of the golden CPU, which implements none of these.
+ * Lines whose content depends on what the CPU implements (M, Zba, Zbb, Zbs, Zicntr,
+ * Zicond, the branch predictor) begin with one of the labels "source:", "cpu:", "mode:"
+ * or "accuracy:". test/freertos/shell/session.py relies on that when it compares the
+ * transcript of the DUT with that of the golden CPU, which implements none of these.
  */
 #include <string.h>
 #include "FreeRTOS.h"
@@ -168,7 +168,7 @@ uint64_t shell_run_time( void )
     return prvCounter( CNT_MCYCLE ) - ullRunTimeBase;
 }
 
-/* ------------------------------------------------ CPU probe (M, Zba, Zicntr) -- */
+/* --------------------------- CPU probe (M, Zba, Zbb, Zbs, Zicntr, Zicond) -- */
 
 ShellCpu_t xShellCpu;
 static volatile uint32_t ulProbeArmed, ulProbeTrapped;
@@ -207,12 +207,10 @@ void shell_probe_cpu( void )
 {
     xShellCpu.ucM = PROBE( ".insn r 0x33, 0, 1, %0, %0, %0" );        /* mul    */
     xShellCpu.ucZba = PROBE( ".insn r 0x33, 2, 0x10, %0, %0, %0" );   /* sh1add */
-    xShellCpu.ucZicntr = PROBE( "csrr %0, 0xC00" );                     /* cycle  */
-    #if SHELL_LOADER
-        xShellCpu.ucZbb = PROBE( ".insn i 0x13, 1, %0, %0, 0x600" );     /* clz       */
-        xShellCpu.ucZbs = PROBE( ".insn r 0x33, 1, 0x14, %0, %0, %0" );  /* bset      */
-        xShellCpu.ucZicond = PROBE( ".insn r 0x33, 5, 7, %0, %0, %0" );  /* czero.eqz */
-    #endif
+    xShellCpu.ucZbb = PROBE( ".insn i 0x13, 1, %0, %0, 0x600" );      /* clz       */
+    xShellCpu.ucZbs = PROBE( ".insn r 0x33, 1, 0x14, %0, %0, %0" );   /* bset      */
+    xShellCpu.ucZicntr = PROBE( "csrr %0, 0xC00" );                     /* cycle     */
+    xShellCpu.ucZicond = PROBE( ".insn r 0x33, 5, 7, %0, %0, %0" );   /* czero.eqz */
 }
 
 static const char * prvYesNo( uint8_t ucHave )
@@ -228,19 +226,11 @@ static BaseType_t prvVersion( char * pcOut, size_t xOutLen, const char * pcComma
     shell_snprintf( pcOut, xOutLen,
                     "HaDes-V+ shell: FreeRTOS %s, FreeRTOS+CLI\n"
                     "build:     %s %s, GCC %s; heap_%d, tick %d cycles, RAM %d KiB, bpred %d\n"
-                    "cpu:       M %s, Zba %s, Zicntr %s\n",
+                    "cpu:       M %s, Zba %s, Zbb %s, Zbs %s, Zicntr %s, Zicond %s\n",
                     tskKERNEL_VERSION_NUMBER, SHELL_ISA, SHELL_OPT, __VERSION__, FRTOS_HEAP, FRTOS_TICK_CYCLES,
                     FRTOS_RAM_KB, FRTOS_BPRED, prvYesNo( xShellCpu.ucM ), prvYesNo( xShellCpu.ucZba ),
-                    prvYesNo( xShellCpu.ucZicntr ) );
-    #if SHELL_LOADER
-        /* The extensions that only apps use (the line above stays as the shell prints it). */
-        {
-            const size_t xUsed = strlen( pcOut );
-
-            shell_snprintf( pcOut + xUsed, xOutLen - xUsed, "cpu:       Zbb %s, Zbs %s, Zicond %s (for apps)\n",
-                            prvYesNo( xShellCpu.ucZbb ), prvYesNo( xShellCpu.ucZbs ), prvYesNo( xShellCpu.ucZicond ) );
-        }
-    #endif
+                    prvYesNo( xShellCpu.ucZbb ), prvYesNo( xShellCpu.ucZbs ), prvYesNo( xShellCpu.ucZicntr ),
+                    prvYesNo( xShellCpu.ucZicond ) );
     return pdFALSE;
 }
 

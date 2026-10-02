@@ -1,0 +1,23 @@
+# Mutants of the EXT unit (Zbb, Zbs, Zicond): one textual change each of the sv2v model of the real RTL.
+# name | target task of sby/ext.sby | exact original text (must occur exactly once in gen/execute_stage_formal.v; \| = |, \n = newline, \t = tab) | replacement | description
+# The last four change only how the result leaves Execute: the result registered for Memory (X2)
+# or the forwarding fields data_valid and address (X1).
+# As negative controls (run.sh, every mode) the target task must FAIL; in --mode full every mutant is
+# also run against all 29 required property tasks of ext.sby (res_*_yn, nostall_yn) and must be rejected.
+andn_and|res_andn_yn|2'b00: ext_logic = rs1_data_in & ~rs2_data_in;|2'b00: ext_logic = rs1_data_in & rs2_data_in;|andn computes and
+lzc_zero31|res_clz_yn|ext_lzc = (z4[1] & z4[0] ? 6'd32 : {1'b0, c5});|ext_lzc = (z4[1] & z4[0] ? 6'd31 : {1'b0, c5});|clz and ctz of 0 give 31
+ctz_no_reverse|res_ctz_yn|assign ext_lz = ext_lzc((ext_var[0] ? ext_bitrev(rs1_data_in) : rs1_data_in));|assign ext_lz = ext_lzc(rs1_data_in);|ctz counts leading instead of trailing zeros
+pop_pair|res_cpop_yn|p1[i * 2+:2] = {1'b0, x[2 * i]} + {1'b0, x[(2 * i) + 1]};|p1[i * 2+:2] = {1'b0, x[2 * i]} + {1'b0, x[2 * i]};|cpop counts every even bit twice and no odd bit
+minmax_sign|res_min_yn|assign ext_lt = {rs1_data_in[31] ^ ~ext_var[0], rs1_data_in[30:0]} < {rs2_data_in[31] ^ ~ext_var[0], rs2_data_in[30:0]};|assign ext_lt = {rs1_data_in[31] ^ ext_var[0], rs1_data_in[30:0]} < {rs2_data_in[31] ^ ext_var[0], rs2_data_in[30:0]};|min/max compare unsigned and minu/maxu signed
+sexth_zero|res_sext_h_yn|2'b01: ext_extend = {{16 {rs1_data_in[15]}}, rs1_data_in[15:0]};|2'b01: ext_extend = {16'b0000000000000000, rs1_data_in[15:0]};|sext.h zero-extends
+rol_as_ror|res_rol_yn|assign ext_rot_amt = (ext_rol ? 5'd0 - ext_amt : ext_amt);|assign ext_rot_amt = ext_amt;|rol rotates right
+orcb_and|res_orc_b_yn|{8 {\|rs1_data_in[15:8]}}|{8 {&rs1_data_in[15:8]}}|orc.b tests byte 1 with AND instead of OR
+rev8_middle|res_rev8_yn|ext_byte = {rs1_data_in[7:0], rs1_data_in[15:8], rs1_data_in[23:16], rs1_data_in[31:24]};|ext_byte = {rs1_data_in[7:0], rs1_data_in[23:16], rs1_data_in[15:8], rs1_data_in[31:24]};|rev8 leaves the middle bytes in place
+bext_bit1|res_bext_yn|2'b01: ext_bit = {31'b0000000000000000000000000000000, ext_rotate[0]};|2'b01: ext_bit = {31'b0000000000000000000000000000000, ext_rotate[1]};|bext returns bit index+1
+bseti_rs2|res_bseti_yn|assign ext_onehot = 32'b00000000000000000000000000000001 << ext_amt;|assign ext_onehot = 32'b00000000000000000000000000000001 << rs2_data_in[4:0];|the single-bit immediate forms read rs2 instead of shamt
+czero_rs1|res_czero_eqz_yn|assign ext_czero = ((rs2_data_in == 32'b00000000000000000000000000000000) ^ ext_var[0] ? 32'b00000000000000000000000000000000 : rs1_data_in);|assign ext_czero = ((rs1_data_in == 32'b00000000000000000000000000000000) ^ ext_var[0] ? 32'b00000000000000000000000000000000 : rs1_data_in);|czero tests rs1 (the value) instead of rs2 (the condition)
+stall_dead|nostall_yn|assign m_stall = m_active && !m_ready;|assign m_stall = (m_active && !m_ready) \|\| ((alu_sel == 4'b1110) && (rs1_data_in == 32'h0000dead));|an EXT instruction stalls Execute for one operand value
+reg_flip|res_andn_yn|rd_data_reg_out <= rd_data;\n\t\t\tsource_data_reg_out <= source_data;\n\t\t\tinstruction_reg_out|rd_data_reg_out <= ((alu_sel == 4'b1110) ? (rd_data ^ 32'h00000100) : rd_data);\n\t\t\tsource_data_reg_out <= source_data;\n\t\t\tinstruction_reg_out|the result registered for Memory has bit 8 inverted; the forwarded result is correct
+reg_bubble|res_bset_yn|status_forwards_out <= status_forwards_in;|status_forwards_out <= ((alu_sel == 4'b1110) ? 4'd1 : status_forwards_in);|an EXT instruction is handed to Memory as BUBBLE
+fwd_invalid|res_andn_yn|default: forwarding_out[37] = status_forwards_in == 4'd0;|default: forwarding_out[37] = (status_forwards_in == 4'd0) && (alu_sel != 4'b1110);|an EXT result is forwarded with data_valid = 0
+fwd_addr_rs1|res_czero_nez_yn|forwarding_out[4-:5] = instruction_in[58-:5];|forwarding_out[4-:5] = ((alu_sel == 4'b1110) ? instruction_in[53-:5] : instruction_in[58-:5]);|an EXT result is forwarded to the rs1 address instead of rd

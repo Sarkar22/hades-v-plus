@@ -24,8 +24,9 @@
 #       golden CPU running the same rv32i program), line by line, after normalising what
 #       legitimately differs: every number (cycle counts, stack and heap figures, counters)
 #       and the lines that report what the CPU implements -- those whose label is
-#       "source:", "cpu:", "mode:" or "accuracy:" (M, Zba, Zicntr and the branch predictor,
-#       which the golden CPU does not have). Everything else must be identical.
+#       "source:", "cpu:", "mode:" or "accuracy:" (M, Zba, Zbb, Zbs, Zicntr, Zicond and the
+#       branch predictor, which the golden CPU does not have). Everything else must be
+#       identical.
 #
 # Script format (see session.txt): lines starting with '#' are not typed; "#? <regex>" must
 # match a line of the output of the preceding typed line (in order), "#! <regex>" must match
@@ -322,7 +323,7 @@ def compare(a):
         rc = 1
     else:
         print(f'SHELL COMPARE: SAME  {len(views[0])} blocks, {lines} lines equal after normalising numbers;')
-        print('  lines labelled source:/cpu:/mode:/accuracy: (M, Zba, Zicntr, branch predictor) excluded')
+        print('  lines labelled source:/cpu:/mode:/accuracy: (M, Zba, Zbb, Zbs, Zicntr, Zicond, branch predictor) excluded')
         rc = 0
     print(f'  dut:    {uart[0]}')
     print(f'  golden: {uart[1]}')

@@ -33,5 +33,5 @@ bce595e371ea4b339f9aa8d7513cce84b161f25d03a20f4c8f25d8782ee5a072  build/test/c/t
 7a46aed0df5609dfce1fc8cae4b526b42186415256534340cbae39dc5e6f9899  build/test/freertos/stress/init.mem
 6f21a9f686b07b6e6a1d57f41aa086387ed38052eef8f768d5048a9e118e9632  build/test/freertos/mzba/init.mem
 42836fa0227abb8dd3b3543fdc830fa43cd970e1c26f0d2230bb3cf68e6ef55f  build/test/freertos/full/init.mem
-609daec5abfb65903a8461c9893d1830d60792ab6dbfddf1c9724e9de9c12327  build/test/freertos/shell/init.mem
+b9549ac92be82918e283ee1c54907f5cd66f15b9d44172bcb5231ccfb34b651f  build/test/freertos/shell/init.mem
 672f1243ff280a5f75b2d602f4ccdafc03c37b705c5681308cf8ffdf9732c17e  build/test/freertos/myapp/init.mem
