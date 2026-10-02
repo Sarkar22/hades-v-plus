@@ -18,7 +18,7 @@ This document describes how the behaviour of HaDes-V+ is checked: the results at
 
 ## Verification at a Glance
 
-Each result below summarises what the command prints in this version of the repository; the formal result is the recorded run in [formal/README.md](../formal/README.md#4-results-and-runtimes), made on the same RTL. A *differential* run executes the same program, with the same randomised interrupt timing, on HaDes-V+ and on the golden CPU, and compares the verdicts. The [sections below](#approach) describe the methods and list every self-checking suite with its result.
+Each result below summarises what the command prints in this version of the repository; the formal result is the recorded run in [formal/README.md](../formal/README.md#4-results-and-runtimes), made on `rtl/execute_stage.sv` of commit 588d76a, before Zbb, Zbs and Zicond added their unit to that file; the multiply/divide unit that the proof covers is unchanged, but the proof has not been re-run since ([details](#formal-verification-of-the-m-unit)). A *differential* run executes the same program, with the same randomised interrupt timing, on HaDes-V+ and on the golden CPU, and compares the verdicts. The [sections below](#approach) describe the methods and list every self-checking suite with its result.
 
 [results/](../results/README.md) holds a record of each of these results and of the other figures that the documentation quotes: the command, the inputs, the output as printed, and whether it can be re-run (its index also names the few approximate figures that have none). `make check-results` re-runs the repeatable records and compares their output with the stored values.
 
@@ -26,7 +26,8 @@ Each result below summarises what the command prints in this version of the repo
 |---|---|---|---|
 | Every RV32I instruction, self-checking | `make test/asm/ops` | `All tests passed!` | [record](../results/tests/2026-10-01_03386fd/RECORD.md) |
 | Decode stage, including forwarding and hazards, against the golden Decode stage | `make test/sv/test_decode_exhaustive` | 11,026 checks, all equal | [record](../results/tests/2026-10-01_03386fd/RECORD.md) |
-| Decoder sweep: every opcode × funct3 × funct7 combination and 150,000 random words decode as in the golden decoder, except the new M and Zba encodings, which must decode to exactly their own operations | `make test/sv/test_zba_encoding_sweep` | 290,288 checks passed | [record](../results/tests/2026-10-01_03386fd/RECORD.md) |
+| Decoder sweep: every opcode × funct3 × funct7 combination, every immediate and `rs2` field of the arithmetic opcodes and 150,000 random words decode as in the golden decoder, except the new M, Zba, Zbb, Zbs and Zicond encodings, which must decode to exactly their own operations | `make test/sv/test_zba_encoding_sweep` | 486,896 checks passed | [record](../results/tests/2026-10-01_03386fd/RECORD.md) |
+| Zbb, Zbs and Zicond: the decoder and Execute stage against a C model written from the ISA text, all 28 instruction forms | `make ext-check`; `make ext-exhaustive` | 75 digest lines identical; with the eight one-operand instructions over all 2^32 inputs, 2,091 lines (34,376,492,288 results) identical | [record](../results/bitmanip/2026-10-02_e75223e/RECORD.md) |
 | M unit: all eight instructions and the stall protocol | `make test/sv/test_m_execute` | 6,268 checks passed | [record](../results/tests/2026-10-01_03386fd/RECORD.md) |
 | M instructions against libgcc's software routines | `make test/c/m_extension` | `M-EXT PASS` after 200 checks; the testbench's summary line then reads `Inital test failed! (# Errors: 0)` ([why](#the-testbenchs-verdict-line)) | [record](../results/tests/2026-10-01_03386fd/RECORD.md) |
 | Interrupts swept over every cycle offset, checked by an independent instruction-set model | `python3 test/trapsweep/sweep.py run` | 61 of 61 programs consistent | [record](../results/trapsweep/2026-10-01_03386fd/RECORD.md) |
@@ -39,17 +40,17 @@ Four comparisons of single pipeline stages with the golden stages report a fixed
 
 ## Approach
 
-Correctness is not asserted casually. The upstream project ships **frozen, closed-source reference models** (pre-compiled Verilator libraries in [`ref/`](../ref)) which every base-ISA change is compared against bit-exactly. Those models predate the new extensions and cannot validate them, so each extension is instead verified by **differential testing against an independent implementation** — for M, the same program compiled to libgcc's software routines and to native instructions must produce byte-identical output; for Zba, the same program built with and without the extension.
+Correctness is not asserted casually. The upstream project ships **frozen, closed-source reference models** (pre-compiled Verilator libraries in [`ref/`](../ref)) which every base-ISA change is compared against bit-exactly. Those models predate the new extensions and cannot validate them, so each extension is instead verified by **differential testing against an independent implementation** — for M, the same program compiled to libgcc's software routines and to native instructions must produce byte-identical output; for Zba, the same program built with and without the extension. Zbb, Zbs and Zicond are checked in the same way and, in addition, against models written from the ratified ISA text ([test/ext/](../test/ext/README.md)): the decoder and Execute stage are compared with a C model on every input of the one-operand instructions.
 
 Trap and interrupt behaviour — which the frozen models cover only partially, and where they themselves deviate from the specification in known places ([Known Divergences](#known-divergences)) — is checked by an **independent instruction-set model** ([`test/trapsweep/`](../test/trapsweep)) that replays each simulation at the interrupt boundaries the hardware chose, with interrupts swept over every cycle offset around several hundred trap-relevant instruction sequences.
 
-The multiply/divide unit is additionally **formally verified**: MUL, MULH, MULHSU, MULHU, DIV, DIVU, REM and REMU are proven by k-induction to produce the RISC-V result for all 2⁶⁴ operand pairs in every reachable state, on the real RTL — see [Formal Verification of the M Unit](#formal-verification-of-the-m-unit).
+The multiply/divide unit is additionally **formally verified**: MUL, MULH, MULHSU, MULHU, DIV, DIVU, REM and REMU are proven by k-induction to produce the RISC-V result for all 2⁶⁴ operand pairs in every reachable state, on the real RTL as it was before Zbb, Zbs and Zicond (the multiply/divide code has not changed since, but the proof has not been re-run) — see [Formal Verification of the M Unit](#formal-verification-of-the-m-unit).
 
 Test suites are additionally validated by **mutation testing**: faults are deliberately injected into the RTL to confirm the tests actually fail, guarding against coverage that only appears to be thorough.
 
 ## Suites and Results
 
-Every suite runs from the repository root. The results below are what the commands print in this version of the repository, with Verilator 5.042 and GCC 12.2.0. The simulations are deterministic, so the results are the same on every run. Each result is recorded with the exact output under [results/](../results/README.md): those of the first two tables in [results/tests](../results/tests/2026-10-01_03386fd/RECORD.md), those of the third in the record that its last column names. `make check-results` re-runs the repeatable records and compares the output with the stored values.
+Every suite runs from the repository root. The results below are what the commands print in this version of the repository, with Verilator 5.042 and GCC 12.2.0. The simulations are deterministic, so the results are the same on every run. Each result is recorded with the exact output under [results/](../results/README.md): those of the first two tables in [results/tests](../results/tests/2026-10-01_03386fd/RECORD.md), except the rows of Zbb, Zbs and Zicond, which are recorded in [results/bitmanip](../results/bitmanip/2026-10-02_e75223e/RECORD.md), and those of the third in the record that its last column names. `make check-results` re-runs the repeatable records and compares the output with the stored values.
 
 ### Programs on the Complete Core
 
@@ -62,6 +63,8 @@ Every suite runs from the repository root. The results below are what the comman
 | UART interrupt enables written by byte and halfword stores ([uartirq.s](../test/asm/uartirq.s)) | `make test/asm/uartirq` | the same |
 | M | `make test/asm/mul`, `make test/asm/div` | the same, each |
 | Zba | `make test/asm/zba`, `make test/asm/zbaadv` | the same, each |
+| Zbb, Zbs, Zicond | `make test/asm/zbb`, `make test/asm/zbs`, `make test/asm/zicond` | the same, each |
+| Hint encodings (`pause`, `ntl.*`) change nothing; constant-time instructions take a fixed number of cycles | `make test/asm/hints`, `make test/asm/zkt` | the same, each |
 | Zicntr | `make test/asm/zicntr` | the same |
 | Zifencei and FENCE | `make test/asm/fencei`, `make test/asm/fencerd` | the same, each |
 | Branch predictor | `make test/asm/bpred` | three `Test pass!` lines, then `Inital test failed! (# Errors: 0)`; see [The Testbench's Verdict Line](#the-testbenchs-verdict-line) |
@@ -76,8 +79,9 @@ Every suite runs from the repository root. The results below are what the comman
 | Decode stage, including forwarding and hazards, against the golden Decode stage, over combinations of instruction, forwarding and status inputs | `make test/sv/test_decode_exhaustive` | `All 11026 checks PASSED — dut matches ref!` |
 | Decode stage against the golden Decode stage, selected cases | `make test/sv/test_decode_compare` | `All 86 checks passed — dut matches ref!` |
 | Decode-stage hazards | `make test/sv/test_decode_hazard` | `All tests passed! (# Errors: 0)` |
-| Instruction-word sweep | `make test/sv/test_zba_encoding_sweep` | `All 290288 encoding checks passed — dut op matches ref everywhere except the Zba and M words` |
+| Instruction-word sweep | `make test/sv/test_zba_encoding_sweep` | `All 486896 encoding checks passed — dut op matches ref everywhere except the Zba, M, Zbb, Zbs and Zicond words` |
 | M unit and its stall protocol | `make test/sv/test_m_execute` | `All 6268 M-extension checks passed` |
+| Zbb, Zbs and Zicond unit of the Execute stage | `make test/sv/test_ext_execute` | `All 927129 EXT-unit checks passed` |
 | Next PC with a branch prediction applied | `make test/sv/test_execute_bpred_nextpc` | `All 40000 branch-prediction next-PC checks passed` |
 | Execute stage against the golden stage | `make test/sv/test_execute_compare` | `Tests: 142 Errors: 30` (baseline) |
 | Memory stage against the golden stage | `make test/sv/test_memory_compare` | `Tests: 98 Errors: 6` (baseline) |
@@ -102,8 +106,15 @@ The four comparisons marked *baseline* report differences from the frozen stages
 | The same session on both CPUs | `make freertos-shell-compare` | `SHELL COMPARE: SAME  40 blocks, 158 lines equal after normalising numbers` | [tests](../results/tests/2026-10-01_03386fd/RECORD.md) |
 | The interactive console | `make freertos-shell-tty-test` | `TTY TEST: PASS  (22 of 22 cases passed)` | [tests](../results/tests/2026-10-01_03386fd/RECORD.md) |
 | Formal proof of the M unit | `make formal` | `FORMAL RESULT: PASS (mode=default)`: 72 required checks and 4 negative controls | [formal](../results/formal/2026-09-28_588d76a/RECORD.md) |
+| Zbb, Zbs and Zicond against the C model | `make ext-check` | `EXT CHECK: PASS (28 of 28 forms identical)`: 75 digest lines, 553,624,832 vectors | [bitmanip](../results/bitmanip/2026-10-02_e75223e/RECORD.md) |
+| The same, the one-operand instructions over all 2^32 inputs | `make ext-exhaustive` | `EXT CHECK: PASS (28 of 28 forms identical)`: 2,091 digest lines, 34,376,492,288 vectors | [bitmanip](../results/bitmanip/2026-10-02_e75223e/RECORD.md) |
+| Random programs with Zbb, Zbs and Zicond, replayed by the instruction-set model | `python3 test/trapsweep/sweep.py fuzz --seeds 1001-2000 --variant b --targets dut` | `DUT: 1000/1000 programs ISS-consistent` | [bitmanip](../results/bitmanip/2026-10-02_e75223e/RECORD.md) |
+| Interrupts swept around the 28 forms | `python3 test/trapsweep/sweep.py run --fam ext --targets dut` | `DUT: 3/3 programs ISS-consistent` | [bitmanip](../results/bitmanip/2026-10-02_e75223e/RECORD.md) |
+| C programs for `rv32i` and with Zbb and Zbs, compared | `make bench-zbb` | `BENCH ZBB: PASS`; `zbb_diff`: 52,436 checks, 0 mismatches | [zbb](../results/zbb/2026-10-02_e75223e/RECORD.md) |
+| FreeRTOS programs built with Zbb and Zbs (HaDes-V+ only) | `python3 test/freertos/campaign.py --set bitmanip --seeds 8` | `CAMPAIGN RESULT: PASS (120 runs: ...)` | [bitmanip](../results/bitmanip/2026-10-02_e75223e/RECORD.md) |
+| The loader's session with the app `bitmanip`, on HaDes-V+ and on the golden CPU | `make freertos-shell-test APP=loader SCRIPT=test/freertos/loader/session-ext.txt [CPU=golden]` | `FREERTOS SHELL RESULT: PASS`; `bitmanip: 4 of 4 sections passed` in both builds on HaDes-V+, in the `rv32i` build on the golden CPU, which refuses the other build | [bitmanip](../results/bitmanip/2026-10-02_e75223e/RECORD.md) |
 
-The formal result is the recorded run in [formal/README.md](../formal/README.md#4-results-and-runtimes); the SHA-256 of the proved `rtl/execute_stage.sv` recorded there is that of the file in this version of the repository ([record](../results/formal/2026-09-28_588d76a/RECORD.md)). The formal tools are listed under [Tools](../formal/README.md#tools).
+The formal result is the recorded run in [formal/README.md](../formal/README.md#4-results-and-runtimes); the proved `rtl/execute_stage.sv` recorded there, SHA-256 `847dc018…fab1bb`, is the file of commits 588d76a to e75223e. Zbb, Zbs and Zicond then added their unit (Part 2c) and one arm of the ALU's result select to that file, so it is no longer the proved file; the multiply/divide unit's code is unchanged, but the proof has not been re-run on the new file ([record](../results/formal/2026-09-28_588d76a/RECORD.md)). The formal tools are listed under [Tools](../formal/README.md#tools).
 
 The repository also contains programs and benches that print no verdict of their own; they are not listed above:
 
@@ -117,9 +128,9 @@ The [test/](../test/) tree has three progressively integrative tiers, plus two s
 
 | Tier | Location | What it exercises | Invocation |
 |---|---|---|---|
-| **Assembly** | [test/asm/](../test/asm/) | Small hand-written `.s` programs targeting a specific ISA feature — e.g. [trap.s](../test/asm/trap.s) for the full exception/interrupt path, [ops.s](../test/asm/ops.s) for every RV32I instruction, [forwarding.s](../test/asm/forwarding.s) for the data-hazard network, [bpred.s](../test/asm/bpred.s) for the branch predictor (modes 0/1/3, counter verification), [mul.s](../test/asm/mul.s) / [div.s](../test/asm/div.s) for the `M` extension, [trapirq.s](../test/asm/trapirq.s) / [trapmpie.s](../test/asm/trapmpie.s) / [csrirq.s](../test/asm/csrirq.s) / [memirq.s](../test/asm/memirq.s) for interrupt-vs-trap and interrupt-vs-bus timing sweeps, [bpirq.s](../test/asm/bpirq.s) / [bpirq2.s](../test/asm/bpirq2.s) / [bpirq3.s](../test/asm/bpirq3.s) for interrupts landing next to correctly predicted taken branches in every predictor mode, [mtvecirq.s](../test/asm/mtvecirq.s) for an interrupt right after a `csrw mtvec`. | `make test/asm/trap` |
+| **Assembly** | [test/asm/](../test/asm/) | Small hand-written `.s` programs targeting a specific ISA feature — e.g. [trap.s](../test/asm/trap.s) for the full exception/interrupt path, [ops.s](../test/asm/ops.s) for every RV32I instruction, [forwarding.s](../test/asm/forwarding.s) for the data-hazard network, [bpred.s](../test/asm/bpred.s) for the branch predictor (modes 0/1/3, counter verification), [mul.s](../test/asm/mul.s) / [div.s](../test/asm/div.s) for the `M` extension, [zbb.s](../test/asm/zbb.s) / [zbs.s](../test/asm/zbs.s) / [zicond.s](../test/asm/zicond.s) for bit manipulation and conditional zero, [trapirq.s](../test/asm/trapirq.s) / [trapmpie.s](../test/asm/trapmpie.s) / [csrirq.s](../test/asm/csrirq.s) / [memirq.s](../test/asm/memirq.s) for interrupt-vs-trap and interrupt-vs-bus timing sweeps, [bpirq.s](../test/asm/bpirq.s) / [bpirq2.s](../test/asm/bpirq2.s) / [bpirq3.s](../test/asm/bpirq3.s) for interrupts landing next to correctly predicted taken branches in every predictor mode, [mtvecirq.s](../test/asm/mtvecirq.s) for an interrupt right after a `csrw mtvec`. | `make test/asm/trap` |
 | **C** | [test/c/](../test/c/) | Full C programs linked against [std/](../std/). [bootloader.c](../test/c/bootloader.c) is the UART loader; [basys3_demo.c](../test/c/basys3_demo.c) wiggles every on-board peripheral; [m_extension.c](../test/c/m_extension.c) diffs the `M` hardware against libgcc's software routines. | `make test/c/basys3_demo` |
-| **SystemVerilog** | [test/sv/](../test/sv/) | Module-level benches that run DUT vs. REF side-by-side and compare every cycle. Examples: [test_writeback_compare.sv](../test/sv/test_writeback_compare.sv), [test_execute_compare.sv](../test/sv/test_execute_compare.sv), [test_decode_hazard.sv](../test/sv/test_decode_hazard.sv), [test_execute_bpred_nextpc.sv](../test/sv/test_execute_bpred_nextpc.sv) (Execute with a branch prediction applied, against the predictor-less reference). Where the frozen reference cannot help — `Zba`, `M` — the bench carries its own golden model instead: [test_m_execute.sv](../test/sv/test_m_execute.sv). | `make test/sv/test_writeback_compare` |
+| **SystemVerilog** | [test/sv/](../test/sv/) | Module-level benches that run DUT vs. REF side-by-side and compare every cycle. Examples: [test_writeback_compare.sv](../test/sv/test_writeback_compare.sv), [test_execute_compare.sv](../test/sv/test_execute_compare.sv), [test_decode_hazard.sv](../test/sv/test_decode_hazard.sv), [test_execute_bpred_nextpc.sv](../test/sv/test_execute_bpred_nextpc.sv) (Execute with a branch prediction applied, against the predictor-less reference). Where the frozen reference cannot help — `Zba`, `M`, `Zbb`, `Zbs`, `Zicond` — the bench carries its own golden model instead: [test_m_execute.sv](../test/sv/test_m_execute.sv), [test_ext_execute.sv](../test/sv/test_ext_execute.sv). | `make test/sv/test_writeback_compare` |
 | **FreeRTOS** | [test/freertos/](../test/freertos/) | FreeRTOS V11 programs (`minimal`, `stress`, `full` standard demo, `mzba`, and the `brk` RTOS breaker) with randomised, desynchronised interrupt timing, plus `campaign.py`, which runs every configuration on the DUT and on the golden CPU. `FRTOS_BPRED=1..3` runs a program with the branch predictor on. User guide: [docs/FREERTOS.md](FREERTOS.md); details: [test/freertos/README.md](../test/freertos/README.md). | `make freertos APP=stress`, `make freertos-compare APP=stress`, `make freertos-stress` |
 | **Trap sweep** | [test/trapsweep/](../test/trapsweep/) | Interrupts swept over every cycle offset around 532 distinct probe instruction sequences, plus random programs. Every run is checked by an independent Python ISA model (`iss.py`) and compared with the golden CPU. This is the oracle for extensions that the frozen golden models cannot check. See [test/trapsweep/README.md](../test/trapsweep/README.md). | `python3 test/trapsweep/sweep.py run` |
 
@@ -203,9 +214,11 @@ The larger sets (`standard`, `full`, `realtick`, `bpred`, `breaker`, `breaker2`,
 
 ## Formal Verification of the M Unit
 
-The multiply/divide unit of `rtl/execute_stage.sv` is formally verified. The proof shows
-that MUL, MULH, MULHSU, MULHU, DIV, DIVU, REM and REMU produce the RISC-V M-extension
-result:
+The multiply/divide unit of `rtl/execute_stage.sv` is formally verified. The recorded
+proof was made on the file of commit 588d76a (SHA-256 `847dc018…fab1bb`); Zbb, Zbs and
+Zicond later added their unit to the same file without changing the multiply/divide
+code, and `make formal` has not been run on the new file. The proof shows that MUL,
+MULH, MULHSU, MULHU, DIV, DIVU, REM and REMU produce the RISC-V M-extension result:
 
 - for **all 2^64 operand pairs**;
 - including division by zero and the `-2^31 / -1` overflow;
@@ -267,6 +280,7 @@ misstated:
 The evidence for the mutation testing described under [Approach](#approach) is documented with the suites it checks:
 
 - **The trap and interrupt fixes.** Each of the six fixes was reverted on its own. For every revert, the trap sweep flags programs outside the expected `race` family, and the fix's own directed regression test fails. The reverts and the families they flag are tabulated in [test/trapsweep/README.md](../test/trapsweep/README.md#provenance-and-results) ([record](../results/history/2026-09-27_6b19d41/RECORD.md)).
+- **The Zbb, Zbs and Zicond unit.** Hand-written faults in the decoder and in the Execute unit (wrong `funct3`, swapped signedness of `min`/`max`, `clz` off by one, the rotate direction reversed, `shamt[5]` not checked, the `czero` condition inverted, wrong sub-operation codes, results not forwarded, and more) were each applied to a copy of the RTL during development: every fault that changes a result is caught by the repository's suites, and the two that cannot change any result were shown equivalent ([record](../results/bitmanip/2026-10-02_e75223e/RECORD.md#mutation-testing)).
 - **The multiply/divide unit.** `make formal-full` runs 19 mutants of the M unit against 32 proofs. Every mutant except `diff32` is rejected; `diff32` is an equivalent mutant, because it changes a bit that the proof shows to be always zero. The repository's `test_m_execute` bench detects every mutant except `diff32` as well; that was checked during development, outside the formal package, and `make formal-full` does not repeat it ([record](../results/formal/2026-09-28_588d76a/RECORD.md)). Details: [formal/README.md](../formal/README.md#3-how-the-proof-works).
 
 ## Known Divergences

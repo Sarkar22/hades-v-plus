@@ -476,7 +476,7 @@ environment, so an unrelated variable such as `CPU` cannot change a run.)
 |---|---|---|
 | `APP` | a name from `make freertos-list` (`minimal`) | The program. |
 | `CPU` | `dut`, `golden` (`dut`) | The core to simulate. |
-| `MARCH` | `rv32i`, `rv32im`, `rv32im_zba` (`rv32i`) | Instruction set the program is compiled for. Only `rv32i` runs on the golden CPU. |
+| `MARCH` | `rv32i`, `rv32im`, `rv32im_zba`, `rv32im_zba_zbb_zbs` (`rv32i`) | Instruction set the program is compiled for. Only `rv32i` runs on the golden CPU. With Zbs, GCC 12.2 cannot compile the `brk` program (an internal compiler error); build it for `rv32im_zba_zbb`. |
 | `OPT` | `-O0`, `-O2`, `-Os` (`-O2`; `-Os` for the shell) | Compiler optimisation. |
 | `TICK` | clock cycles (`10000`) | Length of an RTOS tick. 50000 is 1 kHz at the board's 50 MHz. |
 | `SEED` | hexadecimal, 0 to ffff (`0`) | Run seed (it drives the board's 16 switches, which the programs read). |
@@ -547,7 +547,7 @@ another copy of the repository. Use a separate `HADES_BUILD_DIR` for each copy, 
 the old directory.
 
 **`The golden CPU runs RV32I only`.** `CPU=golden` or `freertos-compare` was combined with
-`MARCH=rv32im` or `rv32im_zba`. Leave `MARCH` unset.
+`MARCH=rv32im`, `rv32im_zba` or another extension. Leave `MARCH` unset.
 
 **`FreeRTOS+CLI not found at ...`.** `FREERTOS_HOME` or `FREERTOS_PLUS_CLI` is set to a
 directory without FreeRTOS+CLI: unset it to use the copy in `third_party/freertos/`, or

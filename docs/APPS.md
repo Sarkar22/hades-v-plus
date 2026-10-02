@@ -45,7 +45,7 @@ and starts the simulation as for the shell ([SHELL.md](SHELL.md#start-it)). Type
 app with `run` and its arguments (a session on HaDes-V+):
 
 ```text
-[console] the apps for 'load <name>': compute crash hello selfmod upper
+[console] the apps for 'load <name>': bitmanip compute crash hello selfmod upper
 ...
 HaDes-V+ shell on FreeRTOS V11.1.0+ with FreeRTOS+CLI
   config: tick=10000cyc preempt=1 slice=1 heap_4 isa=rv32i opt=-Os ram=256K bpred=0
@@ -78,7 +78,7 @@ loads nothing, and the answer lists the apps:
 ```text
 hades> load helo
 load: waiting for helo (Ctrl-C cancels)
-load failed: no app 'helo' (the apps: compute crash hello selfmod upper)
+load failed: no app 'helo' (the apps: bitmanip compute crash hello selfmod upper)
 ```
 
 The file is read at every `load`, so an app rebuilt in another terminal while the simulation
@@ -96,15 +96,43 @@ Without `UPLOAD=`, paste the file
 ## The example apps
 
 The example apps, in `test/freertos/sdk/apps/`, are built for RV32I (`compute` also for
-`rv32im_zba`):
+`rv32im_zba`, `bitmanip` also for `rv32im_zba_zbb_zbs`):
 
 | App | What it does |
 |---|---|
 | `hello` | Prints `Hello, <argv[1]>!` and its arguments; the exit code is the number of arguments. |
 | `compute` | Matrix arithmetic with multiplication, division and scaled indexing (M and Zba when built for them), checked against constants computed by a Python model (`model.py`); prints `PASS` and its cycle count. |
+| `bitmanip` | The bit-manipulation extensions at work, in four sections: what GCC makes of plain C with Zbb (population count, log2, trailing zeros, clamping, packed samples, masks, a hash with rotates), `rev8` and `orc.b` written by hand (big-endian fields, string lengths a word at a time), a sieve of Eratosthenes in a bitmap with Zbs, and a branch-free select, clamp and conditional add with Zicond through [`zicond.h`](../std/include/zicond.h). Each section is checked against constants computed by a Python model (`model.py`, which takes every instruction's result from the reference model [`test/ext/ref.py`](../test/ext/ref.py)) and prints `PASS` and its cycle count. The `rv32im_zba_zbb_zbs` build contains all 28 Zbb, Zbs and Zicond instruction forms; the RV32I build computes the same values with RV32I code (and its Zicond section in C) and runs on both CPUs. |
 | `selfmod` | Writes instructions into its memory, executes `fence.i` and runs them; then rewrites the same words and runs them again. |
 | `upper` | Reads lines from the terminal and prints them in upper case; an empty line ends it. |
 | `crash` | Ends in the way its argument names: `illegal` (the default), `ebreak`, `misaligned`, `load`, `store` (access faults), `null` (a call through a null pointer), `stack` (endless recursion), `deep` (a stack overflow without a task switch, then a normal return), `loop` (spins until Ctrl-C, after waiting for input once), `spin` (spins without ever reading input). |
+
+`bitmanip` on HaDes-V+, first its RV32I build, then its `rv32im_zba_zbb_zbs` build, as
+`session-ext.txt` runs them (the progress lines of `load` left out): the same values in fewer
+cycles. The `bytes` section gains most, 81 % (`rev8` and `orc.b` replace shifts, masks and
+loops), `zbb` takes half the cycles, and `zbs`, whose sieve is dominated by loads and stores,
+and `zicond` gain about a fifth ([record](../results/bitmanip/2026-10-02_e75223e/RECORD.md)).
+
+```text
+hades> load rv32i/bitmanip
+loaded bitmanip: 4172 bytes at 0x00060000, entry 0x00060040, CRC32 0x31515268
+hades> run
+bitmanip: zbb    popcount 1020, log2 1907, ctz 62, mix 5dd12d14 00203fcc 648904fb, hash 200eb485: PASS (11163 cycles)
+bitmanip: bytes  rev8 bb05f113, string lengths 102: PASS (1761 cycles, C)
+bitmanip: zbs    primes below 4096: 564 (sum 1070091), after toggling 1928, flags 7f6b4d42: PASS (267175 cycles)
+bitmanip: zicond select b23616d0, clamp 000013b0, add-if e806a5c8: PASS (1999 cycles, C)
+bitmanip: 4 of 4 sections passed
+app: bitmanip exited with code 0 after 448265 cycles
+hades> load rv32im_zba_zbb_zbs/bitmanip
+loaded bitmanip: 3336 bytes at 0x00060000, entry 0x00060040, CRC32 0xa8bf5894
+hades> run
+bitmanip: zbb    popcount 1020, log2 1907, ctz 62, mix 5dd12d14 00203fcc 648904fb, hash 200eb485: PASS (5443 cycles)
+bitmanip: bytes  rev8 bb05f113, string lengths 102: PASS (331 cycles, rev8 and orc.b)
+bitmanip: zbs    primes below 4096: 564 (sum 1070091), after toggling 1928, flags 7f6b4d42: PASS (209170 cycles)
+bitmanip: zicond select b23616d0, clamp 000013b0, add-if e806a5c8: PASS (1612 cycles, czero)
+bitmanip: 4 of 4 sections passed
+app: bitmanip exited with code 0 after 385301 cycles
+```
 
 ## The commands
 
@@ -131,7 +159,8 @@ app's return address: `at 0x00000000, ra 0x0006026c in crash`. A stack overflow 
 whenever FreeRTOS finds it, also when it finds it only as the app ends (an app that overflowed
 without a task switch and then returned, or was stopped by Ctrl-C). `run` refuses an app built for an
 extension that the CPU does not execute: on the golden CPU, `error: compute was built for
-rv32im_zba, but this CPU has no M and no Zba`.
+rv32im_zba, but this CPU has no M and no Zba`, and `error: bitmanip was built for
+rv32im_zba_zbb_zbs, but this CPU has no M, no Zba, no Zbb and no Zbs`.
 
 Some of the reasons `load` gives (all of them are listed in SPEC.md, section 4.3):
 
@@ -141,7 +170,7 @@ load failed: line 2: address 0x00050000 is outside the app slot (0x00060000-0x00
 load failed: bad magic 0x50504158 (an app image starts with 0x50504148, "HAPP")
 load failed: tiny needs 131224 bytes of the slot (image 72, bss 0, stack 131072, saved copy 80); the slot has 131072
 load failed: CRC32 mismatch: the image has 0xb5c16588, its header says 0xa0537c91
-load failed: no app 'helo' (the apps: compute crash hello selfmod upper)
+load failed: no app 'helo' (the apps: bitmanip compute crash hello selfmod upper)
 ```
 
 `python3 test/freertos/sdk/appimg.py info <file.hex>` applies the same checks on the host
@@ -175,6 +204,7 @@ int main( int argc, char ** argv )
 ```bash
 make freertos-app NAME=myapp                          # rv32i, -O2
 make freertos-app NAME=myapp MARCH=rv32im_zba OPT=-Os # M and Zba: HaDes-V+ only
+make freertos-app NAME=myapp MARCH=rv32im_zba_zbb_zbs # also Zbb and Zbs: HaDes-V+ only
 make freertos-shell APP=loader                        # then: load myapp
 ```
 
@@ -215,7 +245,7 @@ The API, declared in `test/freertos/sdk/hades_app.h`:
 | `app_getc( ms )` | The next byte typed (0 to 255; no echo, no line editing), or -1 if none arrives within `ms` milliseconds; `ms` < 0 waits for ever, 0 does not wait. Ctrl-C never arrives: it stops the app. |
 | `app_delay_ms( ms )`, `app_ticks()` | Block for `ms` milliseconds (one RTOS tick each; 0 yields); the tick count since the start. |
 | `app_exit( code )` | End the app with this exit code, as returning it from `main()` does; does not return. |
-| `app_cpu()`, `app_cycles()` | What the CPU executes (`HADES_APP_CPU_M`, `_ZBA`, `_ZICNTR`); `mcycle` as 64 bits. |
+| `app_cpu()`, `app_cycles()` | What the CPU executes (`HADES_APP_CPU_M`, `_ZBA`, `_ZICNTR`, `_ZBB`, `_ZBS`, `_ZICOND`); `mcycle` as 64 bits. Zicond has no `-march` of its own: an app that uses it through [`zicond.h`](../std/include/zicond.h) checks `HADES_APP_CPU_ZICOND` first. |
 | `HADES_APP_STACK_SIZE( n );` | At file scope: the app's stack in bytes (default 4096; at least 1024 and a multiple of 16, as a plain integer). |
 | `__app_heap_start`, `__app_heap_end` | Declared as `char` arrays: the app's free memory, between its `.bss` and its stack. |
 
@@ -354,7 +384,9 @@ of a valid image, so that the check that nothing runs is meaningful) and the fil
 Ctrl-C, empty lines or records after their end, loads two apps and a test file by name and
 asks for an unknown name, and checks that `uart` lost no character. `session-ext.txt` runs
 `compute` built for `rv32im_zba` (and loads it by name, `load rv32im_zba/compute`), which the
-golden CPU refuses. The verdict:
+golden CPU refuses, prints what `version` reports about the CPU, runs the RV32I build of
+`bitmanip` on both CPUs and its `rv32im_zba_zbb_zbs` build, which the golden CPU refuses, and
+checks every value that `bitmanip` prints. The verdict:
 
 ```text
 LOADER COMPARE: PASS  session.txt: dut PASS, golden PASS, transcripts SAME; session-ext.txt: dut PASS, golden PASS

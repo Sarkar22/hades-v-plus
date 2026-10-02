@@ -406,6 +406,7 @@
     "WIDTH: $bits(op::t)=6  $bits(instruction::t)=65  (ref inner port is [64:0])",
     "ENUM: ILLEGAL=49 SH1ADD=50 SH2ADD=51 SH3ADD=52  (ILLEGAL must still be 49)",
     "ENUM: MUL=53 MULH=54 MULHSU=55 MULHU=56 DIV=57 DIVU=58 REM=59 REMU=60",
+    "ENUM: EXT=61  $bits(op::ext_payload_t)=32  (EXT must be 61, the payload 32 bits)",
     "=== SWEEP A: every opcode x funct3 x funct7 (rd=x10 rs1=x11 rs2=x12) ===",
     "    after A: checks=131072 errors=0 zba_hits=3",
     "=== SWEEP B: OP opcode, all funct7 x funct3, 8 register triples ===",
@@ -414,10 +415,17 @@
     "    after C: checks=289264 errors=0 zba_hits=30",
     "=== SWEEP D: OP-IMM opcode, all funct7-position x funct3 ===",
     "    after D: checks=290288 errors=0",
-    "All 290288 encoding checks passed — dut op matches ref everywhere except the Zba and M words"
+    "=== SWEEP E: OP-IMM opcode, every imm[11:0] x funct3, 2 register pairs ===",
+    "    after E: checks=355824 errors=0 ext_hits=334",
+    "=== SWEEP F: OP opcode, every funct7 x rs2 field x funct3, 2 register pairs ===",
+    "    after F: checks=421360 errors=0 ext_hits=962",
+    "=== SWEEP G: OP-32 and OP-IMM-32 opcodes, every funct7 x rs2 field x funct3 ===",
+    "    after G: checks=486896 errors=0 ext_hits=0",
+    "EXT hits per sweep: A=20 B=120 C=30 D=5 E=334 F=962 G=0",
+    "All 486896 encoding checks passed — dut op matches ref everywhere except the Zba, M, Zbb, Zbs and Zicond words"
    ],
-   "quoted": "All 290288 encoding checks passed — dut op matches ref everywhere except the Zba and M words",
-   "quoted_at": "docs/VERIFICATION.md:57; README.md:87; docs/EXTENSIONS.md:74,89,115,128"
+   "quoted": "All 486896 encoding checks passed — dut op matches ref everywhere except the Zba, M, Zbb, Zbs and Zicond words",
+   "quoted_at": "docs/VERIFICATION.md (Verification at a Glance, Module Benches); README.md (Verification in Depth); docs/EXTENSIONS.md (M, Zba, Zbb and Zbs: Verification; Zba: Implementation Notes)"
   },
   {
    "suite": "sv/test_m_execute",

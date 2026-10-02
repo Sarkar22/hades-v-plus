@@ -1,14 +1,16 @@
 # trapsweep: interrupt-offset sweeps checked by an independent ISA model
 
-The frozen golden models in `ref/` predate M, Zba, Zicntr and the branch
-predictor, and they have bugs of their own (see [below](#known-golden-deviations)).
+The frozen golden models in `ref/` predate M, Zba, Zbb, Zbs, Zicond, Zicntr and
+the branch predictor, and they have bugs of their own (see [below](#known-golden-deviations)).
 They cannot check a new instruction, and "DUT == golden" is only as good as the
 golden model. This directory adds a second oracle that does not depend on them:
 
-* **`iss.py`**: a small RV32IM + Zba + Zicsr instruction-set model of the
-  bare-metal MCU, written in Python. It is separate from the RTL and from the
-  golden models, but it does encode this platform's CSR map, reset values and
-  memory map. It replays a recorded RTL run using only the RTL's choice of
+* **`iss.py`**: a small RV32IM + Zba + Zbb + Zbs + Zicond + Zicsr
+  instruction-set model of the bare-metal MCU, written in Python. It is
+  separate from the RTL and from the golden models, but it does encode this
+  platform's CSR map, reset values and memory map. Its Zbb, Zbs and Zicond
+  instructions are checked against a second, differently written model
+  (`python3 test/ext/ref.py --selftest`). It replays a recorded RTL run using only the RTL's choice of
   interrupt boundaries (the `minstret` value and `mcause` at every trap entry).
   It then checks that everything else the RTL did is architecturally correct:
   * every interrupt is taken at an instruction boundary where it is enabled
@@ -55,6 +57,8 @@ python3 test/trapsweep/sweep.py fuzz --seeds 101-160                 # RV32I pro
 python3 test/trapsweep/sweep.py fuzz --seeds 201-240 --variant m     # + M/Zba (DUT only)
 python3 test/trapsweep/sweep.py fuzz --seeds 301-360 --variant bp    # + branch predictor on (DUT only)
 python3 test/trapsweep/sweep.py fuzz --seeds 401-430 --variant mt    # + csrrw mtvec (DUT + golden)
+python3 test/trapsweep/sweep.py fuzz --seeds 501-560 --variant b     # + M/Zba/Zbb/Zbs/Zicond (DUT only)
+python3 test/trapsweep/sweep.py run --fam ext --targets dut          # Zbb/Zbs/Zicond probes (only when named)
 python3 test/trapsweep/sweep.py run --tree ../other-checkout         # test another tree's RTL
 python3 test/trapsweep/sweep.py file my_probe.s                      # a hand-written program
 ```
@@ -141,9 +145,12 @@ None of them is a DUT problem.
 * **`minstret` reads one higher than the DUT's from reset.** Not a spec
   question: `iss.py` models it (`instret_off=1` for `ref`), and the
   DUT-vs-golden compare uses `minstret` relative to each iteration's snapshot.
-* **No M, Zba, Zicntr or branch predictor.** `iss.py` models the golden CPU
-  without them. Families `m`, `pre` and `bp` and fuzz variants `m`/`bp` run on
-  the DUT only. `pre_i` is the M-free subset of `pre`.
+* **No M, Zba, Zbb, Zbs, Zicond, Zicntr or branch predictor.** `iss.py` models
+  the golden CPU without them. Families `m`, `pre`, `bp` and `ext` and fuzz
+  variants `m`/`bp`/`b` run on the DUT only. `pre_i` is the M-free subset of `pre`.
+  `ext` (every Zbb, Zbs and Zicond form, dependent chains through them, their
+  pipeline neighbours and illegal neighbours) runs only when named with `--fam ext`:
+  it is not part of `all` or of `sweep.py list`, whose output the trapsweep record stores.
 
 ## Extending
 

@@ -76,13 +76,14 @@
    ]
   },
   {
-   "figure": "proved file SHA-256 847dc018...fab1bb equals the file in this version",
+   "figure": "proved file SHA-256 847dc018...fab1bb is the file of 588d76a to e75223e, before Zbb, Zbs and Zicond changed it",
    "quoted_at": [
-    "docs/VERIFICATION.md:84",
-    "README.md:81",
+    "docs/VERIFICATION.md (Verification at a Glance, Formal Verification)",
+    "README.md (Verification in Depth, Status and Limitations)",
     "formal/README.md:209"
    ],
-   "checked_2026_10_01": true
+   "checked_2026_10_01": true,
+   "checked_2026_10_02": "git show e75223e:rtl/execute_stage.sv | sha256sum"
   },
   {
    "figure": "97ef211 SHA-256 50bed4cf...5111",
@@ -117,6 +118,7 @@
  ],
  "caveats": [
   "Not repeated on 2026-10-01: Yosys, SymbiYosys, yosys-smtbmc, bitwuzla, Yices and z3 were not installed and none of the tools was on PATH (only an sv2v binary was present); without them run.sh stops with FORMAL RESULT: FAIL (missing tools) and exit status 2 (formal/README.md:373-374).",
-  "An earlier full run the same day reported the same summary after real 144m11.982s."
+  "An earlier full run the same day reported the same summary after real 144m11.982s.",
+  "Update 2026-10-02: Zbb, Zbs and Zicond changed rtl/execute_stage.sv (now SHA-256 c36613c8fe0116aad83c66ea4a79dd4d03995c95290eb8a3d9c33eee6d3ae969) and appended op EXT to defines/op.sv; the multiply/divide code is unchanged, but the proof has not been re-run on the new file."
  ]
 }

@@ -4,7 +4,7 @@
 
 Everything in this document is work added after the upstream lab; the baseline core implements RV32I with `Zicsr`, and its `FENCE.I` was present but untested (see [Zifencei](#zifencei--instruction-fetch-synchronisation)).
 
-With them the core implements `rv32im_zba_zicsr_zifencei_zicntr`, summarised under [Instruction Set](ARCHITECTURE.md#instruction-set). Each section below describes one extension: its design, how it is verified, and implementation notes. The output of every test in the tables below is recorded in [results/tests](../results/tests/2026-10-01_03386fd/RECORD.md); each measured figure links its own record.
+With them the core implements `rv32imb_zicntr_zicond_zicsr_zifencei` (B = Zba + Zbb + Zbs), summarised under [Instruction Set](ARCHITECTURE.md#instruction-set). Each section below describes one extension: its design, how it is verified, and implementation notes. The output of every test in the tables below is recorded in [results/tests](../results/tests/2026-10-01_03386fd/RECORD.md); each measured figure links its own record.
 
 **Contents**
 
@@ -14,6 +14,8 @@ With them the core implements `rv32im_zba_zicsr_zifencei_zicntr`, summarised und
 4. [Zicntr — User-Mode Counters](#zicntr--user-mode-counters)
 5. [Zifencei — Instruction-Fetch Synchronisation](#zifencei--instruction-fetch-synchronisation)
 6. [Branch Predictor Extension](#branch-predictor-extension)
+7. [Zbb and Zbs — Bit Manipulation (B)](#zbb-and-zbs--bit-manipulation-b)
+8. [Zicond — Conditional Zero](#zicond--conditional-zero)
 
 ## What HaDes-V+ Adds
 
@@ -23,6 +25,8 @@ With them the core implements `rv32im_zba_zicsr_zifencei_zicntr`, summarised und
 | **Zba** — address generation | `sh1add`/`sh2add`/`sh3add`, which replace the `slli` + `add` pair of a scaled array index; GCC emits them for ordinary indexing code when it optimises (`-O2`, `-Os`) | [§](#zba--scaled-index-address-generation) |
 | **Zicntr** — user counters | `cycle`, `time`, `instret` (+ high halves), with `time` shadowing the real memory-mapped `mtime` | [§](#zicntr--user-mode-counters) |
 | **Zifencei** — documented & tested | `FENCE.I` was implemented but never actually verified upstream; now tested ([fencei.s](../test/asm/fencei.s)), and the 3-slot staleness window that it closes is measured (`make bench-fencei-window`, [record](../results/fencei-window/2026-10-01_03386fd/RECORD.md)) | [§](#zifencei--instruction-fetch-synchronisation) |
+| **Zbb**, **Zbs** — bit manipulation | 26 instructions on RV32: counts (`clz`, `ctz`, `cpop`), `min`/`max`, sign and zero extension, `andn`/`orn`/`xnor`, rotates, `orc.b`, `rev8`, and single-bit set, clear, invert and extract. With Zba they make the ratified **B** extension. One new op for all of them, single-cycle; GCC emits most of them from plain C; `make bench-zbb` ([record](../results/zbb/2026-10-02_e75223e/RECORD.md)) | [§](#zbb-and-zbs--bit-manipulation-b) |
+| **Zicond** — conditional zero | `czero.eqz` and `czero.nez`, a branch-free select; usable from C through [std/include/zicond.h](../std/include/zicond.h) | [§](#zicond--conditional-zero) |
 | **Branch predictor** | Four run-time selectable algorithms — never-taken (the reset default), always-taken, backward-taken and bimodal 2-bit counters — with four outcome counters as CSRs; a correctly predicted branch causes no pipeline flush | [§](#branch-predictor-extension) |
 | **FreeRTOS** | The official RISC-V port boots unmodified; one-command build and run, a differential stress campaign against the golden CPU, a template for your own programs, and an interactive command shell (FreeRTOS+CLI) you type into from your terminal. In simulation, the shell can also receive programs compiled on the host over the UART and run them as a task (`make freertos-shell APP=loader UPLOAD=hello`, then `load` and `run`); an app that raises an exception is stopped and reported while the shell carries on, as far as machine mode without memory protection allows ([guide](APPS.md)) | [§](FREERTOS.md) |
 
@@ -85,7 +89,7 @@ The frozen reference models predate `M` and can only report every M encoding as 
 | [test/asm/mul.s](../test/asm/mul.s) | 19 operand rows × 4 forms plus aliasing, `x0` destination and forwarding cases. `mulhsu` is run in **both operand orders** for every mixed-sign case — it is the only one of the four that is not commutative, and the expected values differ. |
 | [test/asm/div.s](../test/asm/div.s) | All four quadrants of truncating division, divide-by-zero for all four instructions over six dividends, the `-2³¹ / -1` overflow, dependent divide chains, quotients used as load/store addresses, divides in front of taken and not-taken branches, and an external interrupt swept across the 34-cycle window — when the unit was added, 20 of the sweep's flushes landed on an unfinished divide ([record](../results/history/2026-08-18_c00c4db/RECORD.md)). |
 | [test/c/m_extension.c](../test/c/m_extension.c) | 200 differential checks against **libgcc**: each pair is computed once by a hardware M instruction and once by `__mulsi3`/`__muldi3`/`__divsi3`/`__modsi3`/`__udivsi3`/`__umodsi3`, which are independent RV32I software running on the same core. The two inputs that are undefined behaviour in C are checked against the mandated constants instead. |
-| [test/sv/test_zba_encoding_sweep.sv](../test/sv/test_zba_encoding_sweep.sv) | The 290,288-word decoder sweep now also requires the DUT to match the reference everywhere except the Zba **and** M words, so a decode arm that is too broad still shows up as a leak. |
+| [test/sv/test_zba_encoding_sweep.sv](../test/sv/test_zba_encoding_sweep.sv) | The decoder sweep (486,896 words; 290,288 before the Zbb, Zbs and Zicond sweeps were added) also requires the DUT to match the reference everywhere except the Zba **and** M words (and, since they were added, the Zbb, Zbs and Zicond words), so a decode arm that is too broad still shows up as a leak. |
 
 ```bash
 make test/sv/test_m_execute
@@ -96,8 +100,8 @@ make test/c/m_extension
 
 ### Implementation Notes
 
-- **FPGA timing is marginal.** The RTL meets timing on the `xc7a35tcpg236-1` at 20 ns (50 MHz): post-route **WNS +0.016 ns**, 0 failing endpoints of 11070 (Vivado 2024.2; a repeated run of the same flow gives the same result). That was measured at commit cbae9b9; the current RTL differs from it only by the one-line UART fix of 03386fd and has not itself been implemented ([record](../results/fpga-timing/2026-09-30_cbae9b9/RECORD.md)). Its worst path starts at the block RAM, which delivers the fetched instruction on the falling clock edge, and runs through the branch predictor and the adder of the speculative PC to the Fetch stage's PC register, so it has half a clock period, 10 ns: 14 logic levels, 7 of them carry-chain stages, with about 53 % of the delay in logic. The history below explains why the margin is this thin. With the same flow, the commit that added M (c00c4db) reported post-route **WNS −0.120 ns** with 2 failing endpoints of 11214, while its parent reported **+0.026 ns** with none ([record](../results/fpga-timing/2026-08-18_c00c4db/RECORD.md)). A bitstream is still produced — `write_bitstream` does not check timing — so a successful `make synthesis` is *not* evidence of closure; read `build/synth/reports/timing_pnr.rpt`. Two caveats matter before blaming the multiplier. First, **no M cell appeared in the 40 worst paths** of a second implementation of the same RTL, run with extra reporting commands (WNS −1.054 ns): there the multiply closed with +6.15 ns and the divider with +10.19 ns. The failing path was a pre-existing 21-level, ~85 %-route path from the Memory stage's instruction register, through the waived `LUTLP-1` combinational-loop tangle, to the `mcause` register's clock enable — M's ~9 % area growth degraded its routing rather than lengthening its logic. Second, **small RTL changes move the worst path and change its slack**: the recorded `make synthesis` results of earlier revisions range from −0.120 ns to +0.242 ns, the same RTL implemented with extra reporting commands ended about 1 ns lower (−1.054 ns for c00c4db, −0.883 ns for its parent; [records](../results/README.md#fpga-timing)), and the worst path has moved since, so a single result cannot cleanly attribute the 0.15 ns that M cost. The honest summary is that the design has been running at roughly zero margin since before M — the +0.221 ns recorded with the branch-predictor bitstream (commit 15b0b85, [record](../results/fpga-timing/2026-08-17_15b0b85/RECORD.md)) predates the `Zicntr` and `Zba` commits — and the real fix is to shorten these long paths rather than to pipeline the multiplier further.
-- **The M results bypass `alu_sel` entirely.** `alu_sel` is a 4-bit local with only `1110`/`1111` free, and it is internal to `execute_stage` (not a struct field or port), so widening it would have been safe with respect to the frozen models. It was not widened anyway: half the M results come out of a sequential FSM and cannot be arms of the `always_comb` case that computes `alu_result`, and this design has essentially no timing margin to spend restructuring a block already near the critical path (see the FPGA timing note above). `m_result` is a second result bus that meets the ALU at the `rd_data` mux — one extra 2:1 level instead of six extra arms inside the ALU mux.
+- **FPGA timing is marginal.** The RTL meets timing on the `xc7a35tcpg236-1` at 20 ns (50 MHz): post-route **WNS +0.016 ns**, 0 failing endpoints of 11070 (Vivado 2024.2; a repeated run of the same flow gives the same result). That was measured at commit cbae9b9; the current RTL differs from it by the one-line UART fix of 03386fd and by the Zbb, Zbs and Zicond unit in Execute (and its decoder), and has not itself been implemented ([record](../results/fpga-timing/2026-09-30_cbae9b9/RECORD.md)); see the [timing note of Zbb and Zbs](#implementation-notes-5). Its worst path starts at the block RAM, which delivers the fetched instruction on the falling clock edge, and runs through the branch predictor and the adder of the speculative PC to the Fetch stage's PC register, so it has half a clock period, 10 ns: 14 logic levels, 7 of them carry-chain stages, with about 53 % of the delay in logic. The history below explains why the margin is this thin. With the same flow, the commit that added M (c00c4db) reported post-route **WNS −0.120 ns** with 2 failing endpoints of 11214, while its parent reported **+0.026 ns** with none ([record](../results/fpga-timing/2026-08-18_c00c4db/RECORD.md)). A bitstream is still produced — `write_bitstream` does not check timing — so a successful `make synthesis` is *not* evidence of closure; read `build/synth/reports/timing_pnr.rpt`. Two caveats matter before blaming the multiplier. First, **no M cell appeared in the 40 worst paths** of a second implementation of the same RTL, run with extra reporting commands (WNS −1.054 ns): there the multiply closed with +6.15 ns and the divider with +10.19 ns. The failing path was a pre-existing 21-level, ~85 %-route path from the Memory stage's instruction register, through the waived `LUTLP-1` combinational-loop tangle, to the `mcause` register's clock enable — M's ~9 % area growth degraded its routing rather than lengthening its logic. Second, **small RTL changes move the worst path and change its slack**: the recorded `make synthesis` results of earlier revisions range from −0.120 ns to +0.242 ns, the same RTL implemented with extra reporting commands ended about 1 ns lower (−1.054 ns for c00c4db, −0.883 ns for its parent; [records](../results/README.md#fpga-timing)), and the worst path has moved since, so a single result cannot cleanly attribute the 0.15 ns that M cost. The honest summary is that the design has been running at roughly zero margin since before M — the +0.221 ns recorded with the branch-predictor bitstream (commit 15b0b85, [record](../results/fpga-timing/2026-08-17_15b0b85/RECORD.md)) predates the `Zicntr` and `Zba` commits — and the real fix is to shorten these long paths rather than to pipeline the multiplier further.
+- **The M results bypass `alu_sel` entirely.** `alu_sel` is a 4-bit local with only `1110`/`1111` free (`1110` has since been taken by the Zbb, Zbs and Zicond unit), and it is internal to `execute_stage` (not a struct field or port), so widening it would have been safe with respect to the frozen models. It was not widened anyway: half the M results come out of a sequential FSM and cannot be arms of the `always_comb` case that computes `alu_result`, and this design has essentially no timing margin to spend restructuring a block already near the critical path (see the FPGA timing note above). `m_result` is a second result bus that meets the ALU at the `rd_data` mux — one extra 2:1 level instead of six extra arms inside the ALU mux.
 - **The multiply is registered, not combinational.** A 33×33 signed product is an array of DSP48E1 tiles plus an adder tree; run with no internal pipeline register it is comfortably the deepest combinational block in the core, and it would land on a path that runs from Decode's output registers through the multiplier, the `rd_data` mux and the forwarding network back into Decode's output registers — one 20 ns period, in a design with almost no margin to give. Registering the product puts a flop directly on the multiplier output. The price is one stall cycle, and since the divider needs the stall generator anyway it costs no extra machinery. Measured on the routed design the multiply path closes with **+6.15 ns** of slack ([record](../results/fpga-timing/2026-08-18_c00c4db/RECORD.md)), so the decision is vindicated — though Vivado did *not* absorb the flop into the DSP48E1's `P` register as intended, because the `MUL`-vs-`MULH` output mux sits between the DSP cascade and the register. Registering the full 64-bit product and muxing after the flops would allow that, at the cost of 32 extra FFs; it is not needed at this margin.
 - **Restoring division on magnitudes.** Restoring and non-restoring need the same 32 iterations, but restoring needs no final correction step: the inner loop is one 33-bit subtract whose borrow *is* the quotient bit. Signs are stripped on the way in and reapplied on the way out, which is exactly the truncate-toward-zero rounding RISC-V specifies — and it makes the remainder follow the dividend for free. `abs(0x80000000)` is `0x80000000`, which read as unsigned is the correct magnitude 2³¹, so the most-negative value needs no special case in the datapath.
 - **New ops were again appended *after* `ILLEGAL`** in [defines/op.sv](../defines/op.sv), for the reason the `Zba` notes give. Codes 0–52 are bit-identical and M claims 53–60: **61 of 64 codes used**, so `op::t` is still 6 bits and `instruction::t` still 65 bits. The encoding sweep asserts both widths and the exact enum positions on every run.
@@ -126,7 +130,7 @@ The frozen reference models predate `Zba` and can only report it as illegal, so 
 |---|---|
 | [test/asm/zba.s](../test/asm/zba.s) | 23 blocks / 62 assertions: zero and `x0` operands, `rd`/`rs1`/`rs2` aliasing, negative `rs1` with the sign bit shifted out, 32-bit overflow wrap, and forwarding from all three stages including into load/store addresses |
 | [test/asm/zbaadv.s](../test/asm/zbaadv.s) | 49 adversarial tests / 103 assertions written independently, including operand-order traps and pipeline-position interactions |
-| [test/sv/test_zba_encoding_sweep.sv](../test/sv/test_zba_encoding_sweep.sv) | 290,288-word DUT-vs-reference decoder sweep, plus enum and struct width assertions |
+| [test/sv/test_zba_encoding_sweep.sv](../test/sv/test_zba_encoding_sweep.sv) | DUT-vs-reference decoder sweep, plus enum and struct width assertions: 486,896 words, 290,288 of them before the [Zbb, Zbs and Zicond](#verification-5) sweeps were added |
 
 ```bash
 make test/asm/zba
@@ -139,7 +143,7 @@ make test/sv/test_zba_encoding_sweep
 ### Implementation Notes
 
 - **Assembled via a directive, not a global flag.** [test/asm/zba.s](../test/asm/zba.s) carries `.option arch, +zba` rather than adding `-march=rv32i_zba` to the Makefile. This keeps the requirement next to the file that needs it and preserves the Makefile's property of specifying no `-march` at all; a global flag would silently permit `Zba` in every other assembly test.
-- **New ops were appended *after* `ILLEGAL` in [defines/op.sv](../defines/op.sv).** `op::t` values are positional, and [test/sv/test_execute_compare.sv](../test/sv/test_execute_compare.sv) feeds `op::ILLEGAL` directly into a frozen reference model. Inserting ahead of `ILLEGAL` would have renumbered it from 49 to 52 and handed the golden model a code it has never seen. The enum stays 6 bits and `instruction::t` stays 65 bits, so every reference port width is unchanged — `Zba` took the count to 53 of 64, and the `M` extension appended after it takes it to 61.
+- **New ops were appended *after* `ILLEGAL` in [defines/op.sv](../defines/op.sv).** `op::t` values are positional, and [test/sv/test_execute_compare.sv](../test/sv/test_execute_compare.sv) feeds `op::ILLEGAL` directly into a frozen reference model. Inserting ahead of `ILLEGAL` would have renumbered it from 49 to 52 and handed the golden model a code it has never seen. The enum stays 6 bits and `instruction::t` stays 65 bits, so every reference port width is unchanged — `Zba` took the count to 53 of 64, the `M` extension appended after it took it to 61, and `EXT`, the one op of [Zbb, Zbs and Zicond](#design-one-op-the-sub-operation-in-the-immediate), to 62.
 - **Three fixed shifts, not one variable shift.** Each `alu_sel` arm hardwires its shift amount, which is free wiring into the existing adder. A single parameterised arm would need a shift-amount signal crossing the `alu_sel` boundary and would likely infer a second barrel shifter beside the one `SLL`/`SRL`/`SRA` already share — a poor trade on a design with this timing margin.
 
 ## Zicntr — User-Mode Counters
@@ -385,3 +389,131 @@ python3 test/trapsweep/sweep.py run --fam bp
 - **Mode 0 is zero-overhead.** When `MHPMEVENT10 = 0`, `predicted_taken = 0` unconditionally. `is_mispredicted_branch` reduces to `is_branch && branch_taken && VALID`, which is the original `jump_detected` formula, and `next_pc` reduces to the original expression. The pipeline behaves identically to unmodified HaDes-V.
 - **The prediction never reaches architectural state.** It only decides whether Execute flushes. `next_program_counter`, which becomes `MEPC` for an interrupt taken right after the branch, is always the resolved successor (see [Execute stage](#branch-predictor-extension) above).
 - **Simulator echo.** [lib/wishbone/wishbone_uart.sv](../lib/wishbone/wishbone_uart.sv) includes an `always @(posedge clk)` block that calls `$write("%c", byte)` whenever a TX buffer write is detected, echoing UART output to Verilator's stdout. This is purely a simulation convenience; `$write` is ignored by synthesis tools.
+
+## Zbb and Zbs — Bit Manipulation (B)
+
+`Zbb` (basic bit manipulation, 18 instructions on RV32) and `Zbs` (single-bit instructions, 8) are the other two parts of the ratified **B** extension. With Zba, Zbb and Zbs, HaDes-V+ implements the ratified B extension (B = Zba + Zbb + Zbs, "'B' Extension for Bit Manipulation", Version 1.0.0). Every instruction is a single-cycle operation in Execute with the forwarding of an `add`; none of them can raise an exception.
+
+`misa` reads 0 on HaDes-V+ (it is not implemented, as before), so its B bit (bit 1) is not set either; unlike the Z extensions, B is a single letter and has a `misa` bit, but the core reports no extension there.
+
+**Zbb** (OP = `0110011`, OP-IMM = `0010011`; for the unary forms the `rs2` field is part of the opcode):
+
+| Instruction | Opcode | funct7 | rs2 field | funct3 | Operation |
+|---|---|---|---|---|---|
+| `andn` | OP | `0100000` | rs2 | `111` | `rd = rs1 & ~rs2` |
+| `orn` | OP | `0100000` | rs2 | `110` | `rd = rs1 \| ~rs2` |
+| `xnor` | OP | `0100000` | rs2 | `100` | `rd = ~(rs1 ^ rs2)` |
+| `clz` | OP-IMM | `0110000` | `00000` | `001` | leading zeros of rs1 (32 for 0) |
+| `ctz` | OP-IMM | `0110000` | `00001` | `001` | trailing zeros of rs1 (32 for 0) |
+| `cpop` | OP-IMM | `0110000` | `00010` | `001` | set bits of rs1 |
+| `max` / `maxu` | OP | `0000101` | rs2 | `110` / `111` | the larger of rs1, rs2 (signed / unsigned) |
+| `min` / `minu` | OP | `0000101` | rs2 | `100` / `101` | the smaller of rs1, rs2 (signed / unsigned) |
+| `sext.b` | OP-IMM | `0110000` | `00100` | `001` | rs1[7:0] sign-extended |
+| `sext.h` | OP-IMM | `0110000` | `00101` | `001` | rs1[15:0] sign-extended |
+| `zext.h` | OP | `0000100` | `00000` | `100` | rs1[15:0] zero-extended |
+| `rol` / `ror` | OP | `0110000` | rs2 | `001` / `101` | rs1 rotated left / right by rs2[4:0] |
+| `rori` | OP-IMM | `0110000` | shamt | `101` | rs1 rotated right by shamt |
+| `orc.b` | OP-IMM | `0010100` | `00111` | `101` | each byte of rs1 becomes `0x00` if it is zero, else `0xFF` |
+| `rev8` | OP-IMM | `0110100` | `11000` | `101` | the byte order of rs1 reversed |
+
+**Zbs** (the bit number is rs2[4:0] or shamt):
+
+| Instruction | Opcode | funct7 | funct3 | Operation |
+|---|---|---|---|---|
+| `bclr` / `bclri` | OP / OP-IMM | `0100100` | `001` | `rd = rs1 & ~(1 << n)` |
+| `bext` / `bexti` | OP / OP-IMM | `0100100` | `101` | `rd = (rs1 >> n) & 1` |
+| `binv` / `binvi` | OP / OP-IMM | `0110100` | `001` | `rd = rs1 ^ (1 << n)` |
+| `bset` / `bseti` | OP / OP-IMM | `0010100` | `001` | `rd = rs1 \| (1 << n)` |
+
+On RV32 the immediate forms (`rori`, `bclri`, `bexti`, `binvi`, `bseti`) are legal only with `shamt[5] = 0`; the other half of their encodings, the RV64-only word forms under OP-32 and OP-IMM-32 (`clzw`, `rolw`, the RV64 `zext.h`, ...) and every other neighbour stay illegal instructions, as before.
+
+**The compiler emits most of them for you.** Built with `-march=rv32im_zba_zbb_zbs` (GCC 12 does not accept the single letter `b`) and optimisation, GCC turns ordinary C into these instructions: `__builtin_popcount` into `cpop`, `__builtin_clz`/`__builtin_ctz` into `clz`/`ctz`, `a < b ? a : b` into `min`/`minu`, casts to `int8_t`/`int16_t`/`uint16_t` into `sext.b`/`sext.h`/`zext.h`, `a & ~b` into `andn`, `(x >> n) | (x << (32 - n))` into `ror`/`rori`, and `x | (1u << n)` into `bset`. Three need inline assembly with GCC 12 on RV32: `rev8` (`__builtin_bswap32` becomes a call to `__bswapsi2`), `orc.b`, and, depending on the idiom, `bclr`, `bext` and `binv` (when GCC sees the bit number masked with `& 31`, it uses `bset` with `andn`, `srl` with `andi`, or `bset` with `xor`). The example app [`bitmanip`](APPS.md#the-example-apps) shows each idiom.
+
+### Design: one op, the sub-operation in the immediate
+
+`op::t` had three free codes left (61 to 63), not 28, and its 6-bit width and the 65-bit `instruction::t` are shared with the frozen golden stage libraries, so neither could grow. All 28 Zbb, Zbs and Zicond instructions therefore share **one** new op, `op::EXT` = 61, appended after `REMU` as Zba and M were appended after `ILLEGAL` (62 of 64 codes in use). The decoder says which instruction it is through the `immediate` field of `instruction::t`, which R-type instructions never used: a 32-bit payload, `op::ext_payload_t` in [defines/op.sv](../defines/op.sv), with a 5-bit sub-operation `{group, variant}`, a `use_imm` bit and the 5-bit shift amount of the immediate forms. The payload is canonical (unused bits are 0), so the decoder sweep can require it exactly. The sub-operation reaches Execute in a field that already exists, without a new port.
+
+In [rtl/execute_stage.sv](../rtl/execute_stage.sv) (Part 2c) the eight groups are computed in parallel from rs1, rs2 and the payload, and one 8-way select picks the group; the result enters the ALU's result mux through the free `alu_sel` code `1110`, so it is written, forwarded and committed like an `add`:
+
+| Group | Instructions | Hardware |
+|---|---|---|
+| LOGIC | `andn`, `orn`, `xnor` | rs1 combined with `~rs2`, one gate level |
+| COUNT | `clz`, `ctz`, `cpop` | one leading-zero counter built as a tree (`ctz` is `clz` of the bit-reversed word, which is wiring) and an adder tree for `cpop` |
+| MINMAX | `min`, `minu`, `max`, `maxu` | one comparator; flipping both sign bits turns the unsigned compare into a signed one |
+| EXTEND | `sext.b`, `sext.h`, `zext.h` | wiring and a select |
+| ROTATE | `rol`, `ror`, `rori` | one right-rotator; `rol` by s is `ror` by (32 − s) mod 32 |
+| BYTE | `orc.b`, `rev8` | gates and wiring |
+| BIT | `bclr`, `bext`, `binv`, `bset` and the immediate forms | a one-hot mask `1 << n`; `bext` reuses the rotator |
+| CZERO | `czero.eqz`, `czero.nez` | a zero test of rs2 and a select ([Zicond](#zicond--conditional-zero)) |
+
+Hazards, interrupts and the rest of the pipeline are unchanged: every op-dependent site of the RTL treats `EXT` as an ordinary ALU operation (no stall, no jump, no bus access, counted in `minstret`). A dependent instruction right behind an `EXT` instruction gets its result forwarded without a stall; a load followed by an `EXT` instruction that reads the loaded register stalls one cycle, as for any ALU instruction.
+
+### Verification
+
+The frozen reference models decode every Zbb, Zbs and Zicond word as an illegal instruction, so they cannot check these instructions; the golden CPU never runs them. Correctness rests on models written from the ratified ISA text without reading the RTL: [test/ext/ref.py](../test/ext/ref.py) (Python, on bit strings), [test/ext/ref_exh.c](../test/ext/ref_exh.c) (C, fast enough for all 2^32 inputs) and the instruction-set model [test/trapsweep/iss.py](../test/trapsweep/iss.py), which `ref.py --selftest` checks against each other ([test/ext/README.md](../test/ext/README.md)). The outputs below are recorded in [results/bitmanip](../results/bitmanip/2026-10-02_e75223e/RECORD.md), and the decoder sweep in [results/tests](../results/tests/2026-10-01_03386fd/RECORD.md).
+
+| Test | What it covers |
+|---|---|
+| [test/sv/test_zba_encoding_sweep.sv](../test/sv/test_zba_encoding_sweep.sv) | The decoder sweep, extended: 486,896 words, among them every OP-IMM immediate × `funct3`, every OP `funct7` × rs2 field × `funct3`, and every OP-32 and OP-IMM-32 `funct7` × rs2 field × `funct3` (the RV64 word forms). Each of the 28 forms must decode to `op::EXT` with the exact payload, checked against the MATCH/MASK table of the ISA manual; every other word must decode as the golden decoder decodes it |
+| [test/sv/test_ext_execute.sv](../test/sv/test_ext_execute.sv) | 927,129 checks of the Execute stage alone: known answers, every form on a 144-value corner set, random operands, and the pipeline protocol (forwarded in its own cycle, no stall) |
+| `make ext-check` | The decoder feeding Execute ([test/ext/harness.sv](../test/ext/harness.sv)) against `ref_exh.c`, compared through digests: 75 digest lines, 553,624,832 vectors, identical |
+| `make ext-exhaustive` | The same with the eight unary instructions (`clz`, `ctz`, `cpop`, `sext.b`, `sext.h`, `zext.h`, `orc.b`, `rev8`) over **all 2^32 inputs**: 2,091 digest lines, 34,376,492,288 vectors, identical (about 14 minutes with 4 jobs) |
+| [test/asm/zbb.s](../test/asm/zbb.s), [zbs.s](../test/asm/zbs.s) | 442 and 374 assertions on the whole core: the known answers of the ISA text and corner operands, every rotate amount and bit index (with the upper 27 bits of rs2 set, which must be ignored), `x0` and aliased registers, forwarding into rs1 and rs2 at distance 1 to 3 and out into an ALU operation, a branch, a load address, store data, a `jalr` base and a CSR write, the shadow of a taken branch, an interrupt at every position of a chain, `minstret`, a dependent chain as fast as a chain of `add`, and the illegal neighbours (RV32-reserved, Zbc, Zbkb, Zbkx and RV64 encodings), which must trap with `mcause = 2` |
+| Random programs (`sweep.py fuzz --variant b`) | 1,000 random programs mixing the 28 forms with RV32IM, Zba, loads, stores and branches, each run replayed by the instruction-set model: 1,000 of 1,000 consistent |
+| Interrupt-offset sweep (`sweep.py run --fam ext`) | 31 probes (every form, dependent chains, a load result used at once, M neighbours, `ecall`, `mret`, results to `x0`, illegal neighbours, use in the interrupt handler) swept over every interrupt offset with the external and timer interrupts: 3 of 3 programs consistent with the model |
+| `make bench-zbb` | The same C programs built for `rv32i`, `rv32i_zbb_zbs` and `rv32im_zba_zbb_zbs` must print the same values; `zbb_diff` compares 52,436 results of all 28 forms with RV32I code, with no mismatch (below) |
+| FreeRTOS (`campaign.py --set bitmanip`) | The existing FreeRTOS programs built for `rv32im_zba_zbb_zbs` (the `brk` program for `rv32im_zba_zbb`, see below) at `-O2`, `-Os` and `-O0`, with preemption and the branch predictor varied, 8 seeds each: 120 of 120 runs passed on HaDes-V+ (their own self-checks; the golden CPU cannot run them) |
+| The app [`bitmanip`](APPS.md#the-example-apps) | Its four sections pass on HaDes-V+ in the `rv32im_zba_zbb_zbs` build, which contains all 28 forms, with the values of its `rv32i` build, which passes on both CPUs |
+
+```bash
+make test/sv/test_zba_encoding_sweep
+make test/sv/test_ext_execute
+make ext-check                      # under a minute; make ext-exhaustive: all 2^32 inputs
+make test/asm/zbb
+make test/asm/zbs
+make bench-zbb                      # OPT=-Os, OPT=-O0
+python3 test/trapsweep/sweep.py fuzz --seeds 1001-2000 --variant b --targets dut --jobs 4
+```
+
+`make bench-zbb` measures the effect ([test/bench/zbb/](../test/bench/zbb), [guide](../test/bench/README.md#make-bench-zbb)). Its timed program, `zbb_bench`, is a best case: a loop of the code these extensions were made for (population counts, bit scans, clamps, packed samples, masks, rotates and a bitmap). At `-O2` it runs in **59.8 % fewer cycles** with Zbb and Zbs (302,330 → 121,388, 2.49×; with M and Zba as well, 119,852), and its image shrinks from 1,636 to 904 bytes; at `-Os` the gain is 62.0 %, and at `-O0`, where GCC still uses some of the instructions, 27.4 % ([record](../results/zbb/2026-10-02_e75223e/RECORD.md)). On ordinary code the gain is much smaller: in the FreeRTOS programs, GCC uses 12 of the 26 Zbb and Zbs forms, mostly `sext.b`, `zext.h`, `andn` and `bset`.
+
+A mutation campaign during development checked that these tests can fail: hand-written faults in the decoder and in Execute (a wrong `funct3`, swapped signedness of `min`/`max`, `clz` off by one, the rotate direction reversed, `shamt[5]` not checked, the `czero` condition inverted, wrong sub-operation codes, and more) were each applied to a copy of the RTL. Every fault that changes a result was caught; two that cannot change any result were shown equivalent ([record](../results/bitmanip/2026-10-02_e75223e/RECORD.md#mutation-testing)).
+
+### Implementation Notes
+
+- **One op instead of 28.** See the design above. A consequence that applies to M and Zba already: in a mixed pipeline of HaDes-V+ and golden stages, the HaDes-V+ Decode stage would hand a golden Execute stage code 61, which it does not know; only the full HaDes-V+ pipeline executes the extension ops.
+- **Assembled via a directive.** As with Zba, [test/asm/zbb.s](../test/asm/zbb.s) and [zbs.s](../test/asm/zbs.s) carry `.option arch, +zbb, +zbs`; the Makefile still gives no `-march`. The RV32-reserved words (`shamt[5] = 1`) cannot be written as mnemonics, so the tests write them with `.word`; binutils 2.39 disassembles them as if they were legal, so its output is no legality oracle for them.
+- **A GCC 12.2 crash with Zbs.** With Zbs enabled, GCC 12.2 stops with an internal compiler error ("unrecognizable insn") on a conditional set or clear of bit 11, for example `e ? m | 2048u : m & ~2048u`. Two existing sources contain such code: `std/src/helperfunctions.c` (`enableDisable_externalInterrupts`) and the FreeRTOS program `brk`. `make bench-zbb` therefore builds the std objects for `rv32i`, and the campaign builds `brk` for `rv32im_zba_zbb`. Newer GCC versions were not tried.
+- **Timing was not measured after this change.** The unit adds about 3 to 5 LUT levels before the ALU select on the full-cycle Execute → forwarding path and an estimated 500 to 700 LUTs (an estimate, not a measurement). The recorded worst path does not pass through Execute, but its margin is within routing noise, so the area may move it. The RTL has not been implemented since the change; see [Status and Limitations](../README.md#status-and-limitations).
+- **Data-independent timing.** Every instruction of these extensions takes one cycle whatever its operands hold (the Execute unit has no state and never stalls). [test/asm/zkt.s](../test/asm/zkt.s) times blocks of identical instructions with `mcycle` for a set of operand values and requires exactly one cycle per instruction for the RV32I ALU instructions, the Zbb instructions of the Zkt list and `czero.*`, and exactly two for `mul`/`mulh`/`mulhsu`/`mulhu` (199 assertions); [test/asm/hints.s](../test/asm/hints.s) checks that the hint encodings `pause` and `ntl.*` change nothing and retire as one instruction each (57 assertions). The ISA string does not claim Zkt, Zihintpause or Zihintntl.
+
+## Zicond — Conditional Zero
+
+`Zicond` adds two instructions that make a value zero depending on a condition register. With an `or` they form a branch-free select, which replaces a short branch that the predictor might get wrong:
+
+| Instruction | Opcode | funct7 | funct3 | Operation |
+|---|---|---|---|---|
+| `czero.eqz` | OP | `0000111` | `101` | `rd = (rs2 == 0) ? 0 : rs1` |
+| `czero.nez` | OP | `0000111` | `111` | `rd = (rs2 != 0) ? 0 : rs1` |
+
+They are part of `op::EXT` (the CZERO group, see [the design](#design-one-op-the-sub-operation-in-the-immediate)) and take one cycle; the condition is rs2, never rs1.
+
+**How to use Zicond from C.** GCC 12.2 and binutils 2.39 cannot assemble the `czero` mnemonics and never emit them, and `-march` does not accept `_zicond`. [std/include/zicond.h](../std/include/zicond.h) emits the instructions with `.insn`, which works whatever `-march` says:
+
+```c
+#include "zicond.h"
+
+uint32_t czero_eqz( uint32_t value, uint32_t condition );                        /* condition == 0 ? 0 : value */
+uint32_t czero_nez( uint32_t value, uint32_t condition );                        /* condition != 0 ? 0 : value */
+uint32_t zicond_select( uint32_t condition, uint32_t if_nonzero, uint32_t if_zero );   /* czero.eqz, czero.nez, or */
+uint32_t zicond_add_if( uint32_t condition, uint32_t a, uint32_t b );            /* condition != 0 ? a + b : a */
+
+/* for example, a clamp without a branch */
+x = zicond_select( ( uint32_t ) ( lX < -1000 ), ( uint32_t ) -1000, x );
+```
+
+`std/include` is on the include path of the C tests, the benchmarks and the app SDK. The functions are `static inline`, and the `asm` statements are not `volatile`, so GCC may combine or drop them like other arithmetic. A program that must also run on a CPU without Zicond (the golden CPU, for example, where `czero` raises an illegal-instruction exception) defines `ZICOND_PORTABLE` before the include and gets the same functions in branch-free C. An app of the loader can ask at run time: `app_cpu() & HADES_APP_CPU_ZICOND` ([APPS.md](APPS.md#the-app-api)).
+
+### Verification
+
+The tests of [Zbb and Zbs](#verification-5) cover Zicond as well: the decoder sweep, `test_ext_execute`, `make ext-check` (including 4,096 zero conditions per form), the random programs and the interrupt sweep. [test/asm/zicond.s](../test/asm/zicond.s) (190 assertions) checks the polarity of both instructions with every single-bit condition (the value rs1 is never tested), the select idiom, `x0` as destination, value and condition, aliased registers, a zero condition forwarded, forwarding in and out as for Zbb, an interrupt at every position of a chain, and the illegal neighbours. `zbb_diff` and phase 8 of `zbb_arr` in `make bench-zbb` use `zicond.h`, and the `rv32i` build of `zbb_arr` (with `ZICOND_PORTABLE`) must print the same values.

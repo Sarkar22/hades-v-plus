@@ -50,7 +50,7 @@ exactly that text, because the scripted sessions check it. The user's guide is
 ```text
 $ make freertos-shell APP=loader
 ...
-[console] the apps for 'load <name>': compute crash hello selfmod upper
+[console] the apps for 'load <name>': bitmanip compute crash hello selfmod upper
 ...
 hades> load hello
 load: waiting for hello (Ctrl-C cancels)
@@ -311,6 +311,8 @@ normative as given here; comments may be worded differently.
 #define HADES_APP_STACK_DEFAULT    4096u
 #define HADES_APP_NEEDS_M          ( 1u << 0 )   /* ulFlags: compiled for M */
 #define HADES_APP_NEEDS_ZBA        ( 1u << 1 )   /* ulFlags: compiled for Zba */
+#define HADES_APP_NEEDS_ZBB        ( 1u << 2 )   /* ulFlags: compiled for Zbb */
+#define HADES_APP_NEEDS_ZBS        ( 1u << 3 )   /* ulFlags: compiled for Zbs */
 
 typedef struct
 {
@@ -333,6 +335,9 @@ _Static_assert( sizeof( HadesAppHeader_t ) == HADES_APP_HEADER_SIZE, "HadesAppHe
 #define HADES_APP_CPU_M            ( 1u << 0 )   /* ulCpu: the CPU executes M */
 #define HADES_APP_CPU_ZBA          ( 1u << 1 )   /*        ... Zba */
 #define HADES_APP_CPU_ZICNTR       ( 1u << 2 )   /*        ... reads cycle, time, instret */
+#define HADES_APP_CPU_ZBB          ( 1u << 3 )   /*        ... Zbb */
+#define HADES_APP_CPU_ZBS          ( 1u << 4 )   /*        ... Zbs */
+#define HADES_APP_CPU_ZICOND       ( 1u << 5 )   /*        ... Zicond (czero.eqz, czero.nez) */
 
 typedef struct HadesApi
 {
@@ -403,7 +408,9 @@ extern const HadesApi_t * hades_api;            /* set by crt0.S before main() r
 /* Ends the app with this exit code, as returning it from main() does; does not return. */
 #define app_exit( code )           ( hades_api->pxExit( code ) )
 
-/* What the CPU executes: HADES_APP_CPU_M, HADES_APP_CPU_ZBA, HADES_APP_CPU_ZICNTR. */
+/* What the CPU executes: HADES_APP_CPU_M, _ZBA, _ZICNTR, _ZBB, _ZBS and _ZICOND. Zicond has no
+ * -march of its own (std/include/zicond.h emits its instructions): an app that uses it checks
+ * HADES_APP_CPU_ZICOND first. */
 #define app_cpu()                  ( hades_api->ulCpu )
 
 /* mcycle as 64 bits (high, low, high read); both CPUs implement it. */
@@ -672,7 +679,7 @@ non-empty lines received so far, the current one included; addresses are eight l
 hexadecimal digits, record types two. In `address 0x<a> is outside the app slot`, `<a>` is the
 record's first address: both ends of the slot are 64 KiB boundaries, which a record that passed
 the check before cannot cross, so a record lies wholly inside the slot or wholly outside it. In
-`unknown flags 0x<f>`, `<f>` holds only the unknown bits (`ulFlags` without bits 0 and 1). Every
+`unknown flags 0x<f>`, `<f>` holds only the unknown bits (`ulFlags` without bits 0 to 3). Every
 reason in the table of section 9.5 was checked against a reference implementation of these
 rules.
 
@@ -977,7 +984,7 @@ The app task's function (in the shell) calls `ulEntry` as a `HadesAppEntry_t`:
 |---|---|
 | `ulAbi` | 1 |
 | `ulSize` | `sizeof( HadesApi_t )` in the shell (section 3.7) |
-| `ulCpu` | what the CPU executes, from the shell's start-up probe: `HADES_APP_CPU_M`, `_ZBA`, `_ZICNTR` |
+| `ulCpu` | what the CPU executes, from the shell's start-up probe: `HADES_APP_CPU_M`, `_ZBA`, `_ZICNTR`, `_ZBB`, `_ZBS`, `_ZICOND` (the last three probed only in the loader's build, with `clz`, `bset` and `czero.eqz`) |
 | `ulTickHz` | 1000 (`configTICK_RATE_HZ`) |
 | `ulCyclesPerTick` | clock cycles per tick (`TICK=`, 10000 by default) |
 | `pxPutc( c )` | one character |
@@ -1004,8 +1011,9 @@ following, and cannot enforce any of it.
 
 An app may:
 
-* use RV32I, and M and Zba if it was built for them (`load` records them in `ulFlags`, and `run`
-  refuses an app that needs an extension the CPU lacks); read `mcycle`, `mcycleh`, `minstret`
+* use RV32I, and M, Zba, Zbb and Zbs if it was built for them (`load` records them in `ulFlags`,
+  and `run` refuses an app that needs an extension the CPU lacks), and Zicond where `app_cpu()` has
+  `HADES_APP_CPU_ZICOND`; read `mcycle`, `mcycleh`, `minstret`
   and `minstreth` (both CPUs), and the Zicntr counters `cycle`, `time` and `instret` where
   `app_cpu()` has `HADES_APP_CPU_ZICNTR` (HaDes-V+ only);
 * write into its own memory, code included, and execute `fence.i` before running what it wrote;
@@ -1044,7 +1052,8 @@ The `run` command, in the console task:
 2. more than 8 arguments: `error: at most 8 arguments`;
 3. the header's `ulFlags` names an extension that the start-up probe did not find:
    `error: <name> was built for <isa>, but this CPU has no <missing>`, with `<isa>` as in
-   section 8.6 and `<missing>` one of `M`, `Zba`, `M and no Zba`;
+   section 8.6 and `<missing>` the extensions it lacks, in the order M, Zba, Zbb, Zbs, joined as
+   `M`, `M and no Zba`, `M, no Zba, no Zbb and no Zbs`;
 4. the CRC-32 of the saved copy differs from the header's:
    `error: the saved copy of <name> is damaged (CRC32 0x<c> instead of 0x<h>); load it again`,
    and the app is unloaded;
@@ -1295,7 +1304,7 @@ load: waiting for hello (Ctrl-C cancels)
 loaded hello: 1048 bytes at 0x00060000, entry 0x00060040, CRC32 0x5b1e2f07
 hades> load helo
 load: waiting for helo (Ctrl-C cancels)
-load failed: no app 'helo' (the apps: compute crash hello selfmod upper)
+load failed: no app 'helo' (the apps: bitmanip compute crash hello selfmod upper)
 hades> load
 load: waiting for an Intel HEX file (Ctrl-C cancels)
 ```
@@ -1319,8 +1328,9 @@ isa:       rv32i
 memory:    image 72 + bss 0 + stack 1024 + saved copy 80 = 1176 of 131072 bytes
 ```
 
-`isa:` is `rv32i`, followed by `m` if the image needs M and `_zba` if it needs Zba (as the
-`-march` names: `rv32i`, `rv32im`, `rv32i_zba`, `rv32im_zba`). With no app loaded the output is
+`isa:` is `rv32i`, followed by `m` if the image needs M, `_zba` if it needs Zba, `_zbb` if it
+needs Zbb and `_zbs` if it needs Zbs (as the `-march` names: `rv32i`, `rv32im`, `rv32i_zba`,
+`rv32im_zba`, `rv32im_zba_zbb_zbs`). With no app loaded the output is
 `no app loaded`.
 
 ### 8.7 Unchanged
@@ -1356,7 +1366,7 @@ objects under `<march>/obj/<name>/`; and the test files under `testfiles/`.
 ### 9.2 Building an app
 
 ```bash
-make freertos-app NAME=<name> [MARCH=rv32i|rv32im|rv32i_zba|rv32im_zba] [OPT=-O2|-Os|-O0]
+make freertos-app NAME=<name> [MARCH=rv32i|rv32im|rv32i_zba|rv32im_zba|rv32im_zba_zbb_zbs] [OPT=-O2|-Os|-O0]
 ```
 
 builds `test/freertos/sdk/apps/<name>/` (default `rv32i`, `-O2`) and prints one line, for
@@ -1395,7 +1405,7 @@ the value starts with `-`.)
 * `hex` checks the raw image (`objcopy -O binary`): at least 68 bytes and a multiple of 4,
   magic, ABI, header size, `ulImageSize` equal to the file's size, the entry, the stack, the
   slot. It fills in `ulFlags` from `--march` (`rv32i` 0, `rv32im` M, `rv32i_zba` Zba,
-  `rv32im_zba` M and Zba; any other `-march` is an error), `acName` from `--name` (1 to 15 of
+  `rv32im_zba` M and Zba, `rv32im_zba_zbb_zbs` M, Zba, Zbb and Zbs; any other `-march` is an error), `acName` from `--name` (1 to 15 of
   `A-Z a-z 0-9 _ -`) and `ulCrc32`, rewrites `app.bin` and writes `app.hex`: a type 04 record
   with the upper half of the slot base, data records of 16 bytes (the last one shorter), a
   type 04 record before the first data record of every further 64 KiB, a type 05 record with
@@ -1411,12 +1421,13 @@ the value starts with `-`.)
 ### 9.4 Example apps
 
 All are built for RV32I, so that they also run on the golden CPU; `compute` is also built for
-`rv32im_zba`. Every app prints whole lines (ending in `\n`) and returns an exit code.
+`rv32im_zba`, and `bitmanip` for `rv32im_zba_zbb_zbs`. Every app prints whole lines (ending in `\n`) and returns an exit code.
 
 | App | Behaviour and output |
 |---|---|
 | `hello` | Prints `Hello, <argv[1]>!` (with no argument `Hello, HaDes-V+!`), then one line `argv[<i>] = <argv[i]>` per argument from `argv[0]` on; exit code `argc - 1`. |
 | `compute` | Arithmetic that uses M and Zba when built for them, checked against constants. With a 32-bit linear congruential generator (`s = s * 1664525 + 1013904223`, `s` = 1 at the start) it fills two 16 x 16 matrices of `int32_t` with `(int32_t) ( s >> 16 ) - 32768`, multiplies them (products and sums in `uint32_t`, so that they wrap without undefined behaviour; the array indexing gives `sh2add` with Zba: each element of the product is computed by a function of its own that receives the row and the column as numbers, since GCC 12 turns indexing inside the loops into stepped pointers), reads the product's elements as `int32_t`, and forms four sums (again in `uint32_t`): the trace of the product; the sum of `C[i][j] / (j + 1)` (C division, rounding toward zero); the sum of `C[i][j] % 7`; the sum of the high halves of the unsigned 64-bit products `A[i][j] * B[j][i]` (`mulhu`). The expected values are constants in `compute.c`, computed by `model.py` (Python, the same arithmetic modelled independently; the comment names it). Prints `compute: trace <t>, quotients <q>, remainders <r>, mulhu <h>: PASS (<c> cycles)` with `<c>` from `app_cycles()`, exit code 0; on a mismatch the same line ends in `FAIL`, followed by the line `compute: expected trace <t>, quotients <q>, remainders <r>, mulhu <h>`, exit code 1. The four sums are printed as unsigned decimal numbers. |
+| `bitmanip` | The bit-manipulation extensions. On 64 words from a xorshift32 generator (seed `0x2545F491`) it runs four sections, each timed with `app_cycles()` and checked against constants in `bitmanip.c` computed by `model.py`, which takes every instruction's result from `test/ext/ref.py`: `zbb` (population count, integer log2, trailing zeros, clamps with `min`/`max`/`minu`/`maxu`, packed 8/16-bit samples, `andn`/`orn`/`xnor` masks, a hash with rotates), `bytes` (`rev8` on big-endian fields and string lengths with `orc.b`, by inline assembly when built with Zbb, in C otherwise), `zbs` (a sieve of Eratosthenes in a 4096-bit bitmap with `bset`/`bclr`/`bext`/`binv`, then flags at fixed bit numbers with the immediate forms) and `zicond` (select, clamp and conditional add through `std/include/zicond.h`; in C in the RV32I build; skipped, with a line that says so, in a Zbb build on a CPU without `HADES_APP_CPU_ZICOND`). Prints `bitmanip: <section> <values>: PASS (<c> cycles[, <note>])` per section and `bitmanip: <n> of <m> sections passed`; exit code: the number of failed sections, each of which prints `FAIL` and the expected values. |
 | `crash` | `crash [mode]` prints `crash: <mode>` and then: `illegal` (default) executes the word 0; `ebreak`; `misaligned` loads a word from an address 2 bytes past a word (with an `lw` in inline assembly: GCC splits a C access at an address it knows to be misaligned into two halfword loads, which do not trap); `load` loads from `0x00300000` (no device there); `store` stores to `0x00300000`; `null` calls a null function pointer; `stack` recurses with 256 bytes of locals per level, filling them and calling `app_delay_ms( 0 )` at every level; `deep` recurses in the same way 32 levels deep (about 9 KiB on its 4 KiB stack) without yielding, then returns 0 and prints nothing more; `loop` calls `app_getc( 1 )` once, which signals the bridge with DC1, and then spins for ever with interrupts enabled; `spin` spins for ever without reading input. Any other argument: `crash: usage: crash [illegal\|ebreak\|misaligned\|load\|store\|null\|stack\|deep\|loop\|spin]`, exit code 2. (`brk` and `test/asm/trap.s` provoke the same exceptions the same way.) |
 | `selfmod` | Writes `li a0, 42` and `ret` into a word-aligned buffer in `.bss`, executes `fence.i` and calls it; then rewrites the same buffer in place to return `0x12345678` (`lui`, `addi`, `ret`), executes `fence.i` and calls it again: the case that an instruction cache must handle, since the old instructions at the same addresses have just been executed. Encodings as in `test/freertos/brk/main.c`. Prints one line per call, `selfmod: <instructions> -> <value>` (`<value>` in decimal and in hexadecimal, `42 (0x0000002a)`), then `selfmod: PASS` (exit code 0) or `selfmod: FAIL` (exit code 1). |
 | `upper` | Prints `upper: type lines; an empty line ends`, then the prompt `> `; reads with `app_getc( -1 )`, echoes printable characters, handles Backspace and DEL, and at CR or LF (CR LF counts once) prints the line in upper case on a line of its own and the next prompt. An empty line ends it; exit code: the number of lines converted. |
@@ -1461,7 +1472,7 @@ record reaches the command line (section 5.3, rule 2).
 | Target | What it does |
 |---|---|
 | `make freertos-app NAME=<name> [MARCH=] [OPT=]` | builds one app (section 9.2) |
-| `make freertos-apps` | builds the examples (RV32I, and `compute` also for `rv32im_zba`) at `-O2`, and the test files; ignores `MARCH` and `OPT`; a prerequisite of the loader's console runs (`APP_CONSOLE_DEPS`) |
+| `make freertos-apps` | builds the examples (RV32I, `compute` also for `rv32im_zba`, `bitmanip` also for `rv32im_zba_zbb_zbs`) at `-O2`, and the test files; ignores `MARCH` and `OPT`; a prerequisite of the loader's console runs (`APP_CONSOLE_DEPS`) |
 | `make freertos-send UPLOAD=<app>` | asks the running `make freertos-shell APP=loader PTY=1` session to type `load` and send the app's file (a send request, section 5.5); fails when it is refused |
 
 `UPLOAD=<name>` means `$(SDK_OUT)/rv32i/<name>.hex`, built from `test/freertos/sdk/apps/<name>/`
@@ -1558,8 +1569,12 @@ make freertos-shell-test APP=loader SCRIPT=test/freertos/loader/session-ext.txt 
 `load` with `#< rv32im_zba/compute.hex`; `app` shows `isa: rv32im_zba`; `run`: on HaDes-V+
 `compute: ...: PASS` and code 0 (`#?dut`); on the golden CPU `error: compute was built for
 rv32im_zba, but this CPU has no M and no Zba` (`#?golden`); then `load rv32im_zba/compute`
-(the same build by name): `loaded compute`, and `app` shows `isa: rv32im_zba`. Not compared
-between the CPUs.
+(the same build by name): `loaded compute`, and `app` shows `isa: rv32im_zba`. `version` shows
+the CPU lines (`cpu: Zbb yes, Zbs yes, Zicond yes (for apps)` on HaDes-V+, `no` on the golden
+CPU). `load rv32i/bitmanip`, `run`: every value of its four sections, on both CPUs.
+`load rv32im_zba_zbb_zbs/bitmanip`, `run`: the same values on HaDes-V+; on the golden CPU
+`error: bitmanip was built for rv32im_zba_zbb_zbs, but this CPU has no M, no Zba, no Zbb and no
+Zbs`. Not compared between the CPUs.
 
 ### 10.3 The interactive check: `test/freertos/loader/tty_test.py`
 

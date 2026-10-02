@@ -86,7 +86,11 @@ uint32_t hal_seed( void )
     return ( s != 0u ) ? s : 1u;
 }
 
-#if defined( __riscv_zba )
+#if defined( __riscv_zba ) && defined( __riscv_zbb ) && defined( __riscv_zbs )
+    #define HAL_ISA    "rv32im_zba_zbb_zbs"
+#elif defined( __riscv_zba ) && defined( __riscv_zbb )
+    #define HAL_ISA    "rv32im_zba_zbb"
+#elif defined( __riscv_zba )
     #define HAL_ISA    "rv32im_zba"
 #elif defined( __riscv_mul )
     #define HAL_ISA    "rv32im"

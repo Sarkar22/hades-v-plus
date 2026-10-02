@@ -39,6 +39,7 @@ Examples
   test/freertos/campaign.py --set validate --dut buggy=. --dut patched=../wt-fixed
   test/freertos/campaign.py --set standard --seeds 3 --jobs 6 --out build/campaign
   test/freertos/campaign.py --set bpred --seeds 4     # branch predictor on (FRTOS_BPRED=1..3)
+  test/freertos/campaign.py --set bitmanip --seeds 8  # Zbb/Zbs builds of the programs (DUT only)
   test/freertos/campaign.py --suite sep2026 --list   # the runs of a suite
   test/freertos/campaign.py --suite sep2026 --jobs 12 --wall-limit 0 \\
       --compare results/freertos-campaign/2026-10-01_03386fd/results.csv
@@ -294,6 +295,24 @@ def variant_sets(args, run_cycles=None, max_checks=None):
                             V("brk", tick=DEFAULT_TICK, bpred=3, defs=dyn, tag="bpdyn", run_cycles=rc),
                             V("brk", march="rv32im", run_cycles=rc),
                             V("stress", run_cycles=rc), V("stress", bpred=3, run_cycles=rc)]
+    # Zbb and Zbs with M and Zba (the B extension): the existing programs built for
+    # rv32im_zba_zbb_zbs, so that the compiler's own Zbb/Zbs code runs under the RTOS. DUT
+    # only: the golden CPU has none of these extensions, so the oracle is each program's own
+    # self-checks (mzba also compares its kernels with an rv32i build of the same code). brk
+    # is built without Zbs: GCC 12.2 stops with an internal compiler error on one of its
+    # functions when Zbs is enabled.
+    bm, ny = "rv32im_zba_zbb_zbs", dict(defs=["-DSTRESS_CRIT_YIELD=0"], tag="noyield")
+    sets["bitmanip"] = [
+        V("minimal", bm, run_cycles=rc), V("minimal", bm, "-O0", preempt=0, run_cycles=rc),
+        V("stress", bm, run_cycles=rc), V("stress", bm, "-Os", tick=5000, run_cycles=rc, **ny),
+        V("stress", bm, "-O0", run_cycles=rc, **ny), V("stress", bm, preempt=0, run_cycles=rc, **ny),
+        V("stress", bm, bpred=3, run_cycles=rc),
+        V("mzba", bm, run_cycles=rc), V("mzba", bm, "-Os", preempt=0, run_cycles=rc),
+        V("mzba", bm, "-O0", run_cycles=rc), V("mzba", bm, bpred=3, run_cycles=rc),
+        V("full", bm), V("full", bm, "-Os", bpred=3),
+        V("brk", "rv32im_zba_zbb", run_cycles=rc),
+        V("brk", "rv32im_zba_zbb", "-Os", slice_=0, tick=5000, bpred=3, run_cycles=rc),
+    ]
     return sets
 
 

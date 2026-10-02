@@ -5,7 +5,8 @@ independent instruction-set model (iss.py) and, where it applies, against the go
 
   sweep.py list                                  families, probe counts, DUT-only marks
   sweep.py run  [--fam csr,exc|all] [--src ext,timer,both] [--targets dut,ref] [--no-mtvec]
-  sweep.py fuzz --seeds 101-130 [--variant i|m|mt|bp] [--nseg 40]
+                ('all' is every listed family; --fam ext, Zbb/Zbs/Zicond on the DUT, only when named)
+  sweep.py fuzz --seeds 101-130 [--variant i|m|mt|bp|b] [--nseg 40]
   sweep.py file prog.s [prog2.s ...]              hand-written programs (probes.py trace protocol)
 common options: --jobs N (6)  --out DIR (<build dir>/trapsweep/<mode>)  --tree ROOT (simulators from
 another checkout; default: this repository)  --timeout CYCLES
@@ -106,7 +107,7 @@ def fits(text, tmpdir, tree):
 
 def chunk_family(fam, src, tree, tmpdir, no_mtvec):
     """Split a family into programs that fit in RAM: [(name, [(pid, probe)])]."""
-    allp = [(i + 1, p) for i, p in enumerate(probes.FAMS[fam]())]
+    allp = [(i + 1, p) for i, p in enumerate({**probes.FAMS, **probes.OPT_FAMS}[fam]())]
     if no_mtvec:
         allp = [(i, p) for i, p in allp if not probes.writes_mtvec(p)]
     out, i, n = [], 0, 0
@@ -304,9 +305,9 @@ def main():
     ap.add_argument("--targets", default="dut,ref", help="dut and/or ref (golden CPU)")
     ap.add_argument("--no-mtvec", action="store_true", help="drop the probes that write mtvec")
     ap.add_argument("--seeds", default="101-110", help="fuzz: seed range a-b or list a,b,c")
-    ap.add_argument("--variant", default="i", choices=["i", "m", "mt", "bp"],
+    ap.add_argument("--variant", default="i", choices=["i", "m", "mt", "bp", "b"],
                     help="fuzz: i=RV32I (DUT+golden), m=+M/Zba (DUT), mt=+mtvec writes (DUT+golden), "
-                         "bp=+M/Zba, predictor on (DUT)")
+                         "bp=+M/Zba, predictor on (DUT), b=+M/Zba/Zbb/Zbs/Zicond (DUT)")
     ap.add_argument("--nseg", type=int, default=40, help="fuzz: segments per program")
     ap.add_argument("--jobs", type=int, default=6)
     ap.add_argument("--out", default=None)
@@ -332,7 +333,7 @@ def main():
     if args.mode == "run":
         fams = list(probes.FAMS) if args.fam == "all" else args.fam.split(",")
         for fam in fams:
-            if fam not in probes.FAMS:
+            if fam not in probes.FAMS and fam not in probes.OPT_FAMS:
                 raise SystemExit(f"unknown family {fam}; see: sweep.py list")
             tg = [t for t in (["dut"] if fam in probes.DUT_ONLY else want) if t in want]
             if not tg:
@@ -346,7 +347,7 @@ def main():
             seeds = range(int(a, 0), int(b, 0) + 1)
         else:
             seeds = [int(x, 0) for x in args.seeds.split(",")]
-        flags = {"i": "", "m": "--m", "mt": "--mtvec", "bp": "--m --bp"}[args.variant]
+        flags = {"i": "", "m": "--m", "mt": "--mtvec", "bp": "--m --bp", "b": "--b"}[args.variant]
         tg = [t for t in (["dut", "ref"] if args.variant in ("i", "mt") else ["dut"]) if t in want]
         for s in seeds:
             name = f"fz_{args.variant}_{s}"

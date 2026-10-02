@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""fuzz.py <seed> <out.s> [--m] [--mtvec] [--bp] [--nseg N]
+"""fuzz.py <seed> <out.s> [--m] [--b] [--mtvec] [--bp] [--nseg N]
 Random-program + random-interrupt-timing generator for test/trapsweep.
 Each segment: canonical state, arm the external interrupt (random delay) and/or the timer
 (random delay), run a random block, re-enable, wait for every armed interrupt, dump registers.
 Uses the handler/vector/footer and trace layout of probes.py, so iss.py checks it unchanged.
   --m      also M and Zba instructions (DUT only: the golden CPU has neither)
+  --b      also Zbb, Zbs and Zicond instructions (implies --m; DUT only): register, immediate
+           and unary forms, dependent chains behind a load, czero.* written with .insn
   --mtvec  also csrrw mtvec (vectors A/B/C)
   --bp     switch the branch predictor on (random mode 1..3) at start-up
   --nseg   number of segments (default 60)"""
@@ -18,7 +20,7 @@ args = sys.argv[1:]
 if len(args) < 2:
     sys.exit(__doc__)
 seed = int(args[0], 0); outp = args[1]
-USE_M = '--m' in args; USE_MTVEC = '--mtvec' in args; USE_BP = '--bp' in args
+USE_M = '--m' in args or '--b' in args; USE_B = '--b' in args; USE_MTVEC = '--mtvec' in args; USE_BP = '--bp' in args
 nseg = int(args[args.index('--nseg') + 1]) if '--nseg' in args else 60
 R = random.Random(seed)
 W = ['a0', 'a1', 'a2', 'a3', 'a4', 'a5', 's0', 's1', 's5', 's6', 't1', 't3', 't4']   # writable
@@ -36,6 +38,43 @@ def alui():
     op = R.choice(['addi', 'xori', 'ori', 'andi', 'slti', 'sltiu', 'slli', 'srli', 'srai'])
     if op in ('slli', 'srli', 'srai'): return [f"    {op} {r()}, {r()}, {R.randint(0, 31)}"]
     return [f"    {op} {r()}, {r()}, {imm12()}"]
+# Zbb, Zbs, Zicond. Choices are drawn only with --b, so the other variants are unchanged.
+B_REG = ['andn', 'orn', 'xnor', 'min', 'minu', 'max', 'maxu', 'rol', 'ror', 'bclr', 'bext', 'binv', 'bset',
+         'czero.eqz', 'czero.nez']
+B_IMM = ['rori', 'bclri', 'bexti', 'binvi', 'bseti']
+B_UNARY = ['clz', 'ctz', 'cpop', 'sext.b', 'sext.h', 'zext.h', 'orc.b', 'rev8']
+def b_ins(op, rd, rs1, rs2=None):
+    if op.startswith('czero'):       # binutils 2.39 does not know Zicond
+        return f"    .insn r 0x33, {5 if op == 'czero.eqz' else 7}, 7, {rd}, {rs1}, {rs2}"
+    if op in B_UNARY: return f"    {op} {rd}, {rs1}"
+    return f"    {op} {rd}, {rs1}, {rs2}"
+def b_src2(op):
+    # czero tests rs2 against zero: give it a zero condition often enough (x0 or a cleared register)
+    if op.startswith('czero') and R.random() < 0.3: return 'zero'
+    return r()
+def bitm():
+    k = R.random()
+    if k < 0.5:
+        op = R.choice(B_REG); return [b_ins(op, r(), r(), b_src2(op))]
+    if k < 0.75:
+        return [b_ins(R.choice(B_IMM), r(), r(), R.choice([0, 1, 7, 8, 15, 16, 24, 30, 31, R.randint(0, 31)]))]
+    return [b_ins(R.choice(B_UNARY), r(), R.choice([r(), r(), 'zero']))]
+def bchain():
+    """a load, then 2-4 dependent bit-manipulation instructions (forwarding at distance 1),
+    the last result stored and branched on"""
+    d = r(); out = [f"    lw   {d}, {R.randrange(0, 32, 4)}(t2)"]
+    for _ in range(R.randint(2, 4)):
+        nd = r(); k = R.random()
+        if k < 0.4:
+            op = R.choice(B_REG); a, b = (d, r()) if R.random() < 0.5 else (r(), d)
+            out.append(b_ins(op, nd, a, b))
+        elif k < 0.7:
+            out.append(b_ins(R.choice(B_IMM), nd, d, R.randint(0, 31)))
+        else:
+            out.append(b_ins(R.choice(B_UNARY), nd, d))
+        d = nd
+    l = L()
+    return out + [f"    sw   {d}, {R.randrange(0, 32, 4)}(t2)", f"    beqz {d}, {l}", f"    addi {r()}, {d}, 1", f"{l}:"]
 def lui(): return [f"    lui  {r()}, {R.randint(0, 0xfffff)}"]
 def ram_ld():
     op, al = R.choice([('lw', 4), ('lh', 2), ('lhu', 2), ('lb', 1), ('lbu', 1)])
@@ -79,12 +118,13 @@ def csr():
 def branch():
     l = L(); cond = R.choice(['beq', 'bne', 'blt', 'bge', 'bltu', 'bgeu'])
     body = []
-    for _ in range(R.randint(1, 3)): body += R.choice([alu, alui, lui])()
+    for _ in range(R.randint(1, 3)): body += R.choice([alu, alui, lui] + ([bitm] if USE_B else []))()
     return [f"    {cond} {r()}, {r()}, {l}"] + body + [f"{l}:"]
 def loop():
     l = L(); n = R.randint(1, 5)
     body = []
-    for _ in range(R.randint(1, 3)): body += R.choice([alu, alui, ram_ld, csr])() if USE_M else R.choice([alu, alui, ram_ld])()
+    for _ in range(R.randint(1, 3)):
+        body += R.choice([alu, alui, ram_ld, csr] + ([bitm] if USE_B else []))() if USE_M else R.choice([alu, alui, ram_ld])()
     body = [b for b in body if 't4' not in b]
     return [f"    li   t4, {n}", f"{l}:"] + body + ["    addi t4, t4, -1", f"    bnez t4, {l}"]
 def jal():
@@ -100,9 +140,13 @@ def loaduse():
 
 POOL = [(alu, 12), (alui, 12), (lui, 2), (ram_ld, 6), (ram_st, 6), (misal, 2), (exc, 3), (fault, 1), (slow, 3), (csr, 10),
         (branch, 6), (loop, 3), (jal, 2), (jalr, 2), (fences, 2), (mret, 2), (loaduse, 4)]
+if USE_B:
+    POOL += [(bitm, 12), (bchain, 4)]
 FUNCS = [f for f, w in POOL for _ in range(w)]
 
 out = [g.HDR]
+if USE_B:
+    out.insert(0, "    .option arch, +zbb, +zbs\n")
 if USE_BP:
     out.append(f"    li   t1, {R.choice([1, 2, 3])}\n    csrw mhpmevent10, t1\n")
 for seg in range(nseg):

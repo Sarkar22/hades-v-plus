@@ -2,15 +2,16 @@
 # sdk.mk -- the app SDK: programs built on the host for the app loader of the FreeRTOS shell
 # (test/freertos/loader/SPEC.md, section 9). Included at the end of test/freertos/freertos.mk.
 #
-#   make freertos-app NAME=<name> [MARCH=rv32i|rv32im|rv32i_zba|rv32im_zba] [OPT=-O2|-Os|-O0]
-#                     [VERBOSE=1]
+#   make freertos-app NAME=<name> [MARCH=rv32i|rv32im|rv32i_zba|rv32im_zba|rv32im_zba_zbb_zbs]
+#                     [OPT=-O2|-Os|-O0] [VERBOSE=1]
 #       build the app test/freertos/sdk/apps/<name>/ (every .c and .S file in it, with crt0.S
 #       and app.ld; rv32i and -O2 by default) quietly, into $(SDK_OUT)/build.log, and print one
 #       line: its sizes, its CRC-32 and its HEX file, $(SDK_OUT)/<march>/<name>.hex. <name>:
 #       1 to 15 letters, digits, '_' or '-' (it is stored in the image header)
 #   make freertos-apps
-#       the example apps (rv32i, and compute also for rv32im_zba) at -O2, and the test files of
-#       the loader ($(SDK_OUT)/testfiles/); built before every console run of APP=loader
+#       the example apps (rv32i; compute also for rv32im_zba, bitmanip also for
+#       rv32im_zba_zbb_zbs) at -O2, and the test files of the loader ($(SDK_OUT)/testfiles/);
+#       built before every console run of APP=loader
 #   make freertos-send UPLOAD=<app>
 #       send the app to the running 'make freertos-shell APP=loader PTY=1': a send request
 #       (<pty>.upload) asks the simulator's console bridge to type 'load' and send the file,
@@ -34,8 +35,9 @@
 
 SDK_DIR       = $(FRTOS_DIR)/sdk
 SDK_OUT       = $(BUILD_ABS)/$(FRTOS_DIR)/sdk
-SDK_MARCHES   = rv32i rv32im rv32i_zba rv32im_zba
-SDK_EXAMPLES  = rv32i/hello rv32i/compute rv32i/crash rv32i/selfmod rv32i/upper rv32im_zba/compute
+SDK_MARCHES   = rv32i rv32im rv32i_zba rv32im_zba rv32im_zba_zbb_zbs
+SDK_EXAMPLES  = rv32i/hello rv32i/compute rv32i/crash rv32i/selfmod rv32i/upper rv32im_zba/compute \
+                rv32i/bitmanip rv32im_zba_zbb_zbs/bitmanip
 SDK_TESTFILES = $(SDK_OUT)/testfiles/tiny.hex
 SDK_TOOL      = python3 $(SDK_DIR)/appimg.py
 SDK_PTY       = $(BUILD_ABS)/$(FRTOS_DIR)/loader/pty
@@ -143,7 +145,7 @@ endef
 
 .PHONY: freertos-app freertos-apps freertos-send
 freertos-app:
-	@ case '$(SDK_NAME)' in '') echo "usage: make freertos-app NAME=<name> [MARCH=rv32i|rv32im|rv32i_zba|rv32im_zba] [OPT=-O2|-Os|-O0]   (apps: $(SDK_APP_NAMES))"; exit 1;; esac
+	@ case '$(SDK_NAME)' in '') echo "usage: make freertos-app NAME=<name> [MARCH=rv32i|rv32im|rv32i_zba|rv32im_zba|rv32im_zba_zbb_zbs] [OPT=-O2|-Os|-O0]   (apps: $(SDK_APP_NAMES))"; exit 1;; esac
 	$(call sdk_quiet_build,$(SDK_OUT)/$(SDK_MARCH)/$(SDK_NAME).hex SDK_BUILD_OPT='$(SDK_OPT)',app $(SDK_NAME) [$(SDK_MARCH) $(SDK_OPT)] up to date: $(SDK_OUT)/$(SDK_MARCH)/$(SDK_NAME).hex)
 
 freertos-apps:

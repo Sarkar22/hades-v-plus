@@ -5,13 +5,14 @@ The programs in this directory reproduce figures that the documentation quotes. 
 | Target | Programs | Reproduces | Recorded in |
 |---|---|---|---|
 | `make bench-zba [OPT=-O2]` | [`zba/`](zba) | the Zba figures: 20.3 % fewer cycles (1.26×), 6–8 % smaller code, 16,704 operand comparisons without a mismatch ([docs/EXTENSIONS.md](../../docs/EXTENSIONS.md#zba--scaled-index-address-generation)) | [`results/zba/`](../../results/zba) |
+| `make bench-zbb [OPT=-O2]` | [`zbb/`](zbb) | the Zbb, Zbs and Zicond figures: 59.8 % fewer cycles (2.49×) in a best-case loop, 52,436 results of the 28 instruction forms compared without a mismatch ([docs/EXTENSIONS.md](../../docs/EXTENSIONS.md#zbb-and-zbs--bit-manipulation-b)) | [`results/zbb/`](../../results/zbb) |
 | `make bench-mcost` | [`mcost/`](mcost) | the *Measured* column of the M unit's cycle table ([docs/EXTENSIONS.md](../../docs/EXTENSIONS.md#execute-learns-to-stall)) | [`results/m-unit-cycles/`](../../results/m-unit-cycles) |
 | `make bench-fencei-window` | [`fencei-window/`](fencei-window) | the 3-slot staleness window without `FENCE.I` ([README.md](../../README.md), [docs/EXTENSIONS.md](../../docs/EXTENSIONS.md#zifencei--instruction-fetch-synchronisation)) | [`results/fencei-window/`](../../results/fencei-window) |
-| `make bench` | all three | | |
+| `make bench` | all four | | |
 
-Everything is built into `$(BUILD_DIR)/test/bench/` (`build/test/bench/` unless the build directory is relocated with `BUILD_DIR` or `HADES_BUILD_DIR`, see [docs/BUILDING.md](../../docs/BUILDING.md#building-running-and-debugging)); the objects of the assembly and C tests are not touched. The programs run again on every invocation, without writing waveforms, with a limit of 5,000,000 cycles per run (`BENCH_TIMEOUT`). The rules are in [`bench.mk`](bench.mk), the checks and summaries in [`bench.py`](bench.py). With `make -j`, add `-O` so that each summary is printed in one piece.
+Everything is built into `$(BUILD_DIR)/test/bench/` (`build/test/bench/` unless the build directory is relocated with `BUILD_DIR` or `HADES_BUILD_DIR`, see [docs/BUILDING.md](../../docs/BUILDING.md#building-running-and-debugging)); the objects of the assembly and C tests are not touched. The programs run again on every invocation, without writing waveforms, with a limit of 5,000,000 cycles per run (`BENCH_TIMEOUT`; 20,000,000 for `bench-zbb`, whose `zbb_diff` takes about 6 million cycles at `-O0`). The rules are in [`bench.mk`](bench.mk), the checks and summaries in [`bench.py`](bench.py). With `make -j`, add `-O` so that each summary is printed in one piece.
 
-The programs were first written and run during development, outside the repository, and were recovered from the development log. In every recovered file, everything after the license header is the program exactly as it was measured, with one exception: `fencei-window/fencei_stale.s` was reconstructed from its first version and the four edits that the log records, and checked against the line numbers and disassembly addresses in the log ([results/fencei-window/2026-08-17_15b0b85](../../results/fencei-window/2026-08-17_15b0b85/RECORD.md)). The one program added later, `mcost/loop_empty.s`, says so in its header. The records in `results/` give the dates, the commits and the fingerprints.
+The programs were first written and run during development, outside the repository, and were recovered from the development log. In every recovered file, everything after the license header is the program exactly as it was measured, with one exception: `fencei-window/fencei_stale.s` was reconstructed from its first version and the four edits that the log records, and checked against the line numbers and disassembly addresses in the log ([results/fencei-window/2026-08-17_15b0b85](../../results/fencei-window/2026-08-17_15b0b85/RECORD.md)). The one program added later, `mcost/loop_empty.s`, says so in its header; the programs of `zbb/` were written for this repository when Zbb, Zbs and Zicond were added. The records in `results/` give the dates, the commits and the fingerprints.
 
 ## `make bench-zba`
 
@@ -33,6 +34,33 @@ BENCH ZBA: PASS
 ```
 
 `OPT=-Os` gives 14.0 % fewer cycles for `zba_bench`; at `OPT=-O0` GCC emits no Zba instruction, and both builds are identical. The verdict depends only on the equality checks, not on the size of the gain.
+
+## `make bench-zbb`
+
+`zbb_bench.c` and `zbb_arr.c` are compiled three times with GCC, for `-march=rv32i`, for `-march=rv32i_zbb_zbs` and for `-march=rv32im_zba_zbb_zbs`, at `-O2` unless `OPT` says otherwise. Each build has its own copies of the `std/` objects, compiled for `rv32i` (they only print, outside the timed windows): with Zbs enabled, GCC 12.2 stops with an internal compiler error on `std/src/helperfunctions.c`, which sets or clears bit 11 under a condition.
+
+- [`zbb_bench.c`](zbb/zbb_bench.c): a bit-manipulation workload with no I/O inside the timed window: population counts, integer log2 and normalisation, bit scans, clamps, packed 8- and 16-bit samples, masks, a hash with rotates, `rev8` and `orc.b` (written by hand in the builds with Zbb, as GCC 12 does not emit them) and a bitmap. Its checksum (`CHK`) must be equal in all three builds; its cycle count (`CYC`, from `mcycle`) and the image size are the result.
+- [`zbb_arr.c`](zbb/zbb_arr.c): eight phases, each printing a checksum (`P1`–`P8`, `SUM`): population counts, leading and trailing zeros, `min`/`max`, sign and zero extension, masks, rotates, a bitmap with the register and immediate forms of Zbs, and a branch-free select, clamp and conditional add through [`std/include/zicond.h`](../../std/include/zicond.h) (in the `rv32i` build with `ZICOND_PORTABLE`, so in plain C). All of them must be equal in the three builds; `CYCLES` includes waiting for the UART.
+- [`zbb_diff.c`](zbb/zbb_diff.c): built for `rv32i` only. It issues each of the 28 Zbb, Zbs and Zicond instruction forms as an `.insn` word (`czero` through `zicond.h`) and compares every result with a computation in RV32I C written from the ISA text: a pool of 24 special values (every pair for the two-operand forms, every shift amount for the immediate forms), 96 random pairs, a dependent chain, results used as load addresses and by branches, `rd = x0`, and the same register as both operands. It runs four times: with its defaults and with 400 random pairs each from the seeds `0xB5297A4D`, `0x1F123BB5` and `0x9E3779B9`. Every run must end in `ZBB DIFF OK`, with no mismatch, and its code must contain all 28 forms.
+
+The summary gives, for each build, the image size, the number of Zbb, Zbs and Zicond instructions in the code, the timed cycles and the checksums, then the comparison and, per form, the instructions GCC chose. At `-O2`:
+
+```
+  zbb_bench: rv32i -> rv32im_zba_zbb_zbs: 302330 -> 119852 cycles (-60.4 %, 2.5225x), 1636 -> 900 bytes (-45.0 %)
+             CHK equal in the three builds: yes
+  zbb_arr:   2512 / 1796 / 1552 bytes, P1-P8 and SUM equal in the three builds: yes; CYCLES 20333 / 12117 / 12107 (the window includes waiting for the UART)
+  zbb_diff:  52436 checks in 4 runs (15773 + 12221 + 12221 + 12221), 0 mismatches, ZBB DIFF OK in 4 of 4; 28 of 28 forms in its code
+
+  Zbb/Zbs/Zicond instructions in the code (per form; zbb_bench, zbb_arr):
+    zbb_bench-rv32i_zbb_zbs       20 words, 19 forms: andn=1 orn=1 clz=1 ctz=1 cpop=2 max=1 min=1 minu=1 sext.b=1 sext.h=1 rol=1 ror=1 rori=1 orc.b=1 rev8=1 bclr=1 bext=1 binv=1 bset=1
+    zbb_arr-rv32i_zbb_zbs         41 words, 24 forms: andn=2 orn=1 clz=1 ctz=1 cpop=4 max=2 maxu=1 min=2 minu=1 sext.b=3 sext.h=2 rol=3 ror=1 rori=1 bclr=1 bclri=1 bext=1 bexti=1 binv=1 binvi=1 bset=1 bseti=1 czero.eqz=4 czero.nez=4
+    zbb_bench-rv32im_zba_zbb_zbs  20 words, 19 forms: andn=1 orn=1 clz=1 ctz=1 cpop=2 max=1 min=1 minu=1 sext.b=1 sext.h=1 rol=1 ror=1 rori=1 orc.b=1 rev8=1 bclr=1 bext=1 binv=1 bset=1
+    zbb_arr-rv32im_zba_zbb_zbs    41 words, 24 forms: andn=2 orn=1 clz=1 ctz=1 cpop=4 max=2 maxu=1 min=2 minu=1 sext.b=3 sext.h=2 rol=3 ror=1 rori=1 bclr=1 bclri=1 bext=1 bexti=1 binv=1 binvi=1 bset=1 bseti=1 czero.eqz=4 czero.nez=4
+
+BENCH ZBB: PASS
+```
+
+`zbb_bench` is a best case, made of the code these extensions are for. `OPT=-Os` gives 62.0 % fewer cycles; at `OPT=-O0` GCC still uses some of the instructions, and the gain is 27.4 %. At `-O2`, GCC 12 emits neither `xnor` nor `zext.h` in these two programs; the [example app `bitmanip`](../../docs/APPS.md#the-example-apps) shows idioms for every form. The verdict depends only on the equality checks, not on the size of the gain ([record](../../results/zbb/2026-10-02_e75223e/RECORD.md)).
 
 ## `make bench-mcost`
 

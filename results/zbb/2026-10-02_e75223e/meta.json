@@ -1,0 +1,159 @@
+{
+ "record": "results/zbb/2026-10-02_e75223e",
+ "topic": "zbb",
+ "status": "repeatable",
+ "date": "2026-10-02",
+ "base_commit": "e75223e5a6af0e6ff5233f46d1196e85755e25d1",
+ "working_tree": "base commit plus the uncommitted Zbb, Zbs and Zicond changes; inputs.sha256 lists every file under Makefile, test/bench/, std/, rtl/ and defines/ that differs from the base commit, other than documentation",
+ "figures": [
+  {
+   "figure": "59.8 % fewer cycles (2.49x) at -O2",
+   "value": "zbb_bench 302330 -> 121388 cycles with rv32i_zbb_zbs (-59.8 %, 2.4906x); 119852 with rv32im_zba_zbb_zbs",
+   "quoted_in": [
+    "README.md (An Extended CPU)",
+    "docs/EXTENSIONS.md (Zbb and Zbs, Verification)",
+    "test/bench/README.md"
+   ]
+  },
+  {
+   "figure": "image 1,636 -> 904 bytes",
+   "value": "zbb_bench out.bin at -O2: 1636 (rv32i) -> 904 (rv32i_zbb_zbs), -44.7 %",
+   "quoted_in": [
+    "docs/EXTENSIONS.md (Zbb and Zbs, Verification)"
+   ]
+  },
+  {
+   "figure": "62.0 % at -Os, 27.4 % at -O0",
+   "value": "-Os: 319058 -> 121196 (-62.0 %); -O0: 824570 -> 598594 (-27.4 %)",
+   "quoted_in": [
+    "docs/EXTENSIONS.md (Zbb and Zbs, Verification)",
+    "test/bench/README.md"
+   ]
+  },
+  {
+   "figure": "52,436 results of the 28 forms compared without a mismatch",
+   "value": "zbb_diff: 15773 + 12221 + 12221 + 12221 = 52436 checks in 4 runs, 0 mismatches, ZBB DIFF OK in 4 of 4, 28 of 28 forms in its code (at -O2, -Os and -O0)",
+   "quoted_in": [
+    "docs/EXTENSIONS.md (Zbb and Zbs, Verification)",
+    "docs/VERIFICATION.md (System Level)",
+    "test/bench/README.md"
+   ]
+  },
+  {
+   "figure": "at -O2 GCC 12 emits neither xnor nor zext.h in zbb_bench and zbb_arr",
+   "value": "per-form counts of the summaries; at -O0 zbb_arr has one zext.h",
+   "quoted_in": [
+    "test/bench/README.md"
+   ]
+  }
+ ],
+ "commands": [
+  "make bench-zbb",
+  "make bench-zbb OPT=-Os",
+  "make bench-zbb OPT=-O0"
+ ],
+ "inputs": {
+  "files_sha256": {
+   "Makefile": "220d57c65dade25f60d51f067401cadbebb73821afb0a216c4c560b76c8782c6",
+   "defines/op.sv": "fa466b941a23a0cd0235840f043e7682ea778f95f46f7063cdc570f45d4126dd",
+   "rtl/execute_stage.sv": "c36613c8fe0116aad83c66ea4a79dd4d03995c95290eb8a3d9c33eee6d3ae969",
+   "rtl/instruction_decoder.sv": "e271c30f783b21fa56e66982608d973170f032fba6fc9f47d9a619c32aac77ea",
+   "std/include/zicond.h": "dc6dbd1ba106d614d5447798f478304f0c871d99033c8f490637ba31330bf604",
+   "test/bench/bench.mk": "4ce6b1e6b4947e7dda99610150e8ad85c08b281caea9bcc9680845aee1bfe59a",
+   "test/bench/bench.py": "13997cd9cc031ffeb706af64a419ebbdf762248e074db53db30d1c6afa358397",
+   "test/bench/zbb/zbb_arr.c": "c4c7b4768eec6b310912cd781d3f0ae2e65afa3a6957f27cd2f7aa691c788919",
+   "test/bench/zbb/zbb_bench.c": "954b324a9adb16458ca25141c9989fcb914a5c56de86f2bd1cc758b8e2ac4e56",
+   "test/bench/zbb/zbb_diff.c": "2b5cc812359cd5be80a6039203415ff3e34445eb1d3df445f8d97760f013de6a"
+  }
+ },
+ "outputs_sha256": {
+  "build/test/bench/zbb/O2/zbb_bench-rv32i/init.mem": "f3279512e355acde033582c22be0f57e298488a673e853c0fce1477dda88e39b",
+  "build/test/bench/zbb/O2/zbb_bench-rv32i/out.elf": "fd07930fca6dce42ad005132de0e8f95d016efa4d5d43c705a55c2282c04d01d",
+  "build/test/bench/zbb/O2/zbb_bench-rv32i_zbb_zbs/init.mem": "8bf7430d8a5467c943117677e90c51110bcbb15c5058c6a738dc95cd0a4e8eae",
+  "build/test/bench/zbb/O2/zbb_bench-rv32i_zbb_zbs/out.elf": "c80265f813ae71484502823cc3968a8d7f8f7cdb8149037a6ee94aa08abe4948",
+  "build/test/bench/zbb/O2/zbb_bench-rv32im_zba_zbb_zbs/init.mem": "928ea47d5de944ab64311b909da9a2086d1f975197e5a20216a6e2fe39e9fc74",
+  "build/test/bench/zbb/O2/zbb_bench-rv32im_zba_zbb_zbs/out.elf": "a509bb3a4d67cf0967e129066177e8dd1ee219726845496d5585e50e7d4eb166",
+  "build/test/bench/zbb/O2/zbb_arr-rv32i/init.mem": "e9f641b34f7be0e2b72c722df4f1812dfd912fa01ddfb4e70eee98a0f0f5dcc9",
+  "build/test/bench/zbb/O2/zbb_arr-rv32i/out.elf": "96cfa9a24adbad8eaafe068b70dafcd3ba7d815b455334e6e17075ffa354105a",
+  "build/test/bench/zbb/O2/zbb_arr-rv32i_zbb_zbs/init.mem": "f5a9248691b1572202a52d7a305780ea98e61976118188959ee096d0f3ca1e0e",
+  "build/test/bench/zbb/O2/zbb_arr-rv32i_zbb_zbs/out.elf": "e1b659e41236b689aebfdfaa0887789d06853d901eaf665adf89861c0b80d3a5",
+  "build/test/bench/zbb/O2/zbb_arr-rv32im_zba_zbb_zbs/init.mem": "999b305d9542c415f48f9fc2f0a913d7029c1441a26ebfa060f94d2cc95f754a",
+  "build/test/bench/zbb/O2/zbb_arr-rv32im_zba_zbb_zbs/out.elf": "a9e2f443ef0a2e87193f049839b231a21159efe9c38a57c891264a1de380801d",
+  "build/test/bench/zbb/O2/zbb_diff/init.mem": "3fde4443112ded86b674d5e5a1ad313830f6a2ca7b71cec6a817a2e0b2e1e4e7",
+  "build/test/bench/zbb/O2/zbb_diff/out.elf": "a1a33764c3922c4f1cf04db8ba2a35e958a4e6d7fae0fb892670fcea3bcbcc83",
+  "build/test/bench/zbb/O2/zbb_diff-B5297A4D/init.mem": "a1f86d92587e639bdf6374dab797bb3e614325c98b963f104047ca3b8d8101de",
+  "build/test/bench/zbb/O2/zbb_diff-B5297A4D/out.elf": "d47edd892cd9fefca129edffb02151b37b8912d9731372ba5a1e4379df90c176",
+  "build/test/bench/zbb/O2/zbb_diff-1F123BB5/init.mem": "eb3fafb8d700232f9caeea097c32e2aee6c39d3c99fbb3cfc33575692961e39f",
+  "build/test/bench/zbb/O2/zbb_diff-1F123BB5/out.elf": "f2508ab0d2620280a4308e4fda36bf115f83e31790a1165651935f1cae675c94",
+  "build/test/bench/zbb/O2/zbb_diff-9E3779B9/init.mem": "7a670ba6567d096ade266b6a73435a60510f4c68d7dec9d2de9c71b8d4c95d1b",
+  "build/test/bench/zbb/O2/zbb_diff-9E3779B9/out.elf": "51befcf527e814a02ed16a38c71f084c6d3aae86cdbaa533b57911d34cfb5c84",
+  "build/test/bench/zbb/Os/zbb_bench-rv32i/init.mem": "ee0f97c2bee5fd86cdb2873406359b9c6e5837a4e0c545eac50431ead70d5a92",
+  "build/test/bench/zbb/Os/zbb_bench-rv32i/out.elf": "cb0ec1c4d0229e496e264af5354dc227dc80a5036ed8e06080a1d036a2fc2787",
+  "build/test/bench/zbb/Os/zbb_bench-rv32i_zbb_zbs/init.mem": "1c4812141ead26c00badc3d8f317444786876046f5d172b2d11fbd9ac6279b67",
+  "build/test/bench/zbb/Os/zbb_bench-rv32i_zbb_zbs/out.elf": "2b1b027bd1e77f17ac38f046bd16742f579cd71084418584ae7429281eea8c09",
+  "build/test/bench/zbb/Os/zbb_bench-rv32im_zba_zbb_zbs/init.mem": "312e6d868affa7d293170d20c5f4e6788aad827892494ab40a9f46884c39e564",
+  "build/test/bench/zbb/Os/zbb_bench-rv32im_zba_zbb_zbs/out.elf": "315ffb610816c537c226dc090759991b347b08404864cc8365696fe7f01a1ea2",
+  "build/test/bench/zbb/Os/zbb_arr-rv32i/init.mem": "f9dff178ff05975f7af6a1aea7e4910dcf245a7e369191f802b586a69df242e9",
+  "build/test/bench/zbb/Os/zbb_arr-rv32i/out.elf": "2b689d4934cf75a2668132d4a7014a4fa8b34175e5ea2a88de6cdab77ab74a5e",
+  "build/test/bench/zbb/Os/zbb_arr-rv32i_zbb_zbs/init.mem": "5e26fb91adf231cb6859523d42045fd89a323af09d72adc56c04765d2978f478",
+  "build/test/bench/zbb/Os/zbb_arr-rv32i_zbb_zbs/out.elf": "4b9db479f4a5b2333053726df1c435e62e804622a2209ef478a908fd7a75ac4f",
+  "build/test/bench/zbb/Os/zbb_arr-rv32im_zba_zbb_zbs/init.mem": "8b0f5ff64cdfe40e4532034f5323064987edbd1d95adaf5a4f654256e895a9a4",
+  "build/test/bench/zbb/Os/zbb_arr-rv32im_zba_zbb_zbs/out.elf": "49c42013341eb8df37369df91157ee9b2cf2cc0c428c407edd552cfa76b595a3",
+  "build/test/bench/zbb/Os/zbb_diff/init.mem": "1b0c5d3d3d211eb718d8c8c69f4bca59785b1501d91419ef534f87530fdaba95",
+  "build/test/bench/zbb/Os/zbb_diff/out.elf": "33d5655eb14a8a34683c408717636476e2eaa0ddb7defebb2449496f6e796f1b",
+  "build/test/bench/zbb/Os/zbb_diff-B5297A4D/init.mem": "6f4c76ad7f5f73608c929b4c374a125b6e695591a7b47d2d5df7f2c95a4fc35c",
+  "build/test/bench/zbb/Os/zbb_diff-B5297A4D/out.elf": "b2fd23edc50b85de0a1acbf1b0036658cef3f811da936826793c7796f0af6c58",
+  "build/test/bench/zbb/Os/zbb_diff-1F123BB5/init.mem": "b7fbeea42039cf3285be6d66e2c4993c06fd4446388c91ae88a9fdedf83586f8",
+  "build/test/bench/zbb/Os/zbb_diff-1F123BB5/out.elf": "e2c8514b8699a6d6de4eea3d29efe74f5d2ed9ad3a06963b8bff9186cdbf48ce",
+  "build/test/bench/zbb/Os/zbb_diff-9E3779B9/init.mem": "d63d911a025288846ccd29c7ba2fee58ca7429c847258437a79e242962c78160",
+  "build/test/bench/zbb/Os/zbb_diff-9E3779B9/out.elf": "3a8cc49dd995e88f7ba6e11e0812ce2c6260c943aad90e9577f6d60b3ae00cba",
+  "build/test/bench/zbb/O0/zbb_bench-rv32i/init.mem": "243887a8d2616e261b0e1161c3313715be110bdea699de8721d6c7e5076f88b1",
+  "build/test/bench/zbb/O0/zbb_bench-rv32i/out.elf": "326adf248af107e2decbdc03ea4cadce5e0af6fd2dbd1e96efedfad51be5930f",
+  "build/test/bench/zbb/O0/zbb_bench-rv32i_zbb_zbs/init.mem": "6167d488de6571531ae5fa1e40575439f333fecd96f8055e3abc4006a9068a8a",
+  "build/test/bench/zbb/O0/zbb_bench-rv32i_zbb_zbs/out.elf": "d3fc93d14ebe92466f86c61641b2740d049db96f8bd7d3de2ad7c98f268f17c2",
+  "build/test/bench/zbb/O0/zbb_bench-rv32im_zba_zbb_zbs/init.mem": "6167d488de6571531ae5fa1e40575439f333fecd96f8055e3abc4006a9068a8a",
+  "build/test/bench/zbb/O0/zbb_bench-rv32im_zba_zbb_zbs/out.elf": "59a5b2dd9f4dc33478b37cead2c9e0a51de0f64c90fd942600679579b6de4720",
+  "build/test/bench/zbb/O0/zbb_arr-rv32i/init.mem": "47810c4ac4a3ec03eb577b2d6e6f80ccd9ea7c0ce2a4166c777f18e60ad239d9",
+  "build/test/bench/zbb/O0/zbb_arr-rv32i/out.elf": "f84ade5f6e2f1c6e83e55b678c5b859007967f6271e62cd16f26ed10c7acb057",
+  "build/test/bench/zbb/O0/zbb_arr-rv32i_zbb_zbs/init.mem": "65411bd701c00cbe891227aab3c2cccac588c205dc3503fdfe1621c4cc2718c0",
+  "build/test/bench/zbb/O0/zbb_arr-rv32i_zbb_zbs/out.elf": "2968e2c7579a82f98d3ae6fdf00cf8ea8294e07365cef443ce71721c93d0c9cb",
+  "build/test/bench/zbb/O0/zbb_arr-rv32im_zba_zbb_zbs/init.mem": "aaadd934071aa2402e26a4931cb26446d11e31af866750bc2700f09c458e79f7",
+  "build/test/bench/zbb/O0/zbb_arr-rv32im_zba_zbb_zbs/out.elf": "c43cdf0040528888a73bf447f3a9fad6524bbcd08b568e423c57887ca2593a50",
+  "build/test/bench/zbb/O0/zbb_diff/init.mem": "be51df806ff5ab4a98c7eb8a0766c73120fb3f2f8c5a88da3f6aee0ff2db10fc",
+  "build/test/bench/zbb/O0/zbb_diff/out.elf": "0fb1596ac0ff6dce4074c94fc626a244a911e9f9c46815f02124f3354a180c93",
+  "build/test/bench/zbb/O0/zbb_diff-B5297A4D/init.mem": "a399d4b4980557d6b3f2f5a6382c499199c8a5f5be961cfcd28a878224af5979",
+  "build/test/bench/zbb/O0/zbb_diff-B5297A4D/out.elf": "66fb03bf1551de79d2b97a394f2a9df6bb2ce2059f23c45f6e286ab4d346f2b3",
+  "build/test/bench/zbb/O0/zbb_diff-1F123BB5/init.mem": "9df5e63add544f6a02c93d797f1cbf639ba9d2039af11aa5e5ce7d3c73a4c3af",
+  "build/test/bench/zbb/O0/zbb_diff-1F123BB5/out.elf": "75a2149b3cccffa6e07eb2ac284455a09a31a4088b664c42b669988a74956ed0",
+  "build/test/bench/zbb/O0/zbb_diff-9E3779B9/init.mem": "383bd9a6071a5e5ac95b8b8bb11b49190299f972e84390392bc805300e5627fc",
+  "build/test/bench/zbb/O0/zbb_diff-9E3779B9/out.elf": "d5a96e26e3c2b0d965aa0641b0483b9bba3e362486fa9ad5bd45e294bf982ad7"
+ },
+ "host": {
+  "cpu": "Intel Core Ultra 7 165H",
+  "threads": 22,
+  "os": "Linux"
+ },
+ "tools": {
+  "verilator": "Verilator 5.042 2025-11-02 rev v5.042",
+  "gcc": "riscv32-unknown-elf-gcc () 12.2.0",
+  "binutils": "GNU assembler (GNU Binutils) 2.39",
+  "python": "Python 3.12.3",
+  "make": "GNU Make 4.3"
+ },
+ "workers": 1,
+ "wall_time_s": {
+  "make bench-zbb": 4.68,
+  "make bench-zbb OPT=-Os": 4.88,
+  "make bench-zbb OPT=-O0": 15.01
+ },
+ "summary_output": {
+  "-O2": "Zbb benchmark (test/bench/zbb), -O2: each program built for -march=rv32i, rv32i_zbb_zbs and rv32im_zba_zbb_zbs\n\n  variant                      image bytes new instrs  timed cycles  result\n  zbb_bench-rv32i                     1636          0        302330  CHK 653f8521\n  zbb_bench-rv32i_zbb_zbs              904         20        121388  CHK 653f8521\n  zbb_bench-rv32im_zba_zbb_zbs         900         20        119852  CHK 653f8521\n  zbb_arr-rv32i                       2512          0         20333  SUM 0ff9b7e9\n  zbb_arr-rv32i_zbb_zbs               1796         41         12117  SUM 0ff9b7e9\n  zbb_arr-rv32im_zba_zbb_zbs          1552         41         12107  SUM 0ff9b7e9\n  zbb_diff                            7200        210       1905212  CASES 15773 BAD 0 EXTRA 0, ZBB DIFF OK\n  zbb_diff-B5297A4D                  16692        241       1205369  CASES 12221 BAD 0 EXTRA 0, ZBB DIFF OK\n  zbb_diff-1F123BB5                  16692        241       1205635  CASES 12221 BAD 0 EXTRA 0, ZBB DIFF OK\n  zbb_diff-9E3779B9                  16692        241       1205063  CASES 12221 BAD 0 EXTRA 0, ZBB DIFF OK\n\n  zbb_bench: rv32i -> rv32i_zbb_zbs: 302330 -> 121388 cycles (-59.8 %, 2.4906x), 1636 -> 904 bytes (-44.7 %)\n  zbb_bench: rv32i -> rv32im_zba_zbb_zbs: 302330 -> 119852 cycles (-60.4 %, 2.5225x), 1636 -> 900 bytes (-45.0 %)\n             CHK equal in the three builds: yes\n  zbb_arr:   2512 / 1796 / 1552 bytes, P1-P8 and SUM equal in the three builds: yes; CYCLES 20333 / 12117 / 12107 (the window includes waiting for the UART)\n  zbb_diff:  52436 checks in 4 runs (15773 + 12221 + 12221 + 12221), 0 mismatches, ZBB DIFF OK in 4 of 4; 28 of 28 forms in its code\n\n  Zbb/Zbs/Zicond instructions in the code (per form; zbb_bench, zbb_arr):\n    zbb_bench-rv32i_zbb_zbs       20 words, 19 forms: andn=1 orn=1 clz=1 ctz=1 cpop=2 max=1 min=1 minu=1 sext.b=1 sext.h=1 rol=1 ror=1 rori=1 orc.b=1 rev8=1 bclr=1 bext=1 binv=1 bset=1\n    zbb_arr-rv32i_zbb_zbs         41 words, 24 forms: andn=2 orn=1 clz=1 ctz=1 cpop=4 max=2 maxu=1 min=2 minu=1 sext.b=3 sext.h=2 rol=3 ror=1 rori=1 bclr=1 bclri=1 bext=1 bexti=1 binv=1 binvi=1 bset=1 bseti=1 czero.eqz=4 czero.nez=4\n    zbb_bench-rv32im_zba_zbb_zbs  20 words, 19 forms: andn=1 orn=1 clz=1 ctz=1 cpop=2 max=1 min=1 minu=1 sext.b=1 sext.h=1 rol=1 ror=1 rori=1 orc.b=1 rev8=1 bclr=1 bext=1 binv=1 bset=1\n    zbb_arr-rv32im_zba_zbb_zbs    41 words, 24 forms: andn=2 orn=1 clz=1 ctz=1 cpop=4 max=2 maxu=1 min=2 minu=1 sext.b=3 sext.h=2 rol=3 ror=1 rori=1 bclr=1 bclri=1 bext=1 bexti=1 binv=1 binvi=1 bset=1 bseti=1 czero.eqz=4 czero.nez=4\n\nBENCH ZBB: PASS\n",
+  "-Os": "Zbb benchmark (test/bench/zbb), -Os: each program built for -march=rv32i, rv32i_zbb_zbs and rv32im_zba_zbb_zbs\n\n  variant                      image bytes new instrs  timed cycles  result\n  zbb_bench-rv32i                     1664          0        319058  CHK 653f8521\n  zbb_bench-rv32i_zbb_zbs              880         20        121196  CHK 653f8521\n  zbb_bench-rv32im_zba_zbb_zbs         876         20        119660  CHK 653f8521\n  zbb_arr-rv32i                       2480          0         20812  SUM 0ff9b7e9\n  zbb_arr-rv32i_zbb_zbs               1764         40         12330  SUM 0ff9b7e9\n  zbb_arr-rv32im_zba_zbb_zbs          1524         40         12185  SUM 0ff9b7e9\n  zbb_diff                            6296        210       1900227  CASES 15773 BAD 0 EXTRA 0, ZBB DIFF OK\n  zbb_diff-B5297A4D                   5980        210       1318558  CASES 12221 BAD 0 EXTRA 0, ZBB DIFF OK\n  zbb_diff-1F123BB5                   5980        210       1318824  CASES 12221 BAD 0 EXTRA 0, ZBB DIFF OK\n  zbb_diff-9E3779B9                   5980        210       1318382  CASES 12221 BAD 0 EXTRA 0, ZBB DIFF OK\n\n  zbb_bench: rv32i -> rv32i_zbb_zbs: 319058 -> 121196 cycles (-62.0 %, 2.6326x), 1664 -> 880 bytes (-47.1 %)\n  zbb_bench: rv32i -> rv32im_zba_zbb_zbs: 319058 -> 119660 cycles (-62.5 %, 2.6664x), 1664 -> 876 bytes (-47.4 %)\n             CHK equal in the three builds: yes\n  zbb_arr:   2480 / 1764 / 1524 bytes, P1-P8 and SUM equal in the three builds: yes; CYCLES 20812 / 12330 / 12185 (the window includes waiting for the UART)\n  zbb_diff:  52436 checks in 4 runs (15773 + 12221 + 12221 + 12221), 0 mismatches, ZBB DIFF OK in 4 of 4; 28 of 28 forms in its code\n\n  Zbb/Zbs/Zicond instructions in the code (per form; zbb_bench, zbb_arr):\n    zbb_bench-rv32i_zbb_zbs       20 words, 19 forms: andn=1 orn=1 clz=1 ctz=1 cpop=2 max=1 min=1 minu=1 sext.b=1 sext.h=1 rol=1 ror=1 rori=1 orc.b=1 rev8=1 bclr=1 bext=1 binv=1 bset=1\n    zbb_arr-rv32i_zbb_zbs         40 words, 24 forms: andn=2 orn=1 clz=1 ctz=1 cpop=3 max=2 maxu=1 min=2 minu=1 sext.b=3 sext.h=2 rol=3 ror=1 rori=1 bclr=1 bclri=1 bext=1 bexti=1 binv=1 binvi=1 bset=1 bseti=1 czero.eqz=4 czero.nez=4\n    zbb_bench-rv32im_zba_zbb_zbs  20 words, 19 forms: andn=1 orn=1 clz=1 ctz=1 cpop=2 max=1 min=1 minu=1 sext.b=1 sext.h=1 rol=1 ror=1 rori=1 orc.b=1 rev8=1 bclr=1 bext=1 binv=1 bset=1\n    zbb_arr-rv32im_zba_zbb_zbs    40 words, 24 forms: andn=2 orn=1 clz=1 ctz=1 cpop=3 max=2 maxu=1 min=2 minu=1 sext.b=3 sext.h=2 rol=3 ror=1 rori=1 bclr=1 bclri=1 bext=1 bexti=1 binv=1 binvi=1 bset=1 bseti=1 czero.eqz=4 czero.nez=4\n\nBENCH ZBB: PASS\n",
+  "-O0": "Zbb benchmark (test/bench/zbb), -O0: each program built for -march=rv32i, rv32i_zbb_zbs and rv32im_zba_zbb_zbs\n\n  variant                      image bytes new instrs  timed cycles  result\n  zbb_bench-rv32i                     2604          0        824570  CHK 653f8521\n  zbb_bench-rv32i_zbb_zbs             1912         15        598594  CHK 653f8521\n  zbb_bench-rv32im_zba_zbb_zbs        1912         15        598594  CHK 653f8521\n  zbb_arr-rv32i                       4384          0         61989  SUM 0ff9b7e9\n  zbb_arr-rv32i_zbb_zbs               3836         22         53552  SUM 0ff9b7e9\n  zbb_arr-rv32im_zba_zbb_zbs          3628         22         53644  SUM 0ff9b7e9\n  zbb_diff                           10356        208       6010391  CASES 15773 BAD 0 EXTRA 0, ZBB DIFF OK\n  zbb_diff-B5297A4D                   9976        208       4215754  CASES 12221 BAD 0 EXTRA 0, ZBB DIFF OK\n  zbb_diff-1F123BB5                   9976        208       4217424  CASES 12221 BAD 0 EXTRA 0, ZBB DIFF OK\n  zbb_diff-9E3779B9                   9976        208       4215128  CASES 12221 BAD 0 EXTRA 0, ZBB DIFF OK\n\n  zbb_bench: rv32i -> rv32i_zbb_zbs: 824570 -> 598594 cycles (-27.4 %, 1.3775x), 2604 -> 1912 bytes (-26.6 %)\n  zbb_bench: rv32i -> rv32im_zba_zbb_zbs: 824570 -> 598594 cycles (-27.4 %, 1.3775x), 2604 -> 1912 bytes (-26.6 %)\n             CHK equal in the three builds: yes\n  zbb_arr:   4384 / 3836 / 3628 bytes, P1-P8 and SUM equal in the three builds: yes; CYCLES 61989 / 53552 / 53644 (the window includes waiting for the UART)\n  zbb_diff:  52436 checks in 4 runs (15773 + 12221 + 12221 + 12221), 0 mismatches, ZBB DIFF OK in 4 of 4; 28 of 28 forms in its code\n\n  Zbb/Zbs/Zicond instructions in the code (per form; zbb_bench, zbb_arr):\n    zbb_bench-rv32i_zbb_zbs       15 words, 13 forms: clz=2 ctz=1 cpop=2 max=1 min=1 minu=1 sext.b=1 sext.h=1 rol=1 ror=1 rori=1 orc.b=1 rev8=1\n    zbb_arr-rv32i_zbb_zbs         22 words, 15 forms: clz=2 ctz=1 cpop=3 max=1 maxu=1 min=2 minu=1 sext.b=1 sext.h=2 zext.h=1 rol=3 ror=1 rori=1 czero.eqz=1 czero.nez=1\n    zbb_bench-rv32im_zba_zbb_zbs  15 words, 13 forms: clz=2 ctz=1 cpop=2 max=1 min=1 minu=1 sext.b=1 sext.h=1 rol=1 ror=1 rori=1 orc.b=1 rev8=1\n    zbb_arr-rv32im_zba_zbb_zbs    22 words, 15 forms: clz=2 ctz=1 cpop=3 max=1 maxu=1 min=2 minu=1 sext.b=1 sext.h=2 zext.h=1 rol=3 ror=1 rori=1 czero.eqz=1 czero.nez=1\n\nBENCH ZBB: PASS\n"
+ },
+ "caveats": [
+  "zbb_bench is a best case, made of the code these extensions are for; the gain on ordinary code is much smaller.",
+  "The std objects are built for rv32i in every variant (GCC 12.2 crashes on std/src/helperfunctions.c with Zbs); they only print, outside the timed windows.",
+  "The cycles are those of the Verilator model of the RTL of this working tree; the RTL has not been implemented on an FPGA since the change."
+ ]
+}

@@ -142,12 +142,17 @@ static void prvFenceI( void )
     __asm volatile ( "fence.i" ::: "memory" );
 }
 
-/* "rv32i", "rv32im", "rv32i_zba" or "rv32im_zba": what an image needs (its ulFlags). */
+/* What an image needs (its ulFlags), as a -march: "rv32i", "rv32im", "rv32im_zba",
+ * "rv32im_zba_zbb_zbs", ... Only the console task calls it; the text is valid until the next
+ * call. */
 static const char * prvIsa( uint32_t ulFlags )
 {
-    static const char * const apcIsa[ 4 ] = { "rv32i", "rv32im", "rv32i_zba", "rv32im_zba" };
+    static char acIsa[ 24 ];
 
-    return apcIsa[ ulFlags & ( HADES_APP_NEEDS_M | HADES_APP_NEEDS_ZBA ) ];
+    shell_snprintf( acIsa, sizeof( acIsa ), "rv32i%s%s%s%s", ( ulFlags & HADES_APP_NEEDS_M ) ? "m" : "",
+                    ( ulFlags & HADES_APP_NEEDS_ZBA ) ? "_zba" : "", ( ulFlags & HADES_APP_NEEDS_ZBB ) ? "_zbb" : "",
+                    ( ulFlags & HADES_APP_NEEDS_ZBS ) ? "_zbs" : "" );
+    return acIsa;
 }
 
 /* Appends to the NUL-terminated text in pcOut (xOutLen bytes). */
@@ -469,7 +474,7 @@ static int prvNameValid( const char * pcName )
 static int prvCheckImage( HadesAppHeader_t * pxHeader )
 {
     const uint32_t ulBytes = xLoad.ulNext - HADES_APP_SLOT_BASE;
-    const uint32_t ulKnown = HADES_APP_NEEDS_M | HADES_APP_NEEDS_ZBA;
+    const uint32_t ulKnown = HADES_APP_NEEDS_M | HADES_APP_NEEDS_ZBA | HADES_APP_NEEDS_ZBB | HADES_APP_NEEDS_ZBS;
     HadesAppHeader_t xH;
     uint64_t ullNeed;
     uint32_t ulCrc;
@@ -1064,15 +1069,35 @@ BaseType_t loader_cmd_run( char * pcOut, size_t xOutLen, const char * pcCommand 
         return pdFALSE;
     }
 
-    /* What the image needs and the CPU lacks (the start-up probe). */
+    /* What the image needs and the CPU lacks (the start-up probe), listed as "no M", "no M and
+     * no Zba", "no M, no Zba, no Zbb and no Zbs". */
     {
-        const int iNoM = ( ( xApp.ulFlags & HADES_APP_NEEDS_M ) != 0u ) && !xShellCpu.ucM;
-        const int iNoZba = ( ( xApp.ulFlags & HADES_APP_NEEDS_ZBA ) != 0u ) && !xShellCpu.ucZba;
+        static const char * const apcExt[ 4 ] = { "M", "Zba", "Zbb", "Zbs" };
+        const uint8_t aucHave[ 4 ] = { xShellCpu.ucM, xShellCpu.ucZba, xShellCpu.ucZbb, xShellCpu.ucZbs };
+        const uint32_t aulNeed[ 4 ] = { HADES_APP_NEEDS_M, HADES_APP_NEEDS_ZBA, HADES_APP_NEEDS_ZBB, HADES_APP_NEEDS_ZBS };
+        int iMissing = 0, iListed = 0;
 
-        if( iNoM || iNoZba )
+        for( int i = 0; i < 4; i++ )
         {
-            shell_snprintf( pcOut, xOutLen, "error: %s was built for %s, but this CPU has no %s\n", xApp.acName,
-                            prvIsa( xApp.ulFlags ), iNoM ? ( iNoZba ? "M and no Zba" : "M" ) : "Zba" );
+            iMissing += ( ( xApp.ulFlags & aulNeed[ i ] ) != 0u ) && !aucHave[ i ];
+        }
+
+        if( iMissing != 0 )
+        {
+            shell_snprintf( pcOut, xOutLen, "error: %s was built for %s, but this CPU has ", xApp.acName,
+                            prvIsa( xApp.ulFlags ) );
+
+            for( int i = 0; i < 4; i++ )
+            {
+                if( ( ( xApp.ulFlags & aulNeed[ i ] ) != 0u ) && !aucHave[ i ] )
+                {
+                    iListed++;
+                    prvAppend( pcOut, xOutLen, "%sno %s", ( iListed == 1 ) ? "" : ( iListed == iMissing ) ? " and " : ", ",
+                               apcExt[ i ] );
+                }
+            }
+
+            prvAppend( pcOut, xOutLen, "\n" );
             return pdFALSE;
         }
     }
@@ -1129,7 +1154,8 @@ BaseType_t loader_cmd_run( char * pcOut, size_t xOutLen, const char * pcCommand 
     iExitCode = 0;
     ulLoaderStackTop = ulCopy;
     xApi.ulCpu = ( xShellCpu.ucM ? HADES_APP_CPU_M : 0u ) | ( xShellCpu.ucZba ? HADES_APP_CPU_ZBA : 0u ) |
-                 ( xShellCpu.ucZicntr ? HADES_APP_CPU_ZICNTR : 0u );
+                 ( xShellCpu.ucZicntr ? HADES_APP_CPU_ZICNTR : 0u ) | ( xShellCpu.ucZbb ? HADES_APP_CPU_ZBB : 0u ) |
+                 ( xShellCpu.ucZbs ? HADES_APP_CPU_ZBS : 0u ) | ( xShellCpu.ucZicond ? HADES_APP_CPU_ZICOND : 0u );
     ullStart = shell_run_time();
     ulRunning = 1u;
 

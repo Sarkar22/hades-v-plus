@@ -50,7 +50,7 @@ without the tools on `PATH`, made the same day, exited with status 2 after print
 |---|---|---|
 | `FORMAL RESULT: PASS (mode=default)`: 72 required checks and 4 negative controls | docs/VERIFICATION.md:82; README.md:94 | the default run above |
 | `FORMAL RESULT: PASS (mode=full)` after 24 min 33 s: 74 required checks, 4 negative controls, 20 second-solver runs, 608 mutant runs; default mode after 1 min 07 s | formal/README.md:198-207 | the full and default runs above (608 = 19 mutants × 32 proofs) |
-| "the SHA-256 of the proved `rtl/execute_stage.sv` recorded there is that of the file in this version of the repository"; `847dc018…fab1bb` | docs/VERIFICATION.md:84; README.md:81; formal/README.md:209 | `sha256sum rtl/execute_stage.sv` at 03386fd: `847dc0189ecc3bd61ad4d9d66ea414165fc16c9daa16e392f91e3b3f36fab1bb` (the same at 0d25ee6, 588d76a and cbae9b9) |
+| the proved `rtl/execute_stage.sv`, `847dc018…fab1bb`, is the file of commits 588d76a to e75223e, before Zbb, Zbs and Zicond changed it (see the update below) | docs/VERIFICATION.md (Verification at a Glance, Formal Verification); README.md (Verification in Depth, Status and Limitations); formal/README.md:209 | `git show e75223e:rtl/execute_stage.sv \| sha256sum`: `847dc0189ecc3bd61ad4d9d66ea414165fc16c9daa16e392f91e3b3f36fab1bb` (the same at 0d25ee6, 588d76a, cbae9b9 and 03386fd) |
 | developed against `97ef211`, SHA-256 `50bed4cf…5111` | formal/README.md:464-465 | `git show 97ef211:rtl/execute_stage.sv \| sha256sum`: `50bed4cf0a13fec392dc0ced2cddc3d6a720f4f63e27df5962ca9b801a7f5111` |
 | 19 seeded bugs, 18 rejected; `diff32` equivalent; 19 mutants against 32 proofs | docs/VERIFICATION.md:218-219,236; formal/README.md:180-189,254-267 | `mutants: 18 rejected, 1 survived (diff32 ...)` |
 | about 1-2 min / about 25-35 min; "a few minutes" / "about 35 minutes" | docs/VERIFICATION.md:188-189; formal/README.md:11-12; Makefile help text | 1 min 7 s and 24 min 33 s in the run of record |
@@ -100,6 +100,9 @@ identical at 588d76a and 03386fd (`git rev-parse <commit>:<path>`):
 ## Caveats
 
 - Not repeated on 2026-10-01 (tools absent). Everything above is the recorded run.
-- The RTL that the proof covers has not changed since (same `rtl/execute_stage.sv` and `defines`),
-  so the recorded run applies to 03386fd as it stands.
+- The RTL that the proof covers did not change up to e75223e (same `rtl/execute_stage.sv` and
+  `defines`), so the recorded run applied to 03386fd and e75223e as they stood. For the change
+  that followed, see the update below.
 - What is and is not proven is stated in formal/README.md, section 5.
+
+**Update, 2026-10-02 (Zbb, Zbs and Zicond).** Zbb, Zbs and Zicond change the input of this proof for the first time since the run of record: `rtl/execute_stage.sv` gains their unit (Part 2c), an `EXT` arm in the ALU's operation decode and one arm of its result select, and `defines/op.sv` gains the op `EXT` (61) and its payload type, appended after the M ops, whose codes are unchanged. The file's SHA-256 is now `c36613c8fe0116aad83c66ea4a79dd4d03995c95290eb8a3d9c33eee6d3ae969`. The multiply/divide code that the proof covers is unchanged, but `make formal` has not been run on the new file, because the formal tools are not installed on the machine used for the change; the run above therefore covers `847dc018…fab1bb`, not the current file. The documentation states this beside each mention of the proof. A run of `make formal` on a machine with the tools would close the gap.

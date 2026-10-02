@@ -1,4 +1,4 @@
-# FPGA timing of the current RTL: WNS +0.016 ns (Vivado 2024.2, 2026-09-30)
+# FPGA timing of the RTL of cbae9b9: WNS +0.016 ns (Vivado 2024.2, 2026-09-30)
 
 A full `make synthesis` (Vivado 2024.2, Basys3 `xc7a35tcpg236-1`, 50 MHz) of the RTL of commit
 cbae9b9, made on 2026-09-30 to check the documentation. The synthesized sources of cbae9b9 differ
@@ -120,3 +120,5 @@ write_bitstream completed successfully
 - `RECORD.md`: this file. `meta.json`: the same, machine-readable.
 - `timing-summary.txt`, `worst-paths.txt`, `utilization.txt`: verbatim excerpts of the reports
   (the reports' `Host` lines are left out).
+
+**Update, 2026-10-02 (Zbb, Zbs and Zicond).** This record was titled "FPGA timing of the current RTL"; it no longer is. Zbb, Zbs and Zicond add a unit to the Execute stage (`rtl/execute_stage.sv`, Part 2c) whose result joins the ALU's result select, and new decoding to `rtl/instruction_decoder.sv`. That RTL has not been implemented, because Vivado runs are paused until a board is chosen, so whether it meets 50 MHz is unknown. The figures above are unchanged and still describe commit cbae9b9.

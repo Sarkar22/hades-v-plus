@@ -26,10 +26,12 @@ HaDes-V is a **32-bit, in-order, classic five-stage RISC-V soft core** written i
 | Instruction fence | **Zifencei** — FENCE.I to resynchronise the fetch path after self-modifying writes |
 | Counters | **Zicntr** — user-mode read-only `cycle`, `time`, `instret` (+ `*h` high halves) |
 | Address generation | **Zba** — `sh1add` / `sh2add` / `sh3add`, single-cycle scaled-index addressing |
+| Bit manipulation | **Zbb** — `andn`, `orn`, `xnor`, `clz`, `ctz`, `cpop`, `min`/`max`(`u`), `sext.b`, `sext.h`, `zext.h`, `rol`, `ror`, `rori`, `orc.b`, `rev8`; **Zbs** — `bclr`, `bext`, `binv`, `bset` and their immediate forms; all single-cycle. With Zba they form **B** |
+| Conditional zero | **Zicond** — `czero.eqz` / `czero.nez`, single-cycle |
 | Privilege | **Machine mode only** (M-mode) with a full trap model: ECALL, EBREAK, MRET, and all synchronous exceptions |
 | Interrupts | **External** and **timer** (`mie.MEIE`, `mie.MTIE`); gated by `mstatus.MIE`; save/restore via `MPIE` |
 
-The full ISA string is **`rv32im_zba_zicsr_zifencei_zicntr`** (pinned: `rv32i2p1_m2p0_zba1p0_zicsr2p0_zifencei2p0_zicntr2p0`). The `Zicsr` and `Zifencei` suffixes are load-bearing rather than decorative: base `I` version 2.0 included the CSR instructions and `FENCE.I`, but version 2.1 split them out into separately-named extensions. Note that no `Z*` extension can be advertised in `MISA` — its `Extensions` field has exactly one bit per single letter (bit 8 = `I`, bit 12 = `M`, …), so multi-letter extension names exist only in the ISA string.
+The full ISA string is **`rv32imb_zicntr_zicond_zicsr_zifencei`**, where B stands for Zba + Zbb + Zbs (the ratified "'B' Extension for Bit Manipulation", Version 1.0.0); expanded, `rv32im_zicntr_zicond_zicsr_zifencei_zba_zbb_zbs`; pinned, `rv32i2p1_m2p0_zicntr2p0_zicond1p0_zicsr2p0_zifencei2p0_zba1p0_zbb1p0_zbs1p0`. The extensions follow the canonical order of the ISA manual: single letters first, then the Z extensions grouped by the letter of their category (`Zi*` before `Zb*`) and alphabetically within it. GCC 12.2 accepts neither `b` nor `_zicond` in `-march`, so programs are compiled with `-march=rv32im_zba_zbb_zbs` and use Zicond through [std/include/zicond.h](../std/include/zicond.h) ([Zicond](EXTENSIONS.md#zicond--conditional-zero)). The `Zicsr` and `Zifencei` suffixes are load-bearing rather than decorative: base `I` version 2.0 included the CSR instructions and `FENCE.I`, but version 2.1 split them out into separately-named extensions. Note that no `Z*` extension can be advertised in `MISA` — its `Extensions` field has exactly one bit per single letter (bit 8 = `I`, bit 12 = `M`, …), so multi-letter extension names exist only in the ISA string. B is a single letter and has a `misa` bit (bit 1), but HaDes-V+ does not report it: `MISA` reads as zero, as listed below.
 
 Implemented M-mode CSRs include `MSTATUS`, `MIE`, `MIP`, `MTVEC` (direct mode only), `MSCRATCH`, `MEPC`, `MCAUSE`, `MCYCLE`/`MCYCLEH`, `MINSTRET`/`MINSTRETH`, and (as an extension) **`MHPMEVENT10`** and **`MHPMCOUNTER10–13`** for branch-predictor control and performance monitoring — see [defines/csr.sv](../defines/csr.sv) for the full map. `MISA`, `MTVAL` and the other machine-mode CSRs that the decoder accepts but that are not listed here read as zero.
 
@@ -152,7 +154,7 @@ A bare-metal C program targets HaDes-V by linking against the runtime in [std/](
 
 ### FreeRTOS
 
-HaDes-V+ runs the unmodified official RISC-V port of FreeRTOS (V11.1.0+) in machine mode, using the memory-mapped machine timer (`mtime` at `0x00214004`, `mtimecmp` at `0x0021400C`) as the tick source. No instruction-set extension is required: the port needs only RV32I, Zicsr, `mstatus.MIE`/`MPIE`, `mie.MTIE`/`MEIE`, direct-mode `mtvec`, `mepc`, `mcause` and `MRET`. Programs can be built for `rv32i`, `rv32im` or `rv32im_zba`.
+HaDes-V+ runs the unmodified official RISC-V port of FreeRTOS (V11.1.0+) in machine mode, using the memory-mapped machine timer (`mtime` at `0x00214004`, `mtimecmp` at `0x0021400C`) as the tick source. No instruction-set extension is required: the port needs only RV32I, Zicsr, `mstatus.MIE`/`MPIE`, `mie.MTIE`/`MEIE`, direct-mode `mtvec`, `mepc`, `mcause` and `MRET`. Programs can be built for `rv32i`, `rv32im`, `rv32im_zba` or `rv32im_zba_zbb_zbs`.
 
 How FreeRTOS is used to test the core, and the defects it found, is described in [VERIFICATION.md](VERIFICATION.md#freertos-differential-campaigns).
 

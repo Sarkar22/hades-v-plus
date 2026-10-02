@@ -70,7 +70,17 @@
 #else
     #define SHELL_ISA_ZBA    ""
 #endif
-#define SHELL_ISA            "rv32i" SHELL_ISA_M SHELL_ISA_ZBA
+#if defined( __riscv_zbb )
+    #define SHELL_ISA_ZBB    "_zbb"
+#else
+    #define SHELL_ISA_ZBB    ""
+#endif
+#if defined( __riscv_zbs )
+    #define SHELL_ISA_ZBS    "_zbs"
+#else
+    #define SHELL_ISA_ZBS    ""
+#endif
+#define SHELL_ISA            "rv32i" SHELL_ISA_M SHELL_ISA_ZBA SHELL_ISA_ZBB SHELL_ISA_ZBS
 #if defined( __OPTIMIZE_SIZE__ )
     #define SHELL_OPT        "-Os"
 #elif defined( __OPTIMIZE__ )
@@ -133,6 +143,12 @@ typedef struct
     uint8_t ucM;        /* mul/div execute */
     uint8_t ucZba;      /* sh1add/sh2add/sh3add execute */
     uint8_t ucZicntr;   /* the cycle/time/instret CSRs are readable */
+    #if SHELL_LOADER
+        /* For the apps (hades_app.h, ulCpu); the shell itself uses none of them. */
+        uint8_t ucZbb;      /* clz executes */
+        uint8_t ucZbs;      /* bset executes */
+        uint8_t ucZicond;   /* czero.eqz executes */
+    #endif
 } ShellCpu_t;
 extern ShellCpu_t xShellCpu;
 

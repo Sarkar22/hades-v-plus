@@ -1,0 +1,389 @@
+{
+ "record": "results/bitmanip/2026-10-02_e75223e",
+ "topic": "bitmanip",
+ "status": "repeatable",
+ "date": "2026-10-02",
+ "base_commit": "e75223e5a6af0e6ff5233f46d1196e85755e25d1",
+ "working_tree": "base commit plus the uncommitted Zbb, Zbs and Zicond changes; inputs.sha256 lists every changed or new file under Makefile, rtl/, defines/, std/, test/ and lib/, other than documentation",
+ "figures": [
+  {
+   "suite": "asm/zbb",
+   "command": "make test/asm/zbb",
+   "exit_status": 0,
+   "output": [
+    "441 'Test pass!' lines",
+    "All tests passed! (# Errors: 1 = initial test)"
+   ]
+  },
+  {
+   "suite": "asm/zbs",
+   "command": "make test/asm/zbs",
+   "exit_status": 0,
+   "output": [
+    "373 'Test pass!' lines",
+    "All tests passed! (# Errors: 1 = initial test)"
+   ]
+  },
+  {
+   "suite": "asm/zicond",
+   "command": "make test/asm/zicond",
+   "exit_status": 0,
+   "output": [
+    "189 'Test pass!' lines",
+    "All tests passed! (# Errors: 1 = initial test)"
+   ]
+  },
+  {
+   "suite": "asm/hints",
+   "command": "make test/asm/hints",
+   "exit_status": 0,
+   "output": [
+    "56 'Test pass!' lines",
+    "All tests passed! (# Errors: 1 = initial test)"
+   ]
+  },
+  {
+   "suite": "asm/zkt",
+   "command": "make test/asm/zkt",
+   "exit_status": 0,
+   "output": [
+    "198 'Test pass!' lines",
+    "All tests passed! (# Errors: 1 = initial test)"
+   ]
+  },
+  {
+   "suite": "sv/test_ext_execute",
+   "command": "make test/sv/test_ext_execute",
+   "exit_status": 0,
+   "output": [
+    "=== 1: known answers ===",
+    "=== 2: every form on the corner set ===",
+    "=== 3: random operands ===",
+    "=== 4: pipeline protocol ===",
+    "  Checks: 927129   Errors: 0",
+    "All 927129 EXT-unit checks passed"
+   ]
+  },
+  {
+   "suite": "ext-check",
+   "command": "make ext-check",
+   "exit_status": 0,
+   "output": [
+    "ext check (quick): the RTL (instruction_decoder -> execute_stage) against the C reference model, 28 forms, 4 jobs",
+    "  andn          2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok",
+    "  orn           2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok",
+    "  xnor          2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok",
+    "  clz           4 of    4 digest lines identical,     67,108,864 vectors, violations=0  ok",
+    "  ctz           4 of    4 digest lines identical,     67,108,864 vectors, violations=0  ok",
+    "  cpop          4 of    4 digest lines identical,     67,108,864 vectors, violations=0  ok",
+    "  max           2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok",
+    "  maxu          2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok",
+    "  min           2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok",
+    "  minu          2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok",
+    "  sext.b        4 of    4 digest lines identical,     67,108,864 vectors, violations=0  ok",
+    "  sext.h        4 of    4 digest lines identical,     67,108,864 vectors, violations=0  ok",
+    "  zext.h        4 of    4 digest lines identical,     67,108,864 vectors, violations=0  ok",
+    "  rol           3 of    3 digest lines identical,      1,073,920 vectors, violations=0  ok",
+    "  ror           3 of    3 digest lines identical,      1,073,920 vectors, violations=0  ok",
+    "  rori          1 of    1 digest lines identical,        135,680 vectors, violations=0  ok",
+    "  orc.b         4 of    4 digest lines identical,     67,108,864 vectors, violations=0  ok",
+    "  rev8          4 of    4 digest lines identical,     67,108,864 vectors, violations=0  ok",
+    "  bclr          3 of    3 digest lines identical,      1,073,920 vectors, violations=0  ok",
+    "  bclri         1 of    1 digest lines identical,        135,680 vectors, violations=0  ok",
+    "  bext          3 of    3 digest lines identical,      1,073,920 vectors, violations=0  ok",
+    "  bexti         1 of    1 digest lines identical,        135,680 vectors, violations=0  ok",
+    "  binv          3 of    3 digest lines identical,      1,073,920 vectors, violations=0  ok",
+    "  binvi         1 of    1 digest lines identical,        135,680 vectors, violations=0  ok",
+    "  bset          3 of    3 digest lines identical,      1,073,920 vectors, violations=0  ok",
+    "  bseti         1 of    1 digest lines identical,        135,680 vectors, violations=0  ok",
+    "  czero.eqz     3 of    3 digest lines identical,      1,073,408 vectors, violations=0  ok",
+    "  czero.nez     3 of    3 digest lines identical,      1,073,408 vectors, violations=0  ok",
+    "  75 digest lines, 553,624,832 vectors, violations=0",
+    "EXT CHECK: PASS (28 of 28 forms identical)"
+   ]
+  },
+  {
+   "suite": "fuzz b 1001-2000",
+   "command": "python3 test/trapsweep/sweep.py fuzz --seeds 1001-2000 --variant b --targets dut --jobs {jobs} --out {out}",
+   "exit_status": 0,
+   "output": [
+    "DUT: 1000/1000 programs ISS-consistent"
+   ]
+  },
+  {
+   "suite": "sweep ext",
+   "command": "python3 test/trapsweep/sweep.py run --fam ext --targets dut --jobs {jobs} --out {out}",
+   "exit_status": 0,
+   "output": [
+    "ext_ext_0 | dut:done | ISS[dut] groups_bad=0 violations=0 notes=0",
+    "ext_timer_0 | dut:done | ISS[dut] groups_bad=0 violations=0 notes=0",
+    "ext_both_0 | dut:done | ISS[dut] groups_bad=0 violations=0 notes=0",
+    "DUT: 3/3 programs ISS-consistent"
+   ]
+  },
+  {
+   "suite": "loader session-ext (HaDes-V+)",
+   "command": "make freertos-shell-test APP=loader SCRIPT=test/freertos/loader/session-ext.txt",
+   "exit_status": 0,
+   "output": [
+    "FREERTOS SHELL RESULT: PASS  app=loader cpu=dut isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=28027428",
+    "  typed lines: 14, prompts: 14, expectations met: 35/35",
+    "loaded compute: 1048 bytes at 0x00060000, entry 0x00060040, CRC32 0x41352324",
+    "compute: trace 1093898742, quotients 1445856025, remainders 22, mulhu 198418: PASS (75838 cycles)",
+    "app: compute exited with code 0 after 139294 cycles",
+    "loaded compute: 1048 bytes at 0x00060000, entry 0x00060040, CRC32 0x41352324",
+    "cpu:       M yes, Zba yes, Zicntr yes",
+    "cpu:       Zbb yes, Zbs yes, Zicond yes (for apps)",
+    "loaded bitmanip: 4172 bytes at 0x00060000, entry 0x00060040, CRC32 0x31515268",
+    "bitmanip: zbb    popcount 1020, log2 1907, ctz 62, mix 5dd12d14 00203fcc 648904fb, hash 200eb485: PASS (11163 cycles)",
+    "bitmanip: bytes  rev8 bb05f113, string lengths 102: PASS (1761 cycles, C)",
+    "bitmanip: zbs    primes below 4096: 564 (sum 1070091), after toggling 1928, flags 7f6b4d42: PASS (267175 cycles)",
+    "bitmanip: zicond select b23616d0, clamp 000013b0, add-if e806a5c8: PASS (1999 cycles, C)",
+    "bitmanip: 4 of 4 sections passed",
+    "app: bitmanip exited with code 0 after 448265 cycles",
+    "loaded bitmanip: 3336 bytes at 0x00060000, entry 0x00060040, CRC32 0xa8bf5894",
+    "bitmanip: zbb    popcount 1020, log2 1907, ctz 62, mix 5dd12d14 00203fcc 648904fb, hash 200eb485: PASS (5443 cycles)",
+    "bitmanip: bytes  rev8 bb05f113, string lengths 102: PASS (331 cycles, rev8 and orc.b)",
+    "bitmanip: zbs    primes below 4096: 564 (sum 1070091), after toggling 1928, flags 7f6b4d42: PASS (209170 cycles)",
+    "bitmanip: zicond select b23616d0, clamp 000013b0, add-if e806a5c8: PASS (1612 cycles, czero)",
+    "bitmanip: 4 of 4 sections passed",
+    "app: bitmanip exited with code 0 after 385301 cycles"
+   ]
+  },
+  {
+   "suite": "loader session-ext (golden CPU)",
+   "command": "make freertos-shell-test APP=loader SCRIPT=test/freertos/loader/session-ext.txt CPU=golden",
+   "exit_status": 0,
+   "output": [
+    "FREERTOS SHELL RESULT: PASS  app=loader cpu=golden isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=27534177",
+    "  typed lines: 14, prompts: 14, expectations met: 31/31",
+    "loaded compute: 1048 bytes at 0x00060000, entry 0x00060040, CRC32 0x41352324",
+    "error: compute was built for rv32im_zba, but this CPU has no M and no Zba",
+    "loaded compute: 1048 bytes at 0x00060000, entry 0x00060040, CRC32 0x41352324",
+    "cpu:       M no, Zba no, Zicntr no",
+    "cpu:       Zbb no, Zbs no, Zicond no (for apps)",
+    "loaded bitmanip: 4172 bytes at 0x00060000, entry 0x00060040, CRC32 0x31515268",
+    "bitmanip: zbb    popcount 1020, log2 1907, ctz 62, mix 5dd12d14 00203fcc 648904fb, hash 200eb485: PASS (11161 cycles)",
+    "bitmanip: bytes  rev8 bb05f113, string lengths 102: PASS (1753 cycles, C)",
+    "bitmanip: zbs    primes below 4096: 564 (sum 1070091), after toggling 1928, flags 7f6b4d42: PASS (267145 cycles)",
+    "bitmanip: zicond select b23616d0, clamp 000013b0, add-if e806a5c8: PASS (1817 cycles, C)",
+    "bitmanip: 4 of 4 sections passed",
+    "app: bitmanip exited with code 0 after 448031 cycles",
+    "loaded bitmanip: 3336 bytes at 0x00060000, entry 0x00060040, CRC32 0xa8bf5894",
+    "error: bitmanip was built for rv32im_zba_zbb_zbs, but this CPU has no M, no Zba, no Zbb and no Zbs"
+   ]
+  }
+ ],
+ "program_tables": {
+  "fuzz b 1001-2000": "fuzz-b.csv",
+  "sweep ext": "ext-family.csv"
+ },
+ "app_forms": {
+  "about": "the Zbb, Zbs and Zicond instruction words in the code of the app's two builds, per form: each word of the SDK's disassembly (objdump -d of the ELF) matched against EXT_FORMS of test/bench/bench.py; the loader's session builds both",
+  "files": [
+   [
+    "bitmanip-rv32im_zba_zbb_zbs",
+    "test/freertos/sdk/rv32im_zba_zbb_zbs/bitmanip.dis"
+   ],
+   [
+    "bitmanip-rv32i",
+    "test/freertos/sdk/rv32i/bitmanip.dis"
+   ]
+  ],
+  "output": [
+   "bitmanip-rv32im_zba_zbb_zbs   41 words, 28 forms: andn=2 orn=1 xnor=1 clz=1 ctz=2 cpop=1 max=1 maxu=1 min=1 minu=1 sext.b=1 sext.h=1 zext.h=1 rol=1 ror=1 rori=1 orc.b=2 rev8=1 bclr=2 bclri=1 bext=3 bexti=1 binv=1 binvi=1 bset=3 bseti=1 czero.eqz=4 czero.nez=3",
+   "bitmanip-rv32i                 0 words,  0 forms: -"
+  ]
+ },
+ "long": {
+  "figures": [
+   {
+    "suite": "ext-exhaustive",
+    "command": "make ext-exhaustive",
+    "exit_status": 0,
+    "output": [
+     "ext check (exhaustive): the RTL (instruction_decoder -> execute_stage) against the C reference model, 28 forms, 4 jobs",
+     "  andn          2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok",
+     "  orn           2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok",
+     "  xnor          2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok",
+     "  clz         256 of  256 digest lines identical,  4,294,967,296 vectors, violations=0  ok",
+     "  ctz         256 of  256 digest lines identical,  4,294,967,296 vectors, violations=0  ok",
+     "  cpop        256 of  256 digest lines identical,  4,294,967,296 vectors, violations=0  ok",
+     "  max           2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok",
+     "  maxu          2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok",
+     "  min           2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok",
+     "  minu          2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok",
+     "  sext.b      256 of  256 digest lines identical,  4,294,967,296 vectors, violations=0  ok",
+     "  sext.h      256 of  256 digest lines identical,  4,294,967,296 vectors, violations=0  ok",
+     "  zext.h      256 of  256 digest lines identical,  4,294,967,296 vectors, violations=0  ok",
+     "  rol           3 of    3 digest lines identical,      1,073,920 vectors, violations=0  ok",
+     "  ror           3 of    3 digest lines identical,      1,073,920 vectors, violations=0  ok",
+     "  rori          1 of    1 digest lines identical,        135,680 vectors, violations=0  ok",
+     "  orc.b       256 of  256 digest lines identical,  4,294,967,296 vectors, violations=0  ok",
+     "  rev8        256 of  256 digest lines identical,  4,294,967,296 vectors, violations=0  ok",
+     "  bclr          3 of    3 digest lines identical,      1,073,920 vectors, violations=0  ok",
+     "  bclri         1 of    1 digest lines identical,        135,680 vectors, violations=0  ok",
+     "  bext          3 of    3 digest lines identical,      1,073,920 vectors, violations=0  ok",
+     "  bexti         1 of    1 digest lines identical,        135,680 vectors, violations=0  ok",
+     "  binv          3 of    3 digest lines identical,      1,073,920 vectors, violations=0  ok",
+     "  binvi         1 of    1 digest lines identical,        135,680 vectors, violations=0  ok",
+     "  bset          3 of    3 digest lines identical,      1,073,920 vectors, violations=0  ok",
+     "  bseti         1 of    1 digest lines identical,        135,680 vectors, violations=0  ok",
+     "  czero.eqz     3 of    3 digest lines identical,      1,073,408 vectors, violations=0  ok",
+     "  czero.nez     3 of    3 digest lines identical,      1,073,408 vectors, violations=0  ok",
+     "  2091 digest lines, 34,376,492,288 vectors, violations=0",
+     "EXT CHECK: PASS (28 of 28 forms identical)"
+    ]
+   }
+  ],
+  "campaign_args": [
+   "--set",
+   "bitmanip",
+   "--seeds",
+   "8"
+  ],
+  "campaign_result": "CAMPAIGN RESULT: PASS (120 runs: 0 DUT run(s) not passed, 0 golden run(s) not passed, 0 build failure(s))"
+ },
+ "inputs": {
+  "files_sha256": {
+   "Makefile": "220d57c65dade25f60d51f067401cadbebb73821afb0a216c4c560b76c8782c6",
+   "defines/op.sv": "fa466b941a23a0cd0235840f043e7682ea778f95f46f7063cdc570f45d4126dd",
+   "rtl/execute_stage.sv": "c36613c8fe0116aad83c66ea4a79dd4d03995c95290eb8a3d9c33eee6d3ae969",
+   "rtl/instruction_decoder.sv": "e271c30f783b21fa56e66982608d973170f032fba6fc9f47d9a619c32aac77ea",
+   "std/include/zicond.h": "dc6dbd1ba106d614d5447798f478304f0c871d99033c8f490637ba31330bf604",
+   "test/asm/hints.s": "b85f6bee84251f89b63579a140aa560901244ebfd69c360e4a78db27985ae9f2",
+   "test/asm/zbb.s": "db4ae50a91252d5505746ff73cad525f454dc31380d47af02298fd22ea15de70",
+   "test/asm/zbs.s": "130b0155cc02c97258b4f5f8ac7ba2a10aeac27f3411a3a73a31eb0304caffe7",
+   "test/asm/zicond.s": "6c320bdd787bfdec015bfca319a6c3d12d5c2b07ddc04aebe0caa97db324943d",
+   "test/asm/zkt.s": "08230e52ce0c68d7d17a7983d504e545baa30e41a76e4c9154ede9a0cf7ce2d6",
+   "test/bench/bench.mk": "4ce6b1e6b4947e7dda99610150e8ad85c08b281caea9bcc9680845aee1bfe59a",
+   "test/bench/bench.py": "13997cd9cc031ffeb706af64a419ebbdf762248e074db53db30d1c6afa358397",
+   "test/bench/zbb/zbb_arr.c": "c4c7b4768eec6b310912cd781d3f0ae2e65afa3a6957f27cd2f7aa691c788919",
+   "test/bench/zbb/zbb_bench.c": "954b324a9adb16458ca25141c9989fcb914a5c56de86f2bd1cc758b8e2ac4e56",
+   "test/bench/zbb/zbb_diff.c": "2b5cc812359cd5be80a6039203415ff3e34445eb1d3df445f8d97760f013de6a",
+   "test/ext/ext.mk": "e237fd8d3adf551648012c8997903ca425ec58bd6f771d73d8dfea1bb7096f5d",
+   "test/ext/harness.cpp": "9dbe245f0d4d58fcac69cd71f838a8ef71637db5d40de66b9fa4183a205db7b2",
+   "test/ext/harness.sv": "51396e93380c91f61e79514d6de7feeb369c7f9bb95850e880e82d0bb13e585d",
+   "test/ext/ref.py": "534bcc23484f5fc250013b75bcd602d0fe2e37e65eda5c7e91b8783c287a6f69",
+   "test/ext/ref_exh.c": "4fc5c651f9cec5bae6b17cee9e26a8ed01e64728dde44bb5c1d262ad53b1c691",
+   "test/ext/run.py": "5305bf8c8d9ab4be8e34a51aa6880fd4fb2d2553488cc9727d1ce551582953fb",
+   "test/freertos/campaign.py": "fc29493e5f0cd536b6df48f383fd8bc9eac5baaef141db9892959b393f1ea669",
+   "test/freertos/common/hades_hal.c": "f15ad3ffff80398ba6641e14b0f4338625b5c1d366639cf59925c4668a0d36ac",
+   "test/freertos/loader/loader.c": "9e384fcc7c4204d6f60a3081ff69425db001a64110ccbd1972b76577aed79326",
+   "test/freertos/loader/session-ext.txt": "e8f193852e218b12c645c6cf1a9c9a3fa540c415e7b777cbb00fb6faf79a7c9a",
+   "test/freertos/sdk/appimg.py": "4431753d941e3eb5089b729aef35cb5fc614cdd693ae606ac4c4076727ac1fd6",
+   "test/freertos/sdk/apps/bitmanip/bitmanip.c": "bedc654ba67af97c857d03b14896397378f80abb7fcb398cfd0fad5981589b60",
+   "test/freertos/sdk/apps/bitmanip/model.py": "acc0e6c5498f87922f3faec7daac9e6926523c4cc4f7f585dd9b07a3588567f5",
+   "test/freertos/sdk/hades_app.h": "5d2d8badff1e266cdb030216be4310a2c97ebba1995097745fa685e53ca24e2e",
+   "test/freertos/sdk/sdk.mk": "ac576627fec2beb763be0454fa0f5e9e1eeb57ecf907a7960007524507e8d4ad",
+   "test/freertos/shell/commands.c": "d863f51560aadbcf69b73092b4b97ec7cca638b268e431172f77bb718848b424",
+   "test/freertos/shell/shell.h": "17cee469c8a909e478fb9bfb32ee7669976ab9dfa3c2869002c538e9997e6026",
+   "test/sv/test_ext_execute.sv": "983c79f885839478d1a24b7150f26ced09837d647a0e9cfa49850501921864ed",
+   "test/sv/test_zba_encoding_sweep.sv": "63fc037720f0c7db8017f66ce4758e4c0563c0a5f8f8753245ce242d1e0e1e33",
+   "test/trapsweep/fuzz.py": "47b90f561bc40668c1be810454ebe5840a53c0c0da73601906fb1966ce5f55e4",
+   "test/trapsweep/iss.py": "bb3ad52c208dd0a5ca2be6a82f8d03c883557d0e6197b611e12f579af7c6aec4",
+   "test/trapsweep/probes.py": "31bc2e3697fa9d182626d82fabb6c9e26577b534b005441f13be71cfb46ad38f",
+   "test/trapsweep/sweep.py": "dcfd8e8163329746256dbba83e84a31795215bb2bdd83a6a4fac6a0de3c2033b"
+  }
+ },
+ "host": {
+  "cpu": "Intel Core Ultra 7 165H",
+  "threads": 22,
+  "os": "Linux"
+ },
+ "tools": {
+  "verilator": "Verilator 5.042 2025-11-02 rev v5.042",
+  "gcc": "riscv32-unknown-elf-gcc () 12.2.0",
+  "binutils": "GNU assembler (GNU Binutils) 2.39",
+  "python": "Python 3.12.3",
+  "make": "GNU Make 4.3"
+ },
+ "workers": 4,
+ "wall_time_s": {
+  "make test/asm/zbb": 0.1,
+  "make test/asm/zbs": 0.1,
+  "make test/asm/zicond": 0.1,
+  "make test/asm/hints": 0.0,
+  "make test/asm/zkt": 0.1,
+  "make test/sv/test_ext_execute": 0.8,
+  "make ext-check": 13.1,
+  "python3 test/trapsweep/sweep.py fuzz --seeds 1001-2000 --variant b --targets dut --jobs {jobs} --out {out}": 52.9,
+  "python3 test/trapsweep/sweep.py run --fam ext --targets dut --jobs {jobs} --out {out}": 1.0,
+  "make freertos-shell-test APP=loader SCRIPT=test/freertos/loader/session-ext.txt": 22.1,
+  "make freertos-shell-test APP=loader SCRIPT=test/freertos/loader/session-ext.txt CPU=golden": 28.2
+ },
+ "quoted": [
+  {
+   "figure": "75 digest lines, 553,624,832 vectors identical (make ext-check)",
+   "quoted_in": [
+    "docs/VERIFICATION.md",
+    "docs/EXTENSIONS.md (Zbb and Zbs, Verification)",
+    "test/ext/README.md"
+   ]
+  },
+  {
+   "figure": "2,091 digest lines, 34,376,492,288 vectors identical (make ext-exhaustive); about 14 minutes with 4 jobs",
+   "quoted_in": [
+    "README.md (Verification in Depth)",
+    "docs/VERIFICATION.md",
+    "docs/EXTENSIONS.md",
+    "docs/BUILDING.md",
+    "test/ext/README.md",
+    "Makefile help"
+   ]
+  },
+  {
+   "figure": "zbb.s 442, zbs.s 374, zicond.s 190, hints.s 57, zkt.s 199 assertions",
+   "quoted_in": [
+    "docs/EXTENSIONS.md (Zbb and Zbs, Zicond)"
+   ]
+  },
+  {
+   "figure": "927,129 checks of test_ext_execute",
+   "quoted_in": [
+    "docs/VERIFICATION.md",
+    "docs/EXTENSIONS.md"
+   ]
+  },
+  {
+   "figure": "1,000 of 1,000 random programs consistent (fuzz variant b)",
+   "quoted_in": [
+    "README.md",
+    "docs/VERIFICATION.md",
+    "docs/EXTENSIONS.md"
+   ]
+  },
+  {
+   "figure": "31 probes, 3 of 3 programs consistent (sweep.py run --fam ext)",
+   "quoted_in": [
+    "docs/VERIFICATION.md",
+    "docs/EXTENSIONS.md",
+    "test/trapsweep/README.md"
+   ]
+  },
+  {
+   "figure": "120 of 120 campaign runs passed (set bitmanip); GCC uses 12 of the 26 Zbb and Zbs forms in the FreeRTOS programs, mostly sext.b, zext.h, andn and bset",
+   "quoted_in": [
+    "docs/VERIFICATION.md",
+    "docs/EXTENSIONS.md",
+    "test/freertos/README.md"
+   ]
+  },
+  {
+   "figure": "the app bitmanip: 4 of 4 sections in both builds on HaDes-V+ and in the rv32i build on the golden CPU; its cycle counts; all 28 forms in its rv32im_zba_zbb_zbs build",
+   "quoted_in": [
+    "README.md",
+    "docs/APPS.md",
+    "docs/VERIFICATION.md",
+    "docs/EXTENSIONS.md"
+   ]
+  },
+  {
+   "figure": "mutation testing of the decoder and the Execute unit",
+   "quoted_in": [
+    "docs/EXTENSIONS.md",
+    "docs/VERIFICATION.md (Mutation Testing)"
+   ]
+  }
+ ]
+}

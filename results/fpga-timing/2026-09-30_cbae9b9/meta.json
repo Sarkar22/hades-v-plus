@@ -131,7 +131,8 @@
   "Routing alone ended at WNS -1.028 ns; the post-route phys_opt_design of synth/synth.tcl reached +0.016 ns.",
   "The 03386fd RTL (UART fix) was not implemented.",
   "write_bitstream does not check timing.",
-  "Not validated on hardware."
+  "Not validated on hardware.",
+  "Update 2026-10-02: the Zbb, Zbs and Zicond RTL (a new unit in Execute and new decoding) has not been implemented; whether it meets 50 MHz is unknown. The figures describe cbae9b9."
  ],
  "files": [
   "timing-summary.txt",

@@ -130,7 +130,7 @@ help:
 	@echo "                    The interactive console through a pseudo-terminal (keys, quitting, restore)"
 	@echo "  freertos-shell APP=loader [UPLOAD=<app>]"
 	@echo "                    The shell with the app loader: load and run programs built on the host (simulation)"
-	@echo "  freertos-app      Build an app for the loader: make freertos-app NAME=<name> [MARCH=rv32im_zba] [OPT=-Os]"
+	@echo "  freertos-app      Build an app for the loader: make freertos-app NAME=<name> [MARCH=rv32im_zba_zbb_zbs] [OPT=-Os]"
 	@echo "  freertos-apps     Build the example apps and the loader's test files"
 	@echo "  freertos-send     Send an app to a running 'freertos-shell APP=loader PTY=1': UPLOAD=<app>"
 	@echo "  freertos-loader-test"
@@ -144,10 +144,15 @@ help:
 	@echo ""
 	@echo "Benchmarks (guide: test/bench/README.md; recorded results: results/):"
 	@echo "  bench-zba         Zba: two C programs for rv32i and rv32i_zba, compared [OPT=-O2]"
+	@echo "  bench-zbb         Zbb, Zbs, Zicond: two C programs for rv32i and with the extensions, compared [OPT=-O2]"
 	@echo "  bench-mcost       Cycles of each M instruction in the assembled core"
 	@echo "  bench-fencei-window"
 	@echo "                    Instructions that still run stale after a store patches them (no FENCE.I)"
-	@echo "  bench             All three"
+	@echo "  bench             All four"
+	@echo ""
+	@echo "Zbb, Zbs and Zicond (guide: test/ext/README.md):"
+	@echo "  ext-check         The RTL's results against the C reference model, quick vector set (under a minute) [JOBS=4]"
+	@echo "  ext-exhaustive    The same, the unary instructions over all 2^32 inputs (about 14 minutes) [JOBS=4]"
 	@echo ""
 	@echo "Recorded results (guide: results/README.md):"
 	@echo "  check-results     Re-run the repeatable records of results/ and compare [CHECK_ARGS=--list]"
@@ -316,6 +321,14 @@ include $(TEST_DIR)/freertos/freertos.mk
 # (make bench-zba, bench-mcost, bench-fencei-window, bench): guide test/bench/README.md,
 # recorded results in results/
 include $(TEST_DIR)/bench/bench.mk
+
+################################################################################
+#                       Zbb, Zbs and Zicond: value checks                      #
+################################################################################
+
+# The RTL's results of the 28 Zbb, Zbs and Zicond forms against the C reference model
+# (make ext-check, ext-exhaustive): guide test/ext/README.md
+include $(TEST_DIR)/ext/ext.mk
 
 ################################################################################
 #                               Recorded Results                               #

@@ -208,6 +208,11 @@ void shell_probe_cpu( void )
     xShellCpu.ucM = PROBE( ".insn r 0x33, 0, 1, %0, %0, %0" );        /* mul    */
     xShellCpu.ucZba = PROBE( ".insn r 0x33, 2, 0x10, %0, %0, %0" );   /* sh1add */
     xShellCpu.ucZicntr = PROBE( "csrr %0, 0xC00" );                     /* cycle  */
+    #if SHELL_LOADER
+        xShellCpu.ucZbb = PROBE( ".insn i 0x13, 1, %0, %0, 0x600" );     /* clz       */
+        xShellCpu.ucZbs = PROBE( ".insn r 0x33, 1, 0x14, %0, %0, %0" );  /* bset      */
+        xShellCpu.ucZicond = PROBE( ".insn r 0x33, 5, 7, %0, %0, %0" );  /* czero.eqz */
+    #endif
 }
 
 static const char * prvYesNo( uint8_t ucHave )
@@ -227,6 +232,15 @@ static BaseType_t prvVersion( char * pcOut, size_t xOutLen, const char * pcComma
                     tskKERNEL_VERSION_NUMBER, SHELL_ISA, SHELL_OPT, __VERSION__, FRTOS_HEAP, FRTOS_TICK_CYCLES,
                     FRTOS_RAM_KB, FRTOS_BPRED, prvYesNo( xShellCpu.ucM ), prvYesNo( xShellCpu.ucZba ),
                     prvYesNo( xShellCpu.ucZicntr ) );
+    #if SHELL_LOADER
+        /* The extensions that only apps use (the line above stays as the shell prints it). */
+        {
+            const size_t xUsed = strlen( pcOut );
+
+            shell_snprintf( pcOut + xUsed, xOutLen - xUsed, "cpu:       Zbb %s, Zbs %s, Zicond %s (for apps)\n",
+                            prvYesNo( xShellCpu.ucZbb ), prvYesNo( xShellCpu.ucZbs ), prvYesNo( xShellCpu.ucZicond ) );
+        }
+    #endif
     return pdFALSE;
 }
 

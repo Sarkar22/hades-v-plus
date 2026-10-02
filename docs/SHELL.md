@@ -99,7 +99,7 @@ examples are from one session on HaDes-V+; the numbers depend on the moment.
 | Command | What it shows or does |
 |---|---|
 | `help` | The list of commands. |
-| `version` | FreeRTOS version, the instruction set and optimisation the program was compiled for, the build configuration, and which extensions the CPU actually executes (probed at start-up: M, Zba and Zicntr). |
+| `version` | FreeRTOS version, the instruction set and optimisation the program was compiled for, the build configuration, and which extensions the CPU actually executes (probed at start-up: M, Zba and Zicntr; the loader's build, `APP=loader`, adds a line for Zbb, Zbs and Zicond, which only its apps use). |
 | `tasks` | Every task with its state, priority and the least free stack space it has had so far (the high-water mark, in 32-bit words). |
 | `stats` | CPU cycles each task has run since the scheduler started, and its share (FreeRTOS run-time statistics with the 64-bit `mcycle` counter as the clock). |
 | `mem` | Free heap now and at the lowest point, the RAM layout, and the interrupt stack's peak use. |

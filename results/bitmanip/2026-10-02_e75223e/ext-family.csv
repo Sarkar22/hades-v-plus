@@ -1,0 +1,4 @@
+program,dut_iss_consistent,dut_cycles
+ext_ext_0,True,203360
+ext_timer_0,True,222180
+ext_both_0,True,290137

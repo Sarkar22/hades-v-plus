@@ -195,7 +195,7 @@ exactly where the broken hint is false:
 
 ## 4. Results and runtimes
 
-Run of record: `make formal-full` in this tree, 2026-09-28 ([record](../results/formal/2026-09-28_588d76a/RECORD.md)). It reported
+Run of record: `make formal-full` at commit 588d76a, 2026-09-28 ([record](../results/formal/2026-09-28_588d76a/RECORD.md)). It reported
 `FORMAL RESULT: PASS (mode=full)` after 24 min 33 s:
 
 - 74 required checks, all PASS;
@@ -206,8 +206,10 @@ Run of record: `make formal-full` in this tree, 2026-09-28 ([record](../results/
 `make formal` (default mode) reported `FORMAL RESULT: PASS (mode=default)` after
 1 min 07 s: 72 required checks and 4 negative controls.
 
-The proved file was `rtl/execute_stage.sv`, SHA-256 `847dc018…fab1bb`. The machine has
-22 hardware threads and was shared with other jobs. Parallelism was `--par 4`. Wall
+The proved file was `rtl/execute_stage.sv`, SHA-256 `847dc018…fab1bb`. Zbb, Zbs and
+Zicond later added their unit (Part 2c) and one arm of the ALU's result select to that
+file; the M unit's code is unchanged, but the proof has not been re-run on the new
+file. The machine has 22 hardware threads and was shared with other jobs. Parallelism was `--par 4`. Wall
 times are per task.
 
 Engines: bw = bitwuzla, bwn/yn = bitwuzla/yices restarted per `check-sat`, z3.
@@ -462,7 +464,7 @@ CTRL/DIVF invariants. The mutants are textual patterns on the sv2v output, and
 ## 9. History and independent audits
 
 The proof was developed against `rtl/execute_stage.sv` of commit `97ef211` (SHA-256
-`50bed4cf…5111`). The file in this tree additionally contains fix E: the architectural
+`50bed4cf…5111`). The proved file of section 4 additionally contains fix E: the architectural
 `next_pc`, independent of the branch prediction. Its sv2v model differs from the
 `97ef211` one in exactly one line, `assign next_pc = ...`, which is outside the M unit.
 `run.sh` re-proves everything on the file in the tree.

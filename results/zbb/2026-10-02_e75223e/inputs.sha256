@@ -1,0 +1,12 @@
+# The files that differ from the base commit e75223e (changed or new), other than documentation,
+# as the runs used them. Paths relative to the repository root; check with sha256sum -c.
+220d57c65dade25f60d51f067401cadbebb73821afb0a216c4c560b76c8782c6  Makefile
+fa466b941a23a0cd0235840f043e7682ea778f95f46f7063cdc570f45d4126dd  defines/op.sv
+c36613c8fe0116aad83c66ea4a79dd4d03995c95290eb8a3d9c33eee6d3ae969  rtl/execute_stage.sv
+e271c30f783b21fa56e66982608d973170f032fba6fc9f47d9a619c32aac77ea  rtl/instruction_decoder.sv
+dc6dbd1ba106d614d5447798f478304f0c871d99033c8f490637ba31330bf604  std/include/zicond.h
+4ce6b1e6b4947e7dda99610150e8ad85c08b281caea9bcc9680845aee1bfe59a  test/bench/bench.mk
+13997cd9cc031ffeb706af64a419ebbdf762248e074db53db30d1c6afa358397  test/bench/bench.py
+c4c7b4768eec6b310912cd781d3f0ae2e65afa3a6957f27cd2f7aa691c788919  test/bench/zbb/zbb_arr.c
+954b324a9adb16458ca25141c9989fcb914a5c56de86f2bd1cc758b8e2ac4e56  test/bench/zbb/zbb_bench.c
+2b5cc812359cd5be80a6039203415ff3e34445eb1d3df445f8d97760f013de6a  test/bench/zbb/zbb_diff.c
