@@ -1,7 +1,5 @@
 [instrguide]:https://repository.tugraz.at/oer/nytm4-grv34
 [lvref]:https://online.tugraz.at/tug_online/wbLv.wbShowLVDetail?pStpSpNr=525082
-[vivado]:https://www.xilinx.com/support/download.html
-[verilator]:https://verilator.org
 [basys]:https://digilent.com/reference/programmable-logic/basys-3/reference-manual?redirect=1
 [upstream]:https://github.com/tscheipel/HaDes-V
 
@@ -15,14 +13,54 @@
 [![Simulation](https://img.shields.io/badge/simulation-Verilator-2ea44f)](docs/BUILDING.md#building-running-and-debugging)
 [![License](https://img.shields.io/badge/license-MIT%20%C2%B7%20CC%20BY%204.0-8957e5)](#license)
 
-**HaDes-V+** is an extended version of the [HaDes-V][lvref] 32-bit RISC-V soft core: a classic in-order, five-stage pipeline written in SystemVerilog, targeting the Digilent [Basys3][basys] (Xilinx Artix-7 `xc7a35tcpg236-1`) at 50 MHz. It boots bare-metal C, takes interrupts, drives the board's LEDs, seven-segment display and VGA output, reads its switches and buttons, communicates over a UART, and loads programs through a UART bootloader. It has not yet been run on a physical board (see [Status and Limitations](#status-and-limitations)).
+**A 32-bit RISC-V soft core in SystemVerilog that runs unmodified FreeRTOS with an interactive shell, and loads and runs programs built on the PC.**
 
-It implements **`rv32im_zba_zicsr_zifencei_zicntr`** in machine mode, adds a branch predictor, and runs the unmodified official RISC-V port of **FreeRTOS** V11.1.0+, including an interactive command shell that is typed into from a terminal while the simulated core runs. Its behaviour is compared with the upstream project's reference implementation — the *golden* CPU and pipeline stages, shipped as precompiled libraries in [`ref/`](ref) — and checked by an independent instruction-set model and, for the multiply/divide unit, by a formal proof.
+HaDes-V+ extends the [HaDes-V][lvref] teaching core of Graz University of Technology, a classic in-order, five-stage pipeline, to **`rv32im_zba_zicsr_zifencei_zicntr`** in machine mode with a branch predictor. It targets the Digilent [Basys3][basys] (Xilinx Artix-7 `xc7a35tcpg236-1`) at 50 MHz: it boots bare-metal C, takes interrupts, drives the board's LEDs, seven-segment display and VGA output, reads its switches and buttons, communicates over a UART, and loads programs through a UART bootloader. The sessions below run on a cycle-accurate Verilator model of the complete microcontroller, and every result quoted on this page has a record under [results/](results/README.md).
 
-<p align="center">
-  <img src="docs/img/shell-session.svg" width="820" alt="Terminal session of make freertos-shell: the start-up banner of the FreeRTOS+CLI shell; the version command, which reports FreeRTOS V11.1.0+, a build for rv32i with GCC 12.2.0, and a CPU with the M, Zba and Zicntr extensions; the tasks command, which lists the console, blink and IDLE tasks; and the stats command, which shows the CPU cycles that each task has used">
-</p>
-<p align="center"><sub>A session of <code>make freertos-shell</code>: FreeRTOS V11.1.0+ with FreeRTOS+CLI on the simulated HaDes-V+ core, its UART connected to the terminal. The program is compiled for RV32I; <code>version</code> shows the M, Zba and Zicntr extensions, which the shell detects when it starts and which its <code>mul</code>, <code>div</code>, <code>zba</code> and <code>counters</code> commands then execute directly. Recorded from a real run by <a href="docs/tools/screenshots.py"><code>docs/tools/screenshots.py</code></a>.</sub></p>
+<p align="center"><b><a href="#quick-start">Quick Start</a> · <a href="docs/README.md">Documentation</a> · <a href="docs/VERIFICATION.md">Verification</a> · <a href="results/README.md">Recorded Results</a></b></p>
+
+<p align="center"><img src="docs/img/shell-session.svg" width="820" alt="Terminal session of make freertos-shell: the start-up banner of the FreeRTOS+CLI shell; the version command, which reports FreeRTOS V11.1.0+, a build for rv32i with GCC 12.2.0, and a CPU with the M, Zba and Zicntr extensions; the tasks command, which lists the console, blink and IDLE tasks; and the stats command, which shows the CPU cycles that each task has used"></p>
+<p align="center"><sub>A session of <code>make freertos-shell</code>: FreeRTOS V11.1.0+ with FreeRTOS+CLI on the simulated core, its UART connected to the terminal. Recorded from a real run by <a href="docs/tools/screenshots.py"><code>docs/tools/screenshots.py</code></a>.</sub></p>
+
+## What HaDes-V+ Can Do
+
+### FreeRTOS with a Live Shell
+
+The unmodified official RISC-V port of FreeRTOS V11.1.0+ runs on the core in machine mode. `make freertos-shell` starts a FreeRTOS+CLI command shell and connects the simulated UART to your terminal: you type into the running core as into a board's serial console, and the commands show the tasks with their stacks and CPU time, the heap, the cycle and instruction counters and the branch predictor's statistics, and execute the M and Zba instructions. The FreeRTOS standard demo task set passes as well, after 150,681,199 cycles ([record](results/tests/2026-10-01_03386fd/RECORD.md)). Guides: [the shell](docs/SHELL.md), [FreeRTOS on HaDes-V+](docs/FREERTOS.md).
+
+### Programs Built on the PC, Loaded and Run
+
+A program compiled on the PC with the project's GCC and a small SDK is sent to the running shell over the UART and runs there as a FreeRTOS task: `load hello` transfers it, `run Ada` starts it with its arguments. An app that raises an exception or overflows its stack is stopped and reported while the shell carries on, and Ctrl-C stops one that hangs. Guide: [building, loading and running apps](docs/APPS.md); specification: [SPEC.md](test/freertos/loader/SPEC.md).
+
+<p align="center"><img src="docs/img/shell-loader.svg" width="820" alt="Terminal session of make freertos-shell APP=loader: load hello receives the app hello from the PC; run Ada prints Hello, Ada! and its arguments, and the app exits with code 1; load crash receives the app crash; run executes an illegal instruction, and the shell reports that the app was stopped by an exception, with the cause and the faulting address; the tasks command then lists the console, blink and IDLE tasks"></p>
+<p align="center"><sub><code>make freertos-shell APP=loader</code>: the example app <code>hello</code> is loaded and run with an argument; <code>crash</code> executes an illegal instruction, and the shell reports it and carries on.</sub></p>
+
+### An Extended CPU
+
+The upstream core implements **RV32I + Zicsr** (its `FENCE.I` was present but untested). HaDes-V+ adds, as [EXTENSIONS.md](docs/EXTENSIONS.md) describes in detail:
+
+| Extension | What it adds |
+|---|---|
+| **M** | Multiply and divide: all eight instructions, with a 2-cycle multiply and a 34-cycle divider ([record](results/m-unit-cycles/2026-10-01_03386fd/RECORD.md)) |
+| **Zba** | Address generation: `sh1add`, `sh2add`, `sh3add`, which GCC emits for array indexing; 20.3&nbsp;% fewer cycles in a best-case loop at `-O2` ([record](results/zba/2026-10-01_03386fd/RECORD.md)) |
+| **Zicntr** | User counters: `cycle`, `time`, `instret` and their high halves, with `time` shadowing the memory-mapped `mtime` |
+| **Zifencei** | Fetch synchronisation: `FENCE.I`, now tested, and the 3-slot staleness window that it closes measured ([record](results/fencei-window/2026-10-01_03386fd/RECORD.md)) |
+| **Branch predictor** | Never-taken, always-taken, backward-taken or bimodal 2-bit counters, selected at run time, with four outcome counters as CSRs |
+
+<p align="center"><img src="docs/img/shell-hardware.svg" width="820" alt="The make freertos-shell session continued: div -2147483648 -1 shows the results of div, rem, divu and remu for the overflow case, which does not trap; bpred 3 switches the branch predictor to its bimodal algorithm and shows its counters; counters shows mcycle, minstret, the instructions per cycle and the Zicntr counters; bpred shows the prediction accuracy; halt ends the simulation with FRTOS-RESULT: PASS"></p>
+<p align="center"><sub>The <code>make freertos-shell</code> session continued: the M extension's overflow case <code>-2^31 / -1</code>, which does not trap; the branch predictor switched to its bimodal algorithm at run time, with its outcome counters; the cycle, instruction and Zicntr counters; and <code>halt</code>, which ends the simulation with the program's verdict.</sub></p>
+
+### Verification in Depth
+
+Its behaviour is compared with the upstream project's reference implementation — the *golden* CPU and pipeline stages, shipped as precompiled libraries in [`ref/`](ref) — and checked by an independent instruction-set model and, for the multiply/divide unit, by a formal proof:
+
+- **Golden models:** the Decode stage, including forwarding and hazards, matches the golden Decode stage in 11,026 checks, and the instruction decoder matches the golden decoder in 290,288 checks of every opcode, `funct3` and `funct7` combination and 150,000 random words, apart from the new M and Zba encodings ([record](results/tests/2026-10-01_03386fd/RECORD.md)).
+- **Independent ISA model:** interrupts swept over every cycle offset around 532 distinct trap-relevant instruction sequences, each run replayed by a Python model of the microcontroller: 61 of 61 programs consistent ([record](results/trapsweep/2026-10-01_03386fd/RECORD.md)).
+- **FreeRTOS differential campaign:** 794 of 794 runs passed on HaDes-V+, 102 of them with the branch predictor on, and all 523 twin runs on the golden CPU agreed ([record](results/freertos-campaign/2026-10-01_03386fd/RECORD.md)).
+- **Formal proof:** by k-induction, the multiply/divide unit produces the RISC-V result for all 2^64 operand pairs in every reachable state (`make formal`, 72 required checks; [record](results/formal/2026-09-28_588d76a/RECORD.md)).
+- **Recorded results:** each of these results has a record with its command, inputs and output as printed, and `make check-results` re-runs the repeatable records and compares the output with the stored values.
+
+The work found and fixed nine defects of the upstream design, six of them trap and interrupt defects exposed by FreeRTOS and the interrupt sweep ([record](results/history/2026-09-27_6b19d41/RECORD.md)). The results at a glance, the methods and every suite: [VERIFICATION.md](docs/VERIFICATION.md).
 
 ## Quick Start
 
@@ -34,26 +72,25 @@ cd hades-v-plus
 make freertos-shell    # type 'help'; Ctrl-] or 'halt' quits
 ```
 
-Build output goes to `build/`; to put it elsewhere, for example when the repository is on a disk that cannot execute programs, see [Building, Running, and Debugging](docs/BUILDING.md#building-running-and-debugging).
+The first run builds the shell and its simulator, which takes up to a minute. After the build messages and a deliberate `Test fail!` start-up marker, the `hades>` prompt appears: type `help` for the list of commands; `halt` or Ctrl-] ends the simulation. For programs built on the PC, start `make freertos-shell APP=loader` and type `load hello`, then `run Ada`.
 
-The first run builds the shell and its simulator, which takes up to a minute. After the build messages and a deliberate `Test fail!` start-up marker, the `hades>` prompt appears: type `help` for the list of commands; `halt` or Ctrl-] ends the simulation. The commands run on the simulated core and exercise the hardware directly:
+Build output goes to `build/`; to put it elsewhere, for example when the repository is on a disk that cannot execute programs, see [Building, Running, and Debugging](docs/BUILDING.md#building-running-and-debugging). The test suites, the formal proof and the other entry points: [First Commands](docs/README.md#first-commands).
 
-<p align="center">
-  <img src="docs/img/shell-hardware.svg" width="820" alt="The same session continued: div -2147483648 -1 shows the results of div, rem, divu and remu for the overflow case, which does not trap; bpred 3 switches the branch predictor to its bimodal algorithm and shows its counters; counters shows mcycle, minstret, the instructions per cycle and the Zicntr counters; bpred shows the prediction accuracy; halt ends the simulation with FRTOS-RESULT: PASS">
-</p>
-<p align="center"><sub>The same session: the M extension's overflow case <code>-2^31 / -1</code>, which does not trap; the branch predictor switched to its bimodal algorithm at run time, with its outcome counters; the cycle, instruction and Zicntr counters; and <code>halt</code>, which ends the simulation with the program's verdict.</sub></p>
+## Documentation
 
-Other entry points:
+| Goal | Read |
+|---|---|
+| Get started | [Quick Start](#quick-start), [BUILDING.md](docs/BUILDING.md) (tools, targets, synthesis), [FREERTOS.md](docs/FREERTOS.md) (running FreeRTOS) |
+| Use it | [SHELL.md](docs/SHELL.md) (the interactive shell), [APPS.md](docs/APPS.md) (building, loading and running apps) |
+| Understand it | [ARCHITECTURE.md](docs/ARCHITECTURE.md) (the core and the microcontroller), [EXTENSIONS.md](docs/EXTENSIONS.md) (what HaDes-V+ adds), [SPEC.md](test/freertos/loader/SPEC.md) (the app loader) |
+| Check the evidence | [VERIFICATION.md](docs/VERIFICATION.md) (methods and results), [results/](results/README.md) (the record of each figure), [formal/README.md](formal/README.md) (the proof) |
+| Find any document | [docs/README.md](docs/README.md): every document, with what it covers |
 
-```bash
-make test/asm/ops                    # every RV32I instruction, self-checking
-make test/c/m_extension              # M hardware against libgcc's software routines
-make test/sv/test_decode_exhaustive  # 11,026 checks against the golden Decode stage
-make formal                          # formal proof of the M unit; tools: formal/README.md
-make freertos APP=minimal            # boot FreeRTOS (guide: docs/FREERTOS.md)
-make synthesis                       # implement for the Basys3 (needs Vivado)
-make help                            # the main targets and their settings
-```
+## Status and Limitations
+
+- **Simulation first; not yet run on a board.** All results are from Verilator simulation and Vivado implementation. Programs that need more than the board's 32 KiB of RAM, such as the FreeRTOS standard demo set and the app loader (256 KiB each), run on a larger simulated RAM, which the board does not have.
+- **FPGA timing at 50 MHz is marginal.** The RTL meets timing with a worst negative slack of **+0.016 ns** (Vivado 2024.2), measured at commit cbae9b9 ([record](results/fpga-timing/2026-09-30_cbae9b9/RECORD.md)); small RTL changes move the worst path and its slack ([details](docs/BUILDING.md#synthesis-and-fpga-timing)).
+- **No memory protection.** The core runs in machine mode only, so an app has the same rights as the shell: exceptions, stack overflows that FreeRTOS detects, and Ctrl-C are contained, but an app that writes outside its memory or disables interrupts can stop the whole system ([details](docs/APPS.md#what-is-contained-and-what-is-not)).
 
 ## Origin
 
@@ -61,69 +98,7 @@ The upstream [HaDes-V][upstream] is an **Open Educational Resource** developed b
 
 Development proceeded in two phases. The base core was implemented for the **RISC-V Community Challenge with HaDes-V**, a programme issued by The Linux Foundation, in which each pipeline module of a submitted design is assessed against a reference implementation. This submission scored full marks at every stage — 56/56 across Fetch, Decode, Register File, Instruction Decoder, Execute, Memory and Writeback ([record](results/history/2026-06-27_9fd9b18/RECORD.md)) — earning all three tiers: [Bronze](https://www.credly.com/badges/1f02699c-a9f7-4590-82f9-97f688cd0b7f/public_url), [Silver](https://www.credly.com/badges/6d03e72d-23fc-494a-bcad-b93a1da5c283/public_url) and [Gold](https://www.credly.com/badges/a78e3644-1597-450d-8020-f03662391719/public_url). The extensions catalogued below were developed subsequently and independently of the challenge.
 
-## What HaDes-V+ Adds
-
-The upstream core implements **RV32I + Zicsr** (its `FENCE.I` was present but untested). This version extends it to **`rv32im_zba_zicsr_zifencei_zicntr`** and adds a branch predictor:
-
-| Addition | Summary | Detail |
-|---|---|---|
-| **M** — multiply/divide | All eight instructions. 2-cycle registered multiply, 34-cycle restoring divider ([record](results/m-unit-cycles/2026-10-01_03386fd/RECORD.md)), and the first self-generated stall in the Execute stage | [§](docs/EXTENSIONS.md#m--multiply-and-divide) |
-| **Zba** — address generation | `sh1add`/`sh2add`/`sh3add`, which replace the `slli` + `add` pair of a scaled array index; GCC emits them for ordinary indexing code when it optimises (`-O2`, `-Os`) | [§](docs/EXTENSIONS.md#zba--scaled-index-address-generation) |
-| **Zicntr** — user counters | `cycle`, `time`, `instret` (+ high halves), with `time` shadowing the real memory-mapped `mtime` | [§](docs/EXTENSIONS.md#zicntr--user-mode-counters) |
-| **Zifencei** — documented & tested | `FENCE.I` was implemented but never actually verified upstream; now tested ([fencei.s](test/asm/fencei.s)), and the 3-slot staleness window that it closes is measured (`make bench-fencei-window`, [record](results/fencei-window/2026-10-01_03386fd/RECORD.md)) | [§](docs/EXTENSIONS.md#zifencei--instruction-fetch-synchronisation) |
-| **Branch predictor** | Four run-time selectable algorithms — never-taken (the reset default), always-taken, backward-taken and bimodal 2-bit counters — with four outcome counters as CSRs; a correctly predicted branch causes no pipeline flush | [§](docs/EXTENSIONS.md#branch-predictor-extension) |
-| **FreeRTOS** | The official RISC-V port boots unmodified; one-command build and run, a differential stress campaign against the golden CPU, a template for your own programs, and an interactive command shell (FreeRTOS+CLI) you type into from your terminal. In simulation, the shell can also receive programs compiled on the host over the UART and run them as a task (`make freertos-shell APP=loader UPLOAD=hello`, then `load` and `run`); an app that raises an exception is stopped and reported while the shell carries on, as far as machine mode without memory protection allows ([guide](docs/FREERTOS.md#10-load-and-run-programs-on-the-shell)) | [§](docs/FREERTOS.md) |
-
-Nine correctness fixes to the upstream design are also included. Two predate the RTOS work: a decoder defect that corrupted registers on stores and branches (which prevented the bootloader from running at all), and a forwarding defect that leaked a garbage value for `FENCE` instructions carrying a non-zero reserved field. Six are trap and interrupt defects: four exposed by running FreeRTOS under randomised interrupt timing, and two by the interrupt-offset sweep against the independent instruction-set model ([record](results/history/2026-09-27_6b19d41/RECORD.md)); see [the defects and their regression tests](docs/VERIFICATION.md#freertos-differential-campaigns). The ninth is in the UART: a byte store to a status byte drove the transmit interrupt from the wrong enable bit for one cycle, which could raise an interrupt without a source ([test/asm/uartirq.s](test/asm/uartirq.s)).
-
-## Verification at a Glance
-
-Each result below summarises what the command prints in this version of the repository; the formal result is the recorded run in [formal/README.md](formal/README.md#4-results-and-runtimes), made on the same RTL. A *differential* run executes the same program, with the same randomised interrupt timing, on HaDes-V+ and on the golden CPU, and compares the verdicts. [docs/VERIFICATION.md](docs/VERIFICATION.md) describes the methods and lists every self-checking suite with its result.
-
-[results/](results/README.md) holds a record of each of these results and of the other figures that the documentation quotes: the command, the inputs, the output as printed, and whether it can be re-run (its index also names the few approximate figures that have none). `make check-results` re-runs the repeatable records and compares their output with the stored values.
-
-| Check | Command | Result | Record |
-|---|---|---|---|
-| Every RV32I instruction, self-checking | `make test/asm/ops` | `All tests passed!` | [record](results/tests/2026-10-01_03386fd/RECORD.md) |
-| Decode stage, including forwarding and hazards, against the golden Decode stage | `make test/sv/test_decode_exhaustive` | 11,026 checks, all equal | [record](results/tests/2026-10-01_03386fd/RECORD.md) |
-| Decoder sweep: every opcode × funct3 × funct7 combination and 150,000 random words decode as in the golden decoder, except the new M and Zba encodings, which must decode to exactly their own operations | `make test/sv/test_zba_encoding_sweep` | 290,288 checks passed | [record](results/tests/2026-10-01_03386fd/RECORD.md) |
-| M unit: all eight instructions and the stall protocol | `make test/sv/test_m_execute` | 6,268 checks passed | [record](results/tests/2026-10-01_03386fd/RECORD.md) |
-| M instructions against libgcc's software routines | `make test/c/m_extension` | `M-EXT PASS` after 200 checks; the testbench's summary line then reads `Inital test failed! (# Errors: 0)` ([why](docs/VERIFICATION.md#the-testbenchs-verdict-line)) | [record](results/tests/2026-10-01_03386fd/RECORD.md) |
-| Interrupts swept over every cycle offset, checked by an independent instruction-set model | `python3 test/trapsweep/sweep.py run` | 61 of 61 programs consistent | [record](results/trapsweep/2026-10-01_03386fd/RECORD.md) |
-| FreeRTOS differential campaign on HaDes-V+ and the golden CPU | `make freertos-stress` | 28 of 28 runs `PASS` | [record](results/freertos-validate/2026-10-01_03386fd/RECORD.md) |
-| FreeRTOS standard demo task set | `make freertos APP=full` | `PASS` after 150,681,199 cycles | [record](results/tests/2026-10-01_03386fd/RECORD.md) |
-| Scripted shell session; the same session on the golden CPU | `make freertos-shell-test`, `make freertos-shell-compare` | 120 of 120 expectations met; transcripts `SAME` | [record](results/tests/2026-10-01_03386fd/RECORD.md) |
-| Formal proof, by k-induction, that the multiply/divide unit computes the RISC-V result for all operand pairs | `make formal` | `FORMAL RESULT: PASS`, 72 required checks ([recorded run](formal/README.md#4-results-and-runtimes)) | [record](results/formal/2026-09-28_588d76a/RECORD.md) |
-
-Four comparisons of single pipeline stages with the golden stages report a fixed number of expected differences, each explained under [Known Divergences](docs/VERIFICATION.md#known-divergences). The tests are themselves checked by [mutation testing](docs/VERIFICATION.md#mutation-testing): each trap and interrupt fix, reverted on its own, makes its regression test fail and the interrupt sweep flag programs ([record](results/history/2026-09-27_6b19d41/RECORD.md)).
-
-## Documentation
-
-| Document | Contents |
-|---|---|
-| [docs/FREERTOS.md](docs/FREERTOS.md) | Running FreeRTOS: setup, the programs, comparison with the golden CPU, the stress campaign, writing a program, the interactive shell, loading programs into it, all settings |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | The core: instruction set, pipeline, hazards; memory map, Wishbone fabric, peripherals, clocks; software runtime; the reference-library flow |
-| [docs/EXTENSIONS.md](docs/EXTENSIONS.md) | M, Zba, Zicntr, Zifencei and the branch predictor: design, verification, implementation notes |
-| [docs/VERIFICATION.md](docs/VERIFICATION.md) | Approach, every self-checking suite with its result, test hierarchy, trap sweep, FreeRTOS campaigns, formal proof, mutation testing, known divergences |
-| [docs/BUILDING.md](docs/BUILDING.md) | Tools, build targets, waveforms, synthesis and timing, the screenshots, repository structure |
-| [formal/README.md](formal/README.md) | The formal proof of the multiply/divide unit in full |
-| [test/freertos/README.md](test/freertos/README.md) | The FreeRTOS programs and the differential campaign in depth |
-| [test/trapsweep/README.md](test/trapsweep/README.md) | The interrupt-offset sweeps and the independent ISA model |
-| [test/bench/README.md](test/bench/README.md) | The measurement programs behind the Zba, M-unit and `FENCE.I` figures |
-| [results/README.md](results/README.md) | The records of the figures quoted in the documentation, and how to re-run them |
-| [third_party/freertos/README.md](third_party/freertos/README.md) | Provenance and licence of the vendored FreeRTOS sources |
-
-## Status and Limitations
-
-- **FPGA timing at 50 MHz is marginal.** The RTL meets timing with a worst negative slack of **+0.016 ns** (Vivado 2024.2; a repeated run gives the same result), measured at commit cbae9b9; the current RTL differs from it only by the one-line UART fix and has not itself been implemented ([record](results/fpga-timing/2026-09-30_cbae9b9/RECORD.md)). Its worst path runs from the block RAM's read port through the branch predictor to the Fetch PC, within half a clock period. The commit that added the M extension missed timing by 0.120 ns on a different path, from the Memory stage's instruction register to `mcause` ([record](results/fpga-timing/2026-08-18_c00c4db/RECORD.md)): small RTL changes move the worst path and its slack. See [Synthesis and FPGA Timing](docs/BUILDING.md#synthesis-and-fpga-timing).
-- **Not yet validated on physical hardware.** All results are from Verilator simulation and Vivado implementation.
-- **Simulation first.** The programs (assembly, C, FreeRTOS and the shell) run on a cycle-accurate Verilator model of the complete microcontroller; the module benches simulate single pipeline stages. The simulated RAM is the board's 32 KiB by default; programs that need more (the FreeRTOS standard demo set uses 256 KiB) run with a larger simulated RAM, which the board does not have.
-
-## Upstream Course Material
-
-HaDes-V originates as the lab project for [Microcontroller Design, Lab][lvref] at Graz University of Technology, where students implement each pipeline stage themselves and validate it against the reference models in [`ref/`](ref) — the flow described under [Reference-Library](docs/ARCHITECTURE.md#reference-library-jigsaw-puzzle-flow). The upstream project provides the staged exercises — basic pipeline implementation, then memory/writeback and CSRs, then a free-form extension project — together with an [Instruction Guide][instrguide] (exercise instructions are in its Chapter 4) and a closed-source test-bench system, available to educators for teaching purposes on request (see [Contact](#contact)).
-
-**If you are taking that course, work from the [upstream template][upstream] rather than this repository.** It is the canonical starting point, and implementing the stages yourself is the entire point of the exercise. The upstream repository is also the canonical reference for the original teaching material.
+HaDes-V originates as the lab project for [Microcontroller Design, Lab][lvref] at Graz University of Technology ([course material](docs/ARCHITECTURE.md#upstream-course-material)). **If you are taking that course, work from the [upstream template][upstream] rather than this repository.** It is the canonical starting point, and implementing the stages yourself is the entire point of the exercise. The upstream repository is also the canonical reference for the original teaching material.
 
 ## Attribution and Upstream
 
@@ -135,7 +110,7 @@ The following are original contributions by **Emon Sarkar**, added after complet
 - The **bimodal branch predictor** and its performance-counter CSRs
 - Nine correctness fixes to the upstream design: decoder `rd` handling for S/B-type instructions, `FENCE` forwarding suppression in the Memory stage, six trap/interrupt defects found by running FreeRTOS and the trap sweep, and the UART's transmit-interrupt enable
 - The formal proof of the multiply/divide unit ([`formal/`](formal))
-- FreeRTOS support ([`test/freertos/`](test/freertos), [docs/FREERTOS.md](docs/FREERTOS.md)) and the independent trap-sweep model ([`test/trapsweep/`](test/trapsweep))
+- FreeRTOS support ([`test/freertos/`](test/freertos), [docs/FREERTOS.md](docs/FREERTOS.md)), including the interactive shell and its app loader, and the independent trap-sweep model ([`test/trapsweep/`](test/trapsweep))
 - The test suites in [`test/asm/`](test/asm) and [`test/sv/`](test/sv) beyond the upstream set, including the golden-comparison, encoding-sweep, and adversarial suites
 - Repairs to the synthesis flow ([`synth/synth.tcl`](synth/synth.tcl)) and the architectural documentation in this README and in [`docs/`](docs)
 

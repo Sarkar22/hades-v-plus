@@ -9,7 +9,9 @@ pipeline cycle. These programs randomise that timing per run, and
 **Start with the user guide, [docs/FREERTOS.md](../../docs/FREERTOS.md):** setup
 (including a build directory outside a disk that cannot execute programs), booting a
 program, comparing with the golden CPU, the stress campaign, and writing your own program
-from [template/](template/). This file documents the programs and the campaign in depth.
+from [template/](template/); the interactive shell and its app loader have guides of their
+own, [docs/SHELL.md](../../docs/SHELL.md) and [docs/APPS.md](../../docs/APPS.md). This file
+documents the programs and the campaign in depth.
 Their results in this version of the repository are recorded in
 [results/tests](../../results/tests/2026-10-01_03386fd/RECORD.md) and in the campaign records
 named under [Differential campaign](#differential-campaign).
@@ -110,7 +112,7 @@ checks all end the run at once.
   `halt`/`exit`. Its `app.mk` sets `APP_CONSOLE := 1`: it runs only under the console
   targets (`make freertos APP=shell` refuses), on the simulator variant
   `frtos-model/<cpu>-<n>k-console` (`+define+HADES_CONSOLE`, `sim/console.cpp`). Guide:
-  docs/FREERTOS.md, section 9. `session.txt` is the scripted session (39 lines, 120
+  docs/SHELL.md. `session.txt` is the scripted session (39 lines, 120
   expectations on the DUT, 121 on the golden CPU), `session.py` runs and checks it (a
   non-zero exit status of the simulator is a `CRASH`) and compares the DUT and golden
   transcripts, `tty_test.py` drives the interactive console through a pseudo-terminal
@@ -125,8 +127,8 @@ checks all end the run at once.
   host with the SDK in `sdk/` (`hades_app.h`, `crt0.S`, `app.ld`, `appimg.py`, `sdk.mk`;
   examples in `sdk/apps/`); the console bridge sends a file when the program asks for
   one (control bytes DC2, ACK/NAK per line, DC1 for app input), and `make freertos-send`
-  asks it to, through a send request next to the pseudo-terminal's link. Guide: docs/FREERTOS.md,
-  section 10; specification: `loader/SPEC.md`. `session.txt` (74 lines, 131 expectations)
+  asks it to, through a send request next to the pseudo-terminal's link. Guide: docs/APPS.md;
+  specification: `loader/SPEC.md`. `session.txt` (83 lines, 146 expectations)
   and `session-ext.txt` (the `rv32im_zba` build of `compute`) are its scripted sessions,
   `tty_test.py` its interactive test. Its `app.mk` uses the console-target knobs
   `APP_CONSOLE_DEPS` (goals built before a console run: `freertos-apps`),

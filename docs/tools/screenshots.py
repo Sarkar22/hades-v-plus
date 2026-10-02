@@ -1,39 +1,54 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # ---------------------------------------------------------------------------------------------
-# screenshots.py -- records the terminal screenshots in docs/img/ from a real session of the
+# screenshots.py -- records the terminal screenshots in docs/img/ from real sessions of the
 # interactive FreeRTOS shell and renders them as SVG images.
 #
-#   python3 docs/tools/screenshots.py                    record a session, write the SVGs
-#   python3 docs/tools/screenshots.py --keep <file>      also keep the raw recording in <file>
-#   python3 docs/tools/screenshots.py --render <file>    only render a recording kept earlier
+#   python3 docs/tools/screenshots.py                     record both sessions, write the SVGs
+#   python3 docs/tools/screenshots.py --session loader    record one session only
+#   python3 docs/tools/screenshots.py --keep <dir>        also keep the raw recordings in <dir>
+#   python3 docs/tools/screenshots.py --render <dir>      only render recordings kept earlier
 #
-# The script runs 'make freertos-shell' (docs/FREERTOS.md, section 9) in a pseudo-terminal of
-# its own, as in a terminal window, types the commands in SHELL_COMMANDS below with pauses
-# like a person, and records what the terminal shows. The recording becomes two images:
+# The script runs each session's command in a pseudo-terminal of its own, as in a terminal
+# window of 86 columns, types the session's commands (SESSIONS below) with pauses like a
+# person, and records what the terminal shows. Two sessions make three images:
 #
-#   shell-session.svg    from the start-up banner up to the prompt at which 'div' is typed
-#                        (the screen at that moment);
-#   shell-hardware.svg   the rest of the session, from 'div' to the program's final verdict.
+#   'make freertos-shell' (docs/SHELL.md):
+#     shell-session.svg    from the start-up banner up to the prompt at which 'div' is typed
+#                          (the screen at that moment): version, tasks, stats;
+#     shell-hardware.svg   the rest of the session, from 'div' to the program's final verdict.
+#   'make freertos-shell APP=loader' (docs/APPS.md):
+#     shell-loader.svg     from 'load hello' up to the prompt at which 'halt' is typed: an app
+#                          loaded and run with an argument, the crash app loaded and run, its
+#                          report, and the shell's task list after it.
 #
-# Both images are rendered with the same number of columns, so that their text has the same
-# size on the page.
+# All images have the same terminal width (86 columns), theme and font size, and the command
+# of their session as the window title.
 #
 # A recording is changed in exactly these ways before it is rendered:
-#   * line endings, carriage returns and backspaces are resolved as a terminal shows them;
-#   * only the two parts named above are kept;
-#   * lines that contain an absolute path or a name of this machine (the checkout, the build
-#     directory, the home directory, the user and host names) are removed;
-#   * the shell prompt and the typed commands are coloured and PASS is shown in green.
-# Nothing is added or reworded. The numbers of a session (cycles, counters, shares of the CPU)
-# differ from run to run, because the moment a key arrives decides the cycle at which the
-# program sees it.
+#   * line endings, carriage returns and backspaces are resolved as a terminal shows them, the
+#     control characters that a terminal does not show (the bytes with which the loader and
+#     the console bridge pace a file transfer) are left out, and a line longer than 86 columns
+#     continues on the next line, as in a terminal of that width;
+#   * only the parts named above are kept;
+#   * in the console bridge's notes '[console] sending <file> (<n> bytes)', which name the file
+#     sent to the shell, the build directory at the start of the file's path is shown as '...',
+#     as in the guides;
+#   * every other line that contains an absolute path or a name of this machine (the checkout,
+#     the build directory, the home directory, the user and host names) is removed;
+#   * a line that consists only of the progress dots that the shell's 'load' prints (one for
+#     every KiB of the image it stores) is removed;
+#   * the shell prompt and the typed commands are coloured, PASS is shown in green, the console
+#     bridge's notes in grey and the report of an app stopped by the shell in yellow.
+# Nothing else is added, removed or reworded. The numbers of a session (cycles, counters,
+# shares of the CPU) differ from run to run, because the moment a key arrives decides the cycle
+# at which the program sees it.
 #
 # Needs the tools of docs/FREERTOS.md (Verilator, the RISC-V GCC toolchain) and the Python
 # package rich (python3 -m pip install rich). If the checkout is on a disk that cannot
 # execute programs, set HADES_BUILD_DIR first (docs/FREERTOS.md, section 2.2). The first run
-# builds the shell and the console simulator (up to a minute); the session itself takes
-# 10 to 15 seconds.
+# builds the shell, the loader, the example apps and the console simulators (a few minutes);
+# the two sessions then take about a minute.
 # ---------------------------------------------------------------------------------------------
 import argparse
 import fcntl
@@ -53,7 +68,6 @@ import time
 import xml.etree.ElementTree as ET
 
 try:
-    from rich.cells import cell_len
     from rich.console import Console
     from rich.terminal_theme import TerminalTheme
     from rich.text import Text
@@ -63,22 +77,31 @@ except ImportError:
 REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 IMG_DIR = os.path.join(REPO, "docs", "img")
 PROMPT = "hades> "
-
-# The commands typed into the shell, in this order; 'halt' ends the session. (The full
-# 'help' listing is shown in docs/FREERTOS.md, section 9.)
-SHELL_COMMANDS = ["version", "tasks", "stats",
-                  "div -2147483648 -1", "bpred 3", "counters", "bpred", "halt"]
+COLUMNS = 86                 # the terminal width of every image
 PAUSE_BEFORE_COMMAND = 1.0   # seconds, like a person reading the previous output
 PAUSE_PER_KEY = 0.04         # seconds between two keys
 
-# The images: the first line to show (a regular expression), and either the last line to
-# show or the line before which to stop. 'then_prompt' ends the image with the shell's prompt
-# alone, which is what the screen showed before the next command was typed.
-IMAGES = [
-    dict(file="shell-session.svg", title="make freertos-shell", uid="hades-shell",
-         first=r"^HaDes-V\+ shell on FreeRTOS", before=r"^hades> div\b", then_prompt=True),
-    dict(file="shell-hardware.svg", title="make freertos-shell", uid="hades-hardware",
-         first=r"^hades> div\b", last=r"^FRTOS-RESULT:"),
+# The sessions: the command, the shell commands typed into it in this order ('halt' ends the
+# session), and its images. An image has the first line to show (a regular expression), and
+# either the last line to show or the line before which to stop; 'then_prompt' ends the image
+# with the shell's prompt alone, which is what the screen showed before the next command was
+# typed. (The full 'help' listing is shown in docs/SHELL.md.)
+SESSIONS = [
+    dict(name="shell", argv=["make", "freertos-shell"],
+         commands=["version", "tasks", "stats",
+                   "div -2147483648 -1", "bpred 3", "counters", "bpred", "halt"],
+         images=[
+             dict(file="shell-session.svg", uid="hades-shell",
+                  first=r"^HaDes-V\+ shell on FreeRTOS", before=r"^hades> div\b", then_prompt=True),
+             dict(file="shell-hardware.svg", uid="hades-hardware",
+                  first=r"^hades> div\b", last=r"^FRTOS-RESULT:"),
+         ]),
+    dict(name="loader", argv=["make", "freertos-shell", "APP=loader"],
+         commands=["load hello", "run Ada", "load crash", "run", "tasks", "halt"],
+         images=[
+             dict(file="shell-loader.svg", uid="hades-loader",
+                  first=r"^hades> load hello\b", before=r"^hades> halt\b", then_prompt=True),
+         ]),
 ]
 
 # A dark terminal (the colours of GitHub's dark theme).
@@ -106,7 +129,7 @@ class Session:
                 os.execvpe(argv[0], argv, env)
             finally:
                 os._exit(127)
-        fcntl.ioctl(self.fd, termios.TIOCSWINSZ, struct.pack("HHHH", 50, 100, 0, 0))
+        fcntl.ioctl(self.fd, termios.TIOCSWINSZ, struct.pack("HHHH", 50, COLUMNS, 0, 0))
         self.data = bytearray()
         self.status = None
 
@@ -174,28 +197,32 @@ class Session:
         os.close(self.fd)
 
 
-def record_shell(env):
-    session, status = Session(["make", "freertos-shell"], env), None
+def record(spec, env):
+    command = " ".join(spec["argv"])
+    session, status = Session(spec["argv"], env), None
     try:
         session.wait_for(lambda t: PROMPT in t, 900, "first prompt (the first run builds the shell)")
-        for command in SHELL_COMMANDS:
+        for typed in spec["commands"]:
             time.sleep(PAUSE_BEFORE_COMMAND)
             prompts = session.text().count(PROMPT)
-            session.type(command + "\r")
-            if command in ("halt", "exit"):
+            session.type(typed + "\r")
+            if typed in ("halt", "exit"):
                 status = session.wait_exit(120)
             else:
-                session.wait_for(lambda t, n=prompts: t.count(PROMPT) > n, 120,
-                                 f"prompt after '{command}'")
+                session.wait_for(lambda t, n=prompts: t.count(PROMPT) > n, 300,
+                                 f"prompt after '{typed}'")
     finally:
         session.close()
     if status != 0:
-        raise RuntimeError(f"make freertos-shell ended with exit status {status}")
+        raise RuntimeError(f"{command} ended with exit status {status}")
     return bytes(session.data)
 
 
 # --------------------------------------------------------------------------- the screen
 CSI = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+# Control characters that a terminal does not show, such as the bytes of the loader's file
+# transfer (DC2, DC4, ACK): everything below a space except BS, TAB, LF, CR and ESC, and DEL.
+INVISIBLE = re.compile(r"[\x00-\x07\x0b\x0c\x0e-\x1a\x1c-\x1f\x7f]")
 
 
 def overstrike(line):
@@ -219,6 +246,7 @@ def overstrike(line):
 def screen_lines(raw):
     """The recording as a list of rich Text lines; colour (SGR) codes become styles."""
     text = raw.decode("utf-8", "replace").expandtabs(8)
+    text = INVISIBLE.sub("", text)
     lines = []
     for line in re.split(r"\r*\n", text):
         if "\r" in line or "\b" in line:
@@ -230,23 +258,44 @@ def screen_lines(raw):
 
 
 ABS_PATH = re.compile(r"(?<![\w.~-])/[\w.+-]+/")      # an absolute path: /dir/...
+SENDING = re.compile(r"^\[console\] sending (/\S+) \(\d+ bytes\)$")
+PROGRESS = re.compile(r"^\.+\s*$")                  # the progress dots of 'load'
+
+
+def build_dirs(env):
+    """The build directory, as given and as resolved (the Makefile's rule)."""
+    given = env.get("BUILD_DIR") or env.get("HADES_BUILD_DIR") or os.path.join(REPO, "build")
+    given = os.path.abspath(os.path.join(REPO, given))
+    return sorted({given, os.path.realpath(given)}, key=len, reverse=True)
 
 
 def private_markers(env):
     """Strings that identify this machine; a line that contains one is not shown."""
     marks = {REPO, os.path.realpath(REPO), os.path.expanduser("~")}
-    for var in ("HADES_BUILD_DIR", "BUILD_DIR"):
-        if env.get(var):
-            marks |= {env[var], os.path.realpath(env[var])}
+    marks |= set(build_dirs(env))
     for name in (getpass.getuser(), socket.gethostname(), socket.getfqdn()):
         if name and len(name) >= 3 and name not in ("localhost", "root"):
             marks.add(name)
     return {m for m in marks if m and m != "/"}
 
 
-def select_lines(lines, spec, marks):
+def neutral_sending(line, builds):
+    """'[console] sending <build dir>/x/y.hex (n bytes)' -> '[console] sending .../x/y.hex ...'."""
+    m = SENDING.match(line.plain)
+    if not m:
+        return line
+    for build in builds:
+        if m.group(1).startswith(build + "/"):
+            start = m.start(1)
+            return Text("...").join([line[:start], line[start + len(build):]])
+    return line
+
+
+def select_lines(lines, spec, marks, builds):
+    lines = [neutral_sending(l, builds) for l in lines]
     lines = [l for l in lines
-             if not ABS_PATH.search(l.plain) and not any(m in l.plain for m in marks)]
+             if not ABS_PATH.search(l.plain) and not any(m in l.plain for m in marks)
+             and not PROGRESS.match(l.plain)]
     plain = [l.plain for l in lines]
     start = next((i for i, l in enumerate(plain) if re.search(spec["first"], l)), None)
     if start is None:
@@ -268,8 +317,19 @@ def colour(line):
     if plain.startswith(PROMPT):
         line.stylize("bold green", 0, len(PROMPT) - 1)
         line.stylize("bold bright_white", len(PROMPT), len(plain))
+    elif plain.startswith("[console] "):
+        line.stylize("bright_black")
+    elif re.match(r"app: \S+ stopped by ", plain):
+        line.stylize("bold yellow")
     line.highlight_regex(r"\bPASS\b", "bold green")
     return line
+
+
+def terminal_rows(line):
+    """A line as a terminal of COLUMNS columns shows it: longer lines continue on the next row."""
+    if len(line.plain) <= COLUMNS:
+        return [line]
+    return list(line.divide(range(COLUMNS, len(line.plain), COLUMNS)))
 
 
 def svg_format():
@@ -281,48 +341,53 @@ def svg_format():
     return fmt
 
 
-def render(lines, spec, out_dir, width):
-    console = Console(record=True, width=width, file=io.StringIO(), force_terminal=True,
+def render(lines, spec, title, out_dir):
+    console = Console(record=True, width=COLUMNS, file=io.StringIO(), force_terminal=True,
                       color_system="truecolor", highlight=False, markup=False, emoji=False,
                       soft_wrap=False, legacy_windows=False)
-    for line in lines:
-        console.print(colour(line), no_wrap=True, overflow="ignore", crop=False)
-    svg = console.export_svg(title=spec["title"], theme=THEME, code_format=svg_format(),
+    rows = [row for line in lines for row in terminal_rows(colour(line))]
+    for row in rows:
+        console.print(row, no_wrap=True, overflow="ignore", crop=False)
+    svg = console.export_svg(title=title, theme=THEME, code_format=svg_format(),
                              unique_id=spec["uid"])
     ET.fromstring(svg)                                      # well-formed XML, or an exception
     path = os.path.join(out_dir, spec["file"])
     with open(path, "w", encoding="utf-8") as f:
         f.write(svg)
-    print(f"{os.path.relpath(path, REPO)}: {len(lines)} lines, {width} columns, "
+    print(f"{os.path.relpath(path, REPO)}: {len(rows)} rows, {COLUMNS} columns, "
           f"{len(svg.encode()) / 1024:.1f} KiB")
 
 
 # --------------------------------------------------------------------------- main
 def main():
     ap = argparse.ArgumentParser(description="Record the terminal screenshots in docs/img/.")
-    ap.add_argument("--keep", metavar="FILE", help="also keep the raw recording in FILE")
-    ap.add_argument("--render", metavar="FILE", help="render a recording kept earlier")
+    ap.add_argument("--session", choices=[s["name"] for s in SESSIONS], action="append",
+                    help="record (or render) only this session; may be given twice")
+    ap.add_argument("--keep", metavar="DIR", help="also keep the raw recordings in DIR")
+    ap.add_argument("--render", metavar="DIR", help="render the recordings kept earlier in DIR")
     ap.add_argument("--out", metavar="DIR", default=IMG_DIR, help="where the SVGs go (docs/img)")
     args = ap.parse_args()
 
     env = dict(os.environ)
-    marks = private_markers(env)
+    marks, builds = private_markers(env), build_dirs(env)
     os.makedirs(args.out, exist_ok=True)
-    if args.render:
-        with open(args.render, "rb") as f:
-            raw = f.read()
-    else:
-        print("recording 'make freertos-shell' ...", flush=True)
-        raw = record_shell(env)
-        if args.keep:
-            with open(args.keep, "wb") as f:
-                f.write(raw)
-    lines = screen_lines(raw)
-    parts = [(spec, select_lines(lines, spec, marks)) for spec in IMAGES]
-    # one width for all images: the longest line of any of them, at least 80 columns
-    width = max(80, max(cell_len(l.plain) for _, chosen in parts for l in chosen) + 2)
-    for spec, chosen in parts:
-        render(chosen, spec, args.out, width)
+    for spec in SESSIONS:
+        if args.session and spec["name"] not in args.session:
+            continue
+        title = " ".join(spec["argv"])
+        if args.render:
+            with open(os.path.join(args.render, spec["name"] + ".rec"), "rb") as f:
+                raw = f.read()
+        else:
+            print(f"recording '{title}' ...", flush=True)
+            raw = record(spec, env)
+            if args.keep:
+                os.makedirs(args.keep, exist_ok=True)
+                with open(os.path.join(args.keep, spec["name"] + ".rec"), "wb") as f:
+                    f.write(raw)
+        lines = screen_lines(raw)
+        for image in spec["images"]:
+            render(select_lines(lines, image, marks, builds), image, title, args.out)
 
 
 if __name__ == "__main__":

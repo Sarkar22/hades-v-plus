@@ -1,4 +1,4 @@
-[HaDes-V+](../README.md) · [Architecture](ARCHITECTURE.md) · **Extensions** · [Verification](VERIFICATION.md) · [Building](BUILDING.md) · [FreeRTOS](FREERTOS.md)
+[HaDes-V+](../README.md) · [Docs](README.md) · [Building](BUILDING.md) · [FreeRTOS](FREERTOS.md) · [Shell](SHELL.md) · [Apps](APPS.md) · [Architecture](ARCHITECTURE.md) · **Extensions** · [Verification](VERIFICATION.md)
 
 # Extensions
 
@@ -8,11 +8,25 @@ With them the core implements `rv32im_zba_zicsr_zifencei_zicntr`, summarised und
 
 **Contents**
 
-1. [M — Multiply and Divide](#m--multiply-and-divide)
-2. [Zba — Scaled-Index Address Generation](#zba--scaled-index-address-generation)
-3. [Zicntr — User-Mode Counters](#zicntr--user-mode-counters)
-4. [Zifencei — Instruction-Fetch Synchronisation](#zifencei--instruction-fetch-synchronisation)
-5. [Branch Predictor Extension](#branch-predictor-extension)
+1. [What HaDes-V+ Adds](#what-hades-v-adds)
+2. [M — Multiply and Divide](#m--multiply-and-divide)
+3. [Zba — Scaled-Index Address Generation](#zba--scaled-index-address-generation)
+4. [Zicntr — User-Mode Counters](#zicntr--user-mode-counters)
+5. [Zifencei — Instruction-Fetch Synchronisation](#zifencei--instruction-fetch-synchronisation)
+6. [Branch Predictor Extension](#branch-predictor-extension)
+
+## What HaDes-V+ Adds
+
+| Addition | Summary | Detail |
+|---|---|---|
+| **M** — multiply/divide | All eight instructions. 2-cycle registered multiply, 34-cycle restoring divider ([record](../results/m-unit-cycles/2026-10-01_03386fd/RECORD.md)), and the first self-generated stall in the Execute stage | [§](#m--multiply-and-divide) |
+| **Zba** — address generation | `sh1add`/`sh2add`/`sh3add`, which replace the `slli` + `add` pair of a scaled array index; GCC emits them for ordinary indexing code when it optimises (`-O2`, `-Os`) | [§](#zba--scaled-index-address-generation) |
+| **Zicntr** — user counters | `cycle`, `time`, `instret` (+ high halves), with `time` shadowing the real memory-mapped `mtime` | [§](#zicntr--user-mode-counters) |
+| **Zifencei** — documented & tested | `FENCE.I` was implemented but never actually verified upstream; now tested ([fencei.s](../test/asm/fencei.s)), and the 3-slot staleness window that it closes is measured (`make bench-fencei-window`, [record](../results/fencei-window/2026-10-01_03386fd/RECORD.md)) | [§](#zifencei--instruction-fetch-synchronisation) |
+| **Branch predictor** | Four run-time selectable algorithms — never-taken (the reset default), always-taken, backward-taken and bimodal 2-bit counters — with four outcome counters as CSRs; a correctly predicted branch causes no pipeline flush | [§](#branch-predictor-extension) |
+| **FreeRTOS** | The official RISC-V port boots unmodified; one-command build and run, a differential stress campaign against the golden CPU, a template for your own programs, and an interactive command shell (FreeRTOS+CLI) you type into from your terminal. In simulation, the shell can also receive programs compiled on the host over the UART and run them as a task (`make freertos-shell APP=loader UPLOAD=hello`, then `load` and `run`); an app that raises an exception is stopped and reported while the shell carries on, as far as machine mode without memory protection allows ([guide](APPS.md)) | [§](FREERTOS.md) |
+
+Nine correctness fixes to the upstream design are also included. Two predate the RTOS work: a decoder defect that corrupted registers on stores and branches (which prevented the bootloader from running at all), and a forwarding defect that leaked a garbage value for `FENCE` instructions carrying a non-zero reserved field. Six are trap and interrupt defects: four exposed by running FreeRTOS under randomised interrupt timing, and two by the interrupt-offset sweep against the independent instruction-set model ([record](../results/history/2026-09-27_6b19d41/RECORD.md)); see [the defects and their regression tests](VERIFICATION.md#freertos-differential-campaigns). The ninth is in the UART: a byte store to a status byte drove the transmit interrupt from the wrong enable bit for one cycle, which could raise an interrupt without a source ([test/asm/uartirq.s](../test/asm/uartirq.s)).
 
 ## M — Multiply and Divide
 

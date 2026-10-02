@@ -1,19 +1,41 @@
-[HaDes-V+](../README.md) · [Architecture](ARCHITECTURE.md) · [Extensions](EXTENSIONS.md) · **Verification** · [Building](BUILDING.md) · [FreeRTOS](FREERTOS.md)
+[HaDes-V+](../README.md) · [Docs](README.md) · [Building](BUILDING.md) · [FreeRTOS](FREERTOS.md) · [Shell](SHELL.md) · [Apps](APPS.md) · [Architecture](ARCHITECTURE.md) · [Extensions](EXTENSIONS.md) · **Verification**
 
 # Verification
 
-This document describes how the behaviour of HaDes-V+ is checked: the approach, every self-checking suite with its result, the test hierarchy, the trap and interrupt sweep, the FreeRTOS differential campaigns, the formal proof of the multiply/divide unit, the mutation testing that checks the tests themselves, and the known differences from the frozen reference models.
+This document describes how the behaviour of HaDes-V+ is checked: the results at a glance, the approach, every self-checking suite with its result, the test hierarchy, the trap and interrupt sweep, the FreeRTOS differential campaigns, the formal proof of the multiply/divide unit, the mutation testing that checks the tests themselves, and the known differences from the frozen reference models.
 
 **Contents**
 
-1. [Approach](#approach)
-2. [Suites and Results](#suites-and-results)
-3. [Test Hierarchy](#test-hierarchy)
-4. [Trap and Interrupt Sweep](#trap-and-interrupt-sweep)
-5. [FreeRTOS Differential Campaigns](#freertos-differential-campaigns)
-6. [Formal Verification of the M Unit](#formal-verification-of-the-m-unit)
-7. [Mutation Testing](#mutation-testing)
-8. [Known Divergences](#known-divergences)
+1. [Verification at a Glance](#verification-at-a-glance)
+2. [Approach](#approach)
+3. [Suites and Results](#suites-and-results)
+4. [Test Hierarchy](#test-hierarchy)
+5. [Trap and Interrupt Sweep](#trap-and-interrupt-sweep)
+6. [FreeRTOS Differential Campaigns](#freertos-differential-campaigns)
+7. [Formal Verification of the M Unit](#formal-verification-of-the-m-unit)
+8. [Mutation Testing](#mutation-testing)
+9. [Known Divergences](#known-divergences)
+
+## Verification at a Glance
+
+Each result below summarises what the command prints in this version of the repository; the formal result is the recorded run in [formal/README.md](../formal/README.md#4-results-and-runtimes), made on the same RTL. A *differential* run executes the same program, with the same randomised interrupt timing, on HaDes-V+ and on the golden CPU, and compares the verdicts. The [sections below](#approach) describe the methods and list every self-checking suite with its result.
+
+[results/](../results/README.md) holds a record of each of these results and of the other figures that the documentation quotes: the command, the inputs, the output as printed, and whether it can be re-run (its index also names the few approximate figures that have none). `make check-results` re-runs the repeatable records and compares their output with the stored values.
+
+| Check | Command | Result | Record |
+|---|---|---|---|
+| Every RV32I instruction, self-checking | `make test/asm/ops` | `All tests passed!` | [record](../results/tests/2026-10-01_03386fd/RECORD.md) |
+| Decode stage, including forwarding and hazards, against the golden Decode stage | `make test/sv/test_decode_exhaustive` | 11,026 checks, all equal | [record](../results/tests/2026-10-01_03386fd/RECORD.md) |
+| Decoder sweep: every opcode × funct3 × funct7 combination and 150,000 random words decode as in the golden decoder, except the new M and Zba encodings, which must decode to exactly their own operations | `make test/sv/test_zba_encoding_sweep` | 290,288 checks passed | [record](../results/tests/2026-10-01_03386fd/RECORD.md) |
+| M unit: all eight instructions and the stall protocol | `make test/sv/test_m_execute` | 6,268 checks passed | [record](../results/tests/2026-10-01_03386fd/RECORD.md) |
+| M instructions against libgcc's software routines | `make test/c/m_extension` | `M-EXT PASS` after 200 checks; the testbench's summary line then reads `Inital test failed! (# Errors: 0)` ([why](#the-testbenchs-verdict-line)) | [record](../results/tests/2026-10-01_03386fd/RECORD.md) |
+| Interrupts swept over every cycle offset, checked by an independent instruction-set model | `python3 test/trapsweep/sweep.py run` | 61 of 61 programs consistent | [record](../results/trapsweep/2026-10-01_03386fd/RECORD.md) |
+| FreeRTOS differential campaign on HaDes-V+ and the golden CPU | `make freertos-stress` | 28 of 28 runs `PASS` | [record](../results/freertos-validate/2026-10-01_03386fd/RECORD.md) |
+| FreeRTOS standard demo task set | `make freertos APP=full` | `PASS` after 150,681,199 cycles | [record](../results/tests/2026-10-01_03386fd/RECORD.md) |
+| Scripted shell session; the same session on the golden CPU | `make freertos-shell-test`, `make freertos-shell-compare` | 120 of 120 expectations met; transcripts `SAME` | [record](../results/tests/2026-10-01_03386fd/RECORD.md) |
+| Formal proof, by k-induction, that the multiply/divide unit computes the RISC-V result for all operand pairs | `make formal` | `FORMAL RESULT: PASS`, 72 required checks ([recorded run](../formal/README.md#4-results-and-runtimes)) | [record](../results/formal/2026-09-28_588d76a/RECORD.md) |
+
+Four comparisons of single pipeline stages with the golden stages report a fixed number of expected differences, each explained under [Known Divergences](#known-divergences). The tests are themselves checked by [mutation testing](#mutation-testing): each trap and interrupt fix, reverted on its own, makes its regression test fail and the interrupt sweep flag programs ([record](../results/history/2026-09-27_6b19d41/RECORD.md)).
 
 ## Approach
 

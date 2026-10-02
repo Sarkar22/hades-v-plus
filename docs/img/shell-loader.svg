@@ -1,0 +1,137 @@
+<svg class="rich-terminal" viewBox="0 0 1068 635.5999999999999" xmlns="http://www.w3.org/2000/svg">
+    <!-- Generated with Rich https://www.textualize.io -->
+    <style>
+
+    .hades-loader-matrix {
+        font-family: 'Fira Code', 'JetBrains Mono', 'Cascadia Mono', 'DejaVu Sans Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+        font-size: 20px;
+        line-height: 24.4px;
+        font-variant-east-asian: full-width;
+    }
+
+    .hades-loader-title {
+        font-size: 18px;
+        font-weight: bold;
+        font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+    }
+
+    .hades-loader-r1 { fill: #3fb950;font-weight: bold }
+.hades-loader-r2 { fill: #c9d1d9 }
+.hades-loader-r3 { fill: #f0f6fc;font-weight: bold }
+.hades-loader-r4 { fill: #6e7681 }
+.hades-loader-r5 { fill: #d29922;font-weight: bold }
+    </style>
+
+    <defs>
+    <clipPath id="hades-loader-clip-terminal">
+      <rect x="0" y="0" width="1048.2" height="584.5999999999999" />
+    </clipPath>
+    <clipPath id="hades-loader-line-0">
+    <rect x="0" y="1.5" width="1049.2" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-loader-line-1">
+    <rect x="0" y="25.9" width="1049.2" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-loader-line-2">
+    <rect x="0" y="50.3" width="1049.2" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-loader-line-3">
+    <rect x="0" y="74.7" width="1049.2" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-loader-line-4">
+    <rect x="0" y="99.1" width="1049.2" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-loader-line-5">
+    <rect x="0" y="123.5" width="1049.2" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-loader-line-6">
+    <rect x="0" y="147.9" width="1049.2" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-loader-line-7">
+    <rect x="0" y="172.3" width="1049.2" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-loader-line-8">
+    <rect x="0" y="196.7" width="1049.2" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-loader-line-9">
+    <rect x="0" y="221.1" width="1049.2" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-loader-line-10">
+    <rect x="0" y="245.5" width="1049.2" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-loader-line-11">
+    <rect x="0" y="269.9" width="1049.2" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-loader-line-12">
+    <rect x="0" y="294.3" width="1049.2" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-loader-line-13">
+    <rect x="0" y="318.7" width="1049.2" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-loader-line-14">
+    <rect x="0" y="343.1" width="1049.2" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-loader-line-15">
+    <rect x="0" y="367.5" width="1049.2" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-loader-line-16">
+    <rect x="0" y="391.9" width="1049.2" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-loader-line-17">
+    <rect x="0" y="416.3" width="1049.2" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-loader-line-18">
+    <rect x="0" y="440.7" width="1049.2" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-loader-line-19">
+    <rect x="0" y="465.1" width="1049.2" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-loader-line-20">
+    <rect x="0" y="489.5" width="1049.2" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-loader-line-21">
+    <rect x="0" y="513.9" width="1049.2" height="24.65"/>
+            </clipPath>
+<clipPath id="hades-loader-line-22">
+    <rect x="0" y="538.3" width="1049.2" height="24.65"/>
+            </clipPath>
+    </defs>
+
+    <rect fill="#0d1117" stroke="rgba(255,255,255,0.35)" stroke-width="1" x="1" y="1" width="1066" height="633.6" rx="8"/><text class="hades-loader-title" fill="#c9d1d9" text-anchor="middle" x="533" y="27">make&#160;freertos-shell&#160;APP=loader</text>
+            <g transform="translate(26,22)">
+            <circle cx="0" cy="0" r="7" fill="#ff5f57"/>
+            <circle cx="22" cy="0" r="7" fill="#febc2e"/>
+            <circle cx="44" cy="0" r="7" fill="#28c840"/>
+            </g>
+        
+    <g transform="translate(9, 41)" clip-path="url(#hades-loader-clip-terminal)">
+    
+    <g class="hades-loader-matrix">
+    <text class="hades-loader-r1" x="0" y="20" textLength="73.2" clip-path="url(#hades-loader-line-0)">hades&gt;</text><text class="hades-loader-r3" x="85.4" y="20" textLength="122" clip-path="url(#hades-loader-line-0)">load&#160;hello</text><text class="hades-loader-r2" x="1049.2" y="20" textLength="12.2" clip-path="url(#hades-loader-line-0)">
+</text><text class="hades-loader-r2" x="0" y="44.4" textLength="488" clip-path="url(#hades-loader-line-1)">load:&#160;waiting&#160;for&#160;hello&#160;(Ctrl-C&#160;cancels)</text><text class="hades-loader-r2" x="1049.2" y="44.4" textLength="12.2" clip-path="url(#hades-loader-line-1)">
+</text><text class="hades-loader-r4" x="0" y="68.8" textLength="829.6" clip-path="url(#hades-loader-line-2)">[console]&#160;sending&#160;.../test/freertos/sdk/rv32i/hello.hex&#160;(1017&#160;bytes)</text><text class="hades-loader-r2" x="1049.2" y="68.8" textLength="12.2" clip-path="url(#hades-loader-line-2)">
+</text><text class="hades-loader-r2" x="0" y="93.2" textLength="890.6" clip-path="url(#hades-loader-line-3)">loaded&#160;hello:&#160;340&#160;bytes&#160;at&#160;0x00060000,&#160;entry&#160;0x00060040,&#160;CRC32&#160;0xbccb2e01</text><text class="hades-loader-r2" x="1049.2" y="93.2" textLength="12.2" clip-path="url(#hades-loader-line-3)">
+</text><text class="hades-loader-r1" x="0" y="117.6" textLength="73.2" clip-path="url(#hades-loader-line-4)">hades&gt;</text><text class="hades-loader-r3" x="85.4" y="117.6" textLength="85.4" clip-path="url(#hades-loader-line-4)">run&#160;Ada</text><text class="hades-loader-r2" x="1049.2" y="117.6" textLength="12.2" clip-path="url(#hades-loader-line-4)">
+</text><text class="hades-loader-r2" x="0" y="142" textLength="134.2" clip-path="url(#hades-loader-line-5)">Hello,&#160;Ada!</text><text class="hades-loader-r2" x="1049.2" y="142" textLength="12.2" clip-path="url(#hades-loader-line-5)">
+</text><text class="hades-loader-r2" x="0" y="166.4" textLength="183" clip-path="url(#hades-loader-line-6)">argv[0]&#160;=&#160;hello</text><text class="hades-loader-r2" x="1049.2" y="166.4" textLength="12.2" clip-path="url(#hades-loader-line-6)">
+</text><text class="hades-loader-r2" x="0" y="190.8" textLength="158.6" clip-path="url(#hades-loader-line-7)">argv[1]&#160;=&#160;Ada</text><text class="hades-loader-r2" x="1049.2" y="190.8" textLength="12.2" clip-path="url(#hades-loader-line-7)">
+</text><text class="hades-loader-r2" x="0" y="215.2" textLength="585.6" clip-path="url(#hades-loader-line-8)">app:&#160;hello&#160;exited&#160;with&#160;code&#160;1&#160;after&#160;36532&#160;cycles</text><text class="hades-loader-r2" x="1049.2" y="215.2" textLength="12.2" clip-path="url(#hades-loader-line-8)">
+</text><text class="hades-loader-r1" x="0" y="239.6" textLength="73.2" clip-path="url(#hades-loader-line-9)">hades&gt;</text><text class="hades-loader-r3" x="85.4" y="239.6" textLength="122" clip-path="url(#hades-loader-line-9)">load&#160;crash</text><text class="hades-loader-r2" x="1049.2" y="239.6" textLength="12.2" clip-path="url(#hades-loader-line-9)">
+</text><text class="hades-loader-r2" x="0" y="264" textLength="488" clip-path="url(#hades-loader-line-10)">load:&#160;waiting&#160;for&#160;crash&#160;(Ctrl-C&#160;cancels)</text><text class="hades-loader-r2" x="1049.2" y="264" textLength="12.2" clip-path="url(#hades-loader-line-10)">
+</text><text class="hades-loader-r4" x="0" y="288.4" textLength="829.6" clip-path="url(#hades-loader-line-11)">[console]&#160;sending&#160;.../test/freertos/sdk/rv32i/crash.hex&#160;(3095&#160;bytes)</text><text class="hades-loader-r2" x="1049.2" y="288.4" textLength="12.2" clip-path="url(#hades-loader-line-11)">
+</text><text class="hades-loader-r2" x="0" y="312.8" textLength="902.8" clip-path="url(#hades-loader-line-12)">loaded&#160;crash:&#160;1080&#160;bytes&#160;at&#160;0x00060000,&#160;entry&#160;0x00060040,&#160;CRC32&#160;0xa45b049a</text><text class="hades-loader-r2" x="1049.2" y="312.8" textLength="12.2" clip-path="url(#hades-loader-line-12)">
+</text><text class="hades-loader-r1" x="0" y="337.2" textLength="73.2" clip-path="url(#hades-loader-line-13)">hades&gt;</text><text class="hades-loader-r3" x="85.4" y="337.2" textLength="36.6" clip-path="url(#hades-loader-line-13)">run</text><text class="hades-loader-r2" x="1049.2" y="337.2" textLength="12.2" clip-path="url(#hades-loader-line-13)">
+</text><text class="hades-loader-r2" x="0" y="361.6" textLength="170.8" clip-path="url(#hades-loader-line-14)">crash:&#160;illegal</text><text class="hades-loader-r2" x="1049.2" y="361.6" textLength="12.2" clip-path="url(#hades-loader-line-14)">
+</text><text class="hades-loader-r5" x="0" y="386" textLength="1049.2" clip-path="url(#hades-loader-line-15)">app:&#160;crash&#160;stopped&#160;by&#160;an&#160;exception&#160;after&#160;30509&#160;cycles:&#160;illegal&#160;instruction&#160;(mcause&#160;2)&#160;</text><text class="hades-loader-r2" x="1049.2" y="386" textLength="12.2" clip-path="url(#hades-loader-line-15)">
+</text><text class="hades-loader-r5" x="0" y="410.4" textLength="268.4" clip-path="url(#hades-loader-line-16)">at&#160;0x000601b4&#160;in&#160;crash</text><text class="hades-loader-r2" x="1049.2" y="410.4" textLength="12.2" clip-path="url(#hades-loader-line-16)">
+</text><text class="hades-loader-r1" x="0" y="434.8" textLength="73.2" clip-path="url(#hades-loader-line-17)">hades&gt;</text><text class="hades-loader-r3" x="85.4" y="434.8" textLength="61" clip-path="url(#hades-loader-line-17)">tasks</text><text class="hades-loader-r2" x="1049.2" y="434.8" textLength="12.2" clip-path="url(#hades-loader-line-17)">
+</text><text class="hades-loader-r2" x="0" y="459.2" textLength="597.8" clip-path="url(#hades-loader-line-18)">task&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;state&#160;&#160;&#160;&#160;&#160;&#160;priority&#160;&#160;stack&#160;free&#160;(min)</text><text class="hades-loader-r2" x="1049.2" y="459.2" textLength="12.2" clip-path="url(#hades-loader-line-18)">
+</text><text class="hades-loader-r2" x="0" y="483.6" textLength="597.8" clip-path="url(#hades-loader-line-19)">console&#160;&#160;&#160;&#160;&#160;running&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;2&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;121&#160;words</text><text class="hades-loader-r2" x="1049.2" y="483.6" textLength="12.2" clip-path="url(#hades-loader-line-19)">
+</text><text class="hades-loader-r2" x="0" y="508" textLength="597.8" clip-path="url(#hades-loader-line-20)">blink&#160;&#160;&#160;&#160;&#160;&#160;&#160;blocked&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;3&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;81&#160;words</text><text class="hades-loader-r2" x="1049.2" y="508" textLength="12.2" clip-path="url(#hades-loader-line-20)">
+</text><text class="hades-loader-r2" x="0" y="532.4" textLength="597.8" clip-path="url(#hades-loader-line-21)">IDLE&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;ready&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;0&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;115&#160;words</text><text class="hades-loader-r2" x="1049.2" y="532.4" textLength="12.2" clip-path="url(#hades-loader-line-21)">
+</text><text class="hades-loader-r2" x="0" y="556.8" textLength="85.4" clip-path="url(#hades-loader-line-22)">3&#160;tasks</text><text class="hades-loader-r2" x="1049.2" y="556.8" textLength="12.2" clip-path="url(#hades-loader-line-22)">
+</text><text class="hades-loader-r1" x="0" y="581.2" textLength="73.2" clip-path="url(#hades-loader-line-23)">hades&gt;</text><text class="hades-loader-r2" x="1049.2" y="581.2" textLength="12.2" clip-path="url(#hades-loader-line-23)">
+</text>
+    </g>
+    </g>
+</svg>

@@ -1,7 +1,7 @@
 # App loader: build programs on the host, run them on the shell
 
 This document specifies an opt-in extension of the FreeRTOS shell of
-[docs/FREERTOS.md](../../../docs/FREERTOS.md), section 9. A program compiled on the host with
+[docs/SHELL.md](../../../docs/SHELL.md). A program compiled on the host with
 the project's GCC and the SDK in `test/freertos/sdk/` (an *app*) is sent to the running shell
 over the UART as an Intel HEX file, stored in a reserved RAM area (the *app slot*) and run as a
 FreeRTOS task. The shell stays alive: Ctrl-C stops a running app, and an app that raises an
@@ -9,8 +9,8 @@ exception is stopped and reported while the shell carries on.
 
 Names, formats, constants, messages, make targets and the tests are normative; values
 introduced with "for example" are not. Where a message is given in full, the shell prints
-exactly that text, because the scripted sessions check it. The user's guide is section 10 of
-[docs/FREERTOS.md](../../../docs/FREERTOS.md).
+exactly that text, because the scripted sessions check it. The user's guide is
+[docs/APPS.md](../../../docs/APPS.md).
 
 **Contents**
 
@@ -107,8 +107,8 @@ and in scripted sessions (section 5).
   the terminal and pseudo-terminal modes, typed-ahead input that contains a Ctrl-C is typed
   without waiting for the prompt after each Enter (rule 1 of section 5.3). Scripts do not use
   this path: the shell's scripted session keeps its cycle count.
-* No existing test, script, transcript or expectation changes. The user's guide is a section
-  of its own, section 10 of docs/FREERTOS.md.
+* No existing test, script, transcript or expectation changes. The user's guide is a document
+  of its own, docs/APPS.md.
 
 ## 2. Memory layout and the loader configuration
 

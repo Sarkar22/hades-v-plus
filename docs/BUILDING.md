@@ -1,8 +1,8 @@
-[HaDes-V+](../README.md) · [Architecture](ARCHITECTURE.md) · [Extensions](EXTENSIONS.md) · [Verification](VERIFICATION.md) · **Building** · [FreeRTOS](FREERTOS.md)
+[HaDes-V+](../README.md) · [Docs](README.md) · **Building** · [FreeRTOS](FREERTOS.md) · [Shell](SHELL.md) · [Apps](APPS.md) · [Architecture](ARCHITECTURE.md) · [Extensions](EXTENSIONS.md) · [Verification](VERIFICATION.md)
 
 # Building and Running
 
-This document lists the tools HaDes-V+ needs, the build targets and how to debug with waveforms, how to synthesise the design for the Basys3 and what to expect from its timing, how the screenshots in this documentation are recorded, and how the repository is organised. FreeRTOS has its own guide, [FREERTOS.md](FREERTOS.md).
+This document lists the tools HaDes-V+ needs, the build targets and how to debug with waveforms, how to synthesise the design for the Basys3 and what to expect from its timing, how the screenshots in this documentation are recorded, and how the repository is organised. FreeRTOS has its own guide, [FREERTOS.md](FREERTOS.md), and so have its interactive shell and the app loader, [SHELL.md](SHELL.md) and [APPS.md](APPS.md); [README.md](README.md) lists every document.
 
 **Contents**
 
@@ -68,20 +68,20 @@ Timing at 50 MHz is marginal. The RTL meets timing with a worst negative slack o
 
 ## Regenerating the Screenshots
 
-The terminal images in [docs/img/](img/) are recorded from a real session of `make freertos-shell` by [docs/tools/screenshots.py](tools/screenshots.py). The script runs the shell in a pseudo-terminal, types a fixed sequence of commands with pauses as a person would, and renders what the terminal showed as SVG with the Python package `rich`:
+The terminal images in [docs/img/](img/) are recorded from real sessions of `make freertos-shell` and `make freertos-shell APP=loader` by [docs/tools/screenshots.py](tools/screenshots.py). The script runs the shell in a pseudo-terminal, types a fixed sequence of commands with pauses as a person would, and renders what the terminal showed as SVG with the Python package `rich`:
 
 ```bash
 python3 -m pip install rich           # once
-python3 docs/tools/screenshots.py     # records a new session and rewrites docs/img/*.svg
+python3 docs/tools/screenshots.py     # records new sessions and rewrites docs/img/*.svg
 ```
 
-The output is kept as the terminal showed it: the script only removes lines that contain paths or names of the machine, and colours the prompt, the typed commands and `PASS`. Both images are rendered with the same number of columns, so that their text has the same size. Cycle counts and counters differ from session to session, because the moment a key arrives decides the cycle at which the program sees it. Like the make targets, the script uses the build directory named by `HADES_BUILD_DIR`, if it is set.
+The output is kept as the terminal showed it: the script removes only the lines that contain paths or names of the machine (in the console bridge's notes of the files it sends, it shows the build directory as `...` instead) and the lines of progress dots that `load` prints, leaves out the control characters with which the loader paces a file transfer, which a terminal does not show, and colours the prompt, the typed commands, `PASS`, the bridge's notes and the report of an app that the shell stopped. All images are rendered for a terminal 86 columns wide, so that their text has the same size. Cycle counts and counters differ from session to session, because the moment a key arrives decides the cycle at which the program sees it. Like the make targets, the script uses the build directory named by `HADES_BUILD_DIR`, if it is set.
 
 ## Repository Structure
 
 - [`bitstream/`](../bitstream): Basys3 bitstreams of two earlier revisions, the base core and the base core with the branch predictor, built before the Zicntr, Zba and M extensions, the `FENCE` forwarding fix and the trap and interrupt fixes ([record](../results/history/2026-08-17_15b0b85/RECORD.md)).
 - [`defines/`](../defines): HDL constants and definitions.
-- [`docs/`](../docs): User guides; [FREERTOS.md](FREERTOS.md) covers running FreeRTOS on the core. [ARCHITECTURE.md](ARCHITECTURE.md), [EXTENSIONS.md](EXTENSIONS.md), [VERIFICATION.md](VERIFICATION.md) and [BUILDING.md](BUILDING.md) describe the core, its extensions, its verification and its build; [`img/`](img) holds the screenshots and [`tools/`](tools) the script that records them.
+- [`docs/`](../docs): User guides, listed in [README.md](README.md); [FREERTOS.md](FREERTOS.md) covers running FreeRTOS on the core, [SHELL.md](SHELL.md) its interactive shell and [APPS.md](APPS.md) the programs that the shell loads and runs. [ARCHITECTURE.md](ARCHITECTURE.md), [EXTENSIONS.md](EXTENSIONS.md), [VERIFICATION.md](VERIFICATION.md) and [BUILDING.md](BUILDING.md) describe the core, its extensions, its verification and its build; [`img/`](img) holds the screenshots and [`tools/`](tools) the script that records them.
 - [`lib/`](../lib): Peripheral modules (e.g., UART, timer).
 - [`ref/`](../ref): Precompiled reference libraries.
 - [`formal/`](../formal): Formal proof of the multiply/divide unit (SymbiYosys, k-induction); see [formal/README.md](../formal/README.md).
