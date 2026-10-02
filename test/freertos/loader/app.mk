@@ -28,8 +28,9 @@ APP_TIMEOUT      := 300000000
 # Reads the UART: run it with the console targets (make freertos-shell APP=loader, ...).
 APP_CONSOLE      := 1
 # The example apps and the test files, built before every console run, and where the console
-# bridge finds them. (Recursive '=': SDK_OUT is defined by sdk.mk, included later.)
+# bridge finds them: relative file names, and the apps that 'load <name>' names (their RV32I
+# builds). (Recursive '=': SDK_OUT is defined by sdk.mk, included later.)
 APP_CONSOLE_DEPS := freertos-apps
-APP_CONSOLE_ARGS  = +console_upload_dir=$(SDK_OUT)
+APP_CONSOLE_ARGS  = +console_upload_dir=$(SDK_OUT) +console_app_dir=$(SDK_OUT)/rv32i
 APP_TTY_TEST     := $(APP_DIR)/tty_test.py
 APP_TTY_ARGS      = --upload-dir $(SDK_OUT)

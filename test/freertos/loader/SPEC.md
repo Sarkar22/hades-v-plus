@@ -36,8 +36,8 @@ exactly that text, because the scripted sessions check it. The user's guide is s
 | App slot | `0x00060000`-`0x0007ffff` (128 KiB), fixed by the ABI |
 | Image | A 64-byte header at the slot base (magic `HAPP`, ABI version 1, flags, entry, sizes, CRC-32, name), then code and data; linked at the slot base |
 | Transfer | Intel HEX: records 00, 01, 04, 05; at most 32 data bytes per record; data records contiguous from the slot base; every line answered with ACK or NAK |
-| Pacing | Four control bytes from the program to the console bridge: DC1 (waiting for input), DC2 (waiting for a file), ACK, NAK. The bridge sends the next line of a file only after the answer to the previous one. |
-| Host side of a transfer | Terminal: `UPLOAD=<app>` (the bridge sends the file whenever `load` asks for one) or a paste. Pseudo-terminal: `make freertos-send UPLOAD=<app>` (a send request that the bridge serves at the shell's prompt) or `cat`. Scripts: a `#< <file>` line. |
+| Pacing | Four control bytes from the program to the console bridge: DC1 (waiting for input), DC2 (waiting for a file), ACK, NAK; and DC4 around the name of the file wanted. The bridge sends the next line of a file only after the answer to the previous one. |
+| Host side of a transfer | Every mode: `load <name>` (the bridge sends that app's file, or a line `!<reason>` if it has none). Terminal: `UPLOAD=<app>` (the bridge sends the file whenever `load` without a name asks for one) or a paste. Pseudo-terminal: `make freertos-send UPLOAD=<app>` (a send request that the bridge serves at the shell's prompt) or `cat`. Scripts: a `#< <file>` line. |
 | App task | Priority 1, below the console task (2); static TCB in the shell; its stack in the slot |
 | Endings | Return from `main()` or `app_exit()`; Ctrl-C; an exception; a stack overflow detected by FreeRTOS (reported whatever else ended the app) |
 | Containment | The exception hook redirects the app task's saved `mepc` to a trampoline of the shell; the console task reports and deletes the task |
@@ -48,10 +48,12 @@ exactly that text, because the scripted sessions check it. The user's guide is s
 ### 1.1 What the user sees
 
 ```text
-$ make freertos-shell APP=loader UPLOAD=hello
+$ make freertos-shell APP=loader
 ...
-hades> load
-load: waiting for an Intel HEX file (Ctrl-C cancels)
+[console] the apps for 'load <name>': compute crash hello selfmod upper
+...
+hades> load hello
+load: waiting for hello (Ctrl-C cancels)
 [console] sending .../test/freertos/sdk/rv32i/hello.hex (2950 bytes)
 .
 loaded hello: 1048 bytes at 0x00060000, entry 0x00060040, CRC32 0x5b1e2f07
@@ -64,11 +66,12 @@ hades>
 ```
 
 (Sizes, CRC and cycle counts for example.) The app was built on the host by `make`, which
-also started the simulation; `load` asks for a file, the simulator's console bridge sends the
-file named by `UPLOAD=`, and `run` runs it. Each `load` sends the file as it is at that moment,
-so an app rebuilt in another terminal (`make freertos-app NAME=hello`) is picked up by the next
-`load`. The same works through a pseudo-terminal (`PTY=1`) and in scripted sessions
-(section 5).
+also started the simulation; `load hello` asks for the file of the app `hello`, the
+simulator's console bridge sends it, and `run` runs it. Each `load` sends the file as it is at
+that moment, so an app rebuilt in another terminal (`make freertos-app NAME=hello`) is picked
+up by the next `load`. `load` without a name receives the file named by `UPLOAD=` on the
+command line of `make`, or a pasted one. The same works through a pseudo-terminal (`PTY=1`)
+and in scripted sessions (section 5).
 
 ### 1.2 Scope and limitations
 
@@ -99,7 +102,7 @@ so an app rebuilt in another terminal (`make freertos-app NAME=hello`) is picked
   gains one `weak` attribute, and `init.mem` of every existing program is byte-identical to that
   of commit 03386fd (section 10.4).
 * The plain simulators do not contain the console bridge and are unchanged. The console
-  simulators behave as before for every program that never sends the four control bytes of
+  simulators behave as before for every program that never sends the control bytes of
   section 5.2 (no other program does), with one exception that applies to every program: in
   the terminal and pseudo-terminal modes, typed-ahead input that contains a Ctrl-C is typed
   without waiting for the prompt after each Enter (rule 1 of section 5.3). Scripts do not use
@@ -215,9 +218,10 @@ APP_ISR_STACK    := 1024
 APP_TIMEOUT      := 300000000
 APP_CONSOLE      := 1
 # The example apps and the test files, built before every console run, and where the console
-# bridge finds them. (Recursive '=': SDK_OUT is defined by sdk.mk, included later.)
+# bridge finds them: relative file names, and the apps that 'load <name>' names (their RV32I
+# builds). (Recursive '=': SDK_OUT is defined by sdk.mk, included later.)
 APP_CONSOLE_DEPS := freertos-apps
-APP_CONSOLE_ARGS  = +console_upload_dir=$(SDK_OUT)
+APP_CONSOLE_ARGS  = +console_upload_dir=$(SDK_OUT) +console_app_dir=$(SDK_OUT)/rv32i
 APP_TTY_TEST     := $(APP_DIR)/tty_test.py
 APP_TTY_ARGS      = --upload-dir $(SDK_OUT)
 ```
@@ -265,7 +269,7 @@ All of them inside `#if SHELL_LOADER`; `shell.h` defines `SHELL_LOADER` as 0 unl
   received Ctrl-C (`0x03`) is not queued but notifies the console task (section 7.4); (2) for
   `loader.c`: read one byte from the receive queue with a timeout; discard the queue's
   contents; tell whether the output is at the start of a line; set the line editor's previous
-  character (section 4.2, item 7).
+  character (section 4.2, item 8).
 * `shell/commands.c`: the entries `load`, `run` and `app` in `axCommands[]` between `echo` and
   `halt`; the exception handler calls `loader_exception()` (section 7.5) before `hal_fail()`;
   `mem` prints one more line (section 8.3).
@@ -359,6 +363,7 @@ typedef int ( * HadesAppEntry_t )( const HadesApi_t * pxApi, int iArgc, char ** 
 #define HADES_CON_ACK              0x06u         /* a record line was accepted */
 #define HADES_CON_INPUT            0x11u         /* DC1: waiting for input */
 #define HADES_CON_FILE             0x12u         /* DC2: waiting for a file */
+#define HADES_CON_NAME             0x14u         /* DC4: around the name of the file wanted */
 #define HADES_CON_NAK              0x15u         /* a record line was rejected */
 
 /* ------------------------------------------------------------------------- for apps -- */
@@ -610,9 +615,11 @@ before it uses one added later. Any incompatible change, such as moving the slot
 
 ### 4.2 The exchange
 
-1. `load` (no parameters) unloads the current app (from here on none is loaded), fills the
-   whole slot with zeros, so that no part of an older image can pass for part of the new one,
-   prints `load: waiting for an Intel HEX file (Ctrl-C cancels)` and then sends DC2.
+1. `load [name]` unloads the current app (from here on none is loaded), fills the whole slot
+   with zeros, so that no part of an older image can pass for part of the new one, prints
+   `load: waiting for an Intel HEX file (Ctrl-C cancels)`, or with a name
+   `load: waiting for <name> (Ctrl-C cancels)` with the name between two DC4 (section 5.2), and
+   then sends DC2. More than one parameter: `usage: load [name]`, and nothing else happens.
 2. It reads the file from the receive queue, without echo and without line editing, one line at
    a time (into a static buffer of 76 bytes). Every non-empty line is answered with exactly one
    byte: ACK if the record was accepted (the end-of-file record included), NAK if it was
@@ -628,10 +635,15 @@ before it uses one added later. Any incompatible change, such as moving the slot
    loaded. The result is `load cancelled`, or `load failed: <reason>` if a line had already been
    rejected (a file that is not Intel HEX, such as an ELF or a raw image, may hold the byte
    `0x03`; the first error is the more useful answer).
-6. From the first character of the file on, a pause of 2000 ticks without input ends the load
+6. A sender that has no file for the request sends one line instead whose first character is
+   `!`: the rest of that line is the reason (its printable characters, at most 159). The line is
+   answered with NAK, and the result is `load failed: <reason>` (`load failed: the sender has
+   no file` if the reason is empty); a Ctrl-C before its end cancels. The console bridge sends
+   such a line for a name that it cannot resolve (section 5.3).
+7. From the first character of the file on, a pause of 2000 ticks without input ends the load
    (a sender that stopped); before the first character there is no limit. Line ends before the
    first record (an empty line, the LF of a `load` typed with CR LF) do not start the limit.
-7. The load then returns to the command line. The line editor's previous character is set to
+8. The load then returns to the command line. The line editor's previous character is set to
    the last character the load read: if its last line ended with CR, a LF that follows (the end
    of a CR LF file) counts as the second half of that line end, as the line editor already does
    for CR LF, and produces no empty command line; after a file with LF line ends, a LF typed
@@ -646,7 +658,7 @@ load failed: <reason>
 load cancelled
 ```
 
-with `<entry>` and `<crc>` as eight lowercase hexadecimal digits. After the timeout of item 6 the
+with `<entry>` and `<crc>` as eight lowercase hexadecimal digits. After the timeout of item 7 the
 reason is the first error if there was one, else `line <n>: no input for 2000 ticks (the file
 stopped)`.
 
@@ -730,6 +742,12 @@ The shell sends them with `hal_putc()`, outside its line output, so they do not 
 Terminals do not display them; `session.py` drops them when it renders a transcript (they are
 control characters); `console.log` and the logs keep them. No other program sends them.
 
+`load <name>` also sends DC4 (`0x14`) before and after the name, inside its line
+`load: waiting for <name> (Ctrl-C cancels)`, before the DC2: the name of the file wanted. DC4
+is not text either and is shown or dropped as the four bytes above; the name between the two
+is text. A DC4 pair that no DC2 follows lapses at the next prompt. DC4 does not end the wait
+after an Enter (rule 1 of section 5.3), so input typed ahead does not reach the request.
+
 ### 5.3 File transfers
 
 These rules apply in every mode, except where a mode is named.
@@ -741,10 +759,11 @@ These rules apply in every mode, except where a mode is named.
    usual pace. This part applies to every program, but it changes only the pacing of
    typed-ahead input that contains a Ctrl-C.
 2. **File requests and uploads.** From the program's DC2 to its next prompt the bridge serves a
-   file request. When it has a file for it (`+console_upload` in the terminal and
-   pseudo-terminal modes; the next `#<` entry of a script), the bridge reads the file at that
-   moment, so that a rebuilt app is sent the next time, and types it (an upload); without one it
-   types the input waiting (a paste, or `cat` into the pseudo-terminal) in the same way:
+   file request. When it has a file for it (the file the request names, in every mode;
+   `+console_upload` in the terminal and pseudo-terminal modes; the next `#<` entry of a
+   script), the bridge reads the file at that moment, so that a rebuilt app is sent the next
+   time, and types it (an upload); without one it types the input waiting (a paste, or `cat`
+   into the pseudo-terminal) in the same way:
    * line by line: after the end (CR, or LF not after CR) of a line that is not empty it waits
      for ACK or NAK, at the latest `kPromptWait`, before it types the next character; every
      character is paced as before. An empty line is not answered (section 4.2), so it is not
@@ -773,21 +792,35 @@ These rules apply in every mode, except where a mode is named.
      number of lines dropped. Input that follows the file, such as a command pasted after it,
      reaches the command line as usual;
    * a DC2 during a file request is ignored.
-3. **`+console_upload_dir=<dir>`**: relative paths of `+console_upload` and of `#<` entries are
-   relative to `<dir>`; by default to the simulator's working directory.
+3. **`+console_upload_dir=<dir>`**: relative paths of `+console_upload`, of `#<` entries and of
+   the files that requests name are relative to `<dir>`; by default to the simulator's working
+   directory.
+
+   **Named requests** (`load <name>`, section 5.2): the name is resolved as `UPLOAD=` is
+   (section 9.6). A name ending in `.hex` is a file; `<march>/<name>` is the file
+   `<march>/<name>.hex`; any other name is `<name>.hex` in the directory of
+   **`+console_app_dir=<dir>`** (the loader's console runs pass `$(SDK_OUT)/rv32i`). The file is
+   sent as an upload, ahead of `+console_upload`, a send request and the `#<` entries (which a
+   script's typed line `load <name>` does not need). If there is no such file, the bridge types
+   the line `!<reason>` and CR instead (section 4.2, item 6): `no app '<name>' (the apps:
+   <names>)`, with the names of the `.hex` files in `+console_app_dir` in alphabetical order,
+   for a name, or `cannot read <file>: <reason>` for a `.hex` file. In the terminal and
+   pseudo-terminal modes the bridge lists the same names at start-up.
 4. **`+console_upload=<file>`** (terminal and pseudo-terminal modes): the file sent whenever the
-   program asks for one. Without it, in the terminal mode with a terminal as stdin, the bridge
-   prints a hint when the program sends DC2 and no input is waiting (a paste typed ahead is
-   typed as the file). In a scripted session it is not used (with a note): `#<` lines send
-   files there.
-5. The bridge reads the two new options itself, in `console_init()`, with
+   program asks for one without naming it. Without it, in the terminal mode with a terminal as
+   stdin, the bridge prints a hint when the program sends DC2 and no input is waiting (a paste
+   typed ahead is typed as the file). In a scripted session it is not used (with a note): `#<`
+   lines send files there.
+5. The bridge reads the three new options itself, in `console_init()`, with
    `Verilated::commandArgsPlusMatch()` (Verilator 5.042); `sim/top.sv` and the DPI signature of
    `console_init()` stay unchanged.
 6. Notes on stderr (wording informative):
    * `[console] sending <file> (<n> bytes)`
    * `[console] cannot read <file>: <reason>` (nothing is sent; Ctrl-C cancels the load)
-   * `[console] the program asks for a file: paste it, or start the simulation with
-     UPLOAD=<app>; Ctrl-C cancels` (terminal mode without `+console_upload`)
+   * `[console] the apps for 'load <name>': <names>` (at start-up, with `+console_app_dir`)
+   * `[console] the program asks for a file: paste it, or press Ctrl-C and type 'load <name>'`
+     (terminal mode without `+console_upload`; without `+console_app_dir`: `... paste it, or
+     start the simulation with UPLOAD=<app>; Ctrl-C cancels`)
    * `[console] Ctrl-C: the upload stops after <k> of <n> bytes; the rest of the file is not
      sent`, printed when the Ctrl-C is typed, before the loader's `load cancelled`; the same
      with `the file holds a Ctrl-C (0x03)` and `the file goes on after its end-of-file record`
@@ -823,13 +856,15 @@ These rules apply in every mode, except where a mode is named.
 ### 5.4 Terminal mode (the default)
 
 ```bash
-make freertos-shell APP=loader UPLOAD=hello
+make freertos-shell APP=loader
 ```
 
-builds the shell, the simulator and the app, and starts the simulation with
-`+console_upload=<build>/test/freertos/sdk/rv32i/hello.hex`. Every `load` typed in the terminal
-then receives that file. `UPLOAD` takes an app name (its RV32I build), `<march>/<name>` (another
-build, for example `rv32im_zba/compute`) or the path of a `.hex` file (section 9.6).
+builds the shell, the simulator and the example apps, and starts the simulation; `load hello`
+typed in the terminal then receives the file of `hello` (rule 3). With `UPLOAD=hello`, the
+simulation is started with `+console_upload=<build>/test/freertos/sdk/rv32i/hello.hex`, and
+every `load` without a name receives that file. `UPLOAD` takes the forms of rule 3, an app name
+(its RV32I build), `<march>/<name>` (another build, for example `rv32im_zba/compute`) or the
+path of a `.hex` file (section 9.6).
 
 Without `UPLOAD=`, the file can be pasted into the terminal after `load`: the bridge reads the
 paste at once and types it at the pace of rule 2, one line per answer. Ctrl-C cancels, also in
@@ -843,6 +878,9 @@ make freertos-shell APP=loader PTY=1          # terminal 1: the simulation
 screen build/test/freertos/loader/pty          # terminal 2: the shell's console
 make freertos-send UPLOAD=hello                # terminal 3: 'load' and the file, at the prompt
 ```
+
+`load hello` typed in terminal 2 works as in the terminal mode, without terminal 3;
+`make freertos-send` also builds the app if needed.
 
 `make freertos-send` builds the app's file if needed and writes a send request (rule 8) next
 to the session's link, `build/test/freertos/loader/pty.upload`, with the file's absolute path.
@@ -867,7 +905,8 @@ set.)
 
 Two new kinds of lines in a session script (`+console_script`):
 
-* `#< <file>`: the file is sent when the program next sends DC2.
+* `#< <file>`: the file is sent when the program next sends DC2 (not needed after a typed line
+  `load <name>`, whose file the bridge finds by its name, rule 3).
 * `#: <text>`: the text is typed, followed by Enter unless it ends in `\c`, when the program
   next sends DC1 or DC2. Escapes as in typed lines (`\r \n \t \e \\ \xHH`).
 
@@ -906,8 +945,10 @@ run
 * The receive queue never holds more than one line of a file: the bridge types the next line
   only after the answer to the previous one, and a record line has at most 77 characters with
   CR LF, while the loader configuration's queue holds 128 (`SHELL_RX_BUFFER`). A paste or `cat`
-  has the same guarantee through rule 2. The test sessions check that `uart` reports
-  `dropped: 0` and `overruns: 0`.
+  has the same guarantee through rule 2. A `!<reason>` line, which may be longer, is the last
+  line of its request, and the loader stores each of its characters as it arrives, without
+  work at the end of a line. The test sessions check that `uart` reports `dropped: 0` and
+  `overruns: 0`.
 * Speed, estimated from the pacing rules: a record of 16 data bytes is a line of 45
   characters, at about 700 to 900 cycles per character: about 2.5 million cycles per KiB of
   image, one to two seconds of simulation. The documentation states measured figures.
@@ -999,7 +1040,7 @@ An app must not:
 
 The `run` command, in the console task:
 
-1. no app loaded: `error: no app loaded (use 'load' first)`;
+1. no app loaded: `error: no app loaded (try 'load hello')`;
 2. more than 8 arguments: `error: at most 8 arguments`;
 3. the header's `ulFlags` names an extension that the start-up probe did not find:
    `error: <name> was built for <isa>, but this CPU has no <missing>`, with `<isa>` as in
@@ -1214,21 +1255,25 @@ Three lines between `echo` and `halt`, in the shell's format (the command padded
 characters):
 
 ```text
-load               Receive an app (Intel HEX) into the app slot
+load [name]        Receive an app (Intel HEX) into the app slot
 run [args...]      Run the loaded app (Ctrl-C stops it)
 app                The loaded app: name, size, entry, CRC32
 ```
 
-`load` and `app` take no parameters (FreeRTOS+CLI answers others with `Incorrect command
-parameter(s)`); `run` takes any number (the loader limits them to 8).
+`app` takes no parameters (FreeRTOS+CLI answers others with `Incorrect command
+parameter(s)`); `load` takes at most one (section 4.2); `run` takes any number (the loader
+limits them to 8).
 
 ### 8.2 Banner
 
 One line after the `config:` line:
 
 ```text
-  apps: 'load' receives an app into the 128 KiB slot at 0x00060000, 'run' runs it
+  apps: 'load <name>' (for example 'load hello'), then 'run [args]'
 ```
+
+The names of the apps are known to the console bridge, not to the shell: the bridge lists them
+at start-up (section 5.3, rule 3).
 
 ### 8.3 `mem`
 
@@ -1244,10 +1289,15 @@ apps:      131072-byte app slot at 0x00060000 ('app' shows what it holds)
 Section 4.2. For example:
 
 ```text
-hades> load
-load: waiting for an Intel HEX file (Ctrl-C cancels)
+hades> load hello
+load: waiting for hello (Ctrl-C cancels)
 .
 loaded hello: 1048 bytes at 0x00060000, entry 0x00060040, CRC32 0x5b1e2f07
+hades> load helo
+load: waiting for helo (Ctrl-C cancels)
+load failed: no app 'helo' (the apps: compute crash hello selfmod upper)
+hades> load
+load: waiting for an Intel HEX file (Ctrl-C cancels)
 ```
 
 ### 8.5 `run`
@@ -1416,7 +1466,9 @@ record reaches the command line (section 5.3, rule 2).
 
 `UPLOAD=<name>` means `$(SDK_OUT)/rv32i/<name>.hex`, built from `test/freertos/sdk/apps/<name>/`
 if needed; `UPLOAD=<march>/<name>` the build for that `-march`; a value ending in `.hex` is a file,
-used as it is. The app named by `UPLOAD` is rebuilt when it is out of date, at the optimisation
+used as it is. `load <name>` names files in the same way (section 5.3, rule 3), but the bridge
+builds nothing: it sends the file as it is, and relative `.hex` paths are relative to
+`$(SDK_OUT)`. The app named by `UPLOAD` is rebuilt when it is out of date, at the optimisation
 level of its last build (recorded in its `flags.txt`), or `-O2` if it has none: `UPLOAD=` sends
 the build that `make freertos-app` made, whatever its `OPT`. `freertos-apps` builds the examples
 at `-O2`. An unknown app, or a name that breaks the rule of section 9.2, stops `make` before
@@ -1450,8 +1502,8 @@ each with expectations for the exact messages of sections 4, 7 and 8:
 
 1. The banner: the shell's lines and the `apps:` line. `help` lists `load`, `run [args...]` and
    `app` between `echo` and `halt`. `mem` shows the `apps:` line.
-2. Before any load: `app` gives `no app loaded`; `run` gives `error: no app loaded (use 'load'
-   first)`.
+2. Before any load: `app` gives `no app loaded`; `run` gives `error: no app loaded (try 'load
+   hello')`.
 3. `load` with `#< testfiles/tiny.hex`: the exact `loaded tiny: ... CRC32 0xa0537c91` line;
    `app` gives the four lines of section 8.6 exactly; `run` gives `app: tiny exited with code 7
    after \d+ cycles`.
@@ -1481,12 +1533,18 @@ each with expectations for the exact messages of sections 4, 7 and 8:
     `no app loaded`. `ok-blank.hex` and `after-eof.hex` give `loaded tiny` without an extra
     prompt or `Command not recognised`, and `run` gives code 7.
 11. Reload: `load` `hello` again; `run again`: `Hello, again!`.
-12. `uart`: `dropped: 0`, `overruns: 0`.
-13. `halt`: `halted`, `FRTOS-RESULT: PASS`.
+12. Load by name, without `#<` lines: `load selfmod` (`load: waiting for selfmod (Ctrl-C
+    cancels)`, `loaded selfmod`) and `run` (`selfmod: PASS`); `load hello` and `run Ada`
+    (`Hello, Ada!`, code 1); `load hello world` gives `usage: load [name]`, and `app` still
+    shows `hello`; `load testfiles/tiny.hex` gives `loaded tiny`; `load nosuchapp` gives
+    `load failed: no app 'nosuchapp' (the apps: ...)`, listing at least the five examples, and
+    `run` then gives the error of step 2.
+13. `uart`: `dropped: 0`, `overruns: 0`.
+14. `halt`: `halted`, `FRTOS-RESULT: PASS`.
 
 `session.py compare` must report SAME: the transcript contains no line that depends on the CPU
 except numbers, which it normalises (and the `cpu:` lines of the shell's own commands, which it
-excludes). The expectations of steps 3 to 13 do not depend on the CPU, and the golden CPU
+excludes). The expectations of steps 3 to 14 do not depend on the CPU, and the golden CPU
 raises the exceptions of step 8 as HaDes-V+ does (none of its known deviations, listed in
 `test/trapsweep/README.md`, concerns them).
 
@@ -1499,7 +1557,9 @@ make freertos-shell-test APP=loader SCRIPT=test/freertos/loader/session-ext.txt 
 
 `load` with `#< rv32im_zba/compute.hex`; `app` shows `isa: rv32im_zba`; `run`: on HaDes-V+
 `compute: ...: PASS` and code 0 (`#?dut`); on the golden CPU `error: compute was built for
-rv32im_zba, but this CPU has no M and no Zba` (`#?golden`). Not compared between the CPUs.
+rv32im_zba, but this CPU has no M and no Zba` (`#?golden`); then `load rv32im_zba/compute`
+(the same build by name): `loaded compute`, and `app` shows `isa: rv32im_zba`. Not compared
+between the CPUs.
 
 ### 10.3 The interactive check: `test/freertos/loader/tty_test.py`
 
@@ -1510,8 +1570,9 @@ restored after every case). Arguments: `--sim`, `--dir`, `--upload-dir`, `--only
 | Case | What it checks |
 |---|---|
 | `upload` | terminal mode with `+console_upload=<a scratch copy of hello.hex>`: `load`, `run` and `app` typed ahead at once give `loaded hello`, code 0 and the app's name (the input waits for the prompt that ends the upload); the scratch file is replaced by `tiny.hex`; `load` gives `loaded tiny` (the file is read at every request); `run` gives code 7 |
+| `name` | terminal mode with `+console_app_dir=<SDK_OUT>/rv32i` and `+console_upload=testfiles/tiny.hex`: the start-up note lists at least the five examples; `load hello` and `run Ada` typed ahead at once give `loaded hello` and `Hello, Ada!` (the name decides over `+console_upload`, and the input waits for the prompt); `load crash` gives `loaded crash`; `load` without a name gives `loaded tiny`; `load nosuchapp` gives `load failed: no app 'nosuchapp' (the apps: ...)` with the names of the start-up note; `app`: `no app loaded` |
 | `paste` | terminal mode without `+console_upload`: `load`, then all of `hello.hex` written to the terminal at once, followed by an empty line, two records and the command `app`: `loaded hello`; the bridge drops the empty line and the records (one prompt, no `Command not recognised`, the note `dropped 2 line(s)`), and `app` runs; `uart` shows `dropped: 0` |
-| `pty-send` | `+console_pty`: a client attached in exclusive mode, as in `case_pty` of `shell/tty_test.py`; a send request for `hello.hex` (rule 8 of section 5.3, written as `make freertos-send` writes it) is answered `ok`; the client sees `loaded hello`, types `run`, sees code 0; while `run loop` of `crash` runs, a request is refused (`not at its prompt`) and nothing is typed into the app; after `load` typed by the client, a request is answered `ok waiting` and gives `loaded hello` |
+| `pty-send` | `+console_pty`: a client attached in exclusive mode, as in `case_pty` of `shell/tty_test.py`; a send request for `hello.hex` (rule 8 of section 5.3, written as `make freertos-send` writes it) is answered `ok`; the client sees `loaded hello`, types `run`, sees code 0; while `run loop` of `crash` runs, a request is refused (`not at its prompt`) and nothing is typed into the app; after `load` typed by the client, a request is answered `ok waiting` and gives `loaded hello`; `load selfmod` typed by the client gives `loaded selfmod`, and `run` `selfmod: PASS` |
 | `pty-cat` | `+console_pty`, a client in exclusive mode; a second writer writes `load`, CR and `compute.hex` into the device, as `cat` does; the client types Ctrl-C while the file arrives: `load cancelled`, the note `dropped <n> line(s)`, and nothing more on the device within 3 seconds; `app`: `no app loaded` |
 | `input` | `run` of `upper`; `abc` typed with pauses, Enter, `xyz`, Enter, Enter: `ABC`, `XYZ`, code 2; every answer within 10 seconds of its Enter (the DC1 rule, not the 10-million-cycle limit) |
 | `ctrl-c` | `run loop` of `crash`; a second later Ctrl-C: `stopped by Ctrl-C` within 10 seconds; `tasks`: `3 tasks` |

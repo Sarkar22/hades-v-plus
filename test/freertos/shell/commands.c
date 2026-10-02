@@ -686,7 +686,7 @@ static const CLI_Command_Definition_t axCommands[] =
     { "uart",     "uart               UART receive statistics\r\n", prvUart, 0 },
     { "echo",     "echo <text>        Print the text\r\n", prvEcho, -1 },
 #if SHELL_LOADER
-    { "load",     "load               Receive an app (Intel HEX) into the app slot\r\n", loader_cmd_load, 0 },
+    { "load",     "load [name]        Receive an app (Intel HEX) into the app slot\r\n", loader_cmd_load, -1 },
     { "run",      "run [args...]      Run the loaded app (Ctrl-C stops it)\r\n", loader_cmd_run, -1 },
     { "app",      "app                The loaded app: name, size, entry, CRC32\r\n", loader_cmd_app, 0 },
 #endif

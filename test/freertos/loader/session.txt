@@ -9,6 +9,7 @@
 # belong to the typed line before them and are not typed lines themselves:
 #   #< <file>   the console bridge sends the file when the program asks for one (load); the
 #               file names are relative to the build directory of the SDK, test/freertos/sdk/
+#               ('load <name>' needs none: the bridge finds the file by its name, step 12)
 #   #: <text>   the bridge types the text and Enter (none if it ends in \c) when the program
 #               waits for input (a running app)
 # Every app is the RV32I build, so that the session runs on the golden CPU as well.
@@ -16,12 +17,12 @@
 # 1. The banner, help and mem.
 #? ^HaDes-V\+ shell on FreeRTOS V11\.\d+\.\d+\+? with FreeRTOS\+CLI$
 #? ^  config: tick=\d+cyc .* heap_\d isa=rv32i\S* opt=-O\S ram=256K
-#? ^  apps: 'load' receives an app into the 128 KiB slot at 0x00060000, 'run' runs it$
+#? ^  apps: 'load <name>' \(for example 'load hello'\), then 'run \[args\]'$
 #? ^Type 'help' for the list of commands\.$
 help
 #? ^help:$
 #? ^echo <text>\s
-#? ^load               Receive an app \(Intel HEX\) into the app slot$
+#? ^load \[name\]        Receive an app \(Intel HEX\) into the app slot$
 #? ^run \[args\.\.\.\]      Run the loaded app \(Ctrl-C stops it\)$
 #? ^app                The loaded app: name, size, entry, CRC32$
 #? ^halt\s
@@ -35,7 +36,7 @@ mem
 app
 #? ^no app loaded$
 run
-#? ^error: no app loaded \(use 'load' first\)$
+#? ^error: no app loaded \(try 'load hello'\)$
 # 3. The reference image of SPEC.md section 3.6: its entry returns 7.
 load
 #< testfiles/tiny.hex
@@ -162,7 +163,7 @@ load
 app
 #? ^no app loaded$
 run
-#? ^error: no app loaded \(use 'load' first\)$
+#? ^error: no app loaded \(try 'load hello'\)$
 #! ^app: \S+ (exited|stopped)
 load
 #< testfiles/tiny.hex
@@ -171,7 +172,7 @@ load
 #< testfiles/bad-address.hex
 #? ^load failed: line 2: address 0x00050000 is outside the app slot \(0x00060000-0x0007ffff\)$
 run
-#? ^error: no app loaded \(use 'load' first\)$
+#? ^error: no app loaded \(try 'load hello'\)$
 #! ^app: \S+ (exited|stopped)
 load
 #< testfiles/tiny.hex
@@ -180,7 +181,7 @@ load
 #< testfiles/bad-size.hex
 #? ^load failed: tiny needs 131224 bytes of the slot \(image 72, bss 0, stack 131072, saved copy 80\); the slot has 131072$
 run
-#? ^error: no app loaded \(use 'load' first\)$
+#? ^error: no app loaded \(try 'load hello'\)$
 #! ^app: \S+ (exited|stopped)
 load
 #< testfiles/tiny.hex
@@ -189,7 +190,7 @@ load
 #< testfiles/bad-magic.hex
 #? ^load failed: bad magic 0x50504158 \(an app image starts with 0x50504148, "HAPP"\)$
 run
-#? ^error: no app loaded \(use 'load' first\)$
+#? ^error: no app loaded \(try 'load hello'\)$
 #! ^app: \S+ (exited|stopped)
 load
 #< testfiles/tiny.hex
@@ -200,7 +201,7 @@ load
 app
 #? ^no app loaded$
 run
-#? ^error: no app loaded \(use 'load' first\)$
+#? ^error: no app loaded \(try 'load hello'\)$
 #! ^app: \S+ (exited|stopped)
 # 10. The other test files of SPEC.md section 9.5, each with its reason.
 load
@@ -268,12 +269,39 @@ load
 run again
 #? ^Hello, again!$
 #? ^app: hello exited with code 1 after \d+ cycles$
-# 12. No character was lost on the way in.
+# 12. Load by name: the console bridge sends the app's file without a "#<" line (SPEC.md
+# section 5.3), here two apps one after the other and a test file by its path. A name that
+# it does not know loads nothing, and the reason lists the apps.
+load selfmod
+#? ^load: waiting for selfmod \(Ctrl-C cancels\)$
+#? ^loaded selfmod: \d+ bytes at 0x00060000
+run
+#? ^selfmod: PASS$
+load hello
+#? ^load: waiting for hello \(Ctrl-C cancels\)$
+#? ^loaded hello: \d+ bytes at 0x00060000
+run Ada
+#? ^Hello, Ada!$
+#? ^argv\[1\] = Ada$
+#? ^app: hello exited with code 1 after \d+ cycles$
+load hello world
+#? ^usage: load \[name\]$
+app
+#? ^name:      hello \(ABI 1\)$
+load testfiles/tiny.hex
+#? ^loaded tiny: 72 bytes at 0x00060000, entry 0x00060040, CRC32 0xa0537c91$
+load nosuchapp
+#? ^load: waiting for nosuchapp \(Ctrl-C cancels\)$
+#? ^load failed: no app 'nosuchapp' \(the apps: (\S+ )*compute (\S+ )*crash (\S+ )*hello (\S+ )*selfmod (\S+ )*upper( \S+)*\)$
+run
+#? ^error: no app loaded \(try 'load hello'\)$
+#! ^app: \S+ (exited|stopped)
+# 13. No character was lost on the way in.
 uart
 #? ^received:\s+\d+$
 #? ^dropped:\s+0 \(receive queue full\)$
 #? ^overruns:\s+0 \(lost in the UART\)$
-# 13. The end.
+# 14. The end.
 halt
 #? ^halted$
 #? ^FRTOS-RESULT: PASS

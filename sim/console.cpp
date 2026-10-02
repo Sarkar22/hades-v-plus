@@ -57,6 +57,9 @@
 //                             relative to <dir> (default: the simulator's working directory).
 //                             In the pseudo-terminal mode with a link, this option or
 //                             +console_upload also enables send requests (below).
+//   +console_app_dir=<dir>    the apps' HEX files, for requests that name a file (below):
+//                             the name <name> is the file <dir>/<name>.hex. In the terminal
+//                             and pseudo-terminal modes their names are listed at start-up.
 //
 // Input and pacing. sim/top.sv calls console_poll() every few dozen cycles, in every state of
 // its UART injector: all input available from the terminal (or pseudo-terminal) is read into a
@@ -89,6 +92,14 @@
 // rest of a line cut by a Ctrl-C) is dropped, with a note, instead of being typed into the
 // command line.
 //
+// Named requests ('load <name>'). Before its DC2 the program may name the file it wants: the
+// name between two DC4 (0x14), which are not text either (the name itself is). The bridge then
+// sends that file as an upload, in every mode and ahead of any other: a name ending in .hex is
+// a file, <march>/<name> the file <march>/<name>.hex (both relative to +console_upload_dir),
+// any other name <name>.hex in +console_app_dir, as UPLOAD= names them in
+// test/freertos/sdk/sdk.mk. If there is no such file, it types the line "!<reason>" instead
+// (for an unknown app the reason lists the apps), and the program ends the request with it.
+//
 // Send requests (make freertos-send). In the pseudo-terminal mode with a link and with
 // +console_upload or +console_upload_dir, the bridge looks for the file <link>.upload every 16
 // polls; it holds the path of a file. If the program shows its prompt and nothing has been
@@ -102,8 +113,8 @@
 // Ctrl-C. In the terminal and pseudo-terminal modes a Ctrl-C among the characters waiting to
 // be typed also ends the wait after an Enter (they are typed in order, the Ctrl-C last), so
 // that Ctrl-C reaches a running program at once. This changes, for every program, only the
-// pacing of typed-ahead input that contains a Ctrl-C; programs that never send the four
-// control bytes see the bridge as before otherwise.
+// pacing of typed-ahead input that contains a Ctrl-C; programs that never send these control
+// bytes (or DC4) see the bridge as before otherwise.
 //
 // The program's output reaches this terminal through the UART echo of wishbone_uart.sv
 // ($write to stdout); stdout is made unbuffered so that a prompt without a newline shows at
@@ -122,6 +133,7 @@
 #include <string>
 #include <vector>
 
+#include <dirent.h>
 #include <fcntl.h>
 #include <poll.h>
 #include <sys/ioctl.h>
@@ -140,11 +152,13 @@ const unsigned char kCtrlC = 0x03;
 const unsigned char kAck = 0x06;           // control bytes from the program (see above)
 const unsigned char kDc1 = 0x11;
 const unsigned char kDc2 = 0x12;
+const unsigned char kDc4 = 0x14;           // before and after the name of the file wanted
 const unsigned char kNak = 0x15;
 const uint64_t kPollCycles = 512;           // read the input at most this often
 const uint64_t kPromptWait = 10000000;      // after Enter, wait at most this long for the prompt
 const uint64_t kSettledCycles = 1000000;    // end of piped input: silence at the prompt this long
 const unsigned kExclusivePolls = 16;        // shared pseudo-terminal: clear exclusive mode this often
+const size_t kNameMax = 255;                // characters of a requested name kept
 
 Mode g_mode = Mode::None;
 bool g_open = false;
@@ -188,6 +202,10 @@ char g_last_tx = '\n';
 // file requests: from the program's DC2 to its next prompt
 std::string g_upload_dir;            // +console_upload_dir
 std::string g_upload;                // +console_upload, resolved
+std::string g_app_dir;               // +console_app_dir: the apps' HEX files, for named requests
+bool g_name_open = false;            // DC4 seen: the name of the file wanted follows ...
+std::string g_name;                  // ... its characters so far
+std::string g_request_name;          // the name, complete (the second DC4): for the next DC2
 bool g_request = false;              // a file request is being served
 unsigned long g_lines_sent = 0;      // lines of the file typed that are not empty ...
 unsigned long g_answers = 0;         // ... and the answers (ACK, NAK) received to them
@@ -603,15 +621,65 @@ void poll_input() {
 }
 
 // ---- file requests ----
+// Starts the upload of `data`, the contents of `path` as read at the request.
+void upload(const std::string& path, std::string& data) {
+    note("sending %s (%zu bytes)", path.c_str(), data.size());
+    g_send_data.swap(data);
+    g_send_pos = 0;
+    g_sending = !g_send_data.empty();
+}
+
 void send_file(const std::string& path) {
-    std::string error;
-    if (!read_file(path, g_send_data, error)) {
+    std::string data, error;
+    if (!read_file(path, data, error)) {
         note("cannot read %s: %s (nothing is sent; Ctrl-C cancels the load)", path.c_str(), error.c_str());
         return;
     }
-    note("sending %s (%zu bytes)", path.c_str(), g_send_data.size());
+    upload(path, data);
+}
+
+// The apps of named requests: the names of the .hex files in +console_app_dir, sorted.
+std::string app_names() {
+    std::vector<std::string> names;
+    if (DIR* dir = opendir(g_app_dir.c_str())) {
+        while (const struct dirent* e = readdir(dir)) {
+            const std::string f = e->d_name;
+            if (f.size() > 4 && f.compare(f.size() - 4, 4, ".hex") == 0)
+                names.push_back(f.substr(0, f.size() - 4));
+        }
+        closedir(dir);
+    }
+    std::sort(names.begin(), names.end());
+    std::string list;
+    for (const std::string& n : names) list += (list.empty() ? "" : " ") + n;
+    return list.empty() ? "none in " + g_app_dir : list;
+}
+
+// A request that names its file ('load <name>'): the upload of that file, or, without one,
+// the line "!<reason>", which ends the request (the program reports the reason).
+void send_named(const std::string& name) {
+    const bool is_file = name.size() > 4 && name.compare(name.size() - 4, 4, ".hex") == 0;
+    std::string path;
+    if (is_file || name.find('/') != std::string::npos) {
+        path = resolve(is_file ? name : name + ".hex");
+    } else if (!g_app_dir.empty()) {
+        path = g_app_dir + (g_app_dir.back() == '/' ? "" : "/") + name + ".hex";
+    }
+    std::string data, error, reason;
+    if (path.empty()) {
+        reason = "no app '" + name + "' (the simulator has no +console_app_dir)";
+    } else if (!read_file(path, data, error)) {
+        reason = is_file ? "cannot read " + path + ": " + error
+                         : "no app '" + name + "' (the apps: " + app_names() + ")";
+    } else if (data.empty()) {
+        reason = path + " is empty";
+    } else {
+        upload(path, data);
+        return;
+    }
+    g_send_data = "!" + reason + "\r";
     g_send_pos = 0;
-    g_sending = !g_send_data.empty();
+    g_sending = true;
 }
 
 // True if what is left of the upload holds more than blanks and line ends.
@@ -759,7 +827,11 @@ void on_control(unsigned char c) {
         g_wait_prompt = false;
         g_lines_sent = g_answers = 0;
         g_line_length = 0;
-        if (g_mode == Mode::Script) {
+        if (!g_request_name.empty()) {   // 'load <name>': that file, in every mode
+            g_hold_input = true;
+            send_named(g_request_name);
+            g_request_name.clear();
+        } else if (g_mode == Mode::Script) {
             if (!deliver_entry(c) && g_next_line > 0)
                 note("%s:%u: the program asks for a file, but no \"#<\" line of this typed line is left",
                      g_script.c_str(), g_line_numbers[g_next_line - 1]);
@@ -771,8 +843,11 @@ void on_control(unsigned char c) {
             g_hold_input = true;   // (also when the file cannot be read: Ctrl-C cancels)
             send_file(g_upload);
         } else if (g_mode == Mode::Stdio && g_in_tty && g_pending.empty()) {
-            note("the program asks for a file: paste it, or start the simulation with UPLOAD=<app>; "
-                 "Ctrl-C cancels");
+            if (g_app_dir.empty())
+                note("the program asks for a file: paste it, or start the simulation with UPLOAD=<app>; "
+                     "Ctrl-C cancels");
+            else
+                note("the program asks for a file: paste it, or press Ctrl-C and type 'load <name>'");
         }
     } else if (c == kDc1 && g_mode == Mode::Script) {
         deliver_entry(c);
@@ -781,6 +856,8 @@ void on_control(unsigned char c) {
 
 void on_prompt(uint64_t now) {
     if (g_request) end_request(now);
+    g_name_open = false;             // a name not followed by DC2 lapses
+    g_request_name.clear();
     g_typed_since_prompt = false;
     g_enter_since_prompt = false;
     if (!g_send_once.empty() && g_prompts > g_send_prompts) {
@@ -884,6 +961,7 @@ extern "C" void console_init(const char* mode, const char* script_file, const ch
 
     g_upload_dir = plusarg("console_upload_dir");
     g_upload = resolve(plusarg("console_upload"));
+    g_app_dir = plusarg("console_app_dir");
 
     const std::string m = mode ? mode : "stdio";
     if (m == "script") {
@@ -912,6 +990,8 @@ extern "C" void console_init(const char* mode, const char* script_file, const ch
                  "waits at its prompt");
         }
     }
+    if (!g_app_dir.empty() && g_mode != Mode::Script)
+        note("the apps for 'load <name>': %s", app_names().c_str());
 }
 
 // Called by sim/top.sv every few dozen cycles, whatever its UART injector is doing; `cycle` is
@@ -1016,6 +1096,13 @@ extern "C" void console_tx(int c, long long cycle) {
         on_control(uc);
         return;
     }
+    if (uc == kDc4) {   // the name of the file wanted follows, or is complete; not text
+        g_name_open = !g_name_open;
+        if (g_name_open) g_name.clear();
+        else g_request_name = g_name;
+        return;
+    }
+    if (g_name_open && g_name.size() < kNameMax) g_name += ch;
     g_last_tx = ch;
     if (!g_prompt.empty()) {
         g_tail.push_back(ch);
