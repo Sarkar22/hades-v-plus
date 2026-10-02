@@ -6,10 +6,15 @@
 #                                     rv32i_zba, their output must be equal; cycles, image
 #                                     size and Zba instruction counts compared; zba_diff.c,
 #                                     built for rv32i only, checks the Zba results
+#   make bench-zbb [OPT=-O2|-Os|-O0]  Zbb, Zbs and Zicond: zbb_bench.c and zbb_arr.c built for
+#                                     rv32i, rv32i_zbb_zbs and rv32im_zba_zbb_zbs, their output
+#                                     must be equal; cycles, image size and instruction counts
+#                                     compared; zbb_diff.c, built for rv32i only, checks the
+#                                     results of all 28 instruction forms
 #   make bench-mcost                  cycles of each M instruction in the assembled core
 #   make bench-fencei-window          the instructions that still run stale after a store
 #                                     patches them, without FENCE.I
-#   make bench                        all three
+#   make bench                        all four
 #
 # The programs are built into $(BUILD_DIR)/test/bench/ (the objects of the assembly and C
 # tests are not touched) and run on $(BUILD_DIR)/sim/top, the simulator of the assembly and
@@ -32,8 +37,8 @@ BENCH_TIMEOUT = 5000000
 bench_run = cd $(1) && { $(BUILD_ABS)/$(SIM_DIR)/top +nodump +timeout=$(BENCH_TIMEOUT) > run.log 2>&1 \
                          || echo "SIMULATOR EXIT STATUS $$?" >> run.log; }
 
-.PHONY: bench bench-zba bench-mcost bench-fencei-window bench-rerun
-bench: bench-zba bench-mcost bench-fencei-window
+.PHONY: bench bench-zba bench-zbb bench-mcost bench-fencei-window bench-rerun
+bench: bench-zba bench-zbb bench-mcost bench-fencei-window
 
 # Every run log depends on this target, so the programs are run on every invocation.
 bench-rerun:
@@ -54,12 +59,12 @@ endef
 # C programs, built with the commands of the C tests plus the program's own flags, and with
 # their own copies of the std objects: $(1) = output directory, $(2) = source, $(3) = flags
 # (-O level and -march; also given to the std objects and the link), $(4) = flags for the
-# program only
+# program only, $(5) = flags for the std objects instead of $(3) (optional)
 bench_std_objs = $(patsubst $(STD_LIB_DIR)/src/%.c,$(1)/std/%.o,$(BENCH_STD_SRC))
 define bench_c_rules
 $(1)/std/%.o: $(STD_LIB_DIR)/src/%.c $(BENCH_STD_H)
 	@ mkdir -p $$(@D)
-	$$(CC) -fdata-sections -ffunction-sections $(3) -I $(STD_LIB_DIR)/include -c -o $$@ $$<
+	$$(CC) -fdata-sections -ffunction-sections $(or $(5),$(3)) -I $(STD_LIB_DIR)/include -c -o $$@ $$<
 $(1)/out.o: $(2) $(BENCH_STD_H)
 	@ mkdir -p $$(@D)
 	$$(CC) -fdata-sections -ffunction-sections $(3) $(4) -I $(STD_LIB_DIR)/include -c -o $$@ $$<
@@ -100,6 +105,39 @@ $(foreach s,B5297A4D 1F123BB5 9E3779B9,$(eval $(call bench_c_rules,$(ZBA_OUT)/zb
 
 bench-zba: $(foreach v,$(ZBA_VARIANTS),$(ZBA_OUT)/$(v)/run.log)
 	@ $(BENCH_PY) zba $(ZBA_OUT) $(ZBA_OPT)
+
+# ---- bench-zbb: Zbb, Zbs and Zicond against plain RV32I, see test/bench/README.md ------------
+# OPT=<level> as for bench-zba. The std objects (UART output, outside the timed windows) are
+# built for rv32i in every variant: GCC 12.2 stops with an internal compiler error on
+# std/src/helperfunctions.c when Zbs is enabled (a conditional set or clear of bit 11).
+ZBB_OPT := -O2
+ifneq ($(filter bench bench-zbb,$(MAKECMDGOALS)),)
+ifeq ($(origin OPT),command line)
+ZBB_OPT := $(OPT)
+endif
+ifneq ($(words $(ZBB_OPT)) $(filter -O0 -O1 -O2 -O3 -Os -Og,$(ZBB_OPT)),1 $(ZBB_OPT))
+$(error bench-zbb: OPT must be one optimisation level (-O0, -O1, -O2, -O3, -Os or -Og), not '$(ZBB_OPT)')
+endif
+endif
+ZBB_OUT     = $(BENCH_OUT)/zbb/$(subst -,,$(ZBB_OPT))
+ZBB_MARCHES = rv32i rv32i_zbb_zbs rv32im_zba_zbb_zbs
+ZBB_STD     = $(ZBB_OPT) -march=rv32i
+
+# The variants: zbb_bench and zbb_arr for the three instruction sets (zbb_arr's Zicond phase in
+# C for rv32i); zbb_diff for rv32i only (it issues the instructions as .insn words), once with
+# its defaults and three times with 400 random operand pairs only, from three seeds.
+ZBB_VARIANTS = $(foreach m,$(ZBB_MARCHES),zbb_bench-$(m)) $(foreach m,$(ZBB_MARCHES),zbb_arr-$(m)) \
+               zbb_diff zbb_diff-B5297A4D zbb_diff-1F123BB5 zbb_diff-9E3779B9
+$(foreach m,$(ZBB_MARCHES),$(eval $(call bench_c_rules,$(ZBB_OUT)/zbb_bench-$(m),$(BENCH_DIR)/zbb/zbb_bench.c,$(ZBB_OPT) -march=$(m),,$(ZBB_STD))))
+$(foreach m,$(ZBB_MARCHES),$(eval $(call bench_c_rules,$(ZBB_OUT)/zbb_arr-$(m),$(BENCH_DIR)/zbb/zbb_arr.c,$(ZBB_OPT) -march=$(m),$(if $(filter rv32i,$(m)),-DZICOND_PORTABLE),$(ZBB_STD))))
+$(eval $(call bench_c_rules,$(ZBB_OUT)/zbb_diff,$(BENCH_DIR)/zbb/zbb_diff.c,$(ZBB_OPT) -march=rv32i))
+$(foreach s,B5297A4D 1F123BB5 9E3779B9,$(eval $(call bench_c_rules,$(ZBB_OUT)/zbb_diff-$(s),$(BENCH_DIR)/zbb/zbb_diff.c,$(ZBB_OPT) -march=rv32i,-DSKIP_POOL -DN_RANDOM=400 -DSEED=0x$(s)u)))
+
+# zbb_diff takes about 2 million cycles at -O2 and 7 million at -O0
+$(ZBB_OUT)/%/run.log: BENCH_TIMEOUT = 20000000
+
+bench-zbb: $(foreach v,$(ZBB_VARIANTS),$(ZBB_OUT)/$(v)/run.log)
+	@ $(BENCH_PY) zbb $(ZBB_OUT) $(ZBB_OPT)
 
 # ---- bench-mcost: cycles per M instruction, see test/bench/README.md -------------------------
 MCOST_OUT   = $(BENCH_OUT)/mcost

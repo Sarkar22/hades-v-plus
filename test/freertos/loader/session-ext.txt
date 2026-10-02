@@ -1,6 +1,7 @@
 # session-ext.txt -- the app loader and the ISA extensions (test/freertos/loader, SPEC.md
-# section 10.2): compute built for rv32im_zba runs on HaDes-V+, and the golden CPU, which has
-# neither M nor Zba, refuses to run it. Not compared between the CPUs:
+# section 10.2): compute built for rv32im_zba and bitmanip built for rv32im_zba_zbb_zbs run on
+# HaDes-V+, and the golden CPU, which has none of M, Zba, Zbb and Zbs, refuses to run them;
+# bitmanip built for rv32i passes the same checks on both CPUs. Not compared between the CPUs:
 #   make freertos-shell-test APP=loader SCRIPT=test/freertos/loader/session-ext.txt
 #   make freertos-shell-test APP=loader SCRIPT=test/freertos/loader/session-ext.txt CPU=golden
 # The format is that of session.txt in this directory.
@@ -22,6 +23,43 @@ load rv32im_zba/compute
 #? ^loaded compute: \d+ bytes at 0x00060000, entry 0x[0-9a-f]{8}, CRC32 0x[0-9a-f]{8}$
 app
 #? ^isa:       rv32im_zba$
+# What the CPU executes, as the apps see it (app_cpu()).
+version
+#?dut ^cpu:\s+M yes, Zba yes, Zicntr yes$
+#?dut ^cpu:\s+Zbb yes, Zbs yes, Zicond yes \(for apps\)$
+#?golden ^cpu:\s+M no, Zba no, Zicntr no$
+#?golden ^cpu:\s+Zbb no, Zbs no, Zicond no \(for apps\)$
+# bitmanip built for rv32i: the same values on both CPUs, the Zicond section in plain C.
+load rv32i/bitmanip
+#? ^load: waiting for rv32i/bitmanip \(Ctrl-C cancels\)$
+#? ^loaded bitmanip: \d+ bytes at 0x00060000, entry 0x[0-9a-f]{8}, CRC32 0x[0-9a-f]{8}$
+app
+#? ^isa:       rv32i$
+run
+#? ^bitmanip: zbb    popcount 1020, log2 1907, ctz 62, mix 5dd12d14 00203fcc 648904fb, hash 200eb485: PASS \(\d+ cycles\)$
+#? ^bitmanip: bytes  rev8 bb05f113, string lengths 102: PASS \(\d+ cycles, C\)$
+#? ^bitmanip: zbs    primes below 4096: 564 \(sum 1070091\), after toggling 1928, flags 7f6b4d42: PASS \(\d+ cycles\)$
+#? ^bitmanip: zicond select b23616d0, clamp 000013b0, add-if e806a5c8: PASS \(\d+ cycles, C\)$
+#? ^bitmanip: 4 of 4 sections passed$
+#? ^app: bitmanip exited with code 0 after \d+ cycles$
+#! FAIL
+# bitmanip built for rv32im_zba_zbb_zbs: every Zbb, Zbs and Zicond instruction on HaDes-V+
+# (the same values, fewer cycles); the golden CPU refuses it.
+load rv32im_zba_zbb_zbs/bitmanip
+#? ^load: waiting for rv32im_zba_zbb_zbs/bitmanip \(Ctrl-C cancels\)$
+#? ^loaded bitmanip: \d+ bytes at 0x00060000, entry 0x[0-9a-f]{8}, CRC32 0x[0-9a-f]{8}$
+app
+#? ^isa:       rv32im_zba_zbb_zbs$
+run
+#?dut ^bitmanip: zbb    popcount 1020, log2 1907, ctz 62, mix 5dd12d14 00203fcc 648904fb, hash 200eb485: PASS \(\d+ cycles\)$
+#?dut ^bitmanip: bytes  rev8 bb05f113, string lengths 102: PASS \(\d+ cycles, rev8 and orc\.b\)$
+#?dut ^bitmanip: zbs    primes below 4096: 564 \(sum 1070091\), after toggling 1928, flags 7f6b4d42: PASS \(\d+ cycles\)$
+#?dut ^bitmanip: zicond select b23616d0, clamp 000013b0, add-if e806a5c8: PASS \(\d+ cycles, czero\)$
+#?dut ^bitmanip: 4 of 4 sections passed$
+#?dut ^app: bitmanip exited with code 0 after \d+ cycles$
+#?golden ^error: bitmanip was built for rv32im_zba_zbb_zbs, but this CPU has no M, no Zba, no Zbb and no Zbs$
+#!golden ^bitmanip:
+#! FAIL
 uart
 #? ^dropped:\s+0 \(receive queue full\)$
 #? ^overruns:\s+0 \(lost in the UART\)$

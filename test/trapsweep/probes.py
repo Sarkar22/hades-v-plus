@@ -485,6 +485,74 @@ def race_probes():
         dict(name="rearm ext irq to a long delay", probe="    li   a3, 1000\n    sw   a3, 4(s11)\n    li   a1, 0x77", kmax=36),
     ]
 
+def ext_probes():
+    """Zbb, Zbs and Zicond: every form, dependent chains into and out of the new
+    instructions, the pipeline neighbours of the m family, and illegal neighbours that
+    must keep trapping. The programs are assembled with sweep.py's MARCH (no Zbb/Zbs),
+    so each probe enables the mnemonics itself; czero has none in binutils 2.39."""
+    on = "    .option arch, +zbb, +zbs\n"
+    def cz(f3, rd, rs1, rs2):        # czero.eqz (funct3 5) / czero.nez (funct3 7)
+        return f"    .insn r 0x33, {f3}, 7, {rd}, {rs1}, {rs2}"
+    def P(name, setup, probe, dump, kmax=36, **k):
+        return dict(name=name, setup=on + setup, probe=probe, dump=dump, kmax=kmax, **k)
+    ab = "    li   a0, 0x8f00f0a5\n    li   a2, 0x0ff0c35a"
+    return [
+        P("andn;orn;xnor", ab, "    andn a1, a0, a2\n    orn  a3, a0, a2\n    xnor a4, a0, a2", ['a1', 'a3', 'a4']),
+        P("min;minu;max;maxu", "    li   a0, -5\n    li   a2, 3",
+          "    min  a1, a0, a2\n    minu a3, a0, a2\n    max  a4, a0, a2\n    maxu a5, a0, a2", ['a1', 'a3', 'a4', 'a5'], kmax=40),
+        P("clz;ctz;cpop", "    li   a0, 0x80f01800", "    clz  a1, a0\n    ctz  a3, a0\n    cpop a4, a0", ['a1', 'a3', 'a4']),
+        P("clz;ctz;cpop of 0", "    li   a0, 0", "    clz  a1, a0\n    ctz  a3, a0\n    cpop a4, a0", ['a1', 'a3', 'a4']),
+        P("sext.b;sext.h;zext.h", "    li   a0, 0x12344381", "    sext.b a1, a0\n    sext.h a3, a0\n    zext.h a4, a0", ['a1', 'a3', 'a4']),
+        P("rol;ror;rori", "    li   a0, 0x80000001\n    li   a2, 0x2d",
+          "    rol  a1, a0, a2\n    ror  a3, a0, a2\n    rori a4, a0, 31", ['a1', 'a3', 'a4']),
+        P("orc.b;rev8", "    li   a0, 0x00a10070", "    orc.b a1, a0\n    rev8 a3, a0", ['a1', 'a3']),
+        P("rev8;rev8 in place", "    li   a0, 0x01020304", "    rev8 a0, a0\n    rev8 a0, a0\n    rev8 a1, a0", ['a0', 'a1']),
+        P("bclr;bset;binv;bext", "    li   a0, 0x0000ff00\n    li   a2, 0x28",
+          "    bclr a1, a0, a2\n    bset a3, a0, a2\n    binv a4, a0, a2\n    bext a5, a0, a2", ['a1', 'a3', 'a4', 'a5'], kmax=40),
+        P("bclri;bseti;binvi;bexti", "    li   a0, 0x80000000",
+          "    bclri a1, a0, 31\n    bseti a3, a0, 0\n    binvi a4, a0, 31\n    bexti a5, a0, 31", ['a1', 'a3', 'a4', 'a5'], kmax=40),
+        P("czero.eqz;czero.nez, rs2 != 0", "    li   a0, 0x1234\n    li   a2, 0x80000000",
+          cz(5, "a1", "a0", "a2") + "\n" + cz(7, "a3", "a0", "a2"), ['a1', 'a3']),
+        P("czero.eqz;czero.nez, rs2 == 0", "    li   a0, 0x1234\n    li   a2, 0",
+          cz(5, "a1", "a0", "a2") + "\n" + cz(7, "a3", "a0", "a2"), ['a1', 'a3']),
+        P("chain clz->rol->bset->max->czero.nez->cpop", "    li   a0, 0x00012345",
+          "    clz  a1, a0\n    rol  a3, a0, a1\n    bset a4, a3, a1\n    max  a5, a4, a0\n" + cz(7, "t1", "a5", "zero")
+          + "\n    cpop a1, t1", ['a1', 'a3', 'a4', 'a5'], kmax=40),
+        P("lw; cpop (load-use into EXT)", "", "    lw   a0, 0(t2)\n    cpop a1, a0\n    rev8 a3, a1", ['a1', 'a3']),
+        P("csrr minstret; ctz", "", "    csrr a1, minstret\n    ctz  a3, a1", ['a3']),
+        P("cpop; ecall", "    li   a0, 0x7f", "    cpop a1, a0\n    ecall", ['a1']),
+        P("ecall; cpop", "    li   a0, 0x7f", "    ecall\n    cpop a1, a0", ['a1']),
+        P("rev8; csrci mstatus", "", "    rev8 a1, a0\n    csrci mstatus, 8\n    csrr a3, mstatus", ['a1', 'a3']),
+        P("maxu; sw STALLREG; lw", "    li   a0, 0x123\n    li   a2, 0x45\n    li   a4, STALLREG",
+          "    maxu a1, a0, a2\n    sw   a1, 0(a4)\n    lw   a3, 0(a4)", ['a1', 'a3'], kmax=48, periph=True),
+        P("bext; mret", "    li   a2, 3\n    la   s9, 5f\n    csrw mepc, s9",
+          "    bext a1, a0, a2\n    mret\n    li   a3, 0xbad\n5:", ['a1', 'a3']),
+        P("orc.b;minu in handler window (nested)", "", "    orc.b a1, a0\n    minu a3, a1, a0", ['a1', 'a3'], kmax=60, nested=True),
+        P("div; clz;ctz (M result into EXT)", "    li   a0, 1000003\n    li   a2, 7",
+          "    div  a1, a0, a2\n    clz  a3, a1\n    ctz  a4, a1", ['a1', 'a3', 'a4'], kmax=60),
+        P("clz; divu (EXT result into M)", "    li   a0, 0x00012345",
+          "    clz  a1, a0\n    divu a3, a0, a1", ['a1', 'a3'], kmax=60),
+        P("sh2add; rori; mul (Zba, Zbb, M)", "    li   a0, 0x1234\n    li   a2, 0x10",
+          "    sh2add a1, a0, a2\n    rori a3, a1, 4\n    mul  a4, a3, a1", ['a1', 'a3', 'a4'], kmax=44),
+        P("taken branch -> rori", "", "    beq  zero, zero, 7f\n    li   a3, 0xbad\n7:  rori a1, a0, 7", ['a1', 'a3']),
+        P("bexti -> bnez", "    li   a0, 8", "    bexti a1, a0, 3\n    bnez a1, 7f\n    li   a3, 0x77\n7:  addi a4, a1, 1",
+          ['a1', 'a3', 'a4']),
+        P("bseti -> store address", "    li   a0, 0x600dcafe",
+          "    bseti a4, t2, 2\n    sw   a0, 0(a4)\n    lw   a1, 4(t2)", ['a1']),
+        P("EXT into x0", "    li   a0, -1\n    li   a2, 1",
+          "    max  zero, a0, a2\n" + cz(5, "zero", "a0", "a2") + "\n    add  a1, zero, zero", ['a1']),
+        P("legal edge: rori a0,a1,0 as a word", "", "    .word 0x6005D513\n    addi a1, a0, 1", ['a0', 'a1']),
+        P("illegal: rori shamt[5]=1, rev8 RV64, clmul", "",
+          "    .word 0x6205D513\n    .word 0x6B85D513\n    .word 0x0AC59533\n    addi a1, a0, 1", ['a0', 'a1'], kmax=40),
+        P("illegal: pack, packh, zip, unary rs2=3", "",
+          "    .word 0x08C5C533\n    .word 0x08C5F533\n    .word 0x08F59513\n    .word 0x60359513\n    addi a1, a0, 1",
+          ['a0', 'a1'], kmax=40),
+    ]
+
+# Families that sweep.py runs only when named (sweep.py run --fam ext): they are not part
+# of 'all' or of 'sweep.py list', whose output the trapsweep record stores.
+OPT_FAMS = {'ext': ext_probes}
+
 FAMS = {'ctl': ctl_probes, 'race': race_probes, 'csr': csr_probes, 'exc': exc_probes, 'exc_mie0': lambda: exc_probes('mie0'), 'exc_mie0mpie0': lambda: exc_probes('mie0mpie0'),
         'exc_mpie0': lambda: exc_probes('mpie0'), 'nested': nested_probes, 'flow': flow_probes, 'bus': bus_probes,
         'pairs': pair_probes, 'pre': pre_probes, 'pre_i': lambda: pre_probes(False), 'm': m_probes, 'bp': bp_probes}
@@ -492,7 +560,7 @@ FAMS = {'ctl': ctl_probes, 'race': race_probes, 'csr': csr_probes, 'exc': exc_pr
 # Families that only run on the DUT: the golden CPU has no M/Zba (m, pre) and no
 # branch predictor (bp: it ignores MHPMEVENT10, so the sweep would test nothing).
 # pre_i is the M-free subset of pre, for the golden CPU.
-DUT_ONLY = {'m', 'pre', 'bp'}
+DUT_ONLY = {'m', 'pre', 'bp', 'ext'}
 
 if __name__ == '__main__':
     # probes.py <family> [ext|timer|both] [ids-file]: print one program with every probe of a family

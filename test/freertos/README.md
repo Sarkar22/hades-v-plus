@@ -69,7 +69,7 @@ make frtos-elf FRTOS_APP=full FRTOS_OUT=build/full          # build only
 | knob | meaning (default) |
 |---|---|
 | `FRTOS_APP` | `minimal`, `stress`, `full`, `mzba`, `brk`, `shell`, `loader`, `template`, or your own |
-| `FRTOS_MARCH` | `rv32i`, `rv32im`, `rv32im_zba` (`rv32i`) |
+| `FRTOS_MARCH` | `rv32i`, `rv32im`, `rv32im_zba`, `rv32im_zba_zbb_zbs` (`rv32i`) |
 | `FRTOS_OPT` | `-O0`, `-O2`, `-Os` (`-O2`) |
 | `FRTOS_PREEMPT` / `FRTOS_SLICE` | `configUSE_PREEMPTION` / `configUSE_TIME_SLICING` (1/1) |
 | `FRTOS_TICK` | CPU cycles per RTOS tick (10000; 50000 = 1 kHz at 50 MHz) |
@@ -129,7 +129,8 @@ checks all end the run at once.
   one (control bytes DC2, ACK/NAK per line, DC1 for app input), and `make freertos-send`
   asks it to, through a send request next to the pseudo-terminal's link. Guide: docs/APPS.md;
   specification: `loader/SPEC.md`. `session.txt` (83 lines, 146 expectations)
-  and `session-ext.txt` (the `rv32im_zba` build of `compute`) are its scripted sessions,
+  and `session-ext.txt` (the `rv32im_zba` build of `compute`, both builds of `bitmanip`) are
+  its scripted sessions,
   `tty_test.py` its interactive test. Its `app.mk` uses the console-target knobs
   `APP_CONSOLE_DEPS` (goals built before a console run: `freertos-apps`),
   `APP_CONSOLE_ARGS` (simulator arguments), `APP_TTY_TEST` and `APP_TTY_ARGS` (the script of
@@ -227,6 +228,7 @@ python3 test/freertos/campaign.py --set full --only 'rv32i\.Os' --seeds 12   # o
 python3 test/freertos/campaign.py --set realtick --seeds 2              # full demo at the real 1 kHz tick (~750M cycles/run)
 python3 test/freertos/campaign.py --set validate --run-cycles 40000000 # longer stress/minimal/mzba runs
 python3 test/freertos/campaign.py --set breaker --seeds 8 --run-cycles 20000000     # brk, incl. branch predictor on
+python3 test/freertos/campaign.py --set bitmanip --seeds 8 --jobs 4  # every program with Zbb and Zbs (HaDes-V+ only)
 python3 test/freertos/campaign.py --set breaker2 --seeds 8 --run-cycles 20000000    # brk with heavy storms
 python3 test/freertos/campaign.py --set bpred --seeds 4                             # stress/minimal/mzba/full, predictor on
 python3 test/freertos/campaign.py --set breaker-long --run-cycles 100000000 --max-checks 100000
@@ -244,8 +246,10 @@ Each ELF is built once and run with `--seeds` interrupt-timing seeds on every
   counts the runs that failed *only* the UART transcript check separately.
 * rv32i: the golden CPU is the oracle. A golden failure means the variant or
   the harness is broken and makes the campaign exit with status 2.
-* rv32im / rv32im_zba: the golden CPU predates M and Zba; the programs' own
-  self-checks are the oracle.
+* rv32im / rv32im_zba / rv32im_zba_zbb_zbs: the golden CPU predates M, Zba, Zbb
+  and Zbs; the programs' own self-checks are the oracle (the set `bitmanip` builds
+  every program with Zbb and Zbs, `brk` without Zbs, which GCC 12.2 cannot compile
+  there).
 * Nothing reads the Zicntr `time` CSR (0 on the golden CPU); time comes from the
   memory-mapped `mtime`.
 

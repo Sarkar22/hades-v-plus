@@ -9,14 +9,22 @@
 #
 # The checks, each against the newest repeatable record of its topic:
 #   zba                make bench-zba, at -O2, -Os and -O0           results/zba/
+#   zbb                make bench-zbb, at -O2, -Os and -O0           results/zbb/
 #   m-unit-cycles      make bench-mcost                              results/m-unit-cycles/
 #   fencei-window      make bench-fencei-window                      results/fencei-window/
 #   tests              every suite of docs/VERIFICATION.md            results/tests/
 #   trapsweep          sweep.py list and run, the four fuzz sets     results/trapsweep/
 #   freertos-validate  the campaign of make freertos-stress          results/freertos-validate/
+#   bitmanip           the Zbb, Zbs and Zicond tests: asm tests,     results/bitmanip/
+#                      test_ext_execute, make ext-check, fuzz
+#                      variant b, the ext probe family, the app
+#                      bitmanip in the loader's session-ext.txt
+#                      and the forms in its two builds
+#   bitmanip-long      only when named: make ext-exhaustive and the  results/bitmanip/
+#                      campaign set bitmanip (about 30 minutes)
 #   freertos-campaign  only with --campaign: the 794-run suite       results/freertos-campaign/
 #   formal             only with --formal: make formal (formal tools) results/formal/
-# Without CHECK names it runs the first six (4 to 10 minutes once the simulators are built,
+# Without CHECK names it runs the first eight (6 to 14 minutes once the simulators are built,
 # depending on the load of the machine).
 # Each check compares the stored values exactly: program output, cycle counts, verdict lines,
 # per-run tables and the sha256 of the program images. Wall times are never compared.
@@ -267,6 +275,11 @@ def check_fencei(c):
     check_bench(c, [(["make", "bench-fencei-window"], None)], "fencei-window")
 
 
+def check_zbb(c):
+    check_bench(c, [(["make", "bench-zbb"], "-O2"), (["make", "bench-zbb", "OPT=-Os"], "-Os"),
+                    (["make", "bench-zbb", "OPT=-O0"], "-O0")], "zbb")
+
+
 # ---- tests: every suite of docs/VERIFICATION.md ----------------------------------------------
 
 SUMMARY = r"All tests passed!|Some test\(s\) failed!|Inital test failed!|Simulation timeout!"
@@ -274,7 +287,7 @@ SV_PATTERNS = {
     "test_decode_exhaustive": [r"checks PASSED|checks passed"],
     "test_decode_compare": [r"checks passed"],
     "test_decode_hazard": [r"^All tests passed"],
-    "test_zba_encoding_sweep": [r"^WIDTH:|^ENUM:|^=== SWEEP|after [ABCD]:|encoding checks passed"],
+    "test_zba_encoding_sweep": [r"^WIDTH:|^ENUM:|^=== SWEEP|after [A-G]:|encoding checks passed|^EXT hits per sweep"],
     "test_m_execute": [r"MEASURED:|Checks: |M-extension checks passed"],
     "test_execute_bpred_nextpc": [r"mismatches vs golden|next-PC checks passed"],
     "test_execute_compare": [r"Tests: +\d+ +Errors", r"^SOME TESTS"],
@@ -555,6 +568,135 @@ def check_trapsweep(c, jobs):
         c.problem("the fuzz results differ from fuzz.csv", diff_lines(stored.splitlines(), fuzz.splitlines()))
 
 
+# ---- bitmanip: the Zbb, Zbs and Zicond tests ----------------------------------------------------
+
+# The loader's transcript lines that the bitmanip record keeps: what was loaded, what the apps
+# printed, how they ended and the CPU line of 'version'
+LOADER_KEEP = re.compile(r"^(loaded |bitmanip: |compute: |app: |error: |cpu: )")
+
+
+def bitmanip_output(suite, out):
+    """The output lines of one command of the bitmanip record, as the record stores them"""
+    lines = out.splitlines()
+    if suite.startswith("asm/"):
+        n = sum(1 for l in lines if "Test pass!" in l)
+        return ["%d 'Test pass!' lines" % n] + [l.rstrip() for l in lines if re.search(SUMMARY, l)]
+    if suite.startswith("sv/"):
+        pats = r"^=== |Checks: |checks passed|FAILED"
+    elif suite.startswith("ext-"):
+        pats = r"^ext check|^  \S+ +\d+ of +\d+ digest lines|digest lines, |^EXT CHECK"
+    elif suite.startswith("fuzz "):
+        pats = r"^DUT: "
+    elif suite.startswith("sweep "):
+        pats = r"^\S+ \| dut:|^DUT: "
+    elif suite.startswith("loader "):
+        pats = r"FREERTOS SHELL RESULT|expectations met"
+    else:
+        return None
+    return [l.rstrip() for l in lines if re.search(pats, l)]
+
+
+def run_figures(c, figures, jobs):
+    """Runs the commands of figures (a list of {suite, command, exit_status, output}) and compares
+    the kept lines; returns {suite: output directory}"""
+    same, dirs = 0, {}
+    for i, f in enumerate(figures):
+        suite = f["suite"]
+        name = "%02d-%s" % (i, re.sub(r"[^A-Za-z0-9_.-]+", "-", suite).strip("-"))
+        dirs[suite] = os.path.join(LOGS, c.name, name)
+        cmd = f["command"].replace("{jobs}", str(jobs)).replace("{out}", dirs[suite])
+        rc, out, dt = c.run(cmd, name, expect_rc=int(f["exit_status"]))
+        got = bitmanip_output(suite, out)
+        if suite.startswith("loader "):
+            uart = os.path.join(BUILD, "test", "freertos", "loader",
+                                "session-%s.uart" % ("golden" if "golden" in suite else "dut"))
+            text = read(uart) if os.path.exists(uart) else ""
+            got += [l.rstrip("\r") for l in text.splitlines() if LOADER_KEEP.match(l.rstrip("\r"))]
+        if got is None:
+            c.problem("no rule for the row '%s' of the record: update results/check.sh" % suite)
+            continue
+        want, got = [norm(l) for l in f["output"]], [norm(l) for l in got]
+        if want == got:
+            same += 1
+        else:
+            c.problem("%s: the output differs from the record (log: %s)" % (suite, rel(c.log(name))),
+                      diff_lines(want, got))
+    c.compared.append("%d of %d outputs" % (same, len(figures)))
+    return dirs
+
+
+def program_rows(out_dir):
+    """(program, dut ISS-consistent, dut cycles) of each program of a sweep.py output directory"""
+    rows = []
+    for r in json.load(open(os.path.join(out_dir, "results.json"))):
+        runs = {x["target"]: x for x in r["runs"]}
+        rows.append([r["program"], r.get("dut_ok"), runs["dut"]["cycles"]])
+    return rows
+
+
+def ext_form_line(name, dis):
+    """'<name>  N words, M forms: ...' of the Zbb, Zbs and Zicond words in the disassembly dis, counted
+    with the MATCH/MASK table of test/bench/bench.py, as bench-zbb prints it; None without dis"""
+    sys.path.insert(0, os.path.join(ROOT, "test", "bench"))
+    import bench
+    if not os.path.exists(dis):
+        return None
+    n = {}
+    for line in read(dis).splitlines():
+        m = re.match(r"^\s*[0-9a-f]+:\s+([0-9a-f]{8})\s", line)
+        if m:
+            w = int(m.group(1), 16)
+            for form, match, mask in bench.EXT_FORMS:
+                if w & mask == match:
+                    n[form] = n.get(form, 0) + 1
+    return "%-28s %3d words, %2d forms: %s" % (name, sum(n.values()), len(n),
+                                               " ".join("%s=%d" % (k, n[k]) for k, _, _ in bench.EXT_FORMS
+                                                        if k in n) or "-")
+
+
+def check_bitmanip(c, jobs):
+    meta = c.meta()
+    dirs = run_figures(c, meta["figures"], jobs)
+    # the instruction forms in the app's two builds, which the loader's session has just built
+    forms = meta["app_forms"]
+    got = [ext_form_line(name, os.path.join(BUILD, dis)) for name, dis in forms["files"]]
+    if None in got:
+        c.problem("no disassembly of the app bitmanip: %s" % ", ".join(
+            os.path.join(BUILD_NAME, d) for (n, d), g in zip(forms["files"], got) if g is None))
+    elif [norm(l) for l in got] == [norm(l) for l in forms["output"]]:
+        c.compared.append("the forms in %d builds of the app bitmanip" % len(got))
+    else:
+        c.problem("the forms in the app bitmanip differ from the record",
+                  diff_lines([norm(l) for l in forms["output"]], [norm(l) for l in got]))
+    for suite, stored in meta["program_tables"].items():
+        try:
+            table = csv_text(["program", "dut_iss_consistent", "dut_cycles"], program_rows(dirs[suite]))
+        except (OSError, KeyError, ValueError) as e:
+            c.problem("no results of '%s' (%s)" % (suite, e))
+            continue
+        want = read(os.path.join(c.record, stored))
+        if table == want:
+            c.compared.append("%d programs of %s" % (len(want.splitlines()) - 1, suite))
+        else:
+            c.problem("the per-program results of '%s' differ from %s" % (suite, stored),
+                      diff_lines(want.splitlines(), table.splitlines()))
+
+
+def check_bitmanip_long(c, jobs):
+    meta = c.meta()["long"]
+    run_figures(c, meta["figures"], jobs)
+    out_dir = os.path.join(LOGS, c.name, "campaign")
+    rc, out, dt = c.run(["python3", "test/freertos/campaign.py"] + meta["campaign_args"] + ["--jobs", str(jobs)] +
+                        ["--out", out_dir, "--compare", os.path.join(c.record, "campaign.csv")], "campaign")
+    verdict = [l for l in out.splitlines() if l.startswith("COMPARE RESULT:")]
+    if not verdict or not verdict[-1].startswith("COMPARE RESULT: IDENTICAL"):
+        c.problem(verdict[-1] if verdict else "no COMPARE RESULT line (log: %s)" % rel(c.log("campaign")))
+    if meta["campaign_result"] not in out.splitlines():
+        c.problem("'%s' is not in the output" % meta["campaign_result"])
+    m = re.search(r"in common: (\d+)", out)
+    c.compared.append("%s campaign runs, every deterministic column" % (m.group(1) if m else "?"))
+
+
 # ---- FreeRTOS campaigns ---------------------------------------------------------------------
 
 def check_campaign(c, args):
@@ -605,17 +747,22 @@ def check_formal(c):
 
 CHECKS = [
     ("zba", "zba", "make bench-zba at -O2, -Os and -O0", "seconds"),
+    ("zbb", "zbb", "make bench-zbb at -O2, -Os and -O0", "under a minute"),
     ("m-unit-cycles", "m-unit-cycles", "make bench-mcost", "seconds"),
     ("fencei-window", "fencei-window", "make bench-fencei-window", "seconds"),
     ("tests", "tests", "every suite of docs/VERIFICATION.md (55 commands)", "3 to 6 minutes"),
     ("trapsweep", "trapsweep", "sweep.py list, run and the fuzz sets i, m, bp, mt", "under 2 minutes"),
     ("freertos-validate", "freertos-validate", "campaign.py --set validate --seeds 2 --strict --compare",
      "under 2 minutes"),
+    ("bitmanip", "bitmanip", "the Zbb, Zbs and Zicond tests (asm, Execute bench, ext-check, fuzz b, "
+     "ext probes, the app bitmanip)", "about 3 minutes"),
+    ("bitmanip-long", "bitmanip", "make ext-exhaustive and campaign.py --set bitmanip --compare",
+     "about 30 minutes with --jobs 4"),
     ("freertos-campaign", "freertos-campaign", "campaign.py --suite sep2026 --wall-limit 0 --compare",
      "about 80 minutes with --jobs 12"),
     ("formal", "formal", "make formal (needs the formal tools)", "about a minute"),
 ]
-DEFAULT = ["zba", "m-unit-cycles", "fencei-window", "tests", "trapsweep", "freertos-validate"]
+DEFAULT = ["zba", "zbb", "m-unit-cycles", "fencei-window", "tests", "trapsweep", "freertos-validate", "bitmanip"]
 # the formal record is repeatable only where the formal tools are installed
 STATUSES = {"formal": ("needs formal tools", "repeatable")}
 
@@ -677,9 +824,9 @@ def main():
         for c in [Check(n, t, d) for n, t, d, _ in CHECKS]:
             dur = [x[3] for x in CHECKS if x[0] == c.name][0]
             say("%-18s %s" % (c.name, c.title))
-            say("%-18s %s%s" % ("", dur, "" if c.name in DEFAULT else
-                                "; only when named, or with --%s"
-                                % ("campaign" if c.name == "freertos-campaign" else "formal")))
+            say("%-18s %s%s" % ("", dur, "" if c.name in DEFAULT else "; only when named" + (
+                "" if c.name not in ("freertos-campaign", "formal") else
+                ", or with --%s" % ("campaign" if c.name == "freertos-campaign" else "formal"))))
             say("%-18s record: %s" % ("", c.record or "(none)"))
         return 0
 
@@ -730,6 +877,12 @@ def main():
                 check_trapsweep(c, a.jobs)
             elif c.name == "freertos-validate":
                 check_validate(c, a.jobs)
+            elif c.name == "zbb":
+                check_zbb(c)
+            elif c.name == "bitmanip":
+                check_bitmanip(c, a.jobs)
+            elif c.name == "bitmanip-long":
+                check_bitmanip_long(c, a.jobs)
             elif c.name == "freertos-campaign":
                 check_suite(c, a.jobs)
             elif c.name == "formal":

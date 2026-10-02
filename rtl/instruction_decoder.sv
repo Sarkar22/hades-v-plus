@@ -18,7 +18,8 @@
 //   .rs1_address  — source register 1 number     (bits [19:15])
 //   .rs2_address  — source register 2 number     (bits [24:20])
 //   .csr          — CSR register address          (bits [31:20])
-//   .immediate    — sign-extended immediate value (format depends on instruction)
+//   .immediate    — sign-extended immediate value (format depends on instruction);
+//                   for op::EXT (Zbb, Zbs, Zicond) the payload of Step 2b instead
 //
 // HOW CSR WORKS (quick explanation):
 //   CSR = Control and Status Register. These are special registers built into
@@ -105,6 +106,105 @@ module instruction_decoder (
     // csr::t'(...) is a cast — we tell SystemVerilog "treat these 12 bits
     // as a csr::t enum value". For non-CSR instructions this field is ignored.
     assign instruction_out.csr = csr::t'(instruction_in[31:20]);
+
+    // =========================================================================
+    // Step 2b: Zbb, Zbs and Zicond — classified straight from the raw bits
+    // =========================================================================
+    // All 28 instructions decode to the one op EXT (see defines/op.sv), so this
+    // step only has to say WHETHER a word is one of them (ext_hit) and WHICH one
+    // (ext_sel, plus ext_use_imm for the five immediate forms). Steps 3 and 4 then
+    // override their result for an EXT word as their last 2:1 select.
+    //
+    // Every arm matches the full 7-bit funct7. For the immediate forms that is
+    // what makes them RV32: inst[25] is shamt[5] there, and RV32 reserves
+    // shamt[5] = 1, so rori/bclri/bexti/binvi/bseti with inst[25] set stay
+    // ILLEGAL. The unary forms (clz, ctz, cpop, sext.b, sext.h, orc.b, rev8,
+    // zext.h) use the rs2 field as part of the opcode, so it is matched exactly
+    // too; zext.h with rs2 != 0 is Zbkb's pack, which is not implemented.
+    //
+    // None of these combinations is claimed by an existing arm of Step 4 (the
+    // encoding sweep checks every word against the reference decoder), so the
+    // override shadows nothing. The fields rd/rs1/rs2 stay the raw bits: every
+    // EXT instruction writes rd, so none of them joins the rd = 0 suppression.
+
+    logic      ext_hit;
+    op::ext_t  ext_sel;
+    logic      ext_use_imm;
+
+    always_comb begin
+        ext_hit     = 1'b1;
+        ext_sel     = EXT_ANDN;
+        ext_use_imm = 1'b0;
+
+        case (opcode)
+            // OP (register-register)
+            7'b0110011: begin
+                case ({funct7, funct3})
+                    {7'b0100000, 3'b111}: ext_sel = EXT_ANDN;      // Zbb
+                    {7'b0100000, 3'b110}: ext_sel = EXT_ORN;
+                    {7'b0100000, 3'b100}: ext_sel = EXT_XNOR;
+                    {7'b0000101, 3'b100}: ext_sel = EXT_MIN;
+                    {7'b0000101, 3'b101}: ext_sel = EXT_MINU;
+                    {7'b0000101, 3'b110}: ext_sel = EXT_MAX;
+                    {7'b0000101, 3'b111}: ext_sel = EXT_MAXU;
+                    {7'b0000100, 3'b100}: begin                    // zext.h (RV32 form)
+                        ext_sel = EXT_ZEXT_H;
+                        ext_hit = (instruction_in[24:20] == 5'b00000);
+                    end
+                    {7'b0110000, 3'b001}: ext_sel = EXT_ROL;
+                    {7'b0110000, 3'b101}: ext_sel = EXT_ROR;
+                    {7'b0100100, 3'b001}: ext_sel = EXT_BCLR;      // Zbs
+                    {7'b0100100, 3'b101}: ext_sel = EXT_BEXT;
+                    {7'b0110100, 3'b001}: ext_sel = EXT_BINV;
+                    {7'b0010100, 3'b001}: ext_sel = EXT_BSET;
+                    {7'b0000111, 3'b101}: ext_sel = EXT_CZERO_EQZ; // Zicond
+                    {7'b0000111, 3'b111}: ext_sel = EXT_CZERO_NEZ;
+                    default:              ext_hit = 1'b0;
+                endcase
+            end
+
+            // OP-IMM (register-immediate and unary)
+            7'b0010011: begin
+                case ({funct7, funct3})
+                    {7'b0110000, 3'b001}: begin                    // Zbb unary group
+                        case (instruction_in[24:20])
+                            5'b00000: ext_sel = EXT_CLZ;
+                            5'b00001: ext_sel = EXT_CTZ;
+                            5'b00010: ext_sel = EXT_CPOP;
+                            5'b00100: ext_sel = EXT_SEXT_B;
+                            5'b00101: ext_sel = EXT_SEXT_H;
+                            default:  ext_hit = 1'b0;
+                        endcase
+                    end
+                    {7'b0100100, 3'b001}: begin ext_sel = EXT_BCLR; ext_use_imm = 1'b1; end
+                    {7'b0110100, 3'b001}: begin ext_sel = EXT_BINV; ext_use_imm = 1'b1; end
+                    {7'b0010100, 3'b001}: begin ext_sel = EXT_BSET; ext_use_imm = 1'b1; end
+                    {7'b0110000, 3'b101}: begin ext_sel = EXT_ROR;  ext_use_imm = 1'b1; end
+                    {7'b0100100, 3'b101}: begin ext_sel = EXT_BEXT; ext_use_imm = 1'b1; end
+                    {7'b0010100, 3'b101}: begin                    // orc.b
+                        ext_sel = EXT_ORC_B;
+                        ext_hit = (instruction_in[24:20] == 5'b00111);
+                    end
+                    {7'b0110100, 3'b101}: begin                    // rev8 (RV32 form, imm 0x698)
+                        ext_sel = EXT_REV8;
+                        ext_hit = (instruction_in[24:20] == 5'b11000);
+                    end
+                    default:              ext_hit = 1'b0;
+                endcase
+            end
+
+            default: ext_hit = 1'b0;
+        endcase
+    end
+
+    // The immediate an EXT word carries instead of an I-type immediate.
+    op::ext_payload_t ext_payload;
+    assign ext_payload = '{
+        zero:    '0,
+        sel:     ext_sel,
+        use_imm: ext_use_imm,
+        shamt:   ext_use_imm ? instruction_in[24:20] : 5'b0
+    };
 
     // =========================================================================
     // Step 3: Immediate value — format depends on instruction type
@@ -194,6 +294,11 @@ module instruction_decoder (
                 instruction_out.immediate = 32'b0;
 
         endcase
+
+        // Zbb/Zbs/Zicond: the payload replaces whatever the opcode arm produced
+        // (an I-type immediate for OP-IMM, 0 for OP). See Step 2b.
+        if (ext_hit)
+            instruction_out.immediate = ext_payload;
     end
 
     // =========================================================================
@@ -374,6 +479,11 @@ module instruction_decoder (
             default: instruction_out.op = ILLEGAL;
 
         endcase
+
+        // Zbb/Zbs/Zicond (Step 2b). The words it claims are ILLEGAL in every arm
+        // above, so this replaces only ILLEGAL.
+        if (ext_hit)
+            instruction_out.op = EXT;
     end
 
 //IMPLEMENTATION COMMENTED OUT

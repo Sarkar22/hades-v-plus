@@ -96,8 +96,61 @@ package op;
         DIV,
         DIVU,
         REM,
-        REMU
+        REMU,
+
+        // Zbb, Zbs and Zicond: ONE op for all 28 instructions.
+        //
+        // Appended for the same reason as the Zba and M blocks above, but here even
+        // appending one op per instruction is impossible: only 61, 62 and 63 were
+        // left. So the 28 instructions share the single code 61, and the decoder
+        // says which of them it is through the immediate field (ext_payload_t
+        // below). R-type instructions never used that field, so the sub-operation
+        // reaches Execute in a field that already exists, without a new port and
+        // without touching the 65-bit instruction::t that the frozen models see.
+        // 62 of 64 codes in use; 62 and 63 remain.
+        EXT
     } t;
+
+    // Sub-operation of op::EXT: {group[2:0], variant[1:0]}.
+    //
+    // The three group bits pick one of eight result groups in Execute, and the
+    // two variant bits pick inside the group, so a group that shares hardware
+    // (one comparator for min/max, one rotator for rol/ror/bext, one zero test
+    // for both czero forms) reads its variant bits directly:
+    //   0 LOGIC   andn, orn, xnor
+    //   1 COUNT   clz, ctz, cpop
+    //   2 MINMAX  min, minu, max, maxu   variant[0] = unsigned, variant[1] = max
+    //   3 EXTEND  sext.b, sext.h, zext.h
+    //   4 ROTATE  rol, ror (and rori)
+    //   5 BYTE    orc.b, rev8
+    //   6 BIT     bclr, bext, binv, bset (and their immediate forms)
+    //   7 CZERO   czero.eqz, czero.nez   variant[0] = nez
+    // Codes not listed are reserved: the decoder never produces them.
+    typedef enum logic [4:0] {
+        EXT_ANDN      = 5'b000_00, EXT_ORN    = 5'b000_01, EXT_XNOR   = 5'b000_10,
+        EXT_CLZ       = 5'b001_00, EXT_CTZ    = 5'b001_01, EXT_CPOP   = 5'b001_10,
+        EXT_MIN       = 5'b010_00, EXT_MINU   = 5'b010_01, EXT_MAX    = 5'b010_10, EXT_MAXU = 5'b010_11,
+        EXT_SEXT_B    = 5'b011_00, EXT_SEXT_H = 5'b011_01, EXT_ZEXT_H = 5'b011_10,
+        EXT_ROL       = 5'b100_00, EXT_ROR    = 5'b100_01,
+        EXT_ORC_B     = 5'b101_00, EXT_REV8   = 5'b101_01,
+        EXT_BCLR      = 5'b110_00, EXT_BEXT   = 5'b110_01, EXT_BINV   = 5'b110_10, EXT_BSET = 5'b110_11,
+        EXT_CZERO_EQZ = 5'b111_00, EXT_CZERO_NEZ = 5'b111_01
+    } ext_t;
+
+    // instruction::t.immediate of an op::EXT instruction.
+    //
+    // The decoder builds all 32 bits from scratch for an EXT word; it never ORs
+    // anything into an I-type immediate. The immediate forms (rori, bclri, bexti,
+    // binvi, bseti) share the code of their register form and set use_imm, and
+    // their shift amount sits in [4:0], where an I-type immediate keeps it too.
+    // The payload is canonical (shamt is 0 unless use_imm, [31:11] always 0), so a
+    // test can require exact equality.
+    typedef struct packed {
+        logic [20:0] zero;     // [31:11] always 0 (room to widen sel later)
+        ext_t        sel;      // [10:6]  sub-operation
+        logic        use_imm;  // [5]     operand B is shamt rather than rs2
+        logic [4:0]  shamt;    // [4:0]   inst[24:20] when use_imm, else 0
+    } ext_payload_t;           // $bits = 32
 endpackage
 
 /*verilator lint_on UNUSED*/

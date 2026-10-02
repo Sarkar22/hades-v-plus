@@ -2,12 +2,13 @@
 # SPDX-License-Identifier: MIT
 # ---------------------------------------------------------------------------------------------
 # bench.py -- checks and summaries for the measurement programs in test/bench/, called by
-# make bench-zba, bench-mcost and bench-fencei-window (test/bench/bench.mk). It reads what the
+# make bench-zba, bench-zbb, bench-mcost and bench-fencei-window (test/bench/bench.mk). It reads what the
 # make rules leave in the build directory (run.log, out.bin, out.dis) and prints a summary
 # that ends in one line, "BENCH <NAME>: PASS" or "BENCH <NAME>: FAIL"; the exit status is 0
 # only for PASS. Guide: test/bench/README.md.
 #
 #   bench.py zba <dir> <opt>       one subdirectory of <dir> per Zba variant
+#   bench.py zbb <dir> <opt>       one subdirectory of <dir> per Zbb variant
 #   bench.py mcost <dir>           <dir>/loop_*/ and <dir>/mcost/
 #   bench.py fencei-window <dir>   <dir>/fencei_stale/
 # ---------------------------------------------------------------------------------------------
@@ -185,6 +186,145 @@ def bench_zba(top, opt):
     return verdict('ZBA', failures)
 
 
+# ---- bench-zbb -------------------------------------------------------------------------------
+
+# The 28 Zbb, Zbs and Zicond instruction forms as (name, MATCH, MASK): word & MASK == MATCH
+# (the encodings of the ISA manual; the RV32-reserved shift amounts 32..63 do not match).
+EXT_FORMS = [
+    ('andn', 0x40007033, 0xFE00707F), ('orn', 0x40006033, 0xFE00707F), ('xnor', 0x40004033, 0xFE00707F),
+    ('clz', 0x60001013, 0xFFF0707F), ('ctz', 0x60101013, 0xFFF0707F), ('cpop', 0x60201013, 0xFFF0707F),
+    ('max', 0x0A006033, 0xFE00707F), ('maxu', 0x0A007033, 0xFE00707F), ('min', 0x0A004033, 0xFE00707F),
+    ('minu', 0x0A005033, 0xFE00707F), ('sext.b', 0x60401013, 0xFFF0707F), ('sext.h', 0x60501013, 0xFFF0707F),
+    ('zext.h', 0x08004033, 0xFFF0707F), ('rol', 0x60001033, 0xFE00707F), ('ror', 0x60005033, 0xFE00707F),
+    ('rori', 0x60005013, 0xFE00707F), ('orc.b', 0x28705013, 0xFFF0707F), ('rev8', 0x69805013, 0xFFF0707F),
+    ('bclr', 0x48001033, 0xFE00707F), ('bclri', 0x48001013, 0xFE00707F), ('bext', 0x48005033, 0xFE00707F),
+    ('bexti', 0x48005013, 0xFE00707F), ('binv', 0x68001033, 0xFE00707F), ('binvi', 0x68001013, 0xFE00707F),
+    ('bset', 0x28001033, 0xFE00707F), ('bseti', 0x28001013, 0xFE00707F),
+    ('czero.eqz', 0x0E005033, 0xFE00707F), ('czero.nez', 0x0E007033, 0xFE00707F),
+]
+ZBB_MARCHES = ['rv32i', 'rv32i_zbb_zbs', 'rv32im_zba_zbb_zbs']
+ZBB_DIFF_RUNS = ['zbb_diff', 'zbb_diff-B5297A4D', 'zbb_diff-1F123BB5', 'zbb_diff-9E3779B9']
+
+
+def ext_count(d):
+    """{form: count} of the Zbb, Zbs and Zicond instruction words in the code of directory d."""
+    n = {}
+    try:
+        with open(os.path.join(d, 'out.dis')) as f:
+            for line in f:
+                m = re.match(r'^\s*[0-9a-f]+:\s+([0-9a-f]{8})\s', line)
+                if m:
+                    w = int(m.group(1), 16)
+                    for name, match, mask in EXT_FORMS:
+                        if w & mask == match:
+                            n[name] = n.get(name, 0) + 1
+    except OSError:
+        return None
+    return n
+
+
+def bench_zbb(top, opt):
+    failures = []
+    runs = {}
+    names = ['zbb_bench-' + m for m in ZBB_MARCHES] + ['zbb_arr-' + m for m in ZBB_MARCHES] + ZBB_DIFF_RUNS
+    for v in names:
+        d = os.path.join(top, v)
+        log = read_log(d)
+        runs[v] = {'log': log, 'f': fields(log), 'size': size(d), 'ext': ext_count(d)}
+        for p in run_problems(log):
+            failures.append('%s: %s' % (v, p))
+
+    print('Zbb benchmark (test/bench/zbb), %s: each program built for -march=rv32i, rv32i_zbb_zbs '
+          'and rv32im_zba_zbb_zbs' % opt)
+    print()
+    print('  %-28s %11s %10s %13s  %s' % ('variant', 'image bytes', 'new instrs', 'timed cycles', 'result'))
+
+    def row(v, result):
+        r = runs[v]
+        cyc = r['f'].get('CYC') or r['f'].get('CYCLES')
+        print('  %-28s %11s %10s %13s  %s' % (v, r['size'], sum(r['ext'].values()) if r['ext'] is not None
+                                              else '-', int(cyc, 16) if cyc else '-', result))
+
+    for m in ZBB_MARCHES:
+        row('zbb_bench-' + m, 'CHK %s' % runs['zbb_bench-' + m]['f'].get('CHK', '-'))
+    for m in ZBB_MARCHES:
+        row('zbb_arr-' + m, 'SUM %s' % runs['zbb_arr-' + m]['f'].get('SUM', '-'))
+    for v in ZBB_DIFF_RUNS:
+        f = runs[v]['f']
+        ok = 'ZBB DIFF OK' in runs[v]['log']
+        row(v, 'CASES %s BAD %s EXTRA %s%s' % (
+            int(f['CASES'], 16) if 'CASES' in f else '-', int(f['BAD'], 16) if 'BAD' in f else '-',
+            int(f['EXTRA'], 16) if 'EXTRA' in f else '-', ', ZBB DIFF OK' if ok else ''))
+    print()
+
+    # zbb_bench: equal checksums; the cycles and the image sizes are the result
+    base = runs['zbb_bench-rv32i']
+    chks = [runs['zbb_bench-' + m]['f'].get('CHK') for m in ZBB_MARCHES]
+    if None in chks or len(set(chks)) != 1:
+        failures.append('zbb_bench: CHK differs or is missing (%s)' % ' / '.join(str(c) for c in chks))
+    if all('CYC' in runs['zbb_bench-' + m]['f'] for m in ZBB_MARCHES) and base['size']:
+        c0, s0 = int(base['f']['CYC'], 16), base['size']
+        for m in ZBB_MARCHES[1:]:
+            r = runs['zbb_bench-' + m]
+            c1 = int(r['f']['CYC'], 16)
+            print('  zbb_bench: rv32i -> %s: %d -> %d cycles (%+.1f %%, %.4fx), %s -> %s bytes (%+.1f %%)'
+                  % (m, c0, c1, pct(c0, c1), c0 / c1, s0, r['size'], pct(s0, r['size'])))
+        print('             CHK equal in the three builds: %s' % ('yes' if len(set(chks)) == 1 and None not in chks
+                                                                  else 'NO'))
+    else:
+        failures.append('zbb_bench: CYC missing')
+
+    # zbb_arr: every line before CYCLES must be equal
+    keys = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'SUM']
+    arr = [runs['zbb_arr-' + m]['f'] for m in ZBB_MARCHES]
+    differ = [k for k in keys if any(k not in a for a in arr) or len(set(a[k] for a in arr)) != 1]
+    if differ:
+        failures.append('zbb_arr: %s differ or are missing' % ', '.join(differ))
+    sizes = [runs['zbb_arr-' + m]['size'] for m in ZBB_MARCHES]
+    if all(sizes):
+        cyc = ''
+        if all('CYCLES' in a for a in arr):
+            cyc = '; CYCLES %s (the window includes waiting for the UART)' % ' / '.join(
+                str(int(a['CYCLES'], 16)) for a in arr)
+        print('  zbb_arr:   %s bytes, P1-P8 and SUM equal in the three builds: %s%s'
+              % (' / '.join(str(x) for x in sizes), 'no' if differ else 'yes', cyc))
+
+    # zbb_diff: every run reports ZBB DIFF OK with BAD = EXTRA = 0
+    per_run, bad, ok = [], 0, 0
+    for v in ZBB_DIFF_RUNS:
+        log, f = runs[v]['log'], runs[v]['f']
+        per_run.append(int(f['CASES'], 16) if 'CASES' in f else 0)
+        bad += int(f['BAD'], 16) if 'BAD' in f else 0
+        if 'ZBB DIFF OK' not in log or 'MISMATCH' in log or f.get('BAD') != '00000000' \
+                or f.get('EXTRA') != '00000000' or 'CASES' not in f:
+            failures.append('%s: no clean ZBB DIFF OK' % v)
+        else:
+            ok += 1
+    forms = runs['zbb_diff']['ext'] or {}
+    print('  zbb_diff:  %d checks in %d runs (%s), %d mismatches, ZBB DIFF OK in %d of %d; '
+          '%d of 28 forms in its code'
+          % (sum(per_run), len(per_run), ' + '.join(str(c) for c in per_run), bad, ok, len(ZBB_DIFF_RUNS),
+             len(forms)))
+    if len(forms) != 28:
+        failures.append('zbb_diff: its code holds %d of the 28 forms' % len(forms))
+
+    # the instruction words GCC chose, per form, in the builds with the extensions
+    print()
+    print('  Zbb/Zbs/Zicond instructions in the code (per form; zbb_bench, zbb_arr):')
+    for m in ZBB_MARCHES[1:]:
+        for prog in ('zbb_bench', 'zbb_arr'):
+            n = runs['%s-%s' % (prog, m)]['ext'] or {}
+            print('    %-28s %3d words, %2d forms: %s' % ('%s-%s' % (prog, m), sum(n.values()), len(n),
+                                                          ' '.join('%s=%d' % (k, n[k]) for k, _, _ in EXT_FORMS
+                                                                   if k in n) or '-'))
+
+    # the rv32i builds must not contain the new instructions (zbb_diff issues its own as .insn)
+    for v in ['zbb_bench-rv32i', 'zbb_arr-rv32i']:
+        if runs[v]['ext'] is None or sum(runs[v]['ext'].values()):
+            failures.append('%s: no disassembly, or it contains Zbb, Zbs or Zicond instructions' % v)
+    return verdict('ZBB', failures)
+
+
 # ---- bench-mcost -----------------------------------------------------------------------------
 
 LOOPS = [('loop_empty', '(empty body)'), ('loop_addi', 'addi s1, t5, 0'),
@@ -334,11 +474,13 @@ def bench_fencei(top):
 def main(argv):
     if len(argv) >= 3 and argv[1] == 'zba':
         return bench_zba(argv[2], argv[3] if len(argv) > 3 else '-O2')
+    if len(argv) >= 3 and argv[1] == 'zbb':
+        return bench_zbb(argv[2], argv[3] if len(argv) > 3 else '-O2')
     if len(argv) == 3 and argv[1] == 'mcost':
         return bench_mcost(argv[2])
     if len(argv) == 3 and argv[1] == 'fencei-window':
         return bench_fencei(argv[2])
-    sys.stderr.write('usage: bench.py zba <dir> <opt> | mcost <dir> | fencei-window <dir>\n')
+    sys.stderr.write('usage: bench.py zba <dir> <opt> | zbb <dir> <opt> | mcost <dir> | fencei-window <dir>\n')
     return 2
 
 

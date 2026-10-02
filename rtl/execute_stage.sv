@@ -15,6 +15,9 @@
 //          Operand 1 = rs1 (or PC for AUIPC).
 //          Operand 2 = rs2 (R-type) or immediate (I/S/U-type).
 //          The ALU is NOT used for jump/branch targets (separate adder).
+//          The Zbb/Zbs/Zicond instructions (op::EXT) are computed by their own
+//          unit (Part 2c) from rs1, rs2 and the decoder's payload in the
+//          immediate field, and reach rd through one ALU arm.
 //
 //  2. BRANCH COMPARISON: For branch instructions (BEQ, BNE, BLT, BGE,
 //     BLTU, BGEU), compare rs1 and rs2 to decide if the branch is taken.
@@ -86,12 +89,12 @@ module execute_stage (
     // =========================================================================
     // Maps op::t to a 4-bit ALU selector plus operand muxes.
     //
-    // alu_sel encoding (standard RV32I ALU, plus the three Zba codes):
+    // alu_sel encoding (standard RV32I ALU, plus the three Zba codes and EXT):
     //   0000 = ADD        0100 = SLTU       1000 = OR                  1100 = SH2ADD
     //   0001 = SUB        0101 = XOR        1001 = AND                 1101 = SH3ADD
-    //   0010 = SLL        0110 = SRL        1010 = LUI (passthrough)
+    //   0010 = SLL        0110 = SRL        1010 = LUI (passthrough)   1110 = EXT (Part 2c)
     //   0011 = SLT        0111 = SRA        1011 = SH1ADD
-    // 1110 and 1111 remain free.
+    // 1111 remains free.
     //
     // alu_in1: rs1 for most ops, PC for AUIPC only.
     // alu_in2: rs2 for R-type, immediate for I/S/U-type.
@@ -130,6 +133,12 @@ module execute_stage (
             SH1ADD: begin alu_sel = 4'b1011; end
             SH2ADD: begin alu_sel = 4'b1100; end
             SH3ADD: begin alu_sel = 4'b1101; end
+
+            // ----- Zbb, Zbs, Zicond: one op, its own unit -----
+            // The EXT unit (Part 2c) reads rs1_data_in, rs2_data_in and the payload
+            // in instruction_in.immediate directly, so the operand defaults are left
+            // alone; the selector only routes ext_result through the ALU's output.
+            EXT: begin alu_sel = 4'b1110; end
 
             // ----- I-type: register × immediate -----
             ADDI:  begin alu_sel = 4'b0000; alu_in2 = instruction_in.immediate; end
@@ -187,6 +196,7 @@ module execute_stage (
     // Purely combinational arithmetic / logic unit.
 
     logic [31:0] alu_result;
+    logic [31:0] ext_result;   // the Zbb/Zbs/Zicond result, computed in Part 2c
 
     always_comb begin
         case (alu_sel)
@@ -214,6 +224,10 @@ module execute_stage (
             4'b1011: alu_result = (alu_in1 << 1) + alu_in2;                            // SH1ADD
             4'b1100: alu_result = (alu_in1 << 2) + alu_in2;                            // SH2ADD
             4'b1101: alu_result = (alu_in1 << 3) + alu_in2;                            // SH3ADD
+
+            // Zbb/Zbs/Zicond: computed in Part 2c. One arm for all 28 instructions,
+            // so the ALU's select keeps its 16 ways and only gains this input.
+            4'b1110: alu_result = ext_result;                                          // EXT
 
             default: alu_result = 32'b0;
         endcase
@@ -597,6 +611,213 @@ module execute_stage (
 
     assign m_ready = m_early || (m_state == M_READY);
     assign m_stall = m_active && !m_ready;
+
+    // =========================================================================
+    // Part 2c: the EXT unit (Zbb, Zbs, Zicond)
+    // =========================================================================
+    // Every instruction of the three extensions is one combinational step on rs1,
+    // rs2 or the shift amount, so the unit has no state and never stalls: an EXT
+    // result is ready, and forwarded, in the cycle it is computed, exactly like an
+    // ADD. The decoder says which instruction it is through the payload in the
+    // immediate field (op::ext_payload_t): sel = {group, variant}, use_imm and the
+    // 5-bit shamt of the immediate forms.
+    //
+    // All eight groups are computed in parallel and one 8-way select at the end
+    // picks the group, so no group's logic sits behind another's. Each group is
+    // built to keep the logic shallow, because its output joins the same
+    // full-cycle path as the ALU (into rd_data and the forwarding output):
+    //   LOGIC   andn, orn, xnor: rs1 combined with ~rs2, one gate level.
+    //   COUNT   clz, ctz, cpop. ctz is clz of the bit-reversed word (the reversal
+    //           is wiring), so there is one leading-zero counter, built as a tree
+    //           (log depth, no priority chain), and a separate adder tree for
+    //           cpop. clz(0) = ctz(0) = 32, as the ISA requires.
+    //   MINMAX  one comparator. Flipping both sign bits turns a signed compare
+    //           into an unsigned one, so min/max/minu/maxu share it.
+    //   EXTEND  sext.b, sext.h, zext.h: wiring and a select.
+    //   ROTATE  one right-rotator (stages 1, 2, 4, 8, 16). rol by s is ror by
+    //           (32 - s) mod 32, so rol negates the amount instead of needing a
+    //           second rotator. The amount is rs2[4:0] or shamt: rotates (and
+    //           the Zbs bit index) use only the low five bits of rs2.
+    //   BYTE    orc.b (each byte becomes 0x00 or 0xFF, an OR of its 8 bits) and
+    //           rev8 (byte order reversed: bytes, not bits), both wiring and gates.
+    //   BIT     bclr/binv/bset with a one-hot mask 1 << s. bext reuses the
+    //           rotator: bit 0 of (rs1 rotated right by s) is rs1[s].
+    //   CZERO   czero.eqz / czero.nez: rs1 or 0, depending on whether rs2 is 0.
+    //           It tests rs2 (the condition), never rs1 (the value).
+    // RV32 rules: the immediate forms only reach this unit with shamt[5] = 0 (the
+    // decoder rejects the rest), and no EXT instruction raises an exception.
+    // Sub-operation codes that the decoder never produces return defined values.
+    //
+    // Timing does not depend on the operand values: every instruction here takes
+    // one cycle whatever rs1 and rs2 hold.
+
+    // ext.zero (bits 31:11) is always 0 and deliberately not read.
+    /* verilator lint_off UNUSEDSIGNAL */
+    op::ext_payload_t ext;
+    /* verilator lint_on UNUSEDSIGNAL */
+    logic [4:0]       ext_code;
+    logic [2:0]       ext_group;
+    logic [1:0]       ext_var;
+    logic [4:0]       ext_amt;
+
+    assign ext       = op::ext_payload_t'(instruction_in.immediate);
+    assign ext_code  = ext.sel;
+    assign ext_group = ext_code[4:2];
+    assign ext_var   = ext_code[1:0];
+    assign ext_amt   = ext.use_imm ? ext.shamt : rs2_data_in[4:0];
+
+    // Bit i of the result is bit 31 - i of x (wiring only).
+    function automatic logic [31:0] ext_bitrev(input logic [31:0] x);
+        logic [31:0] r;
+        for (int i = 0; i < 32; i++)
+            r[i] = x[31 - i];
+        return r;
+    endfunction
+
+    // Leading-zero count as a tree. Each 2-bit leaf reports (all zero, count) with
+    // count = ~x[hi]; each merge of a more significant half h and a less
+    // significant half l gives zero = zero_h & zero_l and
+    // count = zero_h ? {1, count_l} : {0, count_h}. Four merges give the 5-bit
+    // count of the whole word, and an all-zero word counts 32.
+    function automatic logic [5:0] ext_lzc(input logic [31:0] x);
+        logic [15:0]      z1;
+        logic [15:0]      c1;
+        logic [7:0]       z2;
+        logic [7:0][1:0]  c2;
+        logic [3:0]       z3;
+        logic [3:0][2:0]  c3;
+        logic [1:0]       z4;
+        logic [1:0][3:0]  c4;
+        logic [4:0]       c5;
+        for (int i = 0; i < 16; i++) begin
+            z1[i] = ~(x[2*i+1] | x[2*i]);
+            c1[i] = ~x[2*i+1];
+        end
+        for (int i = 0; i < 8; i++) begin
+            z2[i] = z1[2*i+1] & z1[2*i];
+            c2[i] = z1[2*i+1] ? {1'b1, c1[2*i]} : {1'b0, c1[2*i+1]};
+        end
+        for (int i = 0; i < 4; i++) begin
+            z3[i] = z2[2*i+1] & z2[2*i];
+            c3[i] = z2[2*i+1] ? {1'b1, c2[2*i]} : {1'b0, c2[2*i+1]};
+        end
+        for (int i = 0; i < 2; i++) begin
+            z4[i] = z3[2*i+1] & z3[2*i];
+            c4[i] = z3[2*i+1] ? {1'b1, c3[2*i]} : {1'b0, c3[2*i+1]};
+        end
+        c5 = z4[1] ? {1'b1, c4[0]} : {1'b0, c4[1]};
+        return (z4[1] & z4[0]) ? 6'd32 : {1'b0, c5};
+    endfunction
+
+    // Population count as an explicit adder tree: 16 two-bit sums of bit pairs,
+    // then 8, 4, 2 and 1 wider sums. Never a 32-step accumulation.
+    function automatic logic [5:0] ext_pop(input logic [31:0] x);
+        logic [15:0][1:0] p1;
+        logic [7:0][2:0]  p2;
+        logic [3:0][3:0]  p3;
+        logic [1:0][4:0]  p4;
+        for (int i = 0; i < 16; i++)
+            p1[i] = {1'b0, x[2*i]} + {1'b0, x[2*i+1]};
+        for (int i = 0; i < 8; i++)
+            p2[i] = {1'b0, p1[2*i]} + {1'b0, p1[2*i+1]};
+        for (int i = 0; i < 4; i++)
+            p3[i] = {1'b0, p2[2*i]} + {1'b0, p2[2*i+1]};
+        for (int i = 0; i < 2; i++)
+            p4[i] = {1'b0, p3[2*i]} + {1'b0, p3[2*i+1]};
+        return {1'b0, p4[0]} + {1'b0, p4[1]};
+    endfunction
+
+    // Rotate right by s in five fixed stages.
+    function automatic logic [31:0] ext_rotr(input logic [31:0] x, input logic [4:0] s);
+        logic [31:0] r;
+        r = x;
+        if (s[0]) r = {r[0],    r[31:1]};
+        if (s[1]) r = {r[1:0],  r[31:2]};
+        if (s[2]) r = {r[3:0],  r[31:4]};
+        if (s[3]) r = {r[7:0],  r[31:8]};
+        if (s[4]) r = {r[15:0], r[31:16]};
+        return r;
+    endfunction
+
+    // ---- the eight groups, in parallel ----
+    logic [31:0] ext_logic, ext_count, ext_minmax, ext_extend;
+    logic [31:0] ext_rotate, ext_byte, ext_bit, ext_czero;
+    logic [5:0]  ext_lz, ext_pc;
+    logic        ext_lt;
+    logic        ext_rol;
+    logic [4:0]  ext_rot_amt;
+    logic [31:0] ext_onehot;
+
+    // LOGIC: rs1 combined with the complement of rs2.
+    always_comb begin
+        case (ext_var)
+            2'b00:   ext_logic = rs1_data_in & ~rs2_data_in;      // andn
+            2'b01:   ext_logic = rs1_data_in | ~rs2_data_in;      // orn
+            default: ext_logic = rs1_data_in ^ ~rs2_data_in;      // xnor = ~(rs1 ^ rs2)
+        endcase
+    end
+
+    // COUNT: variant 00 clz, 01 ctz (clz of the reversed word), 10 cpop.
+    assign ext_lz    = ext_lzc(ext_var[0] ? ext_bitrev(rs1_data_in) : rs1_data_in);
+    assign ext_pc    = ext_pop(rs1_data_in);
+    assign ext_count = {26'b0, (ext_var == 2'b10) ? ext_pc : ext_lz};
+
+    // MINMAX: variant[0] = unsigned, variant[1] = max. For a signed compare both
+    // sign bits are flipped, which maps signed order onto unsigned order.
+    assign ext_lt     = {rs1_data_in[31] ^ ~ext_var[0], rs1_data_in[30:0]}
+                      < {rs2_data_in[31] ^ ~ext_var[0], rs2_data_in[30:0]};
+    assign ext_minmax = (ext_lt ^ ext_var[1]) ? rs1_data_in : rs2_data_in;
+
+    // EXTEND: sext.b, sext.h, zext.h.
+    always_comb begin
+        case (ext_var)
+            2'b00:   ext_extend = {{24{rs1_data_in[7]}},  rs1_data_in[7:0]};   // sext.b
+            2'b01:   ext_extend = {{16{rs1_data_in[15]}}, rs1_data_in[15:0]};  // sext.h
+            default: ext_extend = {16'b0,                 rs1_data_in[15:0]};  // zext.h
+        endcase
+    end
+
+    // ROTATE (and bext): one right-rotator; rol rotates right by -s mod 32.
+    assign ext_rol     = (ext_group == 3'b100) && !ext_var[0];
+    assign ext_rot_amt = ext_rol ? (5'd0 - ext_amt) : ext_amt;
+    assign ext_rotate  = ext_rotr(rs1_data_in, ext_rot_amt);
+
+    // BYTE: orc.b (any bit set in a byte makes it 0xFF), rev8 (byte swap).
+    always_comb begin
+        if (ext_var[0])
+            ext_byte = {rs1_data_in[7:0], rs1_data_in[15:8], rs1_data_in[23:16], rs1_data_in[31:24]};
+        else
+            ext_byte = {{8{|rs1_data_in[31:24]}}, {8{|rs1_data_in[23:16]}},
+                        {8{|rs1_data_in[15:8]}},  {8{|rs1_data_in[7:0]}}};
+    end
+
+    // BIT: single-bit clear / extract / invert / set at index s.
+    assign ext_onehot = 32'b1 << ext_amt;
+    always_comb begin
+        case (ext_var)
+            2'b00:   ext_bit = rs1_data_in & ~ext_onehot;          // bclr
+            2'b01:   ext_bit = {31'b0, ext_rotate[0]};             // bext = rs1[s]
+            2'b10:   ext_bit = rs1_data_in ^ ext_onehot;           // binv
+            default: ext_bit = rs1_data_in | ext_onehot;           // bset
+        endcase
+    end
+
+    // CZERO: variant[0] = nez. eqz gives 0 when rs2 == 0, nez when rs2 != 0.
+    assign ext_czero = ((rs2_data_in == 32'b0) ^ ext_var[0]) ? 32'b0 : rs1_data_in;
+
+    // ---- the group select ----
+    always_comb begin
+        case (ext_group)
+            3'b000:  ext_result = ext_logic;
+            3'b001:  ext_result = ext_count;
+            3'b010:  ext_result = ext_minmax;
+            3'b011:  ext_result = ext_extend;
+            3'b100:  ext_result = ext_rotate;
+            3'b101:  ext_result = ext_byte;
+            3'b110:  ext_result = ext_bit;
+            default: ext_result = ext_czero;
+        endcase
+    end
 
     // =========================================================================
     // Part 3a: Branch comparison

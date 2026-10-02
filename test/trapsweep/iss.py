@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 """iss.py -- timing-independent architectural oracle for test/trapsweep.
 
-A small RV32IM(+Zba)+Zicsr instruction-set model of the bare-metal MCU: a
+A small RV32IM + Zba + Zbb + Zbs + Zicond + Zicsr instruction-set model of the bare-metal MCU: a
 separate implementation in Python, neither the RTL nor the frozen golden
 models (it does encode this platform's CSR map, reset values and memory map). It
 replays an RTL run (DUT or golden) using ONLY the RTL's choice of interrupt
@@ -20,7 +20,7 @@ tainted and compared as wildcards.
 
 The program must follow the trace protocol of probes.py (trap-entry records at
 0x10/0x14/0x1C, iteration headers at 0x00, minstret snapshot at 0x38, ...).
-Kind 'ref' (the golden CPU) is modelled without M, Zba and Zicntr, and with its
+Kind 'ref' (the golden CPU) is modelled without M, Zba, Zbb, Zbs, Zicond and Zicntr, and with its
 minstret reading one higher than the DUT's from reset (a golden quirk).
 To check a NEW instruction, add it to ISS.step() (and, for a new CSR, to
 CSR_VALID/csr_read/csr_write); the frozen golden models cannot check it.
@@ -43,7 +43,7 @@ def sx(v, b):
 M32 = 0xffffffff
 
 class ISS:
-    def __init__(self, binf, instret_off=0, has_m=True, has_zba=True):
+    def __init__(self, binf, instret_off=0, has_m=True, has_zba=True, has_zbb=True, has_zbs=True, has_zicond=True):
         data = open(binf, 'rb').read()
         self.ram = bytearray(RAMN); self.ram[:len(data)] = data
         self.x = [0] * 32; self.tx = [False] * 32   # value, taint
@@ -56,6 +56,7 @@ class ISS:
         self.leds = 0; self.stall = 0; self.vga = {}
         self.trace = []; self.halted = False
         self.has_m = has_m; self.has_zba = has_zba
+        self.has_zbb = has_zbb; self.has_zbs = has_zbs; self.has_zicond = has_zicond
         self.taint_mem = set()
         self.bp_ctl = 0
         self.no_zicntr = False
@@ -223,11 +224,22 @@ class ISS:
             elif f3 == 6: v = a | imm
             elif f3 == 7: v = a & imm
             elif f3 == 1:
-                if f7 != 0: return 2
-                v = a << sh
+                # funct7 is compared whole: inst[25] (shamt[5] on RV64) set is reserved on RV32
+                if f7 == 0: v = a << sh
+                elif f7 == 0x30 and self.has_zbb and sh in (0, 1, 2, 4, 5):     # clz ctz cpop sext.b sext.h
+                    v = _zbb_unary(sh, a)
+                elif f7 in (0x24, 0x34, 0x14) and self.has_zbs:                 # bclri binvi bseti
+                    v = _zbs({0x24: 'clr', 0x34: 'inv', 0x14: 'set'}[f7], a, sh)
+                else: return 2
             else:
                 if f7 == 0: v = a >> sh
                 elif f7 == 0x20: v = (sx(a, 32) >> sh)
+                elif f7 == 0x30 and self.has_zbb: v = _ror(a, sh)                # rori
+                elif f7 == 0x24 and self.has_zbs: v = _zbs('ext', a, sh)          # bexti
+                elif (ins >> 20) == 0x287 and self.has_zbb:                      # orc.b
+                    v = sum(0xff << i for i in range(0, 32, 8) if (a >> i) & 0xff)
+                elif (ins >> 20) == 0x698 and self.has_zbb:                      # rev8 (RV32 encoding)
+                    v = int.from_bytes(a.to_bytes(4, 'little'), 'big')
                 else: return 2
             wr(v & M32, ta)
         elif op == 0x33:
@@ -249,6 +261,19 @@ class ISS:
                 else: v = a if b == 0 else a % b
             elif f7 == 0x10 and self.has_zba and f3 in (2, 4, 6):
                 v = (a << (f3 // 2)) + b
+            elif f7 == 0x20 and self.has_zbb and f3 in (4, 6, 7):               # xnor orn andn
+                v = {4: ~(a ^ b), 6: a | ~b, 7: a & ~b}[f3]
+            elif f7 == 0x05 and self.has_zbb and f3 in (4, 5, 6, 7):            # min minu max maxu
+                x, y = (sx(a, 32), sx(b, 32)) if f3 in (4, 6) else (a, b)
+                v = (a if x < y else b) if f3 in (4, 5) else (a if x > y else b)
+            elif f7 == 0x04 and self.has_zbb and f3 == 4 and rs2 == 0:          # zext.h
+                v = a & 0xffff; t = ta
+            elif f7 == 0x30 and self.has_zbb and f3 in (1, 5):                  # rol ror
+                v = _ror(a, (32 - (b & 31)) & 31 if f3 == 1 else b & 31)
+            elif self.has_zbs and (f7, f3) in ((0x24, 1), (0x24, 5), (0x34, 1), (0x14, 1)):   # bclr bext binv bset
+                v = _zbs({(0x24, 1): 'clr', (0x24, 5): 'ext', (0x34, 1): 'inv', (0x14, 1): 'set'}[(f7, f3)], a, b & 31)
+            elif f7 == 0x07 and self.has_zicond and f3 in (5, 7):               # czero.eqz czero.nez
+                v = 0 if (b == 0) == (f3 == 5) else a
             else:
                 return 2
             wr(v & M32, t)
@@ -291,6 +316,22 @@ class ISS:
             return 2
         self.pc = npc
         return None
+
+def _ror(a, s):
+    return ((a >> s) | (a << (32 - s))) & M32
+
+def _zbs(kind, a, s):
+    if kind == 'clr': return a & ~(1 << s)
+    if kind == 'inv': return a ^ (1 << s)
+    if kind == 'set': return a | (1 << s)
+    return (a >> s) & 1
+
+def _zbb_unary(sel, a):
+    """clz, ctz, cpop, sext.b, sext.h by the rs2 field of the encoding (0, 1, 2, 4, 5)"""
+    if sel == 0: return 32 - a.bit_length()
+    if sel == 1: return ((a & -a).bit_length() - 1) if a else 32
+    if sel == 2: return bin(a).count('1')
+    return sx(a, 8 if sel == 4 else 16)
 
 def _tdiv(a, b):
     q = abs(a) // abs(b)
@@ -340,7 +381,8 @@ def check(rundir, kind, has_m=True, max_steps=20_000_000, verbose=False):
     first_trap_of_group = {}
     for i, t in enumerate(traps): first_trap_of_group.setdefault(t[3], i)
     off = 1 if kind == 'ref' else 0
-    s = ISS(f"{rundir}/init.bin", instret_off=off, has_m=has_m and kind != 'ref', has_zba=kind != 'ref')
+    s = ISS(f"{rundir}/init.bin", instret_off=off, has_m=has_m and kind != 'ref', has_zba=kind != 'ref',
+            has_zbb=kind != 'ref', has_zbs=kind != 'ref', has_zicond=kind != 'ref')
     s.no_zicntr = (kind == 'ref')
     st = dict(ti=0, g=0)
     def on_trace(o, v):

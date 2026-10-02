@@ -1,0 +1,12 @@
+CHK 653f8521
+CYC 0001da2c
+- sim/top.sv:131: Verilog $finish
+
+Inital test failed! (# Errors: 0)
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!! TEST DONE !!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+- S i m u l a t i o n   R e p o r t: Verilator 5.042 2025-11-02
+- Verilator: $finish at 3us; walltime 0.095 s; speed 26.425 us/s
+- Verilator: cpu 0.095 s on 1 threads; alloced 175 MB

@@ -1,0 +1,17 @@
+image,ext_words,ext_forms,counts
+brk.rv32im_zba_zbb.O2.p1s1.t10000.h4,30,5,andn=4 maxu=5 minu=5 sext.b=12 zext.h=4
+brk.rv32im_zba_zbb.Os.p1s0.t5000.h4.bp3,26,5,andn=4 maxu=4 minu=5 sext.b=10 zext.h=3
+full.rv32im_zba_zbb_zbs.O2.p1s1.t10000.h4,89,11,andn=10 clz=1 maxu=7 minu=6 sext.b=25 sext.h=8 zext.h=9 bclr=6 bexti=1 bset=14 bseti=2
+full.rv32im_zba_zbb_zbs.Os.p1s1.t10000.h4.bp3,80,11,andn=9 clz=1 maxu=6 minu=6 sext.b=22 sext.h=5 zext.h=8 bclr=6 bexti=1 bset=14 bseti=2
+minimal.rv32im_zba_zbb_zbs.O0.p0s1.t10000.h4,0,0,
+minimal.rv32im_zba_zbb_zbs.O2.p1s1.t10000.h4,3,1,zext.h=3
+mzba.rv32im_zba_zbb_zbs.O0.p1s1.t10000.h4,2,2,zext.h=1 rol=1
+mzba.rv32im_zba_zbb_zbs.O2.p1s1.t10000.h4.bp3,5,3,zext.h=3 rol=1 bset=1
+mzba.rv32im_zba_zbb_zbs.O2.p1s1.t10000.h4,5,3,zext.h=3 rol=1 bset=1
+mzba.rv32im_zba_zbb_zbs.Os.p0s1.t10000.h4,4,3,zext.h=2 rol=1 bset=1
+stress.noyield.rv32im_zba_zbb_zbs.O0.p1s1.t10000.h4,7,1,sext.b=7
+stress.noyield.rv32im_zba_zbb_zbs.O2.p0s1.t10000.h4,19,4,andn=1 maxu=1 sext.b=14 zext.h=3
+stress.noyield.rv32im_zba_zbb_zbs.Os.p1s1.t5000.h4,15,3,andn=1 sext.b=12 zext.h=2
+stress.rv32im_zba_zbb_zbs.O2.p1s1.t10000.h4.bp3,19,4,andn=1 maxu=1 sext.b=14 zext.h=3
+stress.rv32im_zba_zbb_zbs.O2.p1s1.t10000.h4,19,4,andn=1 maxu=1 sext.b=14 zext.h=3
+all images,323,12,andn=31 clz=2 maxu=25 minu=22 sext.b=130 sext.h=13 zext.h=47 rol=4 bclr=12 bexti=2 bset=31 bseti=4
