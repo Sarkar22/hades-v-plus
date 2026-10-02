@@ -184,6 +184,14 @@ void freertos_risc_v_application_exception_handler( uint32_t mcause, uint32_t me
         return;
     }
 
+    #if SHELL_LOADER
+        /* An exception raised by a running app ends the app, not the shell (loader.c). */
+        if( loader_exception( mcause, mepc_plus_4 - 4u ) != 0 )
+        {
+            return;
+        }
+    #endif
+
     hal_fail( "unexpected exception (mcause, mepc)", NULL, mcause, mepc_plus_4 - 4u );
 }
 
@@ -338,6 +346,14 @@ static BaseType_t prvMem( char * pcOut, size_t xOutLen, const char * pcCommand )
     #endif
                     FRTOS_HEAP, ( size_t ) ( __ram_end - __ram_start ), ( size_t ) ( __bss_end - __ram_start ),
                     ( size_t ) ( __isr_stack_bottom - __bss_end ), hal_isr_stack_size(), hal_isr_stack_peak() );
+    #if SHELL_LOADER
+        {
+            const size_t xUsed = strlen( pcOut );
+
+            shell_snprintf( pcOut + xUsed, xOutLen - xUsed, "apps:      %lu-byte app slot at 0x%08lx ('app' shows what it holds)\n",
+                            ( uint32_t ) HADES_APP_SLOT_SIZE, ( uint32_t ) HADES_APP_SLOT_BASE );
+        }
+    #endif
     return pdFALSE;
 }
 
@@ -669,6 +685,11 @@ static const CLI_Command_Definition_t axCommands[] =
     { "zba",      "zba <a> <b>        sh1add, sh2add, sh3add\r\n", prvArithCommand, 2 },
     { "uart",     "uart               UART receive statistics\r\n", prvUart, 0 },
     { "echo",     "echo <text>        Print the text\r\n", prvEcho, -1 },
+#if SHELL_LOADER
+    { "load",     "load               Receive an app (Intel HEX) into the app slot\r\n", loader_cmd_load, 0 },
+    { "run",      "run [args...]      Run the loaded app (Ctrl-C stops it)\r\n", loader_cmd_run, -1 },
+    { "app",      "app                The loaded app: name, size, entry, CRC32\r\n", loader_cmd_app, 0 },
+#endif
     { "halt",     "halt               Stop (ends the simulation)\r\n", prvHalt, 0 },
     { "exit",     "exit               The same as halt\r\n", prvHalt, 0 },
 };

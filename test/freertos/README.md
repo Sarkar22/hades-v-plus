@@ -41,10 +41,16 @@ make freertos-shell PTY=1                        # the same on a pseudo-terminal
 make freertos-shell-test [SCRIPT=file]           # shell/session.txt typed in, transcript checked
 make freertos-shell-compare                      # the scripted session on DUT and golden, compared
 make freertos-shell-tty-test                     # shell/tty_test.py: keys, paste, quitting, terminal restore
+make freertos-shell APP=loader UPLOAD=hello      # the shell with the app loader; 'load' receives sdk/apps/hello
+make freertos-send UPLOAD=hello                  # to a running 'make freertos-shell APP=loader PTY=1'
+make freertos-app NAME=hello [MARCH=] [OPT=]     # build one app of sdk/apps/; freertos-apps: all of them
+make freertos-loader-test [CPU=golden]           # loader/session.txt and session-ext.txt, one verdict
+make freertos-loader-compare                     # both on DUT and golden, session.txt compared
+make freertos-shell-tty-test APP=loader          # loader/tty_test.py: uploads, pastes, send requests, input, Ctrl-C
 ```
 
 The short knobs (`APP CPU MARCH OPT TICK SEED TIMEOUT BPRED PREEMPT SLICE HEAP DEFS
-RAM_KB PTY SCRIPT`) are command-line aliases of the `FRTOS_*` variables below; `run.sh`
+RAM_KB PTY SCRIPT UPLOAD`) are command-line aliases of the `FRTOS_*` variables below; `run.sh`
 prints the verdict (`PASS`/`FAIL`/`HANG`/`CRASH`, exit status 0 only for `PASS`), applying
 the same UART-transcript check as the campaign.
 
@@ -59,7 +65,7 @@ make frtos-elf FRTOS_APP=full FRTOS_OUT=build/full          # build only
 
 | knob | meaning (default) |
 |---|---|
-| `FRTOS_APP` | `minimal`, `stress`, `full`, `mzba`, `brk`, `shell`, `template`, or your own |
+| `FRTOS_APP` | `minimal`, `stress`, `full`, `mzba`, `brk`, `shell`, `loader`, `template`, or your own |
 | `FRTOS_MARCH` | `rv32i`, `rv32im`, `rv32im_zba` (`rv32i`) |
 | `FRTOS_OPT` | `-O0`, `-O2`, `-Os` (`-O2`) |
 | `FRTOS_PREEMPT` / `FRTOS_SLICE` | `configUSE_PREEMPTION` / `configUSE_TIME_SLICING` (1/1) |
@@ -72,6 +78,7 @@ make frtos-elf FRTOS_APP=full FRTOS_OUT=build/full          # build only
 | `FRTOS_BPRED` | branch-predictor mode written to MHPMEVENT10 at start-up: 0 off, 1 always-taken, 2 backward-taken, 3 bimodal (0). The golden CPU reads this CSR as 0 and ignores writes, so it stays a valid twin |
 | `FRTOS_PTY` | `freertos-shell`: `1` connects the UART to a pseudo-terminal (link `<out>/pty`) instead of this terminal |
 | `FRTOS_SCRIPT` | `freertos-shell-test`/`-compare`: the command script (`test/freertos/<app>/session.txt`) |
+| `FRTOS_UPLOAD` | `freertos-shell` (loader) and `freertos-send`: the app file sent when `load` asks for one (`<name>`, `<march>/<name>` or a `.hex` file) |
 
 The output directory (`build/test/freertos/<app>`, or `FRTOS_OUT`) is reused
 across configurations: `freertos.mk` records the compiler/linker flags of the
@@ -108,6 +115,23 @@ checks all end the run at once.
   transcripts, `tty_test.py` drives the interactive console through a pseudo-terminal
   (keys, paste, quitting, a hung program, signals, terminal restore, the UART copy). Not
   part of any campaign set.
+* **loader** -- the shell with an app loader (256 KiB, simulation only; `-Os`): the shell's
+  own sources compiled with `SHELL_LOADER=1`, plus `loader/loader.c`, which adds the
+  commands `load` (an Intel HEX file over the UART into the 128 KiB app slot at
+  `0x00060000`), `run [args...]` (the app as a FreeRTOS task at priority 1; Ctrl-C stops
+  it; an exception or a stack overflow in it is reported and the shell carries on) and
+  `app`. The shell is linked for the first 128 KiB (`APP_LINK_KB`). Apps are built on the
+  host with the SDK in `sdk/` (`hades_app.h`, `crt0.S`, `app.ld`, `appimg.py`, `sdk.mk`;
+  examples in `sdk/apps/`); the console bridge sends a file when the program asks for
+  one (control bytes DC2, ACK/NAK per line, DC1 for app input), and `make freertos-send`
+  asks it to, through a send request next to the pseudo-terminal's link. Guide: docs/FREERTOS.md,
+  section 10; specification: `loader/SPEC.md`. `session.txt` (74 lines, 131 expectations)
+  and `session-ext.txt` (the `rv32im_zba` build of `compute`) are its scripted sessions,
+  `tty_test.py` its interactive test. Its `app.mk` uses the console-target knobs
+  `APP_CONSOLE_DEPS` (goals built before a console run: `freertos-apps`),
+  `APP_CONSOLE_ARGS` (simulator arguments), `APP_TTY_TEST` and `APP_TTY_ARGS` (the script of
+  `freertos-shell-tty-test`); every other program leaves them empty and builds exactly as
+  before. Not part of any campaign set.
 * **template** -- the starting point for your own program (`make freertos-new
   NAME=<name>`): producer -> queue -> consumer, PASS after `TEMPLATE_ITEMS` items;
   `-DTEMPLATE_WITH_IRQ=1` adds an interrupt handler fed by the `wishbone_test`

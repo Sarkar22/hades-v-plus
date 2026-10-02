@@ -202,7 +202,9 @@ void vAssertCalled( const char * pcFile, unsigned long ulLine )
     hal_fail( "configASSERT", pcFile, ( uint32_t ) ulLine, 0 );
 }
 
-void vApplicationStackOverflowHook( TaskHandle_t xTask, char * pcTaskName )
+/* Weak: a program that handles the overflow of one of its tasks provides its own (the
+ * shell's app loader, test/freertos/loader/loader.c). */
+__attribute__( ( weak ) ) void vApplicationStackOverflowHook( TaskHandle_t xTask, char * pcTaskName )
 {
     hal_fail( "stack overflow", pcTaskName, ( uint32_t ) ( uintptr_t ) xTask, 0 );
 }

@@ -718,6 +718,7 @@
    "output": [
     "  brk        RTOS-level breaker: interrupt storms, tick catch-up, task churn, fence.i, deliberate exceptions; 64 KiB",
     "  full       the FreeRTOS standard demo task set (official RISC-V QEMU full_demo) + RegTest; 256 KiB, simulation only",
+    "  loader     the shell with an app loader: run programs built on the host; 256 KiB, simulation only",
     "  minimal    two application tasks + idle (notification ping-pong, idle progress, tick drift); 32 KiB",
     "  mzba       M and Zba code under the RTOS, checked against an rv32i software build of the same code; 32 KiB",
     "  shell      interactive command shell (FreeRTOS+CLI) on the UART; make freertos-shell; 32 KiB",
@@ -725,7 +726,7 @@
     "  template   starting point for your own program (copy it: make freertos-new NAME=<name>)"
    ],
    "quoted": "the program list",
-   "quoted_at": "docs/FREERTOS.md:135-147"
+   "quoted_at": "docs/FREERTOS.md:143-152"
   },
   {
    "suite": "campaign.py --set standard --list",

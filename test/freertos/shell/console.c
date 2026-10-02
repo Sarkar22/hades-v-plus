@@ -75,6 +75,14 @@ void app_external_irq( void )
             ulRxOverruns++;
         }
 
+        #if SHELL_LOADER
+            /* While an app runs, Ctrl-C stops it (loader.c) instead of being queued. */
+            if( loader_rx_from_isr( ucByte, &xWoken ) != pdFALSE )
+            {
+                continue;
+            }
+        #endif
+
         if( xQueueSendFromISR( xRxQueue, &ucByte, &xWoken ) != pdPASS )
         {
             ulRxDropped++;
@@ -383,3 +391,63 @@ void shell_console_start( void )
      * write the transmit buffer and send a character.) */
     SHELL_UART_RXSTAT = SHELL_UART_RXSTAT_IE;
 }
+
+#if SHELL_LOADER
+
+/* ------------------------------------------------------- for the app loader -- */
+
+/* The commands of loader.c run in the console task, which is then the only reader of the
+ * receive queue; while an app runs, the app task is. */
+int shell_rx_byte( TickType_t xTicks )
+{
+    uint8_t ucByte;
+
+    return ( xQueueReceive( xRxQueue, &ucByte, xTicks ) == pdPASS ) ? ( int ) ucByte : -1;
+}
+
+void shell_rx_discard( void )
+{
+    uint8_t ucByte;
+
+    while( xQueueReceive( xRxQueue, &ucByte, 0 ) == pdPASS )
+    {
+    }
+}
+
+int shell_rx_holds( uint8_t ucWanted )
+{
+    int iFound = 0;
+
+    /* Every byte is taken from the front and put back at the end, in a critical section, so
+     * that the receive interrupt adds nothing in between: the order stays as it was. */
+    taskENTER_CRITICAL();
+    {
+        for( UBaseType_t n = uxQueueMessagesWaiting( xRxQueue ); n > 0u; n-- )
+        {
+            uint8_t ucByte;
+
+            if( xQueueReceive( xRxQueue, &ucByte, 0 ) != pdPASS )
+            {
+                break;
+            }
+
+            iFound |= ( ucByte == ucWanted );
+            ( void ) xQueueSend( xRxQueue, &ucByte, 0 );
+        }
+    }
+    taskEXIT_CRITICAL();
+
+    return iFound;
+}
+
+int shell_output_at_line_start( void )
+{
+    return ( cLastSent == '\n' ) || ( cLastSent == '\0' );
+}
+
+void shell_set_previous( char c )
+{
+    cPrevious = c;
+}
+
+#endif /* SHELL_LOADER */
