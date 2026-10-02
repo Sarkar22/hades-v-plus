@@ -432,12 +432,16 @@ make freertos-compare APP=myapp DEFS=-DTEMPLATE_WITH_IRQ=1
 With the interrupt handler, the last line of the program's output reports the number of
 interrupts handled, for example `external interrupts 128`.
 
-Your program can use the M and Zba instructions on HaDes-V+ (it then no longer runs on
-the golden CPU):
+Your program can use the M, Zba, Zbb and Zbs instructions on HaDes-V+ (it then no longer
+runs on the golden CPU):
 
 ```bash
 make freertos APP=myapp MARCH=rv32im_zba OPT=-Os
+make freertos APP=myapp MARCH=rv32im_zba_zbb_zbs OPT=-Os
 ```
+
+With Zbs, GCC 12.2 cannot compile the `brk` program (an internal compiler error); build it
+for `rv32im_zba_zbb` instead ([Settings reference](#11-settings-reference)).
 
 ## 9. The interactive shell
 

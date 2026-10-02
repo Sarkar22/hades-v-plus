@@ -1,26 +1,39 @@
-# Formal verification of the M unit
+# Formal verification of the M and EXT units
 
-This directory holds a machine-checked proof that the multiply/divide unit of
-`rtl/execute_stage.sv` computes the RISC-V M-extension results. It covers MUL, MULH,
-MULHSU, MULHU, DIV, DIVU, REM and REMU, including division by zero and the
-`-2^31 / -1` overflow. The proof holds for **all 2^64 operand pairs**, in **every
-reachable state** (unbounded, by k-induction), under any interleaving of Memory
-`STALL`/`JUMP` and of resets. No bug was found in the M unit.
+This directory holds machine-checked proofs about two units of `rtl/execute_stage.sv`:
+
+- **The M unit.** The multiply/divide unit computes the RISC-V M-extension results. The
+  proof covers MUL, MULH, MULHSU, MULHU, DIV, DIVU, REM and REMU, including division by
+  zero and the `-2^31 / -1` overflow. It holds for **all 2^64 operand pairs**, in
+  **every reachable state** (unbounded, by k-induction), under any interleaving of Memory
+  `STALL`/`JUMP` and of resets. No bug was found in the M unit.
+- **The EXT unit (Zbb, Zbs, Zicond).** For each of the 28 instructions, the result that
+  Execute forwards in the same cycle and registers for Memory in the next is the result
+  defined by the ratified specifications. This holds for **all operand values**, every
+  rotate amount and bit index, in every reachable state. An EXT instruction also never
+  makes Execute stall or jump. The proof uses the same environment as the M proof and
+  assumes nothing of it. No bug was found in the EXT unit.
+
+Both proofs were last run on 2026-10-02, on `rtl/execute_stage.sv` with SHA-256
+`c36613c8…3ae969`, the file of commit c1a7c85
+([record](../results/formal/2026-10-02_c1a7c85/RECORD.md)).
 
 ```sh
-make formal          # every proof obligation + lemma checks + covers + spec/sv2v checks (about a minute)
-make formal-full     # also H6 by bitwuzla and the mutation campaign (about 25 minutes; longer on a loaded machine)
+make formal          # both units: every proof obligation + lemma checks + covers + controls + spec/sv2v checks (about 1.5 minutes)
+make formal-full     # also H6 by bitwuzla, second solvers and both mutation campaigns (about 25 minutes; longer on a loaded machine)
+make formal-ext      # the EXT unit alone (under a minute)
 ```
 
-Both targets write only to `$(BUILD_DIR)/formal/` and finish with one line,
+`make formal` and `make formal-full` write only to `$(BUILD_DIR)/formal/`,
+`make formal-ext` only to `$(BUILD_DIR)/formal-ext/`. Each finishes with one line,
 `FORMAL RESULT: PASS` or `FORMAL RESULT: FAIL ...`. `make` exits with status 0 only
 for `PASS`. The tools are listed in [Tools](#tools).
 
 Contents:
 
-1. [What is proven](#1-what-is-proven)
+1. [What is proven](#1-what-is-proven): [the M unit](#the-m-unit), [the EXT unit](#the-ext-unit-zbb-zbs-zicond)
 2. [Environment assumptions](#2-environment-assumptions)
-3. [How the proof works](#3-how-the-proof-works)
+3. [How the proof works](#3-how-the-proof-works) ([the EXT proof](#the-ext-proof))
 4. [Results and runtimes](#4-results-and-runtimes)
 5. [What is not proven](#5-what-is-not-proven)
 6. [Tools](#tools)
@@ -31,6 +44,8 @@ Contents:
 ---------------------------------------------------------------------------------------
 
 ## 1. What is proven
+
+### The M unit
 
 **Target.** The proof reads the real `rtl/execute_stage.sv` of this checkout. No hand
 restatement of the design is used. `scripts/gen.sh` translates the file and the
@@ -67,6 +82,45 @@ therefore never compared, and nothing in F1-F3 constrains what Execute hands to 
 while it stalls. An independent audit demonstrated this with real-bug mutants that pass
 F1-F3. A1 and A3a close the gap: the mutants `rem_not_decoded`, `mulh_not_decoded` and
 `stall_valid_to_mem` are rejected *only* by A1/A3a (section 4).
+
+### The EXT unit (Zbb, Zbs, Zicond)
+
+**Target and model.** The same as for the M unit: the sv2v model of the real
+`rtl/execute_stage.sv` with the one inserted line, every input free apart from E0-E2
+(section 2). The top is `harness/top_ext.v`. None of the M unit's proven groups and none
+of its lemmas is assumed, so the EXT proof does not depend on the M proof.
+
+**Which instruction.** Execute sees an EXT instruction as the opcode `op::EXT` (entry 61
+of `op::t`) and a payload in the immediate field, `op::ext_payload_t`: the sub-operation
+`sel` in bits 10:6, `use_imm` in bit 5, and `shamt` in bits 4:0 (the instruction's
+`inst[24:20]` for the five immediate forms, otherwise 0), with bits 31:11 zero. For
+each instruction the harness requires exactly the payload that the decoder builds for
+it; `rs1_data_in`, `rs2_data_in` and, for the immediate forms, `shamt` are free. The
+map from instruction to payload is written in the harness as numbers, and
+`scripts/ext_codes.py` checks every entry against the definitions in `defines/op.sv`.
+
+**Specification.** `spec_ext(insn, rs1, rs2, shamt)` is `f_spec_ext` in
+`props/ext_spec.vh`, written from the ratified specifications (RISC-V Bit-Manipulation
+ISA-extensions 1.0.0 for Zbb and Zbs; Zicond 1.0), not from the RTL. It follows the
+specifications' Sail operations: the counts scan bit by bit, the rotates use the
+two-shift formula, `orc.b` and `rev8` loop over bytes, and the single-bit instructions
+build the mask `1 << (rs2 & 31)`.
+
+**Properties.** The following hold in every reachable state (k-induction), for each of
+the 28 instructions `insn` (andn, orn, xnor, clz, ctz, cpop, max, maxu, min, minu,
+sext.b, sext.h, zext.h, rol, ror, rori, orc.b, rev8, bclr, bclri, bext, bexti, binv,
+binvi, bset, bseti, czero.eqz, czero.nez):
+
+| Group | Property |
+|---|---|
+| **X1** | Forwarding, same cycle. While `insn` is in Execute, the forwarding bus carries `spec_ext(insn, rs1, rs2, shamt)`, its `data_valid` is set exactly when the instruction is VALID, and its address is `rd` when VALID and 0 otherwise. |
+| **X2** | Result. If a VALID `insn` leaves Execute (Memory `READY`, Execute not answering `STALL`, no reset), then in the next cycle `rd_data_reg_out == spec_ext` of its operands and `status_forwards_out == VALID`. |
+| **X3** | No stall, no jump. Out of reset, with Memory `READY`, an instruction with the `op::EXT` opcode and **any** immediate field makes Execute answer `READY`, neither `STALL` nor `JUMP`. |
+
+X1 and X2 are checked in one proof per instruction (28 proofs), X3 in one. Like A1, they
+look only at the module's ports and the opcode field; nothing is gated by an internal
+signal of the RTL. X2 and X3 together give: every VALID EXT instruction that Memory
+accepts leaves Execute in that cycle and hands Memory the specified result.
 
 ---------------------------------------------------------------------------------------
 
@@ -169,9 +223,10 @@ exactly where the broken hint is false:
     depth 40.
 - **sv2v fidelity.** The proofs are about the sv2v translation. `scripts/sv2v_fidelity.sh`
   runs the repository's benches `test_m_execute`, `test_execute_compare` (against the
-  golden execute stage) and `test_execute_bpred_nextpc` twice: once on the
-  SystemVerilog, once with `rtl/execute_stage.sv` replaced by the sv2v output. The
-  simulation output must be identical line for line.
+  golden execute stage), `test_execute_bpred_nextpc` and `test_ext_execute` (the EXT
+  unit) twice: once on the SystemVerilog, once with `rtl/execute_stage.sv` replaced by
+  the sv2v output. The simulation output must be identical line for line. In
+  `--mode ext` only `test_ext_execute` runs.
 - **Multiplier formulation** (`sby/mul_formulation.sby`). This is the earlier experiment,
   kept for reference. `mul/mul_formulation.sv` is a *hand copy* of the RTL's 33×33
   multiply, checked against riscv-formal-style expressions. A negative control with the
@@ -191,26 +246,76 @@ exactly where the broken hint is false:
   This is an observation, not a bug. The RTL comment's bound ("as large as
   2*divisor-1") is loose; the 33-bit subtract is still what produces the borrow.
 
+### The EXT proof
+
+The EXT unit is combinational: each result is one step from `rs1`, `rs2` and the
+payload, and the unit has no state. X1-X3 are therefore proven directly, by
+k-induction at depth 3 with yices (`sby/ext.sby`), with no invariant and no lemma. The
+depth is 3, not 2, because cycle 0 is a reset: only a base case of three cycles reaches
+a cycle in which X2 applies, so that a fault confined to the registered result is
+rejected by a counterexample (`FAIL`); at depth 2 the base case cannot see it, and only
+the induction step rejects it, as `UNKNOWN`. The checks around them (all run by `run.sh`
+in every mode):
+
+- **Specification vs an independent model.** `spec_check/run_ext.sh` simulates
+  `f_spec_ext` with Verilator and compares it with a Python model of the 28
+  instructions (`spec_check/check_ext_spec.py`), written differently again: string
+  slicing for the rotates, `bit_length` for the counts, byte conversions for `rev8`. It
+  runs 26 × 26 corner pairs and every shift amount and bit index for each instruction
+  (42,224 vectors), plus 1,000,000 random vectors, and must give 0 mismatches.
+- **Payload map.** `scripts/ext_codes.py` checks that `op::EXT` is entry 61 of `op::t`,
+  that `op::ext_payload_t` has the layout the harness assumes, that each of the 28
+  entries of the harness's map has the `sel` of the `op::ext_t` constant it names and
+  `use_imm` set exactly for rori, bclri, bexti, binvi and bseti, that every constant is
+  used, and that the harness and `ext_spec.vh` number the instructions alike.
+- **Non-vacuity.** `cover_bw` must reach, for each of the 28 instructions, a cycle after
+  a reset in which it leaves Execute VALID with non-zero operands (depth 4).
+- **Negative controls.** Each of the 17 mutants in `mutants/ext_mutants.txt` is one
+  textual change of the sv2v model, as for the M unit. Thirteen break a result or the
+  stall: andn computing and, clz/ctz of 0 giving 31, ctz counting leading zeros, a wrong
+  cpop adder, min/max with the signedness swapped, sext.h zero-extending, rol rotating
+  right, orc.b using AND in one byte, rev8 leaving the middle bytes in place, bext
+  returning the neighbouring bit, the immediate single-bit forms reading `rs2`, czero
+  testing `rs1`, and an EXT instruction stalling Execute for one operand value. Four
+  leave the computed result intact and break only how it leaves Execute: the result
+  registered for Memory with one bit inverted, an EXT instruction handed to Memory as
+  `BUBBLE` (both X2 only), the forwarded result marked not valid, and the forwarding
+  address taken from the `rs1` field (both X1). In every mode, each mutant is run
+  against the property of an instruction it breaks (X3 for the stall), which must `FAIL`
+  with a counterexample.
+- **Mutation campaign** (full mode). Each of the 17 mutants is also run against all 29
+  required property tasks. Every mutant must be rejected; the summary names the tasks
+  that fail, which shows how precisely the properties locate each fault.
+- **sv2v fidelity** includes the bench `test_ext_execute` (see above).
+
 ---------------------------------------------------------------------------------------
 
 ## 4. Results and runtimes
 
-Run of record: `make formal-full` at commit 588d76a, 2026-09-28 ([record](../results/formal/2026-09-28_588d76a/RECORD.md)). It reported
-`FORMAL RESULT: PASS (mode=full)` after 24 min 33 s:
+**Run of record: 2026-10-02**, on `rtl/execute_stage.sv` with SHA-256
+`c36613c8…3ae969`, the file of commit c1a7c85, which contains the EXT unit
+([record](../results/formal/2026-10-02_c1a7c85/RECORD.md)). The machine has 22 hardware
+threads; parallelism was `--par 4`. Wall times are per task.
 
-- 74 required checks, all PASS;
-- 4 negative controls, all FAIL as required;
-- 20 second-solver runs;
-- 608 mutant runs.
+| Run | Flow | Verdict | Wall |
+|---|---|---|---|
+| `make formal-full` | this directory (M and EXT) | `FORMAL RESULT: PASS (mode=full)`: 106 required checks, all PASS; 21 negative controls, all FAIL as required; 48 second-solver runs; 1,101 mutant runs (608 of the M unit, 493 of the EXT unit) | 26 min 18 s |
+| `make formal` | this directory (M and EXT) | `FORMAL RESULT: PASS (mode=default)`: 104 required checks, 21 negative controls | 1 min 40 s |
+| `make formal-ext` | this directory (EXT only) | `FORMAL RESULT: PASS (mode=ext)`: 34 required checks, 17 negative controls | 27 s |
+| `make formal-full` | the M-unit flow of c1a7c85, unchanged | `FORMAL RESULT: PASS (mode=full)`: 74 required checks, 4 negative controls, 20 second-solver runs, 608 mutant runs | 24 min 08 s |
+| `make formal` | the M-unit flow of c1a7c85, unchanged | `FORMAL RESULT: PASS (mode=default)`: 72 required checks, 4 negative controls | 1 min 10 s |
 
-`make formal` (default mode) reported `FORMAL RESULT: PASS (mode=default)` after
-1 min 07 s: 72 required checks and 4 negative controls.
+The last two runs repeat the M proof as it stood, on the new file: every check gave the
+verdict that the tables below record for the earlier run, including the same four
+second-solver time-outs, and every mutant the verdict of the mutation table.
 
-The proved file was `rtl/execute_stage.sv`, SHA-256 `847dc018…fab1bb`. Zbb, Zbs and
-Zicond later added their unit (Part 2c) and one arm of the ALU's result select to that
-file; the M unit's code is unchanged, but the proof has not been re-run on the new
-file. The machine has 22 hardware threads and was shared with other jobs. Parallelism was `--par 4`. Wall
-times are per task.
+**Earlier run of record: 2026-09-28**, `make formal-full` at commit 588d76a
+([record](../results/formal/2026-09-28_588d76a/RECORD.md)), on `rtl/execute_stage.sv`
+with SHA-256 `847dc018…fab1bb`, the file before Zbb, Zbs and Zicond: `FORMAL RESULT:
+PASS (mode=full)` after 24 min 33 s (74 required checks, 4 negative controls, 20
+second-solver runs, 608 mutant runs); `make formal` after 1 min 07 s (72 required
+checks, 4 negative controls). The tables of the M unit below are from that run; the
+verdicts of 2026-10-02 are the same, and its times are in its record.
 
 Engines: bw = bitwuzla, bwn/yn = bitwuzla/yices restarted per `check-sat`, z3.
 
@@ -268,6 +373,46 @@ Engines: bw = bitwuzla, bwn/yn = bitwuzla/yices restarted per `check-sat`, z3.
 
 `FORMAL RESULT` also requires every mutant except `diff32` to be rejected.
 
+**EXT unit** (run of 2026-10-02, full mode; the same checks run in default and ext mode,
+without the second solver and the mutation campaign):
+
+| Check | Engine | Result | Wall |
+|---|---|---|---|
+| `f_spec_ext` vs Python model (Verilator) | - | 1,042,224 vectors (42,224 corner and shift, 1,000,000 random), 0 mismatches | 3.3 s |
+| Payload map vs `defines/op.sv` | - | 28 entries, 23 `op::ext_t` constants, `op::EXT` = 61: PASS | < 0.1 s |
+| X1 + X2 × 28 instructions, depth 3 | yn | 28/28 PASS | 1.3-3.9 s each; rol, ror, rori 12.4-13.7 s |
+| same, second solver | bwn | 28/28 PASS (reported only) | 1.4-3.6 s each |
+| X3 (no stall, no jump, any payload) | yn | PASS | 1.1 s |
+| Covers, each instruction leaves Execute VALID after a reset, depth 4 | bw | 28/28 reached | 1.7 s |
+| Negative controls, 17 mutants × a property each breaks | yn | 17/17 FAIL (counterexample), as required | 1.1-1.6 s each |
+| sv2v fidelity: `test_ext_execute` | - | Identical output (14 lines) for SystemVerilog and sv2v; `All 927129 EXT-unit checks passed` | (within the fidelity check) |
+
+**EXT mutation campaign** (full mode; 17 mutants × 29 proofs; 300 s per task). Every
+mutant is rejected by a concrete counterexample, and only by the proofs of the
+instructions whose result, or whose hand-off of the result, it changes:
+
+| Mutant | Fault | Failing proofs |
+|---|---|---|
+| andn_and | andn computes and | andn |
+| lzc_zero31 | clz and ctz of 0 give 31 | clz, ctz |
+| ctz_no_reverse | ctz counts leading zeros | ctz |
+| pop_pair | cpop counts every even bit twice and no odd bit | cpop |
+| minmax_sign | min/max compare unsigned, minu/maxu signed | max, maxu, min, minu |
+| sexth_zero | sext.h zero-extends | sext.h |
+| rol_as_ror | rol rotates right | rol |
+| orcb_and | orc.b tests byte 1 with AND | orc.b |
+| rev8_middle | rev8 leaves the middle bytes in place | rev8 |
+| bext_bit1 | bext returns the bit above the index | bext, bexti |
+| bseti_rs2 | the single-bit immediate forms read rs2 instead of shamt | bclri, binvi, bseti |
+| czero_rs1 | czero tests rs1 instead of rs2 | czero.eqz, czero.nez |
+| stall_dead | an EXT instruction stalls Execute for one operand value | X3 |
+| reg_flip | the result registered for Memory has bit 8 inverted (X2 only) | the 28 result proofs |
+| reg_bubble | an EXT instruction is handed to Memory as `BUBBLE` (X2 only) | the 28 result proofs |
+| fwd_invalid | the forwarded result is marked not valid (X1) | the 28 result proofs |
+| fwd_addr_rs1 | the forwarding address is taken from the `rs1` field (X1) | the 28 result proofs |
+
+`FORMAL RESULT` also requires every EXT mutant to be rejected.
+
 ---------------------------------------------------------------------------------------
 
 ## 5. What is not proven
@@ -321,6 +466,29 @@ Engines: bw = bitwuzla, bwn/yn = bitwuzla/yices restarted per `check-sat`, z3.
    Every mutant is a real bug: the repository's `test_m_execute` bench detects all of
    them except the equivalent `diff32`. This was checked outside this package: by the
    development campaign for the first 15 mutants, and by audit 1 for the four it added.
+9. **The EXT unit: what lies outside its proof.**
+   - **The decoder.** X1 and X2 start from the payload the decoder builds; that the
+     decoder turns each 32-bit instruction word into `op::EXT` and that payload, and
+     rejects every other word, is not proven. It is checked by simulation: the decoder
+     sweep (`test_zba_encoding_sweep`, 486,896 checks) and `make ext-check`, which runs
+     `instruction_decoder` and `execute_stage` together against a C model
+     ([record](../results/bitmanip/2026-10-02_e75223e/RECORD.md)).
+   - **Payloads the decoder never builds** (an unused `sel` code, `use_imm` on a
+     register form, non-zero bits 31:11) are covered by X3 only: Execute still neither
+     stalls nor jumps, but their result is not specified.
+   - **Downstream,** as for the M unit (item 1): what Memory, Writeback, the register
+     file and Decode's forwarding consumers do with the result.
+   - **The specification** is hand-written from the ratified text and validated against
+     an independent Python model; it is not derived from the Sail model. The golden
+     reference models in `ref/` decode these instructions as illegal and cannot serve as
+     an oracle.
+   - **Timing.** The proof says nothing about the unit's delay on the FPGA.
+
+   The EXT negative controls and mutants give `FAIL` with a concrete counterexample,
+   not `UNKNOWN`: the properties need no invariant, and at depth 3 the base case reaches
+   a cycle in which X2 applies. At depth 2 it does not (cycle 0 is a reset), and a fault
+   confined to the result registered for Memory, such as the controls `reg_flip` and
+   `reg_bubble`, is rejected only by the induction step, as `UNKNOWN`.
 
 ---------------------------------------------------------------------------------------
 
@@ -330,25 +498,38 @@ Tested combination: Python ≥ 3.8 with YoWASP Yosys 0.69 (which includes SBY an
 yosys-smtbmc), bitwuzla 0.9.1, Yices 2.7.0, z3 from the `z3-solver` pip wheel
 (reports 5.1.0), sv2v 0.0.13 and Verilator 5.042. Everything installs in user space; no
 root is needed. Other versions are untested. Solver versions can change the runtime of
-H6 by large factors.
+H6 by large factors. The runs of 2026-09-28 and 2026-10-02 both used this combination.
 
-**Option A: pip and release binaries** (what this proof was run with):
+**Where to install.** Put the tools in a persistent directory in your home directory,
+such as `~/formal-tools`, not under `/tmp`: many systems clear `/tmp` at every boot, and
+the tools then have to be installed again. The directory must allow programs to be
+executed (not a `noexec` mount).
+
+**Option A: pip and release binaries** (what these proofs were run with):
 
 ```sh
+mkdir -p ~/formal-tools && cd ~/formal-tools
+
+# Yosys with SBY and yosys-smtbmc, and z3. Either for the user:
 python3 -m pip install --user yowasp-yosys z3-solver
 #   -> yowasp-yosys, yowasp-yosys-smtbmc, yowasp-sby, z3 in ~/.local/bin
-#   The first YoWASP run compiles the WebAssembly binary (about a minute; cached).
+# or, where pip refuses --user with "externally-managed-environment" (PEP 668; for
+# example on Ubuntu 24.04), in a virtual environment inside the tool directory:
+python3 -m venv ~/formal-tools/venv
+~/formal-tools/venv/bin/python -m pip install yowasp-yosys z3-solver
+#   -> the same programs in ~/formal-tools/venv/bin
+# The first YoWASP run compiles the WebAssembly binary (about a minute) and caches it,
+# by default in ~/.cache/YoWASP; YOWASP_CACHE_DIR moves the cache.
 
-mkdir -p ~/formal-tools && cd ~/formal-tools
 # bitwuzla 0.9.1, static Linux binary: https://github.com/bitwuzla/bitwuzla/releases
 #   unzip Bitwuzla-Linux-x86_64-static.zip          -> Bitwuzla-Linux-x86_64-static/bin/bitwuzla
 # Yices 2.7.0, Linux x86_64 binary tarball: https://yices.csl.sri.com/
-#   tar xzf yices-2.7.0-*-linux-*.tar.gz            -> yices-2.7.0/bin/yices-smt2
+#   tar xzf yices-2.7.0-x86_64-pc-linux-gnu-static-gmp.tar.gz -> yices-2.7.0/bin/yices-smt2
 # sv2v 0.0.13: https://github.com/zachjs/sv2v/releases/tag/v0.0.13
 #   unzip sv2v-Linux.zip                            -> sv2v-Linux/sv2v
 
 cat > ~/formal-tools/env.sh <<'EOF'
-export PATH="$HOME/.local/bin:$HOME/formal-tools/Bitwuzla-Linux-x86_64-static/bin:$HOME/formal-tools/yices-2.7.0/bin:$HOME/formal-tools/sv2v-Linux:$PATH"
+export PATH="$HOME/formal-tools/venv/bin:$HOME/.local/bin:$HOME/formal-tools/Bitwuzla-Linux-x86_64-static/bin:$HOME/formal-tools/yices-2.7.0/bin:$HOME/formal-tools/sv2v-Linux:$PATH"
 EOF
 ```
 
@@ -383,9 +564,10 @@ A missing tool stops the run before anything is proven. The run then prints
 export HADES_FORMAL_ENV=~/formal-tools/env.sh     # if the tools are not on PATH
 make formal                                       # default mode
 make formal-full                                  # full mode
+make formal-ext                                   # the EXT unit only, output in $(BUILD_DIR)/formal-ext
 make formal FORMAL_PAR=2                          # fewer parallel solver processes (default 4)
 make formal BUILD_DIR=/abs/path                   # output in /abs/path/formal
-bash formal/run.sh --mode full --out /tmp/f --par 4   # the same without make
+bash formal/run.sh --mode full --out /tmp/f --par 4   # the same without make (modes default, full, ext)
 ```
 
 **Output** (`<out>` = `$(BUILD_DIR)/formal`):
@@ -424,12 +606,23 @@ each `sby/*.sby` file.
   case an invariant has to be strengthened.
 - Run a BMC from reset for a concrete trace. Copy the task, set `mode bmc` and a depth of
   about 40, which is enough for a full 34-cycle divide.
+- A `FAIL` of an EXT task (`ext.sby`) names the instruction in the task name; the
+  trace shows the operands, the forwarded or registered value, and `x_spec`.
 
 **Changing the M unit.** `props/div_props.vh` observes internal RTL signals by name, for
 example `m_state`, `m_count`, `m_quo`, `m_rem`, `m_divisor`, `div_shifted` and
 `mul_result`. Renaming them breaks the elaboration. A change of the algorithm needs new
 CTRL/DIVF invariants. The mutants are textual patterns on the sv2v output, and
 `mutate.py` stops if a pattern no longer occurs exactly once.
+
+**Changing the EXT unit.** The EXT proof reads no internal signal, so a restructured
+unit needs no change to the properties. A new instruction needs a line in
+`f_spec_ext`, a line in `f_ext_payload` of `harness/top_ext.v`, a case in the Python
+model and a task in `sby/ext.sby`. A changed payload encoding in `defines/op.sv` makes
+`scripts/ext_codes.py` fail until the harness's map is updated. The EXT mutants in
+`mutants/ext_mutants.txt` are textual patterns like the M mutants (`\n` and `\t` stand
+for a newline and a tab, so that a pattern can span lines); `ext_mutants.py` stops if one
+no longer occurs exactly once.
 
 ---------------------------------------------------------------------------------------
 
@@ -442,32 +635,49 @@ CTRL/DIVF invariants. The mutants are textual patterns on the sv2v output, and
 | `scripts/gen.sh` | sv2v translation and the one inserted include line (checked) |
 | `scripts/run_task.sh`, `run_many.sh` | Bounded, timed SBY runners |
 | `scripts/sv2v_fidelity.sh` | Bench comparison SystemVerilog vs sv2v |
-| `scripts/mutate.py`, `run_mutants.sh` | Mutation campaign |
+| `scripts/mutate.py`, `run_mutants.sh` | Mutation campaign of the M unit |
+| `scripts/ext_codes.py` | Check of the EXT payload map against `defines/op.sv` |
+| `scripts/ext_mutants.py`, `run_ext_mutants.sh` | EXT negative controls and mutation campaign |
 | `harness/top.v` | Formal top: the real `execute_stage`, all inputs free |
 | `harness/top_iface.v` | The same, plus the port-level properties A1/A3a and the per-opcode covers |
+| `harness/top_ext.v` | The same, plus the EXT payload map, the properties X1-X3 and the per-instruction covers |
 | `props/div_props.vh` | Environment E0-E2, ghost state, CTRL, DIVF, MULREG, FINAL (F1-F3), covers C1-C6 |
 | `props/hints.vh` | The lemma instances (written once, assumed by the proof, asserted by the validity check) |
 | `props/spec.vh` | RV32M spec: `f_spec_m` (used) and `f_spec_ref` (cross-check) |
+| `props/ext_spec.vh` | Zbb, Zbs and Zicond spec: `f_spec_ext` |
 | `sby/div.sby` | CTRL, DIVF, MULREG, FINAL(div) |
 | `sby/fmul_ops.sby` | FINAL(mul), per opcode and property |
 | `sby/iface.sby` | A1, A3a per opcode |
 | `sby/cover.sby` | Non-vacuity |
+| `sby/ext.sby` | EXT unit: X1/X2 per instruction, X3, covers |
 | `sby/hint_validity.sby`, `spec_equiv.sby`, `mul_formulation.sby` | Lemma validity, spec equivalence, multiplier formulation |
 | `lemmas/hint_validity.v`, `spec_equiv.v`, `mul_result_cone.ys` | Lemma/spec checks and the H1 cone check |
 | `lemmas/h6_split/` | z3 case split of H6 (`model.ys.in`, `flatten.py`, `run_split.sh`) |
-| `spec_check/` | Verilator + Python cross-check of the spec |
+| `spec_check/` | Verilator + Python cross-checks of the specs (`run.sh` for RV32M, `run_ext.sh` for the EXT unit) |
 | `mul/` | Hand-copy multiplier formulation and its negative control |
-| `mutants/mutants.txt` | The 19 mutants |
+| `mutants/mutants.txt` | The 19 mutants of the M unit |
+| `mutants/ext_mutants.txt` | The 17 mutants of the EXT unit, each with the property it must fail |
 
 ---------------------------------------------------------------------------------------
 
 ## 9. History and independent audits
 
 The proof was developed against `rtl/execute_stage.sv` of commit `97ef211` (SHA-256
-`50bed4cf…5111`). The proved file of section 4 additionally contains fix E: the architectural
-`next_pc`, independent of the branch prediction. Its sv2v model differs from the
-`97ef211` one in exactly one line, `assign next_pc = ...`, which is outside the M unit.
-`run.sh` re-proves everything on the file in the tree.
+`50bed4cf…5111`). The file of the run of 2026-09-28 (`847dc018…fab1bb`) additionally
+contains fix E: the architectural `next_pc`, independent of the branch prediction. Its
+sv2v model differs from the `97ef211` one in exactly one line, `assign next_pc = ...`,
+which is outside the M unit. `run.sh` re-proves everything on the file in the tree.
+
+**2026-10-02: Zbb, Zbs and Zicond.** Commit c1a7c85 added the EXT unit (Part 2c), an
+`EXT` arm in the ALU's operation decode and one arm of its result select to
+`rtl/execute_stage.sv` (now `c36613c8…3ae969`), and appended `op::EXT` to
+`defines/op.sv`; the M unit's code did not change. The M flow of c1a7c85 ran on the new
+file without any change to it and gave every verdict of the earlier run (section 4): the
+new unit inside the same module did not disturb the sv2v translation, the one-module
+check of `gen.sh`, or any property. The EXT proof (`harness/top_ext.v`,
+`props/ext_spec.vh`, `sby/ext.sby`, its checks and its mutants) was added the same day,
+together with `test_ext_execute` in the sv2v fidelity check, `--mode ext` and
+`make formal-ext`.
 
 **Earlier chain, not included.** A first chain used the multiplicative invariant
 `T == X*B + R`. It needed a Euclidean-uniqueness lemma, `A == Q*B + R, R < B → Q == A/B`,

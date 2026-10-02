@@ -1,20 +1,27 @@
 #!/bin/bash
 # =============================================================================
-# formal/run.sh -- re-run the formal proof of the HaDes-V+ M unit (divider and
-# multiplier of rtl/execute_stage.sv) from the sources in this repository.
+# formal/run.sh -- re-run the formal proofs of rtl/execute_stage.sv from the
+# sources in this repository: the M unit (divider and multiplier) and the EXT
+# unit (Zbb, Zbs, Zicond).
 #
-#   bash formal/run.sh [--mode default|full] [--out DIR] [--par N]
+#   bash formal/run.sh [--mode default|full|ext] [--out DIR] [--par N]
 #   make formal            (= --mode default, output in $(BUILD_DIR)/formal)
 #   make formal-full       (= --mode full)
+#   make formal-ext        (= --mode ext, output in $(BUILD_DIR)/formal-ext)
 #
-#   default  every proof obligation of the chain, the lemma validity checks
-#            (H6 by the z3 case split), the non-vacuity covers, the spec checks,
-#            the multiplier formulation check and the sv2v fidelity check
-#            (about 2 min on an idle 22-thread machine with --par 4)
+#   default  M unit: every proof obligation of the chain, the lemma validity
+#            checks (H6 by the z3 case split), the non-vacuity covers, the spec
+#            checks and the multiplier formulation check; EXT unit: the spec
+#            cross-check, the payload-map check, X1/X2 for each of the 28
+#            instructions, X3, the covers and 17 negative controls; the sv2v
+#            fidelity check (about 1.5 min on an idle 22-thread machine, --par 4)
 #   full     additionally H6 by bitwuzla monolithically (about 20-35 min, runs in
-#            the background from the start), second-solver runs of FINAL(mul)
-#            and A1, and the formal mutation campaign (19 mutants x 32 proofs)
-#            (about 35 min, dominated by the bitwuzla H6 runs)
+#            the background from the start), second-solver runs of FINAL(mul),
+#            A1 and the EXT results, the formal mutation campaign of the M unit
+#            (19 mutants x 32 proofs) and that of the EXT unit (17 mutants x 29
+#            proofs) (about 25-35 min, dominated by the bitwuzla H6 runs)
+#   ext      only the EXT unit (the EXT checks of default, and the sv2v fidelity
+#            check with the EXT bench only; about 30 s)
 #
 # The repository is only read: the sources are copied to DIR/work and every
 # generated file, SBY run directory and log goes below DIR (default: build/formal
@@ -32,11 +39,11 @@ while [ $# -gt 0 ]; do
         --mode) MODE="$2"; shift 2;;
         --out)  OUT="$2"; shift 2;;
         --par)  PAR="$2"; shift 2;;
-        -h|--help) sed -n '2,27p' "$0"; exit 0;;
+        -h|--help) sed -n '2,33p' "$0"; exit 0;;
         *) echo "unknown argument: $1"; exit 2;;
     esac
 done
-case "$MODE" in default|full) ;; *) echo "unknown mode '$MODE' (default|full)"; exit 2;; esac
+case "$MODE" in default|full|ext) ;; *) echo "unknown mode '$MODE' (default|full|ext)"; exit 2;; esac
 mkdir -p "$OUT" || exit 2
 OUT="$(cd "$OUT" && pwd)"
 case "$OUT/" in "$HERE/"*) echo "the output directory must not be inside formal/"; exit 2;; esac
@@ -82,6 +89,8 @@ else
 fi
 
 H6PID=""
+# ---- the M unit (steps 1b to 12; not in --mode ext) ----------------------------------
+if [ "$MODE" != ext ]; then
 if [ "$MODE" = full ]; then
     step "1b. H6 validity by bitwuzla, monolithic, through SBY (slow; started in the background)"
     ( SOLVER_VMEM_KB=${H6_VMEM_KB:-6000000} bash "$HERE/scripts/run_many.sh" "$W" hint_validity.sby REQ 2 14400 h6_bw h6_bwn \
@@ -164,10 +173,40 @@ done
 step "12. multiplier FORMULATION check (hand copy of the RTL formula; mulhsu_bug_y is a control that must FAIL)"
 many mul_formulation.sby REQ "$PAR" 300 mul_bw mul_y mulh_bw mulh_y mulhsu_bw mulhsu_y mulhu_bw mulhu_y
 many mul_formulation.sby CTL 1 300 mulhsu_bug_y
+fi
+# ---- end of the M unit ------------------------------------------------------------------
+
+# ---- the EXT unit: Zbb, Zbs, Zicond (steps E1 to E4; every mode) ----------------------
+step "E1. EXT reference: props/ext_spec.vh vs an independent Python model"
+s=$(now)
+r=$(cd "$W/spec_check" && bash run_ext.sh 1000000 2>&1 | tail -3); echo "$r" | sed 's/^/    /'
+echo "$r" | grep -q ", 0 mismatches" && record ext_spec_check_python PASS "$(since $s)" REQ || record ext_spec_check_python FAIL "$(since $s)" REQ
+
+step "E2. EXT payload map of harness/top_ext.v vs defines/op.sv"
+s=$(now)
+r=$(python3 "$HERE/scripts/ext_codes.py" "$REPO" "$W" 2>&1); echo "$r" | sed 's/^/    /'
+echo "$r" | grep -q "^ext payload map: op::EXT = 61" && record ext_payload_map PASS "$(since $s)" REQ || record ext_payload_map FAIL "$(since $s)" REQ
+
+step "E3. EXT X1/X2 for each of the 28 instructions, X3 (no stall), covers (bare environment; nothing of the M proof assumed)"
+many ext.sby REQ "$PAR" 600 $(tasks_of ext.sby '_yn$') cover_bw
+c=$(grep -a "Reached cover statement" "$W/runs/ext_cover_bw.log" 2>/dev/null | wc -l)
+u=$(grep -a "Unreached cover statement" "$W/runs/ext_cover_bw.log" 2>/dev/null | wc -l)
+echo "    ext_cover_bw: $c cover statement(s) reached, $u unreached"
+[ "$MODE" = full ] && { echo "    second solver (bitwuzla, reported only):"; many ext.sby AUX "$PAR" 600 $(tasks_of ext.sby '_bwn$'); }
+
+step "E4. EXT negative controls: each mutant of mutants/ext_mutants.txt must FAIL its target property"
+if python3 "$HERE/scripts/ext_mutants.py" "$W" > "$W/runs/ext_mutants.list"; then
+    awk '{ n = $1; $1 = ""; $2 = ""; sub(/^ +/, ""); print "    " n ": " $0 }' "$W/runs/ext_mutants.list"
+    awk '{print "mut_ext_" $1 "_ext.sby " $2}' "$W/runs/ext_mutants.list" \
+        | xargs -P "$PAR" -L1 bash -c 'bash "$0/run_task.sh" "$1" "$2" "$3" 300 CTL' "$HERE/scripts" "$W" | sed 's/^/    /'
+else
+    record ext_mutants_generate ERROR 0 CTL
+fi
 
 step "13. sv2v fidelity: the repository's execute-stage benches on the SystemVerilog vs the sv2v model"
 s=$(now)
-if bash "$HERE/scripts/sv2v_fidelity.sh" "$REPO" "$W" "$OUT/sv2v_fidelity"; then
+FIDELITY_BENCHES=""; [ "$MODE" = ext ] && FIDELITY_BENCHES=test_ext_execute
+if bash "$HERE/scripts/sv2v_fidelity.sh" "$REPO" "$W" "$OUT/sv2v_fidelity" $FIDELITY_BENCHES; then
     record sv2v_fidelity PASS "$(since $s)" REQ
 else
     record sv2v_fidelity FAIL "$(since $s)" REQ
@@ -178,6 +217,9 @@ if [ "$MODE" = full ]; then
     step "14. formal mutation campaign (mutants/mutants.txt x 32 proofs each)"
     bash "$HERE/scripts/run_mutants.sh" "$W" "$PAR" 300
     MUTRES="$W/runs/mutants_summary.txt"
+    step "14b. EXT mutation campaign (mutants/ext_mutants.txt x the 29 required property tasks of ext.sby)"
+    bash "$HERE/scripts/run_ext_mutants.sh" "$W" "$PAR" 300
+    cat "$W/runs/ext_mutants_summary.txt" >> "$MUTRES"
 fi
 
 if [ -n "$H6PID" ]; then
@@ -206,8 +248,9 @@ step "SUMMARY ($(( $(date +%s) - T0 )) s)"
     surv=""
     if [ -n "$MUTRES" ]; then
         surv=$(grep " SURVIVED " "$MUTRES" | awk '{print $1}' | grep -vx diff32 | tr '\n' ' ')
-        echo "mutants: $(grep -c ' REJECTED ' "$MUTRES") rejected, $(grep -c ' SURVIVED ' "$MUTRES") survived" \
+        echo "mutants: $(grep -v '^ext_' "$MUTRES" | grep -c ' REJECTED ') rejected, $(grep -v '^ext_' "$MUTRES" | grep -c ' SURVIVED ') survived" \
              "(diff32 is a proven-equivalent mutant, see README); unexpected survivors: ${surv:-none}"
+        echo "EXT mutants: $(grep '^ext_' "$MUTRES" | grep -c ' REJECTED ') rejected, $(grep '^ext_' "$MUTRES" | grep -c ' SURVIVED ') survived"
     fi
     if [ -z "$bad_req" ] && [ -z "$bad_ctl" ] && [ -z "$surv" ]; then
         echo "FORMAL RESULT: PASS (mode=$MODE)"

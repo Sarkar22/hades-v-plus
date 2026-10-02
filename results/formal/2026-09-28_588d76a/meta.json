@@ -119,6 +119,7 @@
  "caveats": [
   "Not repeated on 2026-10-01: Yosys, SymbiYosys, yosys-smtbmc, bitwuzla, Yices and z3 were not installed and none of the tools was on PATH (only an sv2v binary was present); without them run.sh stops with FORMAL RESULT: FAIL (missing tools) and exit status 2 (formal/README.md:373-374).",
   "An earlier full run the same day reported the same summary after real 144m11.982s.",
-  "Update 2026-10-02: Zbb, Zbs and Zicond changed rtl/execute_stage.sv (now SHA-256 c36613c8fe0116aad83c66ea4a79dd4d03995c95290eb8a3d9c33eee6d3ae969) and appended op EXT to defines/op.sv; the multiply/divide code is unchanged, but the proof has not been re-run on the new file."
+  "Update 2026-10-02: Zbb, Zbs and Zicond changed rtl/execute_stage.sv (now SHA-256 c36613c8fe0116aad83c66ea4a79dd4d03995c95290eb8a3d9c33eee6d3ae969) and appended op EXT to defines/op.sv; the multiply/divide code is unchanged, but the proof has not been re-run on the new file.",
+  "Update 2026-10-02 (re-run): with the tools installed again, the unchanged flow of this record re-ran on the current file (c36613c8fe0116aad83c66ea4a79dd4d03995c95290eb8a3d9c33eee6d3ae969, commit c1a7c85): make formal-full gave the same summary after 24 min 08 s, make formal the same lines after 1 min 10 s. Recorded, with the extended flow (EXT proof), in results/formal/2026-10-02_c1a7c85, the newest formal record, which check.sh now compares with."
  ]
 }

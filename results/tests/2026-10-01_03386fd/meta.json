@@ -667,11 +667,11 @@
    "exit_status": 0,
    "wall_s": 3.1,
    "output": [
-    "  shell: RAM 32 KiB, image+bss 31616 bytes (text 20972, rodata 4624, data 28, bss 5992)",
-    "FREERTOS SHELL RESULT: PASS  app=shell cpu=dut isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=2278845",
+    "  shell: RAM 32 KiB, image+bss 31900 bytes (text 21228, rodata 4652, data 28, bss 5992)",
+    "FREERTOS SHELL RESULT: PASS  app=shell cpu=dut isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=2283594",
     "  typed lines: 39, prompts: 39, expectations met: 120/120"
    ],
-   "quoted": "FREERTOS SHELL RESULT: PASS, cycles=2278845, expectations met: 120/120",
+   "quoted": "FREERTOS SHELL RESULT: PASS, cycles=2283594, expectations met: 120/120",
    "quoted_at": "docs/VERIFICATION.md:79; README.md:93; docs/FREERTOS.md:625-639; test/freertos/README.md:102-103"
   },
   {
@@ -680,12 +680,12 @@
    "exit_status": 0,
    "wall_s": 3.9,
    "output": [
-    "FREERTOS SHELL RESULT: PASS  app=shell cpu=dut isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=2278845",
+    "FREERTOS SHELL RESULT: PASS  app=shell cpu=dut isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=2283594",
     "  typed lines: 39, prompts: 39, expectations met: 120/120",
-    "FREERTOS SHELL RESULT: PASS  app=shell cpu=golden isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=2225212",
+    "FREERTOS SHELL RESULT: PASS  app=shell cpu=golden isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=2230630",
     "  typed lines: 39, prompts: 39, expectations met: 121/121",
     "SHELL COMPARE: SAME  40 blocks, 158 lines equal after normalising numbers;",
-    "  lines labelled source:/cpu:/mode:/accuracy: (M, Zba, Zicntr, branch predictor) excluded"
+    "  lines labelled source:/cpu:/mode:/accuracy: (M, Zba, Zbb, Zbs, Zicntr, Zicond, branch predictor) excluded"
    ],
    "quoted": "SHELL COMPARE: SAME  40 blocks, 158 lines equal after normalising numbers",
    "quoted_at": "docs/VERIFICATION.md:80; README.md:93; docs/FREERTOS.md:644-655; test/freertos/README.md:102-103"

@@ -44,8 +44,9 @@ optimisation level of its last build. `load <name>` sends `<name>.hex` from the 
 directory, `load <march>/<name>` the file of another build.
 
 Rules for an app (in full: SPEC.md, section 6.3): use only the API of `hades_app.h` to talk
-to the shell; use RV32I, and M and Zba only if the app was built for them (the golden CPU runs
-RV32I apps only); no `stdio` and no `malloc` (the memory between `__app_heap_start` and
+to the shell; use RV32I, M, Zba, Zbb and Zbs only if the app was built for them, and Zicond (through
+`std/include/zicond.h`) only where `app_cpu()` reports `HADES_APP_CPU_ZICOND` (the golden CPU
+runs RV32I apps only); no `stdio` and no `malloc` (the memory between `__app_heap_start` and
 `__app_heap_end` belongs to the app); do not write outside the slot, change `gp`, `tp`,
 `mstatus`, `mie`, `mtvec` or the timer, keep interrupts disabled, or read the UART directly.
 HaDes-V+ runs in machine mode without memory protection, so the shell cannot enforce these

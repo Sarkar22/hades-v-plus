@@ -19,7 +19,7 @@ HaDes-V+ extends the [HaDes-V][lvref] teaching core of Graz University of Techno
 
 <p align="center"><b><a href="#quick-start">Quick Start</a> · <a href="docs/README.md">Documentation</a> · <a href="docs/VERIFICATION.md">Verification</a> · <a href="results/README.md">Recorded Results</a></b></p>
 
-<p align="center"><img src="docs/img/shell-session.svg" width="820" alt="Terminal session of make freertos-shell: the start-up banner of the FreeRTOS+CLI shell; the version command, which reports FreeRTOS V11.1.0+, a build for rv32i with GCC 12.2.0, and a CPU with the M, Zba and Zicntr extensions; the tasks command, which lists the console, blink and IDLE tasks; and the stats command, which shows the CPU cycles that each task has used"></p>
+<p align="center"><img src="docs/img/shell-session.svg" width="820" alt="Terminal session of make freertos-shell: the start-up banner of the FreeRTOS+CLI shell; the version command, which reports FreeRTOS V11.1.0+, a build for rv32i with GCC 12.2.0, and a CPU with the M, Zba, Zbb, Zbs, Zicntr and Zicond extensions; the tasks command, which lists the console, blink and IDLE tasks; and the stats command, which shows the CPU cycles that each task has used"></p>
 <p align="center"><sub>A session of <code>make freertos-shell</code>: FreeRTOS V11.1.0+ with FreeRTOS+CLI on the simulated core, its UART connected to the terminal. Recorded from a real run by <a href="docs/tools/screenshots.py"><code>docs/tools/screenshots.py</code></a>.</sub></p>
 
 ## What HaDes-V+ Can Do
@@ -54,13 +54,13 @@ The upstream core implements **RV32I + Zicsr** (its `FENCE.I` was present but un
 
 ### Verification in Depth
 
-Its behaviour is compared with the upstream project's reference implementation — the *golden* CPU and pipeline stages, shipped as precompiled libraries in [`ref/`](ref) — and checked by an independent instruction-set model and, for the multiply/divide unit, by a formal proof:
+Its behaviour is compared with the upstream project's reference implementation — the *golden* CPU and pipeline stages, shipped as precompiled libraries in [`ref/`](ref) — and checked by an independent instruction-set model and, for the multiply/divide unit and the bit-manipulation unit, by formal proofs:
 
 - **Golden models:** the Decode stage, including forwarding and hazards, matches the golden Decode stage in 11,026 checks, and the instruction decoder matches the golden decoder in 486,896 checks of every opcode, `funct3` and `funct7` combination, every immediate and `rs2` field of the arithmetic opcodes and 150,000 random words, apart from the new M, Zba, Zbb, Zbs and Zicond encodings, which must decode to exactly their own operations ([record](results/tests/2026-10-01_03386fd/RECORD.md)).
 - **Bit manipulation against models of the ISA text:** the golden models cannot check Zbb, Zbs and Zicond, so the decoder and Execute stage are compared with a C model written from the ratified text: every one of the 28 instruction forms on corner and random operands, and the eight one-operand instructions on all 2^32 inputs, 34,376,492,288 results in all, identical; 1,000 random programs replayed by the instruction-set model agree ([record](results/bitmanip/2026-10-02_e75223e/RECORD.md)).
 - **Independent ISA model:** interrupts swept over every cycle offset around 532 distinct trap-relevant instruction sequences, each run replayed by a Python model of the microcontroller: 61 of 61 programs consistent ([record](results/trapsweep/2026-10-01_03386fd/RECORD.md)).
 - **FreeRTOS differential campaign:** 794 of 794 runs passed on HaDes-V+, 102 of them with the branch predictor on, and all 523 twin runs on the golden CPU agreed ([record](results/freertos-campaign/2026-10-01_03386fd/RECORD.md)).
-- **Formal proof:** by k-induction, the multiply/divide unit produces the RISC-V result for all 2^64 operand pairs in every reachable state (`make formal`, 72 required checks; [record](results/formal/2026-09-28_588d76a/RECORD.md)). The proof was made before Zbb, Zbs and Zicond added their unit to the same file, `rtl/execute_stage.sv`; the multiply/divide code is unchanged, but the proof has not been re-run since.
+- **Formal proofs:** by k-induction, on the current `rtl/execute_stage.sv`: the multiply/divide unit produces the RISC-V result for all 2^64 operand pairs in every reachable state, and, in Execute, each of the 28 Zbb, Zbs and Zicond instructions, as the decoder hands it over, gets the result of the ratified specifications for all operand values without making Execute stall or jump (`make formal`, 104 required checks and 21 negative controls; [record](results/formal/2026-10-02_c1a7c85/RECORD.md)).
 - **Recorded results:** each of these results has a record with its command, inputs and output as printed, and `make check-results` re-runs the repeatable records and compares the output with the stored values.
 
 The work found and fixed nine defects of the upstream design, six of them trap and interrupt defects exposed by FreeRTOS and the interrupt sweep ([record](results/history/2026-09-27_6b19d41/RECORD.md)). The results at a glance, the methods and every suite: [VERIFICATION.md](docs/VERIFICATION.md).
@@ -77,7 +77,7 @@ make freertos-shell    # type 'help'; Ctrl-] or 'halt' quits
 
 The first run builds the shell and its simulator, which takes up to a minute. After the build messages and a deliberate `Test fail!` start-up marker, the `hades>` prompt appears: type `help` for the list of commands; `halt` or Ctrl-] ends the simulation. For programs built on the PC, start `make freertos-shell APP=loader` and type `load hello`, then `run Ada`.
 
-Build output goes to `build/`; to put it elsewhere, for example when the repository is on a disk that cannot execute programs, see [Building, Running, and Debugging](docs/BUILDING.md#building-running-and-debugging). The test suites, the formal proof and the other entry points: [First Commands](docs/README.md#first-commands).
+Build output goes to `build/`; to put it elsewhere, for example when the repository is on a disk that cannot execute programs, see [Building, Running, and Debugging](docs/BUILDING.md#building-running-and-debugging). The test suites, the formal proofs and the other entry points: [First Commands](docs/README.md#first-commands).
 
 ## Documentation
 
@@ -86,14 +86,13 @@ Build output goes to `build/`; to put it elsewhere, for example when the reposit
 | Get started | [Quick Start](#quick-start), [BUILDING.md](docs/BUILDING.md) (tools, targets, synthesis), [FREERTOS.md](docs/FREERTOS.md) (running FreeRTOS) |
 | Use it | [SHELL.md](docs/SHELL.md) (the interactive shell), [APPS.md](docs/APPS.md) (building, loading and running apps) |
 | Understand it | [ARCHITECTURE.md](docs/ARCHITECTURE.md) (the core and the microcontroller), [EXTENSIONS.md](docs/EXTENSIONS.md) (what HaDes-V+ adds), [SPEC.md](test/freertos/loader/SPEC.md) (the app loader) |
-| Check the evidence | [VERIFICATION.md](docs/VERIFICATION.md) (methods and results), [results/](results/README.md) (the record of each figure), [formal/README.md](formal/README.md) (the proof) |
+| Check the evidence | [VERIFICATION.md](docs/VERIFICATION.md) (methods and results), [results/](results/README.md) (the record of each figure), [formal/README.md](formal/README.md) (the proofs) |
 | Find any document | [docs/README.md](docs/README.md): every document, with what it covers |
 
 ## Status and Limitations
 
 - **Simulation first; not yet run on a board.** All results are from Verilator simulation and Vivado implementation. Programs that need more than the board's 32 KiB of RAM, such as the FreeRTOS standard demo set and the app loader (256 KiB each), run on a larger simulated RAM, which the board does not have.
 - **FPGA timing at 50 MHz is marginal, and not measured since Zbb, Zbs and Zicond.** The RTL met timing with a worst negative slack of **+0.016 ns** (Vivado 2024.2), measured at commit cbae9b9 ([record](results/fpga-timing/2026-09-30_cbae9b9/RECORD.md)); small RTL changes move the worst path and its slack ([details](docs/BUILDING.md#synthesis-and-fpga-timing)). The bit-manipulation unit added to Execute since then has not been implemented: whether the core still meets 50 MHz with it is unknown.
-- **Formal proof not re-run since Zbb, Zbs and Zicond.** The proof of the multiply/divide unit was made on `rtl/execute_stage.sv` of commit 588d76a ([record](results/formal/2026-09-28_588d76a/RECORD.md)). Zbb, Zbs and Zicond added their unit to the same file without changing the multiply/divide code, but `make formal` has not been run on the current file ([details](docs/VERIFICATION.md#formal-verification-of-the-m-unit)).
 - **No memory protection.** The core runs in machine mode only, so an app has the same rights as the shell: exceptions, stack overflows that FreeRTOS detects, and Ctrl-C are contained, but an app that writes outside its memory or disables interrupts can stop the whole system ([details](docs/APPS.md#what-is-contained-and-what-is-not)).
 
 ## Origin
@@ -113,7 +112,7 @@ The following are original contributions by **Emon Sarkar**, added after complet
 - The **M**, **Zba**, **Zbb**, **Zbs**, **Zicond** and **Zicntr** extensions, and the substantiation of **Zifencei**
 - The **bimodal branch predictor** and its performance-counter CSRs
 - Nine correctness fixes to the upstream design: decoder `rd` handling for S/B-type instructions, `FENCE` forwarding suppression in the Memory stage, six trap/interrupt defects found by running FreeRTOS and the trap sweep, and the UART's transmit-interrupt enable
-- The formal proof of the multiply/divide unit ([`formal/`](formal))
+- The formal proofs of the multiply/divide unit and of the Zbb, Zbs and Zicond unit ([`formal/`](formal))
 - FreeRTOS support ([`test/freertos/`](test/freertos), [docs/FREERTOS.md](docs/FREERTOS.md)), including the interactive shell and its app loader, and the independent trap-sweep model ([`test/trapsweep/`](test/trapsweep))
 - The test suites in [`test/asm/`](test/asm) and [`test/sv/`](test/sv) beyond the upstream set, including the golden-comparison, encoding-sweep, and adversarial suites
 - Repairs to the synthesis flow ([`synth/synth.tcl`](synth/synth.tcl)) and the architectural documentation in this README and in [`docs/`](docs)

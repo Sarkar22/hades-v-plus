@@ -99,7 +99,7 @@ examples are from one session on HaDes-V+; the numbers depend on the moment.
 | Command | What it shows or does |
 |---|---|
 | `help` | The list of commands. |
-| `version` | FreeRTOS version, the instruction set and optimisation the program was compiled for, the build configuration, and which extensions the CPU actually executes (probed at start-up: M, Zba and Zicntr; the loader's build, `APP=loader`, adds a line for Zbb, Zbs and Zicond, which only its apps use). |
+| `version` | FreeRTOS version, the instruction set and optimisation the program was compiled for, the build configuration, and which extensions the CPU actually executes (probed at start-up: M, Zba, Zbb, Zbs, Zicntr and Zicond). |
 | `tasks` | Every task with its state, priority and the least free stack space it has had so far (the high-water mark, in 32-bit words). |
 | `stats` | CPU cycles each task has run since the scheduler started, and its share (FreeRTOS run-time statistics with the 64-bit `mcycle` counter as the clock). |
 | `mem` | Free heap now and at the lowest point, the RAM layout, and the interrupt stack's peak use. |
@@ -134,7 +134,7 @@ IDLE                  4607     1.4%
 total               320242   since the scheduler started (clock: mcycle)
 hades> mem
 heap:      1152 of 4608 bytes free, 1152 at the lowest (heap_4)
-RAM:       32768 bytes: program and data 31744 (with the heap), unused 512,
+RAM:       32768 bytes: program and data 32032 (with the heap), unused 224,
            interrupt stack 512 (168 used at most)
 hades> counters
 cycles:    563742 (mcycle)
@@ -249,7 +249,7 @@ dropped) and `halt`. It ends with a verdict line, and `make` exits with status 0
 
 ```text
 ==============================================================================
-FREERTOS SHELL RESULT: PASS  app=shell cpu=dut isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=2278845
+FREERTOS SHELL RESULT: PASS  app=shell cpu=dut isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=2283594
   typed lines: 39, prompts: 39, expectations met: 120/120
   log: .../test/freertos/shell/session-dut.log
   UART transcript: .../test/freertos/shell/session-dut.uart
@@ -265,7 +265,7 @@ make freertos-shell-compare
 
 ```text
 SHELL COMPARE: SAME  40 blocks, 158 lines equal after normalising numbers;
-  lines labelled source:/cpu:/mode:/accuracy: (M, Zba, Zicntr, branch predictor) excluded
+  lines labelled source:/cpu:/mode:/accuracy: (M, Zba, Zbb, Zbs, Zicntr, Zicond, branch predictor) excluded
 ```
 
 The comparison replaces every number by `#` (cycle counts and counters legitimately differ,
@@ -348,13 +348,13 @@ receive line; the message names the targets above.
   interrupts, and with them input, keep working. A lone `\n` goes out as `\r\n`.
 * `blink` (priority 3) toggles LED 0 every 500 ticks, a periodic task to look at with
   `tasks` and `stats`.
-* `version` probes the CPU at start-up by executing one `mul`, one `sh1add` and one read of
-  `cycle`, catching the illegal-instruction trap; the run-time statistics use `mcycle`,
-  which both CPUs implement.
+* `version` probes the CPU at start-up by executing one `mul`, one `sh1add`, one `clz`, one
+  `bset`, one read of `cycle` and one `czero.eqz`, catching the illegal-instruction trap;
+  the run-time statistics use `mcycle`, which both CPUs implement.
 * The shell is built with `-Os` and uses no mutexes, no stream buffers and no 64-bit
   division from libgcc; that is what makes it fit. The program, its data and the heap
-  (which holds the task stacks) take 31744 of the 32768 bytes, the interrupt stack 512, and
-  512 are unused (`mem`).
+  (which holds the task stacks) take 32032 of the 32768 bytes, the interrupt stack 512, and
+  224 are unused (`mem`).
 
 **The simulator.** The console targets use a variant of the simulator,
 `frtos-model/<cpu>-<n>k-console/top`, verilated with `+define+HADES_CONSOLE` and the DPI-C
@@ -426,7 +426,7 @@ widths, `l` and `ll`), and `shell_printf()` prints directly. Other tasks may pri
 `shell_printf()` too: their complete lines never interleave with the shell's, but such a
 line can appear in the middle of a command line that is being typed.
 
-The 32 KiB image has about 1.6 KiB to spare (`mem`: 512 bytes unused, 1152 bytes of free
+The 32 KiB image has about 1.3 KiB to spare (`mem`: 224 bytes unused, 1152 bytes of free
 heap). For a larger addition, give the simulation more RAM with `RAM_KB=64`.
 
 ## Troubleshooting

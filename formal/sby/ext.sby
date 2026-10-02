@@ -1,0 +1,128 @@
+# The EXT unit (Zbb, Zbs, Zicond) of the real execute_stage: port-level properties
+# of harness/top_ext.v, by k-induction (depth 3) under the bare environment E0-E2 of
+# props/div_props.vh. No group of the M proof and no lemma is assumed.
+# Depth 3, not 2: cycle 0 is a reset, so only a base case of three cycles reaches a cycle in
+# which X2 applies, and a wrong registered result is then a counterexample (FAIL), not UNKNOWN.
+#   res_<insn>_yn   X1 (forwarded result) and X2 (registered result) for one of the 28
+#                   instructions, against props/ext_spec.vh, all operand values (required)
+#   res_<insn>_bwn  the same with bitwuzla (second solver, run by --mode full, reported only)
+#   nostall_yn      X3: an op::EXT instruction with any payload never makes Execute
+#                   answer STALL or JUMP (required)
+#   cover_bw        each of the 28 instructions can leave Execute VALID after a reset
+#                   (non-vacuity, required)
+# Instruction names: a dot is written as an underscore (sext_b = sext.b).
+[tasks]
+res_andn_yn    res_andn       yn
+res_orn_yn     res_orn        yn
+res_xnor_yn    res_xnor       yn
+res_clz_yn     res_clz        yn
+res_ctz_yn     res_ctz        yn
+res_cpop_yn    res_cpop       yn
+res_max_yn     res_max        yn
+res_maxu_yn    res_maxu       yn
+res_min_yn     res_min        yn
+res_minu_yn    res_minu       yn
+res_sext_b_yn  res_sext_b     yn
+res_sext_h_yn  res_sext_h     yn
+res_zext_h_yn  res_zext_h     yn
+res_rol_yn     res_rol        yn
+res_ror_yn     res_ror        yn
+res_rori_yn    res_rori       yn
+res_orc_b_yn   res_orc_b      yn
+res_rev8_yn    res_rev8       yn
+res_bclr_yn    res_bclr       yn
+res_bclri_yn   res_bclri      yn
+res_bext_yn    res_bext       yn
+res_bexti_yn   res_bexti      yn
+res_binv_yn    res_binv       yn
+res_binvi_yn   res_binvi      yn
+res_bset_yn    res_bset       yn
+res_bseti_yn   res_bseti      yn
+res_czero_eqz_yn res_czero_eqz  yn
+res_czero_nez_yn res_czero_nez  yn
+res_andn_bwn   res_andn       bwn
+res_orn_bwn    res_orn        bwn
+res_xnor_bwn   res_xnor       bwn
+res_clz_bwn    res_clz        bwn
+res_ctz_bwn    res_ctz        bwn
+res_cpop_bwn   res_cpop       bwn
+res_max_bwn    res_max        bwn
+res_maxu_bwn   res_maxu       bwn
+res_min_bwn    res_min        bwn
+res_minu_bwn   res_minu       bwn
+res_sext_b_bwn res_sext_b     bwn
+res_sext_h_bwn res_sext_h     bwn
+res_zext_h_bwn res_zext_h     bwn
+res_rol_bwn    res_rol        bwn
+res_ror_bwn    res_ror        bwn
+res_rori_bwn   res_rori       bwn
+res_orc_b_bwn  res_orc_b      bwn
+res_rev8_bwn   res_rev8       bwn
+res_bclr_bwn   res_bclr       bwn
+res_bclri_bwn  res_bclri      bwn
+res_bext_bwn   res_bext       bwn
+res_bexti_bwn  res_bexti      bwn
+res_binv_bwn   res_binv       bwn
+res_binvi_bwn  res_binvi      bwn
+res_bset_bwn   res_bset       bwn
+res_bseti_bwn  res_bseti      bwn
+res_czero_eqz_bwn res_czero_eqz  bwn
+res_czero_nez_bwn res_czero_nez  bwn
+nostall_yn     nostall    yn
+cover_bw       cover
+
+[options]
+~cover: mode prove
+~cover: depth 3
+cover: mode cover
+cover: depth 4
+
+[engines]
+yn:    smtbmc yices -- --noincr
+bwn:   smtbmc bitwuzla -- --noincr
+cover: smtbmc bitwuzla
+
+[script]
+read_verilog -sv -formal execute_stage_formal.v
+res_andn: read_verilog -sv -formal -DEXT_RES -DEXT_ID=0 top_ext.v
+res_orn: read_verilog -sv -formal -DEXT_RES -DEXT_ID=1 top_ext.v
+res_xnor: read_verilog -sv -formal -DEXT_RES -DEXT_ID=2 top_ext.v
+res_clz: read_verilog -sv -formal -DEXT_RES -DEXT_ID=3 top_ext.v
+res_ctz: read_verilog -sv -formal -DEXT_RES -DEXT_ID=4 top_ext.v
+res_cpop: read_verilog -sv -formal -DEXT_RES -DEXT_ID=5 top_ext.v
+res_max: read_verilog -sv -formal -DEXT_RES -DEXT_ID=6 top_ext.v
+res_maxu: read_verilog -sv -formal -DEXT_RES -DEXT_ID=7 top_ext.v
+res_min: read_verilog -sv -formal -DEXT_RES -DEXT_ID=8 top_ext.v
+res_minu: read_verilog -sv -formal -DEXT_RES -DEXT_ID=9 top_ext.v
+res_sext_b: read_verilog -sv -formal -DEXT_RES -DEXT_ID=10 top_ext.v
+res_sext_h: read_verilog -sv -formal -DEXT_RES -DEXT_ID=11 top_ext.v
+res_zext_h: read_verilog -sv -formal -DEXT_RES -DEXT_ID=12 top_ext.v
+res_rol: read_verilog -sv -formal -DEXT_RES -DEXT_ID=13 top_ext.v
+res_ror: read_verilog -sv -formal -DEXT_RES -DEXT_ID=14 top_ext.v
+res_rori: read_verilog -sv -formal -DEXT_RES -DEXT_ID=15 top_ext.v
+res_orc_b: read_verilog -sv -formal -DEXT_RES -DEXT_ID=16 top_ext.v
+res_rev8: read_verilog -sv -formal -DEXT_RES -DEXT_ID=17 top_ext.v
+res_bclr: read_verilog -sv -formal -DEXT_RES -DEXT_ID=18 top_ext.v
+res_bclri: read_verilog -sv -formal -DEXT_RES -DEXT_ID=19 top_ext.v
+res_bext: read_verilog -sv -formal -DEXT_RES -DEXT_ID=20 top_ext.v
+res_bexti: read_verilog -sv -formal -DEXT_RES -DEXT_ID=21 top_ext.v
+res_binv: read_verilog -sv -formal -DEXT_RES -DEXT_ID=22 top_ext.v
+res_binvi: read_verilog -sv -formal -DEXT_RES -DEXT_ID=23 top_ext.v
+res_bset: read_verilog -sv -formal -DEXT_RES -DEXT_ID=24 top_ext.v
+res_bseti: read_verilog -sv -formal -DEXT_RES -DEXT_ID=25 top_ext.v
+res_czero_eqz: read_verilog -sv -formal -DEXT_RES -DEXT_ID=26 top_ext.v
+res_czero_nez: read_verilog -sv -formal -DEXT_RES -DEXT_ID=27 top_ext.v
+nostall: read_verilog -sv -formal -DEXT_NOSTALL top_ext.v
+cover: read_verilog -sv -formal -DEXT_COVER top_ext.v
+prep -top top
+flatten
+opt_merge
+opt_clean
+
+[files]
+../gen/execute_stage_formal.v
+../props/div_props.vh
+../props/spec.vh
+../props/hints.vh
+../props/ext_spec.vh
+../harness/top_ext.v

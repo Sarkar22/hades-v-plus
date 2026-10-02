@@ -36,7 +36,7 @@ Nine correctness fixes to the upstream design are also included. Two predate the
 
 Eight instructions, all plain R-type on the existing `OP` opcode (`0110011`) with `funct7 = 0000001`, so `funct3` alone selects among them and no new instruction format is needed.
 
-The unit's results are formally proven correct for all operand pairs; see [Formal Verification of the M Unit](VERIFICATION.md#formal-verification-of-the-m-unit).
+The unit's results are formally proven correct for all operand pairs; see [Formal Verification](VERIFICATION.md#formal-verification).
 
 | Instruction | funct3 | Operation |
 |---|---|---|
@@ -456,6 +456,7 @@ The frozen reference models decode every Zbb, Zbs and Zicond word as an illegal 
 |---|---|
 | [test/sv/test_zba_encoding_sweep.sv](../test/sv/test_zba_encoding_sweep.sv) | The decoder sweep, extended: 486,896 words, among them every OP-IMM immediate × `funct3`, every OP `funct7` × rs2 field × `funct3`, and every OP-32 and OP-IMM-32 `funct7` × rs2 field × `funct3` (the RV64 word forms). Each of the 28 forms must decode to `op::EXT` with the exact payload, checked against the MATCH/MASK table of the ISA manual; every other word must decode as the golden decoder decodes it |
 | [test/sv/test_ext_execute.sv](../test/sv/test_ext_execute.sv) | 927,129 checks of the Execute stage alone: known answers, every form on a 144-value corner set, random operands, and the pipeline protocol (forwarded in its own cycle, no stall) |
+| `make formal` ([formal/](../formal/README.md#the-ext-unit-zbb-zbs-zicond)) | A proof by k-induction on the real Execute stage, for **all operand values** and every rotate amount and bit index: each of the 28 forms, given the decoder's payload, forwards in its own cycle and hands Memory in the next the result of the ratified specifications, and no EXT instruction stalls or jumps. 17 seeded faults, four of them confined to how the result leaves Execute, must each fail their property ([record](../results/formal/2026-10-02_c1a7c85/RECORD.md)) |
 | `make ext-check` | The decoder feeding Execute ([test/ext/harness.sv](../test/ext/harness.sv)) against `ref_exh.c`, compared through digests: 75 digest lines, 553,624,832 vectors, identical |
 | `make ext-exhaustive` | The same with the eight unary instructions (`clz`, `ctz`, `cpop`, `sext.b`, `sext.h`, `zext.h`, `orc.b`, `rev8`) over **all 2^32 inputs**: 2,091 digest lines, 34,376,492,288 vectors, identical (about 14 minutes with 4 jobs) |
 | [test/asm/zbb.s](../test/asm/zbb.s), [zbs.s](../test/asm/zbs.s) | 442 and 374 assertions on the whole core: the known answers of the ISA text and corner operands, every rotate amount and bit index (with the upper 27 bits of rs2 set, which must be ignored), `x0` and aliased registers, forwarding into rs1 and rs2 at distance 1 to 3 and out into an ALU operation, a branch, a load address, store data, a `jalr` base and a CSR write, the shadow of a taken branch, an interrupt at every position of a chain, `minstret`, a dependent chain as fast as a chain of `add`, and the illegal neighbours (RV32-reserved, Zbc, Zbkb, Zbkx and RV64 encodings), which must trap with `mcause = 2` |
@@ -468,6 +469,7 @@ The frozen reference models decode every Zbb, Zbs and Zicond word as an illegal 
 ```bash
 make test/sv/test_zba_encoding_sweep
 make test/sv/test_ext_execute
+make formal-ext                     # the proof of the Execute unit; needs the formal tools (formal/README.md)
 make ext-check                      # under a minute; make ext-exhaustive: all 2^32 inputs
 make test/asm/zbb
 make test/asm/zbs
@@ -516,4 +518,4 @@ x = zicond_select( ( uint32_t ) ( lX < -1000 ), ( uint32_t ) -1000, x );
 
 ### Verification
 
-The tests of [Zbb and Zbs](#verification-5) cover Zicond as well: the decoder sweep, `test_ext_execute`, `make ext-check` (including 4,096 zero conditions per form), the random programs and the interrupt sweep. [test/asm/zicond.s](../test/asm/zicond.s) (190 assertions) checks the polarity of both instructions with every single-bit condition (the value rs1 is never tested), the select idiom, `x0` as destination, value and condition, aliased registers, a zero condition forwarded, forwarding in and out as for Zbb, an interrupt at every position of a chain, and the illegal neighbours. `zbb_diff` and phase 8 of `zbb_arr` in `make bench-zbb` use `zicond.h`, and the `rv32i` build of `zbb_arr` (with `ZICOND_PORTABLE`) must print the same values.
+The tests of [Zbb and Zbs](#verification-5) cover Zicond as well: the decoder sweep, `test_ext_execute`, the formal proof, `make ext-check` (including 4,096 zero conditions per form), the random programs and the interrupt sweep. [test/asm/zicond.s](../test/asm/zicond.s) (190 assertions) checks the polarity of both instructions with every single-bit condition (the value rs1 is never tested), the select idiom, `x0` as destination, value and condition, aliased registers, a zero condition forwarded, forwarding in and out as for Zbb, an interrupt at every position of a chain, and the illegal neighbours. `zbb_diff` and phase 8 of `zbb_arr` in `make bench-zbb` use `zicond.h`, and the `rv32i` build of `zbb_arr` (with `ZICOND_PORTABLE`) must print the same values.

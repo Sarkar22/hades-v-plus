@@ -117,47 +117,45 @@ The 1,000 programs of fuzz variant b mix the 28 forms (register, immediate and u
 `make freertos-shell-test APP=loader SCRIPT=test/freertos/loader/session-ext.txt`, the verdict and the transcript lines that the record keeps:
 
 ```
-FREERTOS SHELL RESULT: PASS  app=loader cpu=dut isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=28027428
-  typed lines: 14, prompts: 14, expectations met: 35/35
+FREERTOS SHELL RESULT: PASS  app=loader cpu=dut isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=28018784
+  typed lines: 14, prompts: 14, expectations met: 34/34
 loaded compute: 1048 bytes at 0x00060000, entry 0x00060040, CRC32 0x41352324
 compute: trace 1093898742, quotients 1445856025, remainders 22, mulhu 198418: PASS (75838 cycles)
 app: compute exited with code 0 after 139294 cycles
 loaded compute: 1048 bytes at 0x00060000, entry 0x00060040, CRC32 0x41352324
-cpu:       M yes, Zba yes, Zicntr yes
-cpu:       Zbb yes, Zbs yes, Zicond yes (for apps)
+cpu:       M yes, Zba yes, Zbb yes, Zbs yes, Zicntr yes, Zicond yes
 loaded bitmanip: 4172 bytes at 0x00060000, entry 0x00060040, CRC32 0x31515268
 bitmanip: zbb    popcount 1020, log2 1907, ctz 62, mix 5dd12d14 00203fcc 648904fb, hash 200eb485: PASS (11163 cycles)
 bitmanip: bytes  rev8 bb05f113, string lengths 102: PASS (1761 cycles, C)
-bitmanip: zbs    primes below 4096: 564 (sum 1070091), after toggling 1928, flags 7f6b4d42: PASS (267175 cycles)
-bitmanip: zicond select b23616d0, clamp 000013b0, add-if e806a5c8: PASS (1999 cycles, C)
+bitmanip: zbs    primes below 4096: 564 (sum 1070091), after toggling 1928, flags 7f6b4d42: PASS (267172 cycles)
+bitmanip: zicond select b23616d0, clamp 000013b0, add-if e806a5c8: PASS (1817 cycles, C)
 bitmanip: 4 of 4 sections passed
-app: bitmanip exited with code 0 after 448265 cycles
+app: bitmanip exited with code 0 after 448180 cycles
 loaded bitmanip: 3336 bytes at 0x00060000, entry 0x00060040, CRC32 0xa8bf5894
 bitmanip: zbb    popcount 1020, log2 1907, ctz 62, mix 5dd12d14 00203fcc 648904fb, hash 200eb485: PASS (5443 cycles)
 bitmanip: bytes  rev8 bb05f113, string lengths 102: PASS (331 cycles, rev8 and orc.b)
-bitmanip: zbs    primes below 4096: 564 (sum 1070091), after toggling 1928, flags 7f6b4d42: PASS (209170 cycles)
+bitmanip: zbs    primes below 4096: 564 (sum 1070091), after toggling 1928, flags 7f6b4d42: PASS (209356 cycles)
 bitmanip: zicond select b23616d0, clamp 000013b0, add-if e806a5c8: PASS (1612 cycles, czero)
 bitmanip: 4 of 4 sections passed
-app: bitmanip exited with code 0 after 385301 cycles
+app: bitmanip exited with code 0 after 385103 cycles
 ```
 
 With `CPU=golden`:
 
 ```
-FREERTOS SHELL RESULT: PASS  app=loader cpu=golden isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=27534177
-  typed lines: 14, prompts: 14, expectations met: 31/31
+FREERTOS SHELL RESULT: PASS  app=loader cpu=golden isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=27529337
+  typed lines: 14, prompts: 14, expectations met: 30/30
 loaded compute: 1048 bytes at 0x00060000, entry 0x00060040, CRC32 0x41352324
 error: compute was built for rv32im_zba, but this CPU has no M and no Zba
 loaded compute: 1048 bytes at 0x00060000, entry 0x00060040, CRC32 0x41352324
-cpu:       M no, Zba no, Zicntr no
-cpu:       Zbb no, Zbs no, Zicond no (for apps)
+cpu:       M no, Zba no, Zbb no, Zbs no, Zicntr no, Zicond no
 loaded bitmanip: 4172 bytes at 0x00060000, entry 0x00060040, CRC32 0x31515268
 bitmanip: zbb    popcount 1020, log2 1907, ctz 62, mix 5dd12d14 00203fcc 648904fb, hash 200eb485: PASS (11161 cycles)
 bitmanip: bytes  rev8 bb05f113, string lengths 102: PASS (1753 cycles, C)
-bitmanip: zbs    primes below 4096: 564 (sum 1070091), after toggling 1928, flags 7f6b4d42: PASS (267145 cycles)
+bitmanip: zbs    primes below 4096: 564 (sum 1070091), after toggling 1928, flags 7f6b4d42: PASS (267153 cycles)
 bitmanip: zicond select b23616d0, clamp 000013b0, add-if e806a5c8: PASS (1817 cycles, C)
 bitmanip: 4 of 4 sections passed
-app: bitmanip exited with code 0 after 448031 cycles
+app: bitmanip exited with code 0 after 448136 cycles
 loaded bitmanip: 3336 bytes at 0x00060000, entry 0x00060040, CRC32 0xa8bf5894
 error: bitmanip was built for rv32im_zba_zbb_zbs, but this CPU has no M, no Zba, no Zbb and no Zbs
 ```
@@ -245,3 +243,7 @@ all images: 323 words, 12 forms: andn=31 clz=2 maxu=25 minu=22 sext.b=130 sext.h
 - The cycle counts in the app's lines are those of the Verilator model of this working tree.
 
 **Update, 2026-10-02 (form count of the app).** The statement that the app's `rv32im_zba_zbb_zbs` build contains all 28 forms had no output in this record. The per-form count of both builds was added to [the app's section](#the-app-bitmanip-in-the-loaders-session), to `meta.json` (`app_forms`) and to `check_bitmanip()` of `results/check.sh`, which now recounts it after the loader's session. The images counted are those of the session above (CRC32 `0xa8bf5894` and `0x31515268`); no other result of this record changed.
+
+**Update, 2026-10-02 (the shell's `version` line).** The shell now prints one CPU line for all six extensions it probes, in the default build and in the loader's build alike: `cpu:       M yes, Zba yes, Zbb yes, Zbs yes, Zicntr yes, Zicond yes` on HaDes-V+ and `no` for each on the golden CPU, in place of the two lines `M ..., Zba ..., Zicntr ...` and `Zbb ..., Zbs ..., Zicond ... (for apps)`. `session-ext.txt` therefore checks one expectation fewer (34 on HaDes-V+, 30 on the golden CPU). The shell's code changed with it, so the sessions take a different number of cycles (`cycles=28018784` on HaDes-V+, `cycles=27529337` on the golden CPU), and so do some of the app's sections: the images of `compute` and `bitmanip` are unchanged (the same sizes and CRC-32), but the counts of `app_cycles()` include the timer interrupts taken while a section runs, and their timing relative to the app moved. On HaDes-V+, the RV32I build's `zbs` section now takes 267172 cycles (267175 before) and its `zicond` section 1817 (1999 before; the golden CPU took 1817 in both runs), the `rv32im_zba_zbb_zbs` build's `zbs` section 209356 (209170 before); the exit lines changed accordingly. Every value the sections compute and every verdict is unchanged. The two transcripts above and the `output` of both loader rows in `meta.json` were updated; docs/APPS.md quotes the new transcript. `inputs.sha256` still lists the files of the original runs: `test/freertos/shell/commands.c` and `test/freertos/loader/session-ext.txt` now differ from it (and `Makefile`, which gained the target `formal-ext`). Every other result of this record is unchanged and was re-checked with `make check-results`.
+
+**Update, 2026-10-02 (formal proof).** The caveat that no formal proof covers the new unit no longer holds: the unit of Zbb, Zbs and Zicond in `rtl/execute_stage.sv` at c1a7c85 is proven against the ratified specifications for all operand values, see [formal/2026-10-02_c1a7c85](../../formal/2026-10-02_c1a7c85/RECORD.md).

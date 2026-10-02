@@ -3,9 +3,10 @@
 #
 # Front end (knobs on the command line, all optional):
 #   make freertos-list                    list the programs (test/freertos/<app>/)
-#   make freertos APP=<app> [CPU=dut|golden] [MARCH=rv32i|rv32im|rv32im_zba] [OPT=-O2|-Os|-O0]
-#                 [TICK=<cycles>] [BPRED=0..3] [SEED=<hex>] [TIMEOUT=<cycles>] [WAVES=1]
-#                 [PREEMPT=0|1] [SLICE=0|1] [HEAP=1|4] [DEFS=<-D flags>] [RAM_KB=<KiB>] [VERBOSE=1]
+#   make freertos APP=<app> [CPU=dut|golden] [MARCH=rv32i|rv32im|rv32im_zba|rv32im_zba_zbb_zbs]
+#                 [OPT=-O2|-Os|-O0] [TICK=<cycles>] [BPRED=0..3] [SEED=<hex>] [TIMEOUT=<cycles>]
+#                 [WAVES=1] [PREEMPT=0|1] [SLICE=0|1] [HEAP=1|4] [DEFS=<-D flags>] [RAM_KB=<KiB>]
+#                 [VERBOSE=1]
 #       build one program for one configuration (quietly, into build.log), run it with the
 #       UART output streamed, and finish with one "FREERTOS RESULT: PASS|FAIL|HANG|CRASH"
 #       line (exit status 0 = PASS)

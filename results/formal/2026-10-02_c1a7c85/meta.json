@@ -1,0 +1,139 @@
+{
+ "topic": "formal",
+ "id": "2026-10-02_c1a7c85",
+ "title": "Formal proofs of the M and EXT units: the runs of record",
+ "status": "needs formal tools",
+ "date": "2026-10-02",
+ "base_commit": "c1a7c85",
+ "base_commit_note": "rtl/ and defines/ as committed in c1a7c85; the flow is formal/ of c1a7c85 extended by the EXT proof (inputs.sha256) and the Makefile target formal-ext, not yet committed when the runs were made; the runs labelled flow_c1a7c85 used formal/ of c1a7c85 unchanged",
+ "source": "the runs of 2026-10-02; formal/README.md section 4",
+ "commands": [
+  "make formal",
+  "make formal-full",
+  "make formal-ext"
+ ],
+ "inputs": {
+  "rtl/execute_stage.sv": "16f95c827fc48ce6eed0878a662f4b671ba7fcde",
+  "rtl/execute_stage.sv_sha256": "c36613c8fe0116aad83c66ea4a79dd4d03995c95290eb8a3d9c33eee6d3ae969",
+  "defines": "a3a2c852ab9da325f42809aceaaa028b903d6dcd",
+  "formal (flow_c1a7c85)": "672701adb7b11aa57a2d54d1939d305677ef7706",
+  "formal (this flow)": "inputs.sha256",
+  "test/sv/test_m_execute.sv": "e554dd0fb7b42209d9f82746a6418710a1fb3af1",
+  "test/sv/test_execute_compare.sv": "58412f2da1633cbc769643b4823d53e9e41658de",
+  "test/sv/test_execute_bpred_nextpc.sv": "d61060e6c4a88886794562b1778fa6c1935f5d08",
+  "test/sv/test_ext_execute.sv": "1a5504108d319010e31be37245d503f863f28a26",
+  "test/sv/files.txt": "8b137891791fe96927ad78e64b0aad7bded08bdc",
+  "ref": "b1cd1eebbcd4c675f36085ebfc96416192423721"
+ },
+ "host": {
+  "cpu": "Intel Core Ultra 7 165H",
+  "threads": 22,
+  "os": "Linux"
+ },
+ "tools": {
+  "yosys": "YoWASP Yosys 0.69 (yowasp-yosys 0.69.0.0.post1233, yowasp-runtime 1.96; SBY, yosys-smtbmc)",
+  "bitwuzla": "0.9.1 (Bitwuzla-Linux-x86_64-static.zip)",
+  "yices": "2.7.0 (yices-2.7.0-x86_64-pc-linux-gnu-static-gmp.tar.gz)",
+  "z3": "z3-solver wheel 5.1.0.0, reports 5.1.0",
+  "sv2v": "0.0.13 (sv2v-Linux.zip)",
+  "verilator": "5.042",
+  "python": "3.12 (virtual environment for the pip packages; pip --user is refused, PEP 668)"
+ },
+ "workers": 4,
+ "wall_time_s": {
+  "full": 1577.96,
+  "default": 99.78,
+  "ext": 26.55,
+  "full_flow_c1a7c85": 1447.6,
+  "default_flow_c1a7c85": 70.203
+ },
+ "verbatim": {
+  "default": [
+   "required checks: 104, not PASS: none",
+   "negative controls: 21, not FAIL (as required): none",
+   "FORMAL RESULT: PASS (mode=default)"
+  ],
+  "full": [
+   "required checks: 106, not PASS: none",
+   "negative controls: 21, not FAIL (as required): none",
+   "second-solver runs not PASS (reported only, each also proven by the required engine): fmul_ops_mulh_f3_bwn:TIMEOUT(300s) fmul_ops_mulhsu_f3_bwn:TIMEOUT(300s) iface_a1_mulh_bwn:TIMEOUT(600s) iface_a1_mulhsu_bwn:TIMEOUT(600s)",
+   "mutants: 18 rejected, 1 survived (diff32 is a proven-equivalent mutant, see README); unexpected survivors: none",
+   "EXT mutants: 17 rejected, 0 survived",
+   "FORMAL RESULT: PASS (mode=full)"
+  ],
+  "ext": [
+   "required checks: 34, not PASS: none",
+   "negative controls: 17, not FAIL (as required): none",
+   "FORMAL RESULT: PASS (mode=ext)"
+  ],
+  "full_flow_c1a7c85": [
+   "required checks: 74, not PASS: none",
+   "negative controls: 4, not FAIL (as required): none",
+   "second-solver runs not PASS (reported only, each also proven by the required engine): fmul_ops_mulh_f3_bwn:TIMEOUT(300s) fmul_ops_mulhsu_f3_bwn:TIMEOUT(300s) iface_a1_mulhsu_bwn:TIMEOUT(600s) iface_a1_mulh_bwn:TIMEOUT(600s)",
+   "mutants: 18 rejected, 1 survived (diff32 is a proven-equivalent mutant, see README); unexpected survivors: none",
+   "FORMAL RESULT: PASS (mode=full)"
+  ],
+  "default_flow_c1a7c85": [
+   "required checks: 72, not PASS: none",
+   "negative controls: 4, not FAIL (as required): none",
+   "FORMAL RESULT: PASS (mode=default)"
+  ]
+ },
+ "figures": [
+  {
+   "figure": "FORMAL RESULT: PASS (mode=default): 104 required checks and 21 negative controls, 1 min 40 s",
+   "quoted_at": [
+    "README.md (Verification in Depth)",
+    "docs/VERIFICATION.md (Verification at a Glance, System Level, Formal Verification)",
+    "formal/README.md section 4",
+    "results/README.md (Formal proof)"
+   ],
+   "output": [
+    "required checks: 104, not PASS: none",
+    "negative controls: 21, not FAIL (as required): none",
+    "FORMAL RESULT: PASS (mode=default)"
+   ]
+  },
+  {
+   "figure": "FORMAL RESULT: PASS (mode=full): 106 required checks, 21 negative controls, 48 second-solver runs, 1,101 mutant runs (19 x 32 + 17 x 29), 26 min 18 s; mode=ext: 34 required checks, 17 negative controls, 27 s",
+   "quoted_at": [
+    "formal/README.md introduction and section 4",
+    "docs/VERIFICATION.md (Formal Verification)",
+    "results/README.md (Formal proof)"
+   ]
+  },
+  {
+   "figure": "the M flow of c1a7c85 on the new file: make formal-full 74 required, 4 controls, 20 second-solver runs, 608 mutant runs, 24 min 08 s; make formal 72 required, 1 min 10 s; the verdicts of 2026-09-28",
+   "quoted_at": [
+    "formal/README.md sections 4 and 9",
+    "docs/VERIFICATION.md (Formal Verification)",
+    "results/README.md (Formal proof)",
+    "results/formal/2026-09-28_588d76a/RECORD.md (update of 2026-10-02)"
+   ]
+  },
+  {
+   "figure": "proved file SHA-256 c36613c8...3ae969, the file of c1a7c85",
+   "quoted_at": [
+    "formal/README.md introduction and section 4",
+    "docs/VERIFICATION.md (Verification at a Glance, System Level, Formal Verification)"
+   ],
+   "checked": "git show c1a7c85:rtl/execute_stage.sv | sha256sum; first line of each SUMMARY"
+  },
+  {
+   "figure": "EXT proof: X1-X3 for 28 instructions, 1,042,224 specification vectors with 0 mismatches, 28 covers, 17 controls and mutants each rejected by exactly the proofs of the instructions it breaks; per-check times",
+   "quoted_at": [
+    "README.md (Verification in Depth)",
+    "docs/VERIFICATION.md (Approach, Formal Verification, Mutation Testing)",
+    "docs/EXTENSIONS.md (Zbb and Zbs, Verification)",
+    "formal/README.md sections 1, 3 and 4"
+   ]
+  }
+ ],
+ "caveats": [
+  "A first make formal-full of the flow of c1a7c85, started in the work tree, is not counted: formal/run.sh was edited while it ran and it stopped with status 2 in step 10; the full run of that flow was then made in a clean export of c1a7c85 (git archive).",
+  "The flow of this record was not yet committed when the runs were made; inputs.sha256 fingerprints it.",
+  "The runs of the flow of this record used the EXT proof at depth 3 with 17 EXT mutants; the usage comment of formal/run.sh was corrected afterwards (13 -> 17), no executed line changed.",
+  "Wall times depend on the host and its load and are never compared.",
+  "What is and is not proven: formal/README.md section 5 (item 9 for the EXT unit: the decoder's map from instruction word to payload, payloads the decoder never builds, and everything downstream of Execute are outside the proof)."
+ ]
+}

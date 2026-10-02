@@ -1,0 +1,223 @@
+formal/run.sh mode=full  2026-10-02 15:52:46  model of: c36613c8fe0116aad83c66ea4a79dd4d03995c95290eb8a3d9c33eee6d3ae969  rtl/execute_stage.sv
+CHECK                              STATUS             WALL  CLASS
+gen                                PASS               0.2s  REQ
+spec_check_python                  PASS               3.3s  REQ
+h1_cone_check                      PASS               0.3s  REQ
+h1_cone_check_negctl               FAIL                 0s  CTL
+hint_validity_h5b_bw               PASS               0.7s  REQ
+hint_validity_h5b_z3               PASS               0.7s  REQ
+hint_validity_h5a_z3               PASS               0.7s  REQ
+hint_validity_h5a_bw               PASS               0.7s  REQ
+hint_validity_h7_bw                PASS               0.7s  REQ
+hint_validity_h7_z3                PASS               0.7s  REQ
+hint_validity_h8_z3                PASS               0.7s  REQ
+hint_validity_h9_bw                PASS               0.7s  REQ
+hint_validity_h9_z3                PASS               0.6s  REQ
+h6_split_z3                        PASS               1.1s  REQ
+h6_split_z3_negctl1                FAIL               0.9s  CTL
+h6_split_z3_negctl2                FAIL               4.0s  CTL
+spec_equiv_mulhu_bw                PASS               0.7s  REQ
+spec_equiv_mulhsu_bw               PASS               0.7s  REQ
+spec_equiv_mulh_bw                 PASS               0.7s  REQ
+spec_equiv_mul_bw                  PASS               0.7s  REQ
+spec_equiv_divu_bw                 PASS               0.7s  REQ
+spec_equiv_div_bw                  PASS               0.8s  REQ
+spec_equiv_remu_bw                 PASS               0.8s  REQ
+spec_equiv_rem_bw                  PASS               0.8s  REQ
+div_ctrl_bw                        PASS               1.6s  REQ
+div_ctrl_yn                        PASS              10.8s  REQ
+div_divf1_yn                       PASS               2.3s  REQ
+div_divf_yn                        PASS               2.4s  REQ
+div_divf1_bwn                      PASS               2.8s  REQ
+div_divf_bwn                       PASS               2.9s  REQ
+div_mulreg_yn                      PASS               1.1s  REQ
+div_mulreg_bw                      PASS               1.2s  REQ
+div_fdiv_bw                        PASS               3.9s  REQ
+div_fdiv_bwn                       PASS               4.2s  REQ
+div_fdiv_yn                        PASS               4.4s  REQ
+fmul_ops_mul_f1_yn                 PASS               1.2s  REQ
+fmul_ops_mulh_f1_yn                PASS               1.2s  REQ
+fmul_ops_mul_f3_yn                 PASS               1.2s  REQ
+fmul_ops_mul_f2_yn                 PASS               1.2s  REQ
+fmul_ops_mulhsu_f1_yn              PASS               1.2s  REQ
+fmul_ops_mulh_f3_yn                PASS               1.3s  REQ
+fmul_ops_mulh_f2_yn                PASS               1.3s  REQ
+fmul_ops_mulhsu_f2_yn              PASS               1.3s  REQ
+fmul_ops_mulhu_f1_yn               PASS               1.3s  REQ
+fmul_ops_mulhu_f2_yn               PASS               1.3s  REQ
+fmul_ops_mulhu_f3_yn               PASS               1.3s  REQ
+fmul_ops_mulhsu_f3_yn              PASS               1.3s  REQ
+fmul_ops_mul_f2_bwn                PASS               1.3s  AUX
+fmul_ops_mulh_f1_bwn               PASS               1.3s  AUX
+fmul_ops_mul_f1_bwn                PASS               1.3s  AUX
+fmul_ops_mul_f3_bwn                PASS               1.4s  AUX
+fmul_ops_mulh_f2_bwn               PASS               1.3s  AUX
+fmul_ops_mulhsu_f1_bwn             PASS               1.3s  AUX
+fmul_ops_mulhsu_f2_bwn             PASS               1.3s  AUX
+fmul_ops_mulhu_f1_bwn              PASS               1.3s  AUX
+fmul_ops_mulhu_f2_bwn              PASS               1.3s  AUX
+fmul_ops_mulhu_f3_bwn              PASS               1.3s  AUX
+fmul_ops_mulh_f3_bwn               TIMEOUT(300s)    300.0s  AUX
+fmul_ops_mulhsu_f3_bwn             TIMEOUT(300s)    300.0s  AUX
+iface_a1_mulh_yn                   PASS               1.4s  REQ
+iface_a1_mul_yn                    PASS               1.5s  REQ
+iface_a1_mulhsu_yn                 PASS               1.5s  REQ
+iface_a1_mulhu_yn                  PASS               1.5s  REQ
+iface_a1_div_yn                    PASS               1.5s  REQ
+iface_a1_divu_yn                   PASS               1.4s  REQ
+iface_a1_remu_yn                   PASS               1.5s  REQ
+iface_a1_rem_yn                    PASS               1.5s  REQ
+iface_a3a_mul_yn                   PASS               1.4s  REQ
+iface_a3a_mulh_yn                  PASS               1.4s  REQ
+iface_a3a_mulhsu_yn                PASS               1.3s  REQ
+iface_a3a_mulhu_yn                 PASS               1.4s  REQ
+iface_a3a_div_yn                   PASS               1.4s  REQ
+iface_a3a_rem_yn                   PASS               1.3s  REQ
+iface_a3a_divu_yn                  PASS               1.3s  REQ
+iface_a3a_remu_yn                  PASS               1.3s  REQ
+iface_a1_mulhu_bwn                 PASS               1.8s  AUX
+iface_a1_mul_bwn                   PASS               1.8s  AUX
+iface_a1_div_bwn                   PASS               1.8s  AUX
+iface_a1_divu_bwn                  PASS               1.8s  AUX
+iface_a1_rem_bwn                   PASS               1.9s  AUX
+iface_a1_remu_bwn                  PASS               2.7s  AUX
+hint_validity_h6_bw                PASS             703.0s  REQ
+iface_a1_mulh_bwn                  TIMEOUT(600s)    600.0s  AUX
+iface_a1_mulhsu_bwn                TIMEOUT(600s)    600.0s  AUX
+cover_iface_bw                     PASS               4.5s  REQ
+cover_env_bw                       PASS              18.7s  REQ
+cover_all_bw                       PASS              26.0s  REQ
+mul_formulation_mul_bw             PASS               0.9s  REQ
+mul_formulation_mul_y              PASS               0.9s  REQ
+mul_formulation_mulh_y             PASS               0.9s  REQ
+mul_formulation_mulh_bw            PASS               0.9s  REQ
+mul_formulation_mulhsu_y           PASS               0.7s  REQ
+mul_formulation_mulhsu_bw          PASS               0.8s  REQ
+mul_formulation_mulhu_y            PASS               0.8s  REQ
+mul_formulation_mulhu_bw           PASS               0.8s  REQ
+mul_formulation_mulhsu_bug_y       FAIL               0.7s  CTL
+ext_spec_check_python              PASS               3.3s  REQ
+ext_payload_map                    PASS               0.0s  REQ
+ext_res_clz_yn                     PASS               1.3s  REQ
+ext_res_xnor_yn                    PASS               1.4s  REQ
+ext_res_andn_yn                    PASS               1.5s  REQ
+ext_res_orn_yn                     PASS               1.5s  REQ
+ext_res_ctz_yn                     PASS               1.3s  REQ
+ext_res_max_yn                     PASS               1.5s  REQ
+ext_res_maxu_yn                    PASS               1.6s  REQ
+ext_res_min_yn                     PASS               1.5s  REQ
+ext_res_sext_b_yn                  PASS               1.3s  REQ
+ext_res_minu_yn                    PASS               1.5s  REQ
+ext_res_cpop_yn                    PASS               3.9s  REQ
+ext_res_sext_h_yn                  PASS               1.4s  REQ
+ext_res_zext_h_yn                  PASS               1.4s  REQ
+ext_res_orc_b_yn                   PASS               1.4s  REQ
+ext_res_rev8_yn                    PASS               1.8s  REQ
+ext_res_bclr_yn                    PASS               2.1s  REQ
+ext_res_bclri_yn                   PASS               1.9s  REQ
+ext_res_bext_yn                    PASS               1.4s  REQ
+ext_res_bexti_yn                   PASS               1.4s  REQ
+ext_res_binv_yn                    PASS               1.9s  REQ
+ext_res_rori_yn                    PASS              12.4s  REQ
+ext_res_rol_yn                     PASS              13.6s  REQ
+ext_res_ror_yn                     PASS              13.7s  REQ
+ext_res_binvi_yn                   PASS               1.9s  REQ
+ext_res_bset_yn                    PASS               1.8s  REQ
+ext_res_bseti_yn                   PASS               1.8s  REQ
+ext_res_czero_eqz_yn               PASS               1.6s  REQ
+ext_nostall_yn                     PASS               1.1s  REQ
+ext_res_czero_nez_yn               PASS               1.5s  REQ
+ext_cover_bw                       PASS               1.7s  REQ
+ext_res_xnor_bwn                   PASS               1.5s  AUX
+ext_res_andn_bwn                   PASS               1.5s  AUX
+ext_res_clz_bwn                    PASS               1.5s  AUX
+ext_res_orn_bwn                    PASS               1.6s  AUX
+ext_res_ctz_bwn                    PASS               1.6s  AUX
+ext_res_maxu_bwn                   PASS               1.5s  AUX
+ext_res_max_bwn                    PASS               1.6s  AUX
+ext_res_min_bwn                    PASS               1.7s  AUX
+ext_res_minu_bwn                   PASS               1.6s  AUX
+ext_res_sext_b_bwn                 PASS               1.6s  AUX
+ext_res_cpop_bwn                   PASS               3.6s  AUX
+ext_res_sext_h_bwn                 PASS               1.5s  AUX
+ext_res_zext_h_bwn                 PASS               1.5s  AUX
+ext_res_rol_bwn                    PASS               1.8s  AUX
+ext_res_ror_bwn                    PASS               1.9s  AUX
+ext_res_orc_b_bwn                  PASS               1.6s  AUX
+ext_res_rev8_bwn                   PASS               1.6s  AUX
+ext_res_rori_bwn                   PASS               1.9s  AUX
+ext_res_bclr_bwn                   PASS               1.6s  AUX
+ext_res_bclri_bwn                  PASS               1.6s  AUX
+ext_res_bext_bwn                   PASS               1.5s  AUX
+ext_res_bexti_bwn                  PASS               1.6s  AUX
+ext_res_binv_bwn                   PASS               1.7s  AUX
+ext_res_binvi_bwn                  PASS               1.6s  AUX
+ext_res_bset_bwn                   PASS               1.7s  AUX
+ext_res_bseti_bwn                  PASS               1.7s  AUX
+ext_res_czero_eqz_bwn              PASS               1.5s  AUX
+ext_res_czero_nez_bwn              PASS               1.4s  AUX
+mut_ext_andn_and_ext_res_andn_yn   FAIL               1.2s  CTL
+mut_ext_lzc_zero31_ext_res_clz_yn  FAIL               1.2s  CTL
+mut_ext_pop_pair_ext_res_cpop_yn   FAIL               1.3s  CTL
+mut_ext_ctz_no_reverse_ext_res_ctz_yn FAIL               1.3s  CTL
+mut_ext_minmax_sign_ext_res_min_yn FAIL               1.2s  CTL
+mut_ext_sexth_zero_ext_res_sext_h_yn FAIL               1.2s  CTL
+mut_ext_orcb_and_ext_res_orc_b_yn  FAIL               1.2s  CTL
+mut_ext_rol_as_ror_ext_res_rol_yn  FAIL               1.3s  CTL
+mut_ext_bext_bit1_ext_res_bext_yn  FAIL               1.2s  CTL
+mut_ext_rev8_middle_ext_res_rev8_yn FAIL               1.2s  CTL
+mut_ext_bseti_rs2_ext_res_bseti_yn FAIL               1.2s  CTL
+mut_ext_czero_rs1_ext_res_czero_eqz_yn FAIL               1.2s  CTL
+mut_ext_stall_dead_ext_nostall_yn  FAIL               1.1s  CTL
+mut_ext_fwd_invalid_ext_res_andn_yn FAIL               1.3s  CTL
+mut_ext_reg_flip_ext_res_andn_yn   FAIL               1.4s  CTL
+mut_ext_reg_bubble_ext_res_bset_yn FAIL               1.6s  CTL
+mut_ext_fwd_addr_rs1_ext_res_czero_nez_yn FAIL               1.2s  CTL
+sv2v_fidelity                      PASS               4.4s  REQ
+hint_validity_h6_bwn               PASS            1442.1s  REQ
+
+mutant results (source: runs/times.txt; non-PASS tasks listed)
+rem_sign_divisor     REJECTED  (32 tasks) non-PASS: div_ctrl_bw:UNKNOWN 
+count31              REJECTED  (32 tasks) non-PASS: div_ctrl_bw:UNKNOWN 
+diff32               SURVIVED  (32 tasks) 
+rem_ovf_one          REJECTED  (32 tasks) non-PASS: div_fdiv_yn:FAIL iface_a1_rem_yn:UNKNOWN 
+divu_zero            REJECTED  (32 tasks) non-PASS: div_fdiv_yn:FAIL iface_a1_div_yn:UNKNOWN iface_a1_divu_yn:UNKNOWN 
+quo_sign_or          REJECTED  (32 tasks) non-PASS: div_ctrl_bw:UNKNOWN 
+mag_onescomp         REJECTED  (32 tasks) non-PASS: div_fdiv_yn:UNKNOWN iface_a1_div_yn:UNKNOWN iface_a1_rem_yn:UNKNOWN 
+jump_noreset         REJECTED  (32 tasks) non-PASS: div_ctrl_bw:UNKNOWN div_divf1_bwn:UNKNOWN div_mulreg_bw:UNKNOWN 
+stop_early           REJECTED  (32 tasks) non-PASS: div_ctrl_bw:UNKNOWN 
+mulhsu_swap          REJECTED  (32 tasks) non-PASS: fmul_ops_mulhsu_f1_yn:UNKNOWN fmul_ops_mulhsu_f2_yn:UNKNOWN fmul_ops_mulhsu_f3_yn:UNKNOWN iface_a1_mulhsu_yn:UNKNOWN 
+ovf_ungated          REJECTED  (32 tasks) non-PASS: div_fdiv_yn:FAIL iface_a1_divu_yn:UNKNOWN iface_a1_remu_yn:UNKNOWN 
+rem_no_restore       REJECTED  (32 tasks) non-PASS: div_ctrl_bw:UNKNOWN 
+take_ge              REJECTED  (32 tasks) non-PASS: div_ctrl_bw:UNKNOWN 
+divisor_raw          REJECTED  (32 tasks) non-PASS: div_ctrl_bw:UNKNOWN 
+ready_in_run         REJECTED  (32 tasks) non-PASS: div_fdiv_yn:UNKNOWN iface_a1_div_yn:UNKNOWN iface_a1_divu_yn:UNKNOWN iface_a1_rem_yn:UNKNOWN iface_a1_remu_yn:UNKNOWN 
+rem_not_decoded      REJECTED  (32 tasks) non-PASS: iface_a1_rem_yn:UNKNOWN 
+mulh_not_decoded     REJECTED  (32 tasks) non-PASS: iface_a1_mulh_yn:UNKNOWN 
+stall_valid_to_mem   REJECTED  (32 tasks) non-PASS: iface_a3a_mul_yn:UNKNOWN iface_a3a_mulh_yn:UNKNOWN iface_a3a_mulhsu_yn:UNKNOWN iface_a3a_mulhu_yn:UNKNOWN iface_a3a_div_yn:UNKNOWN iface_a3a_divu_yn:UNKNOWN iface_a3a_rem_yn:UNKNOWN iface_a3a_remu_yn:UNKNOWN 
+mulh_unsigned        REJECTED  (32 tasks) non-PASS: fmul_ops_mulh_f1_yn:UNKNOWN fmul_ops_mulh_f2_yn:UNKNOWN fmul_ops_mulh_f3_yn:UNKNOWN iface_a1_mulh_yn:UNKNOWN 
+EXT mutant results (source: runs/times.txt; non-PASS tasks listed)
+ext_andn_and         REJECTED  (29 tasks) non-PASS: res_andn_yn:FAIL 
+ext_lzc_zero31       REJECTED  (29 tasks) non-PASS: res_clz_yn:FAIL res_ctz_yn:FAIL 
+ext_ctz_no_reverse   REJECTED  (29 tasks) non-PASS: res_ctz_yn:FAIL 
+ext_pop_pair         REJECTED  (29 tasks) non-PASS: res_cpop_yn:FAIL 
+ext_minmax_sign      REJECTED  (29 tasks) non-PASS: res_max_yn:FAIL res_maxu_yn:FAIL res_min_yn:FAIL res_minu_yn:FAIL 
+ext_sexth_zero       REJECTED  (29 tasks) non-PASS: res_sext_h_yn:FAIL 
+ext_rol_as_ror       REJECTED  (29 tasks) non-PASS: res_rol_yn:FAIL 
+ext_orcb_and         REJECTED  (29 tasks) non-PASS: res_orc_b_yn:FAIL 
+ext_rev8_middle      REJECTED  (29 tasks) non-PASS: res_rev8_yn:FAIL 
+ext_bext_bit1        REJECTED  (29 tasks) non-PASS: res_bext_yn:FAIL res_bexti_yn:FAIL 
+ext_bseti_rs2        REJECTED  (29 tasks) non-PASS: res_bclri_yn:FAIL res_binvi_yn:FAIL res_bseti_yn:FAIL 
+ext_czero_rs1        REJECTED  (29 tasks) non-PASS: res_czero_eqz_yn:FAIL res_czero_nez_yn:FAIL 
+ext_stall_dead       REJECTED  (29 tasks) non-PASS: nostall_yn:FAIL 
+ext_reg_flip         REJECTED  (29 tasks) non-PASS: res_andn_yn:FAIL res_orn_yn:FAIL res_xnor_yn:FAIL res_clz_yn:FAIL res_ctz_yn:FAIL res_max_yn:FAIL res_maxu_yn:FAIL res_min_yn:FAIL res_minu_yn:FAIL res_sext_b_yn:FAIL res_cpop_yn:FAIL res_sext_h_yn:FAIL res_zext_h_yn:FAIL res_orc_b_yn:FAIL res_rev8_yn:FAIL res_bclr_yn:FAIL res_bclri_yn:FAIL res_rori_yn:FAIL res_bext_yn:FAIL res_rol_yn:FAIL res_ror_yn:FAIL res_bexti_yn:FAIL res_binv_yn:FAIL res_binvi_yn:FAIL res_bset_yn:FAIL res_bseti_yn:FAIL res_czero_eqz_yn:FAIL res_czero_nez_yn:FAIL 
+ext_reg_bubble       REJECTED  (29 tasks) non-PASS: res_andn_yn:FAIL res_orn_yn:FAIL res_xnor_yn:FAIL res_clz_yn:FAIL res_ctz_yn:FAIL res_max_yn:FAIL res_maxu_yn:FAIL res_min_yn:FAIL res_sext_b_yn:FAIL res_minu_yn:FAIL res_cpop_yn:FAIL res_sext_h_yn:FAIL res_zext_h_yn:FAIL res_orc_b_yn:FAIL res_rev8_yn:FAIL res_bclr_yn:FAIL res_bclri_yn:FAIL res_rol_yn:FAIL res_bext_yn:FAIL res_ror_yn:FAIL res_rori_yn:FAIL res_bexti_yn:FAIL res_binv_yn:FAIL res_bset_yn:FAIL res_binvi_yn:FAIL res_bseti_yn:FAIL res_czero_nez_yn:FAIL res_czero_eqz_yn:FAIL 
+ext_fwd_invalid      REJECTED  (29 tasks) non-PASS: res_andn_yn:FAIL res_orn_yn:FAIL res_xnor_yn:FAIL res_clz_yn:FAIL res_ctz_yn:FAIL res_cpop_yn:FAIL res_max_yn:FAIL res_maxu_yn:FAIL res_min_yn:FAIL res_minu_yn:FAIL res_sext_b_yn:FAIL res_sext_h_yn:FAIL res_zext_h_yn:FAIL res_rol_yn:FAIL res_ror_yn:FAIL res_rori_yn:FAIL res_orc_b_yn:FAIL res_rev8_yn:FAIL res_bclr_yn:FAIL res_bclri_yn:FAIL res_bext_yn:FAIL res_bexti_yn:FAIL res_binv_yn:FAIL res_binvi_yn:FAIL res_bset_yn:FAIL res_bseti_yn:FAIL res_czero_eqz_yn:FAIL res_czero_nez_yn:FAIL 
+ext_fwd_addr_rs1     REJECTED  (29 tasks) non-PASS: res_andn_yn:FAIL res_orn_yn:FAIL res_xnor_yn:FAIL res_clz_yn:FAIL res_ctz_yn:FAIL res_max_yn:FAIL res_cpop_yn:FAIL res_maxu_yn:FAIL res_minu_yn:FAIL res_min_yn:FAIL res_sext_b_yn:FAIL res_sext_h_yn:FAIL res_zext_h_yn:FAIL res_rol_yn:FAIL res_ror_yn:FAIL res_rori_yn:FAIL res_orc_b_yn:FAIL res_rev8_yn:FAIL res_bclr_yn:FAIL res_bclri_yn:FAIL res_bext_yn:FAIL res_bexti_yn:FAIL res_binv_yn:FAIL res_binvi_yn:FAIL res_bset_yn:FAIL res_bseti_yn:FAIL res_czero_eqz_yn:FAIL res_czero_nez_yn:FAIL 
+
+required checks: 106, not PASS: none
+negative controls: 21, not FAIL (as required): none
+second-solver runs not PASS (reported only, each also proven by the required engine): fmul_ops_mulh_f3_bwn:TIMEOUT(300s) fmul_ops_mulhsu_f3_bwn:TIMEOUT(300s) iface_a1_mulh_bwn:TIMEOUT(600s) iface_a1_mulhsu_bwn:TIMEOUT(600s) 
+mutants: 18 rejected, 1 survived (diff32 is a proven-equivalent mutant, see README); unexpected survivors: none
+EXT mutants: 17 rejected, 0 survived
+FORMAL RESULT: PASS (mode=full)

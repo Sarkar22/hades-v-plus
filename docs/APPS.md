@@ -110,8 +110,8 @@ The example apps, in `test/freertos/sdk/apps/`, are built for RV32I (`compute` a
 `bitmanip` on HaDes-V+, first its RV32I build, then its `rv32im_zba_zbb_zbs` build, as
 `session-ext.txt` runs them (the progress lines of `load` left out): the same values in fewer
 cycles. The `bytes` section gains most, 81 % (`rev8` and `orc.b` replace shifts, masks and
-loops), `zbb` takes half the cycles, and `zbs`, whose sieve is dominated by loads and stores,
-and `zicond` gain about a fifth ([record](../results/bitmanip/2026-10-02_e75223e/RECORD.md)).
+loops), `zbb` takes half the cycles, `zbs`, whose sieve is dominated by loads and stores,
+gains about a fifth, and `zicond` about a tenth ([record](../results/bitmanip/2026-10-02_e75223e/RECORD.md)).
 
 ```text
 hades> load rv32i/bitmanip
@@ -119,19 +119,19 @@ loaded bitmanip: 4172 bytes at 0x00060000, entry 0x00060040, CRC32 0x31515268
 hades> run
 bitmanip: zbb    popcount 1020, log2 1907, ctz 62, mix 5dd12d14 00203fcc 648904fb, hash 200eb485: PASS (11163 cycles)
 bitmanip: bytes  rev8 bb05f113, string lengths 102: PASS (1761 cycles, C)
-bitmanip: zbs    primes below 4096: 564 (sum 1070091), after toggling 1928, flags 7f6b4d42: PASS (267175 cycles)
-bitmanip: zicond select b23616d0, clamp 000013b0, add-if e806a5c8: PASS (1999 cycles, C)
+bitmanip: zbs    primes below 4096: 564 (sum 1070091), after toggling 1928, flags 7f6b4d42: PASS (267172 cycles)
+bitmanip: zicond select b23616d0, clamp 000013b0, add-if e806a5c8: PASS (1817 cycles, C)
 bitmanip: 4 of 4 sections passed
-app: bitmanip exited with code 0 after 448265 cycles
+app: bitmanip exited with code 0 after 448180 cycles
 hades> load rv32im_zba_zbb_zbs/bitmanip
 loaded bitmanip: 3336 bytes at 0x00060000, entry 0x00060040, CRC32 0xa8bf5894
 hades> run
 bitmanip: zbb    popcount 1020, log2 1907, ctz 62, mix 5dd12d14 00203fcc 648904fb, hash 200eb485: PASS (5443 cycles)
 bitmanip: bytes  rev8 bb05f113, string lengths 102: PASS (331 cycles, rev8 and orc.b)
-bitmanip: zbs    primes below 4096: 564 (sum 1070091), after toggling 1928, flags 7f6b4d42: PASS (209170 cycles)
+bitmanip: zbs    primes below 4096: 564 (sum 1070091), after toggling 1928, flags 7f6b4d42: PASS (209356 cycles)
 bitmanip: zicond select b23616d0, clamp 000013b0, add-if e806a5c8: PASS (1612 cycles, czero)
 bitmanip: 4 of 4 sections passed
-app: bitmanip exited with code 0 after 385301 cycles
+app: bitmanip exited with code 0 after 385103 cycles
 ```
 
 ## The commands
@@ -266,7 +266,8 @@ int main( int argc, char ** argv )
 }
 ```
 
-An app may use RV32I, and M and Zba if it was built for them; the freestanding parts of
+An app may use RV32I; M, Zba, Zbb and Zbs if it was built for them; Zicond, through
+[`zicond.h`](../std/include/zicond.h), where `app_cpu()` reports `HADES_APP_CPU_ZICOND`; the freestanding parts of
 newlib-nano (`memcpy`, `strlen` and the like) and libgcc, but no `stdio` and no `malloc`; the
 memory between `__app_heap_start` and `__app_heap_end`; the switches, buttons, 7-segment
 display and VGA frame buffer; and the LEDs, but the shell's `blink` task rewrites the whole LED

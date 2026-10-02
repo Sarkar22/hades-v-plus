@@ -75,7 +75,7 @@ and in scripted sessions (section 5).
 
 ### 1.2 Scope and limitations
 
-* **Simulation only.** The board's 32 KiB RAM is full with the shell (31,616 bytes at `-Os`),
+* **Simulation only.** The board's 32 KiB RAM is full with the shell (31,900 bytes at `-Os`),
   so the loader configuration runs on a simulated RAM of 256 KiB.
 * **No memory protection.** HaDes-V+ runs in machine mode only, so an app has the same rights
   as the shell: it can overwrite the kernel, the shell, the trap vector and every CSR.
@@ -110,6 +110,14 @@ and in scripted sessions (section 5).
 * No existing test, script, transcript or expectation changes. The user's guide is a document
   of its own, docs/APPS.md.
 
+**Note, 2026-10-02.** The statements of this section and of section 10.4 were the acceptance
+criteria of the loader change, against commit 03386fd. Since 2026-10-02 the shell's `version`
+line names Zbb, Zbs and Zicond as well: this changed the shell's `init.mem` (at `-Os`, `-O2` and
+`-O0`), the cycle counts of its scripted session and the expectations of `session.txt`. The
+current figures are those of
+[results/tests/2026-10-01_03386fd](../../../results/tests/2026-10-01_03386fd/RECORD.md) (update
+note of 2026-10-02 on the shell's `version` line).
+
 ## 2. Memory layout and the loader configuration
 
 ### 2.1 RAM map
@@ -123,8 +131,8 @@ and in scripted sessions (section 5).
 | `0x00060000` | 128 KiB | the app slot (section 2.2) |
 | `0x00080000` | | end of the simulated RAM (`RAM_KB` = 256) |
 
-The shell alone takes 31,616 bytes at `-Os`, 34,188 at `-O2` and 46,524 at `-O0` (image, data
-and its 4,608-byte heap, built at 03386fd). The loader adds its code, a heap of 8 KiB and the
+The shell alone takes 31,900 bytes at `-Os`, 34,464 at `-O2` and 46,816 at `-O0` (image, data
+and its 4,608-byte heap). The loader adds its code, a heap of 8 KiB and the
 statically allocated idle task, which leaves tens of KiB of the 128 KiB region free at every
 optimisation level. If the shell ever outgrows the region, the existing `ASSERT` of
 `hades-freertos.ld` fails the link; moving the slot is an ABI change (section 3.7).
@@ -984,7 +992,7 @@ The app task's function (in the shell) calls `ulEntry` as a `HadesAppEntry_t`:
 |---|---|
 | `ulAbi` | 1 |
 | `ulSize` | `sizeof( HadesApi_t )` in the shell (section 3.7) |
-| `ulCpu` | what the CPU executes, from the shell's start-up probe: `HADES_APP_CPU_M`, `_ZBA`, `_ZICNTR`, `_ZBB`, `_ZBS`, `_ZICOND` (the last three probed only in the loader's build, with `clz`, `bset` and `czero.eqz`) |
+| `ulCpu` | what the CPU executes, from the shell's start-up probe: `HADES_APP_CPU_M`, `_ZBA`, `_ZICNTR`, `_ZBB`, `_ZBS`, `_ZICOND` (probed with `mul`, `sh1add`, a read of `cycle`, `clz`, `bset` and `czero.eqz`; `version` prints the result) |
 | `ulTickHz` | 1000 (`configTICK_RATE_HZ`) |
 | `ulCyclesPerTick` | clock cycles per tick (`TICK=`, 10000 by default) |
 | `pxPutc( c )` | one character |
@@ -1570,8 +1578,8 @@ make freertos-shell-test APP=loader SCRIPT=test/freertos/loader/session-ext.txt 
 `compute: ...: PASS` and code 0 (`#?dut`); on the golden CPU `error: compute was built for
 rv32im_zba, but this CPU has no M and no Zba` (`#?golden`); then `load rv32im_zba/compute`
 (the same build by name): `loaded compute`, and `app` shows `isa: rv32im_zba`. `version` shows
-the CPU lines (`cpu: Zbb yes, Zbs yes, Zicond yes (for apps)` on HaDes-V+, `no` on the golden
-CPU). `load rv32i/bitmanip`, `run`: every value of its four sections, on both CPUs.
+the CPU line (`cpu: M yes, Zba yes, Zbb yes, Zbs yes, Zicntr yes, Zicond yes` on HaDes-V+, `no`
+for each on the golden CPU). `load rv32i/bitmanip`, `run`: every value of its four sections, on both CPUs.
 `load rv32im_zba_zbb_zbs/bitmanip`, `run`: the same values on HaDes-V+; on the golden CPU
 `error: bitmanip was built for rv32im_zba_zbb_zbs, but this CPU has no M, no Zba, no Zbb and no
 Zbs`. Not compared between the CPUs.
@@ -1598,6 +1606,11 @@ Each case ends with Ctrl-] or `halt` and exit status 0. It prints one line per c
 `LOADER TTY TEST: PASS` or `LOADER TTY TEST: FAIL`.
 
 ### 10.4 Regressions: the default stays as it is
+
+These were the acceptance criteria of the loader change. Since 2026-10-02 the shell's image (at
+every optimisation level) and the cycle counts of its sessions differ from those of 03386fd,
+because the `version` line changed (section 1.3, note of 2026-10-02). Item 1 still holds for
+every other program; for the shell, items 1 and 2 held up to that change.
 
 1. **Images.** For every program of `make freertos-list` except `loader`, at its defaults, and
    for `shell` also at `-O2` and `-O0`, `init.mem` is byte-identical to the one built from

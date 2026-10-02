@@ -86,7 +86,7 @@ The output is kept as the terminal showed it: the script removes only the lines 
 - [`docs/`](../docs): User guides, listed in [README.md](README.md); [FREERTOS.md](FREERTOS.md) covers running FreeRTOS on the core, [SHELL.md](SHELL.md) its interactive shell and [APPS.md](APPS.md) the programs that the shell loads and runs. [ARCHITECTURE.md](ARCHITECTURE.md), [EXTENSIONS.md](EXTENSIONS.md), [VERIFICATION.md](VERIFICATION.md) and [BUILDING.md](BUILDING.md) describe the core, its extensions, its verification and its build; [`img/`](img) holds the screenshots and [`tools/`](tools) the script that records them.
 - [`lib/`](../lib): Peripheral modules (e.g., UART, timer).
 - [`ref/`](../ref): Precompiled reference libraries.
-- [`formal/`](../formal): Formal proof of the multiply/divide unit (SymbiYosys, k-induction); see [formal/README.md](../formal/README.md).
+- [`formal/`](../formal): Formal proofs of the multiply/divide unit and of the Zbb, Zbs and Zicond unit (SymbiYosys, k-induction); see [formal/README.md](../formal/README.md).
 - [`results/`](../results/README.md): The records of the figures that the documentation quotes: the command, the inputs, the output as printed, and whether it can be re-run; `make check-results` re-runs the repeatable ones and compares the output with the stored values.
 - [`rtl/`](../rtl): The processor implementation — pipeline stages, register file, instruction decoder, and branch predictor.
 - [`saves/`](../saves): GTKWave signal layouts for `make show`.
