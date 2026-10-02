@@ -1,4 +1,4 @@
-[HaDes-V+](../README.md) · **Architecture** · [Extensions](EXTENSIONS.md) · [Verification](VERIFICATION.md) · [Building](BUILDING.md) · [FreeRTOS](FREERTOS.md)
+[HaDes-V+](../README.md) · [Docs](README.md) · [Building](BUILDING.md) · [FreeRTOS](FREERTOS.md) · [Shell](SHELL.md) · [Apps](APPS.md) · **Architecture** · [Extensions](EXTENSIONS.md) · [Verification](VERIFICATION.md)
 
 # Architecture
 
@@ -10,6 +10,7 @@ This document describes the HaDes-V+ core and the microcontroller built around i
 2. [System Architecture](#system-architecture): [Memory Subsystem](#memory-subsystem), [Memory Map](#system-level-memory-map), [Wishbone Fabric](#the-wishbone-fabric), [Peripherals](#peripherals), [Clocks & Reset](#clocks--reset)
 3. [Software Runtime](#software-runtime): [FreeRTOS](#freertos), [Linker Script](#linker-script--memory-layout), [C Startup](#c-startup), [Headers](#peripheral--helper-headers)
 4. [Reference-Library ("Jigsaw Puzzle") Flow](#reference-library-jigsaw-puzzle-flow)
+5. [Upstream Course Material](#upstream-course-material)
 
 ## The HaDes-V Core
 
@@ -155,7 +156,7 @@ HaDes-V+ runs the unmodified official RISC-V port of FreeRTOS (V11.1.0+) in mach
 
 How FreeRTOS is used to test the core, and the defects it found, is described in [VERIFICATION.md](VERIFICATION.md#freertos-differential-campaigns).
 
-**Running it.** The FreeRTOS sources are vendored, unmodified, in [`third_party/freertos/`](../third_party/freertos/README.md) at the tested commits, so no download step is needed. The guide, [docs/FREERTOS.md](FREERTOS.md), covers setup (including building outside a disk that cannot execute programs), reading the output, every setting, and writing your own program.
+**Running it.** The FreeRTOS sources are vendored, unmodified, in [`third_party/freertos/`](../third_party/freertos/README.md) at the tested commits, so no download step is needed. The guide, [docs/FREERTOS.md](FREERTOS.md), covers setup (including building outside a disk that cannot execute programs), reading the output, every setting, and writing your own program. The interactive shell and the app loader have guides of their own, [docs/SHELL.md](SHELL.md) and [docs/APPS.md](APPS.md).
 
 ```bash
 make freertos-list                        # available programs
@@ -208,3 +209,13 @@ HaDes-V can be built stage-by-stage without ever holding a broken pipeline, and 
 - **A golden reference** in [ref/](../ref/) — a pair of `ref_<stage>.sv` / `ref_<stage>_inner.sv` wrappers plus a precompiled `libref_<stage>_inner.so` produced by Verilator with `--protect-lib`. The `.so` is the actual implementation; the `.sv` wrapper is a DPI-C shim that makes it look like a normal SystemVerilog module to the simulator.
 
 Testbenches in [test/sv/](../test/sv/) instantiate **both** — the DUT and the golden REF — in parallel, clock them with the same stimulus, and flag any cycle where their outputs diverge. Because each stage has the same port list as its reference, you can freely mix: use your fetch + reference decode + your execute + reference memory + reference writeback, and the processor still runs a real program. That is what makes the "solve the puzzle one piece at a time" workflow possible.
+
+## Upstream Course Material
+
+HaDes-V originates as the lab project for [Microcontroller Design, Lab][lvref] at Graz University of Technology, where students implement each pipeline stage themselves and validate it against the reference models in [`ref/`](../ref) — the flow described under [Reference-Library](#reference-library-jigsaw-puzzle-flow). The upstream project provides the staged exercises — basic pipeline implementation, then memory/writeback and CSRs, then a free-form extension project — together with an [Instruction Guide][instrguide] (exercise instructions are in its Chapter 4) and a closed-source test-bench system, available to educators for teaching purposes on request (see [Contact](../README.md#contact)).
+
+Students of that course should work from the [upstream template][upstream], not from this repository ([Origin](../README.md#origin)).
+
+[lvref]:https://online.tugraz.at/tug_online/wbLv.wbShowLVDetail?pStpSpNr=525082
+[instrguide]:https://repository.tugraz.at/oer/nytm4-grv34
+[upstream]:https://github.com/tscheipel/HaDes-V

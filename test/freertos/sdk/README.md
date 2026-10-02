@@ -1,7 +1,7 @@
 # App SDK for the shell's loader
 
 Programs ("apps") built on the host for the app loader of the FreeRTOS shell (`APP=loader`,
-simulation only). The guide is [docs/FREERTOS.md, section 10](../../../docs/FREERTOS.md#10-load-and-run-programs-on-the-shell);
+simulation only). The guide is [docs/APPS.md](../../../docs/APPS.md);
 the specification, with the image format and the load protocol, is
 [../loader/SPEC.md](../loader/SPEC.md).
 
