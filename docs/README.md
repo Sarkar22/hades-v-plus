@@ -30,7 +30,7 @@ make test/c/m_extension              # M hardware against libgcc's software rout
 make test/sv/test_decode_exhaustive  # 11,026 checks against the golden Decode stage
 make freertos APP=minimal            # boot FreeRTOS (guide: docs/FREERTOS.md)
 make freertos-stress                 # the differential campaign against the golden CPU
-make ext-check                       # Zbb, Zbs and Zicond against a C model of the ISA text
+make ext-check                       # Zbb, Zbs, Zicond, Zbkb, Zbkx, Zknh against a C model of the ISA texts
 make formal                          # formal proofs of the M and EXT units; tools: formal/README.md
 make check-results                   # re-run the recorded results and compare (results/README.md)
 make synthesis                       # implement for the Basys3 (needs Vivado)
@@ -50,7 +50,7 @@ make help                            # the main targets and their settings
 | Document | Contents |
 |---|---|
 | [docs/ARCHITECTURE.md](ARCHITECTURE.md) | The core: instruction set, pipeline, hazards; memory map, Wishbone fabric, peripherals, clocks; software runtime; the reference-library flow and the upstream course material |
-| [docs/EXTENSIONS.md](EXTENSIONS.md) | M, Zba, Zicntr, Zifencei, the branch predictor, Zbb and Zbs (with Zba the B extension) and Zicond: design, verification, implementation notes; at the top, an overview of what HaDes-V+ adds and of its fixes to the upstream design |
+| [docs/EXTENSIONS.md](EXTENSIONS.md) | M, Zba, Zicntr, Zifencei, the branch predictor, Zbb and Zbs (with Zba the B extension), Zicond, Zbkb, Zbkx and Zknh, and the claims of Zihintpause, Zihintntl, Zmmul and Zkt: design, verification, implementation notes; at the top, an overview of what HaDes-V+ adds and of its fixes to the upstream design |
 | [test/freertos/loader/SPEC.md](../test/freertos/loader/SPEC.md) | The specification of the app loader: image format, load protocol, console pacing, run semantics, test plan |
 | [test/freertos/README.md](../test/freertos/README.md) | The FreeRTOS programs and the differential campaign in depth |
 | [third_party/freertos/README.md](../third_party/freertos/README.md) | Provenance and licence of the vendored FreeRTOS sources |
@@ -61,7 +61,7 @@ make help                            # the main targets and their settings
 |---|---|
 | [docs/VERIFICATION.md](VERIFICATION.md) | Approach, every self-checking suite with its result, test hierarchy, trap sweep, FreeRTOS campaigns, formal proofs, mutation testing, known divergences; at the top, the results at a glance |
 | [results/README.md](../results/README.md) | The records of the figures quoted in the documentation, and how to re-run them |
-| [formal/README.md](../formal/README.md) | The formal proofs of the multiply/divide unit and of the Zbb, Zbs and Zicond unit in full |
+| [formal/README.md](../formal/README.md) | The formal proofs of the multiply/divide unit and of the Zbb, Zbs, Zicond, Zbkb, Zbkx and Zknh unit in full |
 | [test/trapsweep/README.md](../test/trapsweep/README.md) | The interrupt-offset sweeps and the independent ISA model |
-| [test/bench/README.md](../test/bench/README.md) | The measurement programs behind the Zba, Zbb, M-unit and `FENCE.I` figures |
-| [test/ext/README.md](../test/ext/README.md) | The reference models of Zbb, Zbs and Zicond and the check of the RTL against them (`make ext-check`, `make ext-exhaustive`) |
+| [test/bench/README.md](../test/bench/README.md) | The measurement programs behind the Zba, Zbb, SHA-256, M-unit and `FENCE.I` figures |
+| [test/ext/README.md](../test/ext/README.md) | The reference models of Zbb, Zbs, Zicond, Zbkb, Zbkx and Zknh and the check of the RTL against them (`make ext-check`, `make ext-exhaustive`) |

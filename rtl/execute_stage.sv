@@ -17,7 +17,9 @@
 //          The ALU is NOT used for jump/branch targets (separate adder).
 //          The Zbb/Zbs/Zicond instructions (op::EXT) are computed by their own
 //          unit (Part 2c) from rs1, rs2 and the decoder's payload in the
-//          immediate field, and reach rd through one ALU arm.
+//          immediate field, and reach rd through one ALU arm; the Zbkb, Zbkx
+//          and Zknh instructions (also op::EXT) by the unit's second half
+//          (Part 2d) from rs1, rs2 and the payload, through another.
 //
 //  2. BRANCH COMPARISON: For branch instructions (BEQ, BNE, BLT, BGE,
 //     BLTU, BGEU), compare rs1 and rs2 to decide if the branch is taken.
@@ -93,8 +95,8 @@ module execute_stage (
     //   0000 = ADD        0100 = SLTU       1000 = OR                  1100 = SH2ADD
     //   0001 = SUB        0101 = XOR        1001 = AND                 1101 = SH3ADD
     //   0010 = SLL        0110 = SRL        1010 = LUI (passthrough)   1110 = EXT (Part 2c)
-    //   0011 = SLT        0111 = SRA        1011 = SH1ADD
-    // 1111 remains free.
+    //   0011 = SLT        0111 = SRA        1011 = SH1ADD              1111 = EXT, crypto half (Part 2d)
+    // All sixteen codes are in use.
     //
     // alu_in1: rs1 for most ops, PC for AUIPC only.
     // alu_in2: rs2 for R-type, immediate for I/S/U-type.
@@ -134,11 +136,15 @@ module execute_stage (
             SH2ADD: begin alu_sel = 4'b1100; end
             SH3ADD: begin alu_sel = 4'b1101; end
 
-            // ----- Zbb, Zbs, Zicond: one op, its own unit -----
-            // The EXT unit (Part 2c) reads rs1_data_in, rs2_data_in and the payload
-            // in instruction_in.immediate directly, so the operand defaults are left
-            // alone; the selector only routes ext_result through the ALU's output.
-            EXT: begin alu_sel = 4'b1110; end
+            // ----- Zbb, Zbs, Zicond, Zbkb, Zbkx, Zknh: one op, its own unit -----
+            // The EXT unit (Parts 2c and 2d) reads rs1_data_in, rs2_data_in and the
+            // payload in instruction_in.immediate directly, so the operand defaults
+            // are left alone; the selector only routes the result of the right half
+            // through the ALU's output. Payload bit 11 is ext_payload_t.sel[5], the
+            // crypto bit (the payload struct is unpacked further down, in Part 2c).
+            // Giving the crypto half its own code keeps it off the path of every
+            // Part 2c result: no extra mux level behind the existing unit.
+            EXT: begin alu_sel = instruction_in.immediate[11] ? 4'b1111 : 4'b1110; end
 
             // ----- I-type: register × immediate -----
             ADDI:  begin alu_sel = 4'b0000; alu_in2 = instruction_in.immediate; end
@@ -197,6 +203,7 @@ module execute_stage (
 
     logic [31:0] alu_result;
     logic [31:0] ext_result;   // the Zbb/Zbs/Zicond result, computed in Part 2c
+    logic [31:0] ext_k_result; // the Zbkb/Zbkx/Zknh result, computed in Part 2d
 
     always_comb begin
         case (alu_sel)
@@ -228,6 +235,9 @@ module execute_stage (
             // Zbb/Zbs/Zicond: computed in Part 2c. One arm for all 28 instructions,
             // so the ALU's select keeps its 16 ways and only gains this input.
             4'b1110: alu_result = ext_result;                                          // EXT
+
+            // Zbkb/Zbkx/Zknh: computed in Part 2d, on the last free code.
+            4'b1111: alu_result = ext_k_result;                                        // EXT, crypto
 
             default: alu_result = 32'b0;
         endcase
@@ -651,17 +661,17 @@ module execute_stage (
     // Timing does not depend on the operand values: every instruction here takes
     // one cycle whatever rs1 and rs2 hold.
 
-    // ext.zero (bits 31:11) is always 0 and deliberately not read.
+    // ext.zero (bits 31:12) is always 0 and deliberately not read.
     /* verilator lint_off UNUSEDSIGNAL */
     op::ext_payload_t ext;
     /* verilator lint_on UNUSEDSIGNAL */
-    logic [4:0]       ext_code;
+    logic [4:0]       ext_code;  // sel[4:0]: sel[5] (the crypto bit) is read in Part 1
     logic [2:0]       ext_group;
     logic [1:0]       ext_var;
     logic [4:0]       ext_amt;
 
     assign ext       = op::ext_payload_t'(instruction_in.immediate);
-    assign ext_code  = ext.sel;
+    assign ext_code  = ext.sel[4:0];
     assign ext_group = ext_code[4:2];
     assign ext_var   = ext_code[1:0];
     assign ext_amt   = ext.use_imm ? ext.shamt : rs2_data_in[4:0];
@@ -816,6 +826,189 @@ module execute_stage (
             3'b101:  ext_result = ext_byte;
             3'b110:  ext_result = ext_bit;
             default: ext_result = ext_czero;
+        endcase
+    end
+
+    // =========================================================================
+    // Part 2d: the EXT unit's crypto half (Zbkb, Zbkx, Zknh)
+    // =========================================================================
+    // The 17 instructions with sel[5] = 1 (payload bit 11; Part 1 routes them
+    // through alu_sel 1111). Like Part 2c this half has no state, no early-out and
+    // no value-dependent control: every result is ready, and forwarded, in the
+    // cycle it is computed, which is what Zkt (data-independent latency) asks of
+    // these instructions. It reads rs1, rs2 and sel[4:0] only (ext_group and
+    // ext_var of Part 2c mean the same here); use_imm and shamt are always 0, and
+    // the one-operand forms (brev8, zip, unzip, the sha256 forms) ignore rs2.
+    //
+    // The six groups are computed in parallel and one 8-way select picks the
+    // group, as in Part 2c. None needs a rotator, an adder or a comparator:
+    //   PACK       pack  {rs2[15:0], rs1[15:0]} and packh {16'b0, rs2[7:0],
+    //              rs1[7:0]}: wiring and a 2:1 select. zext.h is the rs2 = x0
+    //              case of pack, but it keeps its Part 2c code (EXTEND), so its
+    //              result never depends on this half.
+    //   PERM       brev8 (bit order reversed inside each byte), zip (low half
+    //              to the even bits, high half to the odd bits) and unzip (its
+    //              inverse): three fixed permutations, pure wiring, and a select.
+    //   XPERM      xperm4/xperm8: each nibble (byte) of rs2 is an index into rs1
+    //              seen as a table of eight nibbles (four bytes). An index past
+    //              the end gives 0, not a wrapped element, so the high index bits
+    //              only force the element to zero. Written as one small mux per
+    //              element rather than a variable shift, which would ask synthesis
+    //              for a barrel shifter.
+    //   SHA256     sha256sig0/sig1/sum0/sum1, the sigma and Sigma functions of
+    //              SHA-256: three fixed rotations or shifts of rs1 XORed. A fixed
+    //              rotation is wiring, so each output bit is an XOR of at most
+    //              three input bits. The sig forms end in a shift, the sum forms
+    //              in a rotation.
+    //   SHA512SIG  sha512sig0h/l and sha512sig1h/l: one 32-bit half of the
+    //              sigma functions of SHA-512, from rs1 and rs2 holding the two
+    //              halves (constant shifts, wiring, XORed). The low-half forms
+    //              differ from the high-half ones by one extra rs2 term.
+    //   SHA512SUM  sha512sum0r and sha512sum1r: one half of the Sigma functions
+    //              of SHA-512; the other half is the same instruction with rs1
+    //              and rs2 swapped.
+    // Codes 6 and 7 of this half are reserved (the decoder never produces them)
+    // and give 0, as does the unused variant of PERM.
+
+    // brev8: bit order reversed inside each byte, bytes stay in place (wiring).
+    function automatic logic [31:0] ext_k_brev8(input logic [31:0] x);
+        logic [31:0] r;
+        for (int b = 0; b < 4; b++)
+            for (int i = 0; i < 8; i++)
+                r[8 * b + i] = x[8 * b + 7 - i];
+        return r;
+    endfunction
+
+    // zip: bit i of the low half goes to bit 2i, bit i of the high half to 2i + 1.
+    function automatic logic [31:0] ext_k_zip(input logic [31:0] x);
+        logic [31:0] r;
+        for (int i = 0; i < 16; i++) begin
+            r[2 * i]     = x[i];
+            r[2 * i + 1] = x[i + 16];
+        end
+        return r;
+    endfunction
+
+    // unzip: the inverse of zip; even bits to the low half, odd bits to the high.
+    function automatic logic [31:0] ext_k_unzip(input logic [31:0] x);
+        logic [31:0] r;
+        for (int i = 0; i < 16; i++) begin
+            r[i]      = x[2 * i];
+            r[i + 16] = x[2 * i + 1];
+        end
+        return r;
+    endfunction
+
+    // xperm4: nibble i of the result is nibble idx of lut, where idx is nibble i
+    // of the index word; idx 8..15 (bit 3 set) is out of range and gives 0.
+    function automatic logic [31:0] ext_k_xperm4(input logic [31:0] lut, input logic [31:0] idx);
+        logic [31:0] r;
+        for (int i = 0; i < 8; i++) begin
+            case (idx[4 * i +: 3])
+                3'd0:    r[4 * i +: 4] = lut[3:0];
+                3'd1:    r[4 * i +: 4] = lut[7:4];
+                3'd2:    r[4 * i +: 4] = lut[11:8];
+                3'd3:    r[4 * i +: 4] = lut[15:12];
+                3'd4:    r[4 * i +: 4] = lut[19:16];
+                3'd5:    r[4 * i +: 4] = lut[23:20];
+                3'd6:    r[4 * i +: 4] = lut[27:24];
+                default: r[4 * i +: 4] = lut[31:28];
+            endcase
+            if (idx[4 * i + 3])
+                r[4 * i +: 4] = 4'b0;
+        end
+        return r;
+    endfunction
+
+    // xperm8: byte i of the result is byte idx of lut, where idx is byte i of
+    // the index word; idx 4..255 (any of bits 7:2 set) is out of range and gives 0.
+    function automatic logic [31:0] ext_k_xperm8(input logic [31:0] lut, input logic [31:0] idx);
+        logic [31:0] r;
+        for (int i = 0; i < 4; i++) begin
+            case (idx[8 * i +: 2])
+                2'd0:    r[8 * i +: 8] = lut[7:0];
+                2'd1:    r[8 * i +: 8] = lut[15:8];
+                2'd2:    r[8 * i +: 8] = lut[23:16];
+                default: r[8 * i +: 8] = lut[31:24];
+            endcase
+            if (idx[8 * i + 2 +: 6] != 6'b0)
+                r[8 * i +: 8] = 8'b0;
+        end
+        return r;
+    endfunction
+
+    logic [31:0] ext_k_pack, ext_k_perm, ext_k_xperm, ext_k_sha256;
+    logic [31:0] ext_k_sha512sig, ext_k_sha512sum;
+    logic [31:0] ext_k_a, ext_k_b;   // rs1 and rs2, short names for the SHA groups
+
+    assign ext_k_a = rs1_data_in;
+    assign ext_k_b = rs2_data_in;
+
+    // PACK: variant[0] = packh. rs1 supplies the low part, rs2 the high part.
+    assign ext_k_pack = ext_var[0] ? {16'b0, rs2_data_in[7:0], rs1_data_in[7:0]}   // packh
+                                   : {rs2_data_in[15:0], rs1_data_in[15:0]};       // pack
+
+    // PERM: brev8, zip, unzip.
+    always_comb begin
+        case (ext_var)
+            2'b00:   ext_k_perm = ext_k_brev8(rs1_data_in);
+            2'b01:   ext_k_perm = ext_k_zip(rs1_data_in);
+            2'b10:   ext_k_perm = ext_k_unzip(rs1_data_in);
+            default: ext_k_perm = 32'b0;                                    // reserved
+        endcase
+    end
+
+    // XPERM: variant[0] = xperm8. rs1 is the table, rs2 the indices.
+    assign ext_k_xperm = ext_var[0] ? ext_k_xperm8(rs1_data_in, rs2_data_in)
+                                    : ext_k_xperm4(rs1_data_in, rs2_data_in);
+
+    // SHA256 (x = rs1; ror by n written as {x[n-1:0], x[31:n]}, a shift as {0, x[31:n]}).
+    always_comb begin
+        case (ext_var)
+            2'b00:   ext_k_sha256 = {ext_k_a[6:0],  ext_k_a[31:7]}  ^ {ext_k_a[17:0], ext_k_a[31:18]}
+                                  ^ {3'b0,  ext_k_a[31:3]};                          // sig0: ror 7, ror 18, srl 3
+            2'b01:   ext_k_sha256 = {ext_k_a[16:0], ext_k_a[31:17]} ^ {ext_k_a[18:0], ext_k_a[31:19]}
+                                  ^ {10'b0, ext_k_a[31:10]};                         // sig1: ror 17, ror 19, srl 10
+            2'b10:   ext_k_sha256 = {ext_k_a[1:0],  ext_k_a[31:2]}  ^ {ext_k_a[12:0], ext_k_a[31:13]}
+                                  ^ {ext_k_a[21:0], ext_k_a[31:22]};                 // sum0: ror 2, ror 13, ror 22
+            default: ext_k_sha256 = {ext_k_a[5:0],  ext_k_a[31:6]}  ^ {ext_k_a[10:0], ext_k_a[31:11]}
+                                  ^ {ext_k_a[24:0], ext_k_a[31:25]};                 // sum1: ror 6, ror 11, ror 25
+        endcase
+    end
+
+    // SHA512SIG: variant[1] = sig1, variant[0] = the low half, which has one
+    // more rs2 term (b << 25 for sig0, b << 26 for sig1) than the high half.
+    always_comb begin
+        if (ext_var[1])
+            ext_k_sha512sig = (ext_k_a << 3) ^ (ext_k_a >> 6) ^ (ext_k_a >> 19)
+                            ^ (ext_k_b >> 29) ^ (ext_k_b << 13)
+                            ^ (ext_var[0] ? (ext_k_b << 26) : 32'b0);                // sig1h / sig1l
+        else
+            ext_k_sha512sig = (ext_k_a >> 1) ^ (ext_k_a >> 7) ^ (ext_k_a >> 8)
+                            ^ (ext_k_b << 31) ^ (ext_k_b << 24)
+                            ^ (ext_var[0] ? (ext_k_b << 25) : 32'b0);                // sig0h / sig0l
+    end
+
+    // SHA512SUM: variant[0] = sum1r.
+    always_comb begin
+        if (ext_var[0])
+            ext_k_sha512sum = (ext_k_a << 23) ^ (ext_k_a >> 14) ^ (ext_k_a >> 18)
+                            ^ (ext_k_b >> 9)  ^ (ext_k_b << 18) ^ (ext_k_b << 14);    // sum1r
+        else
+            ext_k_sha512sum = (ext_k_a << 25) ^ (ext_k_a << 30) ^ (ext_k_a >> 28)
+                            ^ (ext_k_b >> 7)  ^ (ext_k_b >> 2)  ^ (ext_k_b << 4);     // sum0r
+    end
+
+    // ---- the group select ----
+    always_comb begin
+        case (ext_group)
+            3'b000:  ext_k_result = ext_k_pack;
+            3'b001:  ext_k_result = ext_k_perm;
+            3'b010:  ext_k_result = ext_k_xperm;
+            3'b011:  ext_k_result = ext_k_sha256;
+            3'b100:  ext_k_result = ext_k_sha512sig;
+            3'b101:  ext_k_result = ext_k_sha512sum;
+            default: ext_k_result = 32'b0;                                  // reserved
         endcase
     end
 

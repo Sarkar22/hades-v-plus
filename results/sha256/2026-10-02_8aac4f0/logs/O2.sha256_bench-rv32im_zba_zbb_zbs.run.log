@@ -1,0 +1,15 @@
+NIST 6/6
+DIGEST 00128dedfa357517a7718b37759dde4126b85c8029573169136c8a1e3e8892e9
+CYC 000fd6dd
+BYTES 00004000
+SHA256 BENCH OK
+- sim/top.sv:131: Verilog $finish
+[0;33m
+Inital test failed! (# Errors: 0)
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!! TEST DONE !!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[0m
+- S i m u l a t i o n   R e p o r t: Verilator 5.042 2025-11-02
+- Verilator: $finish at 23us; walltime 0.924 s; speed 24.817 us/s
+- Verilator: cpu 0.924 s on 1 threads; alloced 175 MB

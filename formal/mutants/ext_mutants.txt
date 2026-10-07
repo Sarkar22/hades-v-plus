@@ -1,9 +1,11 @@
-# Mutants of the EXT unit (Zbb, Zbs, Zicond): one textual change each of the sv2v model of the real RTL.
+# Mutants of the EXT unit (Zbb, Zbs, Zicond, Zbkb, Zbkx, Zknh): one textual change each of the sv2v model of the real RTL.
 # name | target task of sby/ext.sby | exact original text (must occur exactly once in gen/execute_stage_formal.v; \| = |, \n = newline, \t = tab) | replacement | description
-# The last four change only how the result leaves Execute: the result registered for Memory (X2)
-# or the forwarding fields data_valid and address (X1).
+# reg_flip, reg_bubble, fwd_invalid and fwd_addr_rs1 change only how the result leaves Execute: the
+# result registered for Memory (X2) or the forwarding fields data_valid and address (X1); reg_flip_k
+# does the same for the cryptography half.
 # As negative controls (run.sh, every mode) the target task must FAIL; in --mode full every mutant is
-# also run against all 29 required property tasks of ext.sby (res_*_yn, nostall_yn) and must be rejected.
+# also run against all 46 required property tasks of ext.sby (res_*_yn, nostall_yn) and must be rejected.
+# The Zbb, Zbs and Zicond half (Part 2c, alu_sel 1110):
 andn_and|res_andn_yn|2'b00: ext_logic = rs1_data_in & ~rs2_data_in;|2'b00: ext_logic = rs1_data_in & rs2_data_in;|andn computes and
 lzc_zero31|res_clz_yn|ext_lzc = (z4[1] & z4[0] ? 6'd32 : {1'b0, c5});|ext_lzc = (z4[1] & z4[0] ? 6'd31 : {1'b0, c5});|clz and ctz of 0 give 31
 ctz_no_reverse|res_ctz_yn|assign ext_lz = ext_lzc((ext_var[0] ? ext_bitrev(rs1_data_in) : rs1_data_in));|assign ext_lz = ext_lzc(rs1_data_in);|ctz counts leading instead of trailing zeros
@@ -21,3 +23,25 @@ reg_flip|res_andn_yn|rd_data_reg_out <= rd_data;\n\t\t\tsource_data_reg_out <= s
 reg_bubble|res_bset_yn|status_forwards_out <= status_forwards_in;|status_forwards_out <= ((alu_sel == 4'b1110) ? 4'd1 : status_forwards_in);|an EXT instruction is handed to Memory as BUBBLE
 fwd_invalid|res_andn_yn|default: forwarding_out[37] = status_forwards_in == 4'd0;|default: forwarding_out[37] = (status_forwards_in == 4'd0) && (alu_sel != 4'b1110);|an EXT result is forwarded with data_valid = 0
 fwd_addr_rs1|res_czero_nez_yn|forwarding_out[4-:5] = instruction_in[58-:5];|forwarding_out[4-:5] = ((alu_sel == 4'b1110) ? instruction_in[53-:5] : instruction_in[58-:5]);|an EXT result is forwarded to the rs1 address instead of rd
+# The cryptography half (Part 2d, alu_sel 1111): one or more planted bugs per instruction, the
+# selection of the half, a data-dependent stall (target X3) and the registered result (X2).
+pack_swap|res_pack_yn|{rs2_data_in[15:0], rs1_data_in[15:0]}|{rs1_data_in[15:0], rs2_data_in[15:0]}|pack puts rs1 in the high half and rs2 in the low half
+packh_byte1|res_packh_yn|rs2_data_in[7:0], rs1_data_in[7:0]}|rs2_data_in[15:8], rs1_data_in[7:0]}|packh takes rs2[15:8] instead of rs2[7:0]
+brev8_bytes|res_brev8_yn|r[(8 * b) + i] = x[((8 * b) + 7) - i];|r[(8 * b) + i] = x[(8 * (3 - b)) + i];|brev8 reverses the byte order instead of the bits of each byte
+zip_unzip|res_zip_yn|2'b01: ext_k_perm = ext_k_zip(rs1_data_in);|2'b01: ext_k_perm = ext_k_unzip(rs1_data_in);|zip computes unzip
+unzip_halves|res_unzip_yn|r[i] = x[2 * i];\n\t\t\t\t\t\tr[i + 16] = x[(2 * i) + 1];|r[i] = x[(2 * i) + 1];\n\t\t\t\t\t\tr[i + 16] = x[2 * i];|unzip swaps the two halves of the result
+xperm4_wrap|res_xperm4_yn|if (idx[(4 * i) + 3])|if (1'b0)|xperm4 ignores index bit 3: an index of 8 or more wraps instead of giving 0
+xperm8_bound|res_xperm8_yn|if (idx[(8 * i) + 2+:6] != 6'b000000)|if (idx[(8 * i) + 2+:5] != 5'b00000)|the out-of-range test of xperm8 ignores index bit 7
+sig0_ror3|res_sha256sig0_yn|{3'b000, ext_k_a[31:3]}|{ext_k_a[2:0], ext_k_a[31:3]}|sha256sig0 rotates by 3 instead of shifting by 3
+sig1_srl11|res_sha256sig1_yn|{10'b0000000000, ext_k_a[31:10]}|{11'b00000000000, ext_k_a[31:11]}|sha256sig1 shifts by 11 instead of 10
+sum0_rol2|res_sha256sum0_yn|{ext_k_a[1:0], ext_k_a[31:2]}|{ext_k_a[29:0], ext_k_a[31:30]}|sha256sum0 rotates left by 2 instead of right
+sum1_ror24|res_sha256sum1_yn|{ext_k_a[24:0], ext_k_a[31:25]}|{ext_k_a[23:0], ext_k_a[31:24]}|sha256sum1 rotates by 24 instead of 25
+sig0h_gate|res_sha512sig0h_yn|(ext_var[0] ? ext_k_b << 25 : 32'b00000000000000000000000000000000)|(ext_var[0] ? 32'b00000000000000000000000000000000 : ext_k_b << 25)|the rs2 << 25 term goes to sha512sig0h instead of sha512sig0l
+sig0l_no25|res_sha512sig0l_yn|(ext_var[0] ? ext_k_b << 25 : 32'b00000000000000000000000000000000)|32'b00000000000000000000000000000000|sha512sig0l without the rs2 << 25 term
+sig1h_with26|res_sha512sig1h_yn|(ext_var[0] ? ext_k_b << 26 : 32'b00000000000000000000000000000000)|(ext_k_b << 26)|sha512sig1h with the rs2 << 26 term of sha512sig1l
+sig1_srl18|res_sha512sig1l_yn|(ext_k_a >> 19)|(ext_k_a >> 18)|sha512sig1h/l shift rs1 by 18 instead of 19
+sum0r_swap|res_sha512sum0r_yn|(ext_k_b >> 2)|(ext_k_a >> 2)|sha512sum0r reads rs1 instead of rs2 in one term
+sum1r_13|res_sha512sum1r_yn|(ext_k_b << 14)|(ext_k_b << 13)|sha512sum1r shifts rs2 left by 13 instead of 14
+crypto_never|res_sha256sig1_yn|6'd61: alu_sel = (instruction_in[11] ? 4'b1111 : 4'b1110);|6'd61: alu_sel = 4'b1110;|the crypto half is never selected (alu_sel 1110 for every EXT instruction)
+stall_crypto|nostall_yn|assign m_stall = m_active && !m_ready;|assign m_stall = (m_active && !m_ready) \|\| ((alu_sel == 4'b1111) && (rs1_data_in[31:24] == 8'ha5));|a cryptography instruction stalls Execute for one operand value
+reg_flip_k|res_xperm8_yn|rd_data_reg_out <= rd_data;\n\t\t\tsource_data_reg_out <= source_data;\n\t\t\tinstruction_reg_out|rd_data_reg_out <= ((alu_sel == 4'b1111) ? (rd_data ^ 32'h80000000) : rd_data);\n\t\t\tsource_data_reg_out <= source_data;\n\t\t\tinstruction_reg_out|the cryptography result registered for Memory has bit 31 inverted; the forwarded result is correct

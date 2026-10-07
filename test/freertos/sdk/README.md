@@ -6,7 +6,7 @@ the specification, with the image format and the load protocol, is
 [../loader/SPEC.md](../loader/SPEC.md).
 
 ```bash
-make freertos-app NAME=<name> [MARCH=rv32i|rv32im|rv32i_zba|rv32im_zba|rv32im_zba_zbb_zbs] [OPT=-O2|-Os|-O0]   # one app
+make freertos-app NAME=<name> [MARCH=rv32i|rv32im|rv32i_zba|rv32im_zba|rv32im_zba_zbb_zbs|rv32im_zba_zbb_zbkb_zbkx_zbs_zknh] [OPT=-O2|-Os|-O0]   # one app
 make freertos-apps                                   # the examples (-O2) and the loader's test files
 make freertos-shell APP=loader                       # the shell: 'load <name>', then 'run [args]'
 make freertos-shell APP=loader UPLOAD=<name>         # also: 'load' without a name receives the app
@@ -26,10 +26,10 @@ the apps.
 | `app.ld` | The linker script: one region, the 128 KiB app slot at `0x00060000`; the link fails if the image, its `.bss`, its stack and the saved copy of the image do not fit. |
 | `appimg.py` | The image tool: `hex` fills in the header's name, flags and CRC-32 and writes the Intel HEX file; `info` checks a file as the loader does; `testfiles` writes the loader's test files. |
 | `sdk.mk` | The make targets above (included by `test/freertos/freertos.mk`). |
-| `apps/<name>/` | One directory per app; every `.c` and `.S` file in it is compiled. `<name>` is the app's name, stored in its image header: 1 to 15 letters, digits, `_` or `-`. The examples: `hello`, `compute` and `bitmanip` (each with `model.py`, which computes its expected values), `crash`, `selfmod`, `upper`. |
+| `apps/<name>/` | One directory per app; every `.c` and `.S` file in it is compiled. `<name>` is the app's name, stored in its image header: 1 to 15 letters, digits, `_` or `-`. The examples: `hello`, `compute` and `bitmanip` (each with `model.py`, which computes its expected values), `crash`, `selfmod`, `sha256` (SHA-256, with Zknh in its `rv32im_zba_zbb_zbkb_zbkx_zbs_zknh` build), `upper`. |
 
-The header's flags say what an image needs (`HADES_APP_NEEDS_M`, `_ZBA`, `_ZBB`, `_ZBS`, set by
-`appimg.py` from the `-march`); `run` refuses an image that needs an extension the CPU lacks.
+The header's flags say what an image needs (`HADES_APP_NEEDS_M`, `_ZBA`, `_ZBB`, `_ZBS`, `_ZBKB`,
+`_ZBKX`, `_ZKNH`, set by `appimg.py` from the `-march`); `run` refuses an image that needs an extension the CPU lacks.
 Zicond has no flag: GCC 12 cannot be told about it, and an app uses it through
 `std/include/zicond.h` after checking `app_cpu() & HADES_APP_CPU_ZICOND`.
 
@@ -44,7 +44,8 @@ optimisation level of its last build. `load <name>` sends `<name>.hex` from the 
 directory, `load <march>/<name>` the file of another build.
 
 Rules for an app (in full: SPEC.md, section 6.3): use only the API of `hades_app.h` to talk
-to the shell; use RV32I, M, Zba, Zbb and Zbs only if the app was built for them, and Zicond (through
+to the shell; use RV32I, M, Zba, Zbb, Zbs, Zbkb, Zbkx and Zknh only if the app was built for them (GCC 12.2
+emits none of the last three from C: use inline assembly, or `std/include/zknh.h` and `sha256.h`), and Zicond (through
 `std/include/zicond.h`) only where `app_cpu()` reports `HADES_APP_CPU_ZICOND` (the golden CPU
 runs RV32I apps only); no `stdio` and no `malloc` (the memory between `__app_heap_start` and
 `__app_heap_end` belongs to the app); do not write outside the slot, change `gp`, `tp`,

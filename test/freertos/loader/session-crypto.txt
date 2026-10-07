@@ -1,0 +1,66 @@
+# session-crypto.txt -- the app loader and the scalar cryptography extensions (test/freertos/loader,
+# SPEC.md section 10.5): the app sha256 built for rv32i passes its self-test and prints the same
+# digests on both CPUs; built for rv32im_zba_zbb_zbkb_zbkx_zbs_zknh it runs on HaDes-V+, and the
+# golden CPU, which has none of these extensions, refuses to run it. Not compared between the
+# CPUs:
+#   make freertos-shell-test APP=loader SCRIPT=test/freertos/loader/session-crypto.txt
+#   make freertos-shell-test APP=loader SCRIPT=test/freertos/loader/session-crypto.txt CPU=golden
+# (make freertos-loader-test and make freertos-loader-compare run it as well.) The format is
+# that of session.txt in this directory; the digests are those of Python's hashlib.
+#? ^  apps: 'load <name>' \(for example 'load hello'\), then 'run \[args\]'$
+# What the CPU executes, as the apps see it (app_cpu()).
+version
+#?dut ^cpu:\s+M yes, Zba yes, Zbb yes, Zbs yes, Zicntr yes, Zicond yes, Zbkb yes, Zbkx yes, Zknh yes$
+#?golden ^cpu:\s+M no, Zba no, Zbb no, Zbs no, Zicntr no, Zicond no, Zbkb no, Zbkx no, Zknh no$
+# sha256 built for rv32i: the same digests on both CPUs, sigma and Sigma in C.
+load rv32i/sha256
+#? ^load: waiting for rv32i/sha256 \(Ctrl-C cancels\)$
+#? ^loaded sha256: \d+ bytes at 0x00060000, entry 0x[0-9a-f]{8}, CRC32 0x[0-9a-f]{8}$
+app
+#? ^name:      sha256 \(ABI 1\)$
+#? ^isa:       rv32i$
+run abc
+#? ^sha256: self-test 4 of 4 NIST vectors: PASS \(C\)$
+#? ^sha256: 4096 bytes in \d+ cycles, \d+\.\d cycles per byte \(C\)$
+#? ^ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad  abc$
+#? ^app: sha256 exited with code 0 after \d+ cycles$
+#! FAIL
+# Without arguments: lines typed while the app waits for them, then an empty line.
+run
+#: hello world
+#: HaDes-V+
+#:
+#? ^sha256: self-test 4 of 4 NIST vectors: PASS \(C\)$
+#? ^sha256: type lines; an empty line ends$
+#? ^> hello world$
+#? ^b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9  hello world$
+#? ^> HaDes-V\+$
+#? ^f33c923c07cddfe4f1fbf5679a2276df344763b1cd3b2d292b67204d7ee60972  HaDes-V\+$
+#? ^app: sha256 exited with code 0 after \d+ cycles$
+#! FAIL
+# sha256 built for Zknh: one instruction for each sigma and Sigma on HaDes-V+ (the same digests,
+# fewer cycles); the golden CPU refuses it.
+load rv32im_zba_zbb_zbkb_zbkx_zbs_zknh/sha256
+#? ^load: waiting for rv32im_zba_zbb_zbkb_zbkx_zbs_zknh/sha256 \(Ctrl-C cancels\)$
+#? ^loaded sha256: \d+ bytes at 0x00060000, entry 0x[0-9a-f]{8}, CRC32 0x[0-9a-f]{8}$
+app
+#? ^isa:       rv32im_zba_zbb_zbkb_zbkx_zbs_zknh$
+run abc
+#?dut ^sha256: self-test 4 of 4 NIST vectors: PASS \(Zknh\)$
+#?dut ^sha256: 4096 bytes in \d+ cycles, \d+\.\d cycles per byte \(Zknh\)$
+#?dut ^ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad  abc$
+#?dut ^app: sha256 exited with code 0 after \d+ cycles$
+#?golden ^error: sha256 was built for rv32im_zba_zbb_zbkb_zbkx_zbs_zknh, but this CPU has no M, no Zba, no Zbb, no Zbkb, no Zbkx, no Zbs and no Zknh$
+#!golden ^sha256:
+#! FAIL
+run HaDes-V+ runs SHA-256
+#?dut ^7bc7f583c2f8252850f09b797b1425f531899d5aa340d14bad52ec390e4cacd0  HaDes-V\+ runs SHA-256$
+#?dut ^app: sha256 exited with code 0 after \d+ cycles$
+#?golden ^error: sha256 was built for rv32im_zba_zbb_zbkb_zbkx_zbs_zknh, but this CPU has no M, no Zba, no Zbb, no Zbkb, no Zbkx, no Zbs and no Zknh$
+#! FAIL
+uart
+#? ^dropped:\s+0 \(receive queue full\)$
+#? ^overruns:\s+0 \(lost in the UART\)$
+halt
+#? ^halted$
+#? ^FRTOS-RESULT: PASS

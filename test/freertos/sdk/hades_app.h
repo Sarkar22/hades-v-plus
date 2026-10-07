@@ -23,6 +23,9 @@
 #define HADES_APP_NEEDS_ZBA        ( 1u << 1 )   /* ulFlags: compiled for Zba */
 #define HADES_APP_NEEDS_ZBB        ( 1u << 2 )   /* ulFlags: compiled for Zbb */
 #define HADES_APP_NEEDS_ZBS        ( 1u << 3 )   /* ulFlags: compiled for Zbs */
+#define HADES_APP_NEEDS_ZBKB       ( 1u << 4 )   /* ulFlags: compiled for Zbkb */
+#define HADES_APP_NEEDS_ZBKX       ( 1u << 5 )   /* ulFlags: compiled for Zbkx */
+#define HADES_APP_NEEDS_ZKNH       ( 1u << 6 )   /* ulFlags: compiled for Zknh */
 
 typedef struct
 {
@@ -48,6 +51,9 @@ _Static_assert( sizeof( HadesAppHeader_t ) == HADES_APP_HEADER_SIZE, "HadesAppHe
 #define HADES_APP_CPU_ZBB          ( 1u << 3 )   /*        ... Zbb */
 #define HADES_APP_CPU_ZBS          ( 1u << 4 )   /*        ... Zbs */
 #define HADES_APP_CPU_ZICOND       ( 1u << 5 )   /*        ... Zicond (czero.eqz, czero.nez) */
+#define HADES_APP_CPU_ZBKB         ( 1u << 6 )   /*        ... Zbkb */
+#define HADES_APP_CPU_ZBKX         ( 1u << 7 )   /*        ... Zbkx */
+#define HADES_APP_CPU_ZKNH         ( 1u << 8 )   /*        ... Zknh */
 
 typedef struct HadesApi
 {
@@ -118,9 +124,9 @@ extern const HadesApi_t * hades_api;            /* set by crt0.S before main() r
 /* Ends the app with this exit code, as returning it from main() does; does not return. */
 #define app_exit( code )           ( hades_api->pxExit( code ) )
 
-/* What the CPU executes: HADES_APP_CPU_M, _ZBA, _ZICNTR, _ZBB, _ZBS and _ZICOND. Zicond has no
- * -march of its own (std/include/zicond.h emits its instructions): an app that uses it checks
- * HADES_APP_CPU_ZICOND first. */
+/* What the CPU executes: HADES_APP_CPU_M, _ZBA, _ZICNTR, _ZBB, _ZBS, _ZICOND, _ZBKB, _ZBKX and
+ * _ZKNH. Zicond has no -march of its own (std/include/zicond.h emits its instructions): an app
+ * that uses it checks HADES_APP_CPU_ZICOND first. */
 #define app_cpu()                  ( hades_api->ulCpu )
 
 /* mcycle as 64 bits (high, low, high read); both CPUs implement it. */

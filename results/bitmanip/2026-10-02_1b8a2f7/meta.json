@@ -47,7 +47,7 @@
    "command": "make test/asm/zkt",
    "exit_status": 0,
    "output": [
-    "198 'Test pass!' lines",
+    "303 'Test pass!' lines",
     "All tests passed! (# Errors: 1 = initial test)"
    ]
   },
@@ -60,8 +60,8 @@
     "=== 2: every form on the corner set ===",
     "=== 3: random operands ===",
     "=== 4: pipeline protocol ===",
-    "  Checks: 927129   Errors: 0",
-    "All 927129 EXT-unit checks passed"
+    "  Checks: 1507647   Errors: 0",
+    "All 1507647 EXT-unit checks passed"
    ]
   },
   {
@@ -69,7 +69,7 @@
    "command": "make ext-check",
    "exit_status": 0,
    "output": [
-    "ext check (quick): the RTL (instruction_decoder -> execute_stage) against the C reference model, 28 forms, 4 jobs",
+    "ext check (quick): the RTL (instruction_decoder -> execute_stage) against the C reference model, 45 forms, 4 jobs",
     "  andn          2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok",
     "  orn           2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok",
     "  xnor          2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok",
@@ -98,8 +98,25 @@
     "  bseti         1 of    1 digest lines identical,        135,680 vectors, violations=0  ok",
     "  czero.eqz     3 of    3 digest lines identical,      1,073,408 vectors, violations=0  ok",
     "  czero.nez     3 of    3 digest lines identical,      1,073,408 vectors, violations=0  ok",
-    "  75 digest lines, 553,624,832 vectors, violations=0",
-    "EXT CHECK: PASS (28 of 28 forms identical)"
+    "  pack          2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok",
+    "  packh         2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok",
+    "  brev8         4 of    4 digest lines identical,     67,108,864 vectors, violations=0  ok",
+    "  zip           4 of    4 digest lines identical,     67,108,864 vectors, violations=0  ok",
+    "  unzip         4 of    4 digest lines identical,     67,108,864 vectors, violations=0  ok",
+    "  xperm4        3 of    3 digest lines identical,      1,106,176 vectors, violations=0  ok",
+    "  xperm8        3 of    3 digest lines identical,      1,106,176 vectors, violations=0  ok",
+    "  sha256sig0    4 of    4 digest lines identical,     67,108,864 vectors, violations=0  ok",
+    "  sha256sig1    4 of    4 digest lines identical,     67,108,864 vectors, violations=0  ok",
+    "  sha256sum0    4 of    4 digest lines identical,     67,108,864 vectors, violations=0  ok",
+    "  sha256sum1    4 of    4 digest lines identical,     67,108,864 vectors, violations=0  ok",
+    "  sha512sig0h    2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok",
+    "  sha512sig0l    2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok",
+    "  sha512sig1h    2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok",
+    "  sha512sig1l    2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok",
+    "  sha512sum0r    2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok",
+    "  sha512sum1r    2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok",
+    "  125 digest lines, 1,034,153,728 vectors, violations=0",
+    "EXT CHECK: PASS (45 of 45 forms identical)"
    ]
   },
   {
@@ -126,27 +143,27 @@
    "command": "make freertos-shell-test APP=loader SCRIPT=test/freertos/loader/session-ext.txt",
    "exit_status": 0,
    "output": [
-    "FREERTOS SHELL RESULT: PASS  app=loader cpu=dut isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=28018784",
+    "FREERTOS SHELL RESULT: PASS  app=loader cpu=dut isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=28039273",
     "  typed lines: 14, prompts: 14, expectations met: 34/34",
     "loaded compute: 1048 bytes at 0x00060000, entry 0x00060040, CRC32 0x41352324",
     "compute: trace 1093898742, quotients 1445856025, remainders 22, mulhu 198418: PASS (75838 cycles)",
     "app: compute exited with code 0 after 139294 cycles",
     "loaded compute: 1048 bytes at 0x00060000, entry 0x00060040, CRC32 0x41352324",
-    "cpu:       M yes, Zba yes, Zbb yes, Zbs yes, Zicntr yes, Zicond yes",
+    "cpu:       M yes, Zba yes, Zbb yes, Zbs yes, Zicntr yes, Zicond yes, Zbkb yes, Zbkx yes, Zknh yes",
     "loaded bitmanip: 4172 bytes at 0x00060000, entry 0x00060040, CRC32 0x31515268",
     "bitmanip: zbb    popcount 1020, log2 1907, ctz 62, mix 5dd12d14 00203fcc 648904fb, hash 200eb485: PASS (11163 cycles)",
     "bitmanip: bytes  rev8 bb05f113, string lengths 102: PASS (1761 cycles, C)",
-    "bitmanip: zbs    primes below 4096: 564 (sum 1070091), after toggling 1928, flags 7f6b4d42: PASS (267172 cycles)",
-    "bitmanip: zicond select b23616d0, clamp 000013b0, add-if e806a5c8: PASS (1817 cycles, C)",
+    "bitmanip: zbs    primes below 4096: 564 (sum 1070091), after toggling 1928, flags 7f6b4d42: PASS (267173 cycles)",
+    "bitmanip: zicond select b23616d0, clamp 000013b0, add-if e806a5c8: PASS (1999 cycles, C)",
     "bitmanip: 4 of 4 sections passed",
-    "app: bitmanip exited with code 0 after 448180 cycles",
+    "app: bitmanip exited with code 0 after 447999 cycles",
     "loaded bitmanip: 3336 bytes at 0x00060000, entry 0x00060040, CRC32 0xa8bf5894",
     "bitmanip: zbb    popcount 1020, log2 1907, ctz 62, mix 5dd12d14 00203fcc 648904fb, hash 200eb485: PASS (5443 cycles)",
     "bitmanip: bytes  rev8 bb05f113, string lengths 102: PASS (331 cycles, rev8 and orc.b)",
-    "bitmanip: zbs    primes below 4096: 564 (sum 1070091), after toggling 1928, flags 7f6b4d42: PASS (209356 cycles)",
+    "bitmanip: zbs    primes below 4096: 564 (sum 1070091), after toggling 1928, flags 7f6b4d42: PASS (209345 cycles)",
     "bitmanip: zicond select b23616d0, clamp 000013b0, add-if e806a5c8: PASS (1612 cycles, czero)",
     "bitmanip: 4 of 4 sections passed",
-    "app: bitmanip exited with code 0 after 385103 cycles"
+    "app: bitmanip exited with code 0 after 385220 cycles"
    ]
   },
   {
@@ -154,19 +171,19 @@
    "command": "make freertos-shell-test APP=loader SCRIPT=test/freertos/loader/session-ext.txt CPU=golden",
    "exit_status": 0,
    "output": [
-    "FREERTOS SHELL RESULT: PASS  app=loader cpu=golden isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=27529337",
+    "FREERTOS SHELL RESULT: PASS  app=loader cpu=golden isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=27534391",
     "  typed lines: 14, prompts: 14, expectations met: 30/30",
     "loaded compute: 1048 bytes at 0x00060000, entry 0x00060040, CRC32 0x41352324",
     "error: compute was built for rv32im_zba, but this CPU has no M and no Zba",
     "loaded compute: 1048 bytes at 0x00060000, entry 0x00060040, CRC32 0x41352324",
-    "cpu:       M no, Zba no, Zbb no, Zbs no, Zicntr no, Zicond no",
+    "cpu:       M no, Zba no, Zbb no, Zbs no, Zicntr no, Zicond no, Zbkb no, Zbkx no, Zknh no",
     "loaded bitmanip: 4172 bytes at 0x00060000, entry 0x00060040, CRC32 0x31515268",
     "bitmanip: zbb    popcount 1020, log2 1907, ctz 62, mix 5dd12d14 00203fcc 648904fb, hash 200eb485: PASS (11161 cycles)",
     "bitmanip: bytes  rev8 bb05f113, string lengths 102: PASS (1753 cycles, C)",
-    "bitmanip: zbs    primes below 4096: 564 (sum 1070091), after toggling 1928, flags 7f6b4d42: PASS (267153 cycles)",
+    "bitmanip: zbs    primes below 4096: 564 (sum 1070091), after toggling 1928, flags 7f6b4d42: PASS (266968 cycles)",
     "bitmanip: zicond select b23616d0, clamp 000013b0, add-if e806a5c8: PASS (1817 cycles, C)",
     "bitmanip: 4 of 4 sections passed",
-    "app: bitmanip exited with code 0 after 448136 cycles",
+    "app: bitmanip exited with code 0 after 447872 cycles",
     "loaded bitmanip: 3336 bytes at 0x00060000, entry 0x00060040, CRC32 0xa8bf5894",
     "error: bitmanip was built for rv32im_zba_zbb_zbs, but this CPU has no M, no Zba, no Zbb and no Zbs"
    ]

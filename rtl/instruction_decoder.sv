@@ -19,7 +19,8 @@
 //   .rs2_address  — source register 2 number     (bits [24:20])
 //   .csr          — CSR register address          (bits [31:20])
 //   .immediate    — sign-extended immediate value (format depends on instruction);
-//                   for op::EXT (Zbb, Zbs, Zicond) the payload of Step 2b instead
+//                   for op::EXT (Zbb, Zbs, Zicond, Zbkb, Zbkx, Zknh) the
+//                   payload of Step 2b instead
 //
 // HOW CSR WORKS (quick explanation):
 //   CSR = Control and Status Register. These are special registers built into
@@ -108,9 +109,10 @@ module instruction_decoder (
     assign instruction_out.csr = csr::t'(instruction_in[31:20]);
 
     // =========================================================================
-    // Step 2b: Zbb, Zbs and Zicond — classified straight from the raw bits
+    // Step 2b: Zbb, Zbs, Zicond, Zbkb, Zbkx and Zknh — classified straight
+    // from the raw bits
     // =========================================================================
-    // All 28 instructions decode to the one op EXT (see defines/op.sv), so this
+    // All 45 instructions decode to the one op EXT (see defines/op.sv), so this
     // step only has to say WHETHER a word is one of them (ext_hit) and WHICH one
     // (ext_sel, plus ext_use_imm for the five immediate forms). Steps 3 and 4 then
     // override their result for an EXT word as their last 2:1 select.
@@ -118,9 +120,14 @@ module instruction_decoder (
     // Every arm matches the full 7-bit funct7. For the immediate forms that is
     // what makes them RV32: inst[25] is shamt[5] there, and RV32 reserves
     // shamt[5] = 1, so rori/bclri/bexti/binvi/bseti with inst[25] set stay
-    // ILLEGAL. The unary forms (clz, ctz, cpop, sext.b, sext.h, orc.b, rev8,
-    // zext.h) use the rs2 field as part of the opcode, so it is matched exactly
-    // too; zext.h with rs2 != 0 is Zbkb's pack, which is not implemented.
+    // ILLEGAL. The one-operand forms (clz, ctz, cpop, sext.b, sext.h, orc.b,
+    // rev8, brev8, zip, unzip, the four sha256 forms) use the rs2 field as part
+    // of the opcode, so it is matched exactly too: the neighbouring fields are
+    // RV64 or other extensions' instructions (sha512sum0 and its RV64 siblings
+    // at 4..7, sm3p0/sm3p1 at 8 and 9) and must stay ILLEGAL. Zbkb's pack and
+    // Zbb's zext.h share one encoding: pack rd, rs1, x0 IS zext.h (both give
+    // {16'b0, rs1[15:0]}), so the rs2 = 0 word keeps the zext.h payload it has
+    // always had, and every other rs2 field is pack.
     //
     // None of these combinations is claimed by an existing arm of Step 4 (the
     // encoding sweep checks every word against the reference decoder), so the
@@ -147,9 +154,11 @@ module instruction_decoder (
                     {7'b0000101, 3'b101}: ext_sel = EXT_MINU;
                     {7'b0000101, 3'b110}: ext_sel = EXT_MAX;
                     {7'b0000101, 3'b111}: ext_sel = EXT_MAXU;
-                    {7'b0000100, 3'b100}: begin                    // zext.h (RV32 form)
-                        ext_sel = EXT_ZEXT_H;
-                        ext_hit = (instruction_in[24:20] == 5'b00000);
+                    {7'b0000100, 3'b100}: begin                    // zext.h (RV32 form) or pack
+                        if (instruction_in[24:20] == 5'b00000)
+                            ext_sel = EXT_ZEXT_H;
+                        else
+                            ext_sel = EXT_PACK;
                     end
                     {7'b0110000, 3'b001}: ext_sel = EXT_ROL;
                     {7'b0110000, 3'b101}: ext_sel = EXT_ROR;
@@ -159,6 +168,15 @@ module instruction_decoder (
                     {7'b0010100, 3'b001}: ext_sel = EXT_BSET;
                     {7'b0000111, 3'b101}: ext_sel = EXT_CZERO_EQZ; // Zicond
                     {7'b0000111, 3'b111}: ext_sel = EXT_CZERO_NEZ;
+                    {7'b0000100, 3'b111}: ext_sel = EXT_PACKH;     // Zbkb
+                    {7'b0010100, 3'b010}: ext_sel = EXT_XPERM4;    // Zbkx
+                    {7'b0010100, 3'b100}: ext_sel = EXT_XPERM8;
+                    {7'b0101110, 3'b000}: ext_sel = EXT_SHA512SIG0H; // Zknh (RV32 only)
+                    {7'b0101010, 3'b000}: ext_sel = EXT_SHA512SIG0L;
+                    {7'b0101111, 3'b000}: ext_sel = EXT_SHA512SIG1H;
+                    {7'b0101011, 3'b000}: ext_sel = EXT_SHA512SIG1L;
+                    {7'b0101000, 3'b000}: ext_sel = EXT_SHA512SUM0R;
+                    {7'b0101001, 3'b000}: ext_sel = EXT_SHA512SUM1R;
                     default:              ext_hit = 1'b0;
                 endcase
             end
@@ -186,8 +204,28 @@ module instruction_decoder (
                         ext_hit = (instruction_in[24:20] == 5'b00111);
                     end
                     {7'b0110100, 3'b101}: begin                    // rev8 (RV32 form, imm 0x698)
-                        ext_sel = EXT_REV8;
-                        ext_hit = (instruction_in[24:20] == 5'b11000);
+                        case (instruction_in[24:20])               // or brev8 (Zbkb, imm 0x687)
+                            5'b11000: ext_sel = EXT_REV8;
+                            5'b00111: ext_sel = EXT_BREV8;
+                            default:  ext_hit = 1'b0;
+                        endcase
+                    end
+                    {7'b0000100, 3'b001}: begin                    // zip (Zbkb, RV32 only)
+                        ext_sel = EXT_ZIP;
+                        ext_hit = (instruction_in[24:20] == 5'b01111);
+                    end
+                    {7'b0000100, 3'b101}: begin                    // unzip (Zbkb, RV32 only)
+                        ext_sel = EXT_UNZIP;
+                        ext_hit = (instruction_in[24:20] == 5'b01111);
+                    end
+                    {7'b0001000, 3'b001}: begin                    // Zknh sha256 group
+                        case (instruction_in[24:20])
+                            5'b00000: ext_sel = EXT_SHA256SUM0;
+                            5'b00001: ext_sel = EXT_SHA256SUM1;
+                            5'b00010: ext_sel = EXT_SHA256SIG0;
+                            5'b00011: ext_sel = EXT_SHA256SIG1;
+                            default:  ext_hit = 1'b0;
+                        endcase
                     end
                     default:              ext_hit = 1'b0;
                 endcase

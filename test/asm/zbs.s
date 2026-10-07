@@ -30,7 +30,7 @@
 # |    fence.i; an interrupt at every position of a chain changes nothing.                       |
 # | 6. minstret counts each instruction once; a dependent chain takes exactly as many            |
 # |    cycles as the same chain of add (no stall, forwarded in its own cycle).                   |
-# | 7. The illegal neighbours (shamt[5] = 1 on RV32, Zbkx, unused funct3/funct7)                 |
+# | 7. The illegal neighbours (shamt[5] = 1 on RV32, unused funct3/funct7)                       |
 # |    raise illegal-instruction.                                                                |
 # |                                                                                              |
 # | Register allocation:                                                                         |
@@ -1633,8 +1633,8 @@ test_illegal_neighbours:
     expect_trap 0x4A05D513, 2       # bexti with shamt[5] = 1
     expect_trap 0x6A059513, 2       # binvi with shamt[5] = 1
     expect_trap 0x2A059513, 2       # bseti with shamt[5] = 1
-    expect_trap 0x28C5A533, 2       # xperm4 (Zbkx)
-    expect_trap 0x28C5C533, 2       # xperm8 (Zbkx)
+    expect_trap 0x28C58533, 2       # funct7 0010100, funct3 000
+    expect_trap 0x28C5E533, 2       # funct7 0010100, funct3 110
     expect_trap 0x48C58533, 2       # funct7 0100100, funct3 000
     expect_trap 0x48C5F533, 2       # funct7 0100100, funct3 111
     expect_trap 0x68C5D533, 2       # funct7 0110100, funct3 101

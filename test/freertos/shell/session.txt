@@ -36,8 +36,9 @@ help
 version
 #? ^HaDes-V\+ shell: FreeRTOS V11
 #? ^build:\s+rv32i\S* -O\S, GCC \d
-#?dut ^cpu:\s+M yes, Zba yes, Zbb yes, Zbs yes, Zicntr yes, Zicond yes$
-#?golden ^cpu:\s+M no, Zba no, Zbb no, Zbs no, Zicntr no, Zicond no$
+# (the loader's build of the shell, which runs this script too, also probes Zbkb, Zbkx and Zknh)
+#?dut ^cpu:\s+M yes, Zba yes, Zbb yes, Zbs yes, Zicntr yes, Zicond yes(, Zbkb yes, Zbkx yes, Zknh yes)?$
+#?golden ^cpu:\s+M no, Zba no, Zbb no, Zbs no, Zicntr no, Zicond no(, Zbkb no, Zbkx no, Zknh no)?$
 tasks
 #? ^task\s+state\s+priority\s+stack free \(min\)$
 #? ^console\s+running\s+2\s+\d+ words$

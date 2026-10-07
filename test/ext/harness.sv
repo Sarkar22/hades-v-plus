@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 // ---------------------------------------------------------------------------------------------
 // test/ext/harness.sv -- the real instruction_decoder in front of the real execute_stage, for
-// the vector check of the Zbb, Zbs and Zicond instructions (test/ext/harness.cpp drives it).
+// the vector check of the Zbb, Zbs, Zicond, Zbkb, Zbkx and Zknh instructions
+// (test/ext/harness.cpp drives it).
 //
 // The decoder turns the instruction word into instruction::t (op::EXT and its payload) exactly
 // as in the core, and Execute computes the result from the register values given here. The

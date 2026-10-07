@@ -25,8 +25,8 @@ app
 #? ^isa:       rv32im_zba$
 # What the CPU executes, as the apps see it (app_cpu()).
 version
-#?dut ^cpu:\s+M yes, Zba yes, Zbb yes, Zbs yes, Zicntr yes, Zicond yes$
-#?golden ^cpu:\s+M no, Zba no, Zbb no, Zbs no, Zicntr no, Zicond no$
+#?dut ^cpu:\s+M yes, Zba yes, Zbb yes, Zbs yes, Zicntr yes, Zicond yes, Zbkb yes, Zbkx yes, Zknh yes$
+#?golden ^cpu:\s+M no, Zba no, Zbb no, Zbs no, Zicntr no, Zicond no, Zbkb no, Zbkx no, Zknh no$
 # bitmanip built for rv32i: the same values on both CPUs, the Zicond section in plain C.
 load rv32i/bitmanip
 #? ^load: waiting for rv32i/bitmanip \(Ctrl-C cancels\)$

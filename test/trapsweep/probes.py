@@ -544,14 +544,77 @@ def ext_probes():
         P("legal edge: rori a0,a1,0 as a word", "", "    .word 0x6005D513\n    addi a1, a0, 1", ['a0', 'a1']),
         P("illegal: rori shamt[5]=1, rev8 RV64, clmul", "",
           "    .word 0x6205D513\n    .word 0x6B85D513\n    .word 0x0AC59533\n    addi a1, a0, 1", ['a0', 'a1'], kmax=40),
-        P("illegal: pack, packh, zip, unary rs2=3", "",
-          "    .word 0x08C5C533\n    .word 0x08C5F533\n    .word 0x08F59513\n    .word 0x60359513\n    addi a1, a0, 1",
+        P("illegal: funct7 0000100 neighbours, zip neighbour, unary rs2=3", "",
+          "    .word 0x08C5D533\n    .word 0x08C5E533\n    .word 0x08E59513\n    .word 0x60359513\n    addi a1, a0, 1",
           ['a0', 'a1'], kmax=40),
     ]
 
-# Families that sweep.py runs only when named (sweep.py run --fam ext): they are not part
+def crypto_probes():
+    """Zbkb, Zbkx and Zknh: every form Zbb does not already have, dependent chains into and out
+    of them (load-use, branch operand, store address, jalr base), ECALL and MRET next to them,
+    results to x0, use while the handler runs nested, and illegal neighbours that must keep
+    trapping. Assembled with sweep.py's MARCH, so each probe enables the mnemonics itself."""
+    on = "    .option arch, +zbb, +zbs, +zbkb, +zbkx, +zknh\n"
+    def P(name, setup, probe, dump, kmax=36, **k):
+        return dict(name=name, setup=on + setup, probe=probe, dump=dump, kmax=kmax, **k)
+    ab = "    li   a0, 0x8f00f0a5\n    li   a2, 0x0ff0c35a"
+    return [
+        P("pack;packh;pack x0", ab, "    pack  a1, a0, a2\n    packh a3, a0, a2\n    pack  a4, a0, zero", ['a1', 'a3', 'a4']),
+        P("brev8;zip;unzip", "    li   a0, 0x12345678",
+          "    brev8 a1, a0\n    zip   a3, a0\n    unzip a4, a0", ['a1', 'a3', 'a4']),
+        P("zip;unzip in place", "    li   a0, 0x8000ffff", "    zip   a0, a0\n    unzip a0, a0\n    zip   a1, a0", ['a0', 'a1']),
+        P("xperm4;xperm8", "    li   a0, 0xfedcba98\n    li   a2, 0x80f30217",
+          "    xperm4 a1, a0, a2\n    xperm8 a3, a0, a2\n    xperm8 a4, a2, a0", ['a1', 'a3', 'a4']),
+        P("sha256sig0;sig1;sum0;sum1", "    li   a0, 0x6a09e667",
+          "    sha256sig0 a1, a0\n    sha256sig1 a3, a0\n    sha256sum0 a4, a0\n    sha256sum1 a5, a0",
+          ['a1', 'a3', 'a4', 'a5'], kmax=40),
+        P("sha512sig0h;sig0l;sig1h;sig1l", "    li   a0, 0x6a09e667\n    li   a2, 0xf3bcc908",
+          "    sha512sig0h a1, a0, a2\n    sha512sig0l a3, a2, a0\n    sha512sig1h a4, a0, a2\n    sha512sig1l a5, a2, a0",
+          ['a1', 'a3', 'a4', 'a5'], kmax=40),
+        P("sha512sum0r;sum1r, both halves", "    li   a0, 0x510e527f\n    li   a2, 0xade682d1",
+          "    sha512sum0r a1, a0, a2\n    sha512sum0r a3, a2, a0\n    sha512sum1r a4, a0, a2\n    sha512sum1r a5, a2, a0",
+          ['a1', 'a3', 'a4', 'a5'], kmax=40),
+        P("chain zip->sha256sum1->xperm4->sha512sig1l->pack->brev8", "    li   a0, 0x00012345\n    li   a2, 0x76543210",
+          "    zip  a1, a0\n    sha256sum1 a3, a1\n    xperm4 a4, a2, a3\n    sha512sig1l a5, a4, a3\n    pack t1, a5, a4"
+          "\n    brev8 a1, t1", ['a1', 'a3', 'a4', 'a5'], kmax=40),
+        P("lw; sha256sig0 (load-use)", "", "    lw   a0, 0(t2)\n    sha256sig0 a1, a0\n    xperm8 a3, a0, a1", ['a1', 'a3']),
+        P("lw; sha512sum1r (load-use into rs2)", "    li   a2, 0x13579bdf",
+          "    lw   a0, 4(t2)\n    sha512sum1r a1, a2, a0\n    unzip a3, a1", ['a1', 'a3']),
+        P("csrr minstret; brev8", "", "    csrr a1, minstret\n    brev8 a3, a1", ['a3']),
+        P("sha256sum0; ecall", "    li   a0, 0x7f", "    sha256sum0 a1, a0\n    ecall", ['a1']),
+        P("ecall; sha256sum0", "    li   a0, 0x7f", "    ecall\n    sha256sum0 a1, a0", ['a1']),
+        P("packh; mret", "    li   a2, 0x3c\n    la   s9, 5f\n    csrw mepc, s9",
+          "    packh a1, a0, a2\n    mret\n    li   a3, 0xbad\n5:", ['a1', 'a3']),
+        P("zip; csrci mstatus", "", "    zip  a1, a0\n    csrci mstatus, 8\n    csrr a3, mstatus", ['a1', 'a3']),
+        P("xperm8 -> bnez", "    li   a0, 0x44332211\n    li   a2, 0x00000080",
+          "    xperm8 a1, a0, a2\n    bnez a1, 7f\n    li   a3, 0x77\n7:  addi a4, a1, 1", ['a1', 'a3', 'a4']),
+        P("sha512sig0h -> beq", "    li   a0, 0\n    li   a2, 1",
+          "    sha512sig0h a1, a0, a2\n    beq  a1, a2, 7f\n    li   a3, 0x77\n7:  addi a4, a1, 1", ['a1', 'a3', 'a4']),
+        P("pack -> store address", "    li   a0, 0x600dcafe\n    srli a4, t2, 16",
+          "    pack a5, t2, a4\n    sw   a0, 16(a5)\n    lw   a1, 16(t2)", ['a1'], restore="    sw   zero, 16(t2)"),
+        P("pack -> jalr base", "    la   a4, 8f\n    srli a2, a4, 16",
+          "    pack a5, a4, a2\n    jalr ra, 0(a5)\n    li   a1, 0xbad\n8:  addi a3, a1, 1", ['a1', 'a3']),
+        P("sha512sum0r; STALLREG store", "    li   a0, 0x123\n    li   a2, 0x45\n    li   a4, STALLREG",
+          "    sha512sum0r a1, a0, a2\n    sw   a1, 0(a4)\n    lw   a3, 0(a4)", ['a1', 'a3'], kmax=48, periph=True),
+        P("brev8;xperm4 in handler window (nested)", "",
+          "    brev8 a1, a0\n    xperm4 a3, a1, a0", ['a1', 'a3'], kmax=60, nested=True),
+        P("div; sha256sig1 (M result into crypto)", "    li   a0, 1000003\n    li   a2, 7",
+          "    div  a1, a0, a2\n    sha256sig1 a3, a1", ['a1', 'a3'], kmax=60),
+        P("sha256sig1; divu (crypto result into M)", "    li   a0, 0x00012345",
+          "    sha256sig1 a1, a0\n    divu a3, a0, a1", ['a1', 'a3'], kmax=60),
+        P("rev8; brev8; clz (Zbb and Zbkb)", "    li   a0, 0x01020304",
+          "    rev8  a1, a0\n    brev8 a3, a1\n    clz   a4, a3", ['a1', 'a3', 'a4']),
+        P("crypto into x0", "    li   a0, -1\n    li   a2, 1",
+          "    sha512sig1h zero, a0, a2\n    zip  zero, a0\n    xperm4 zero, a0, a2\n    add  a1, zero, zero", ['a1']),
+        P("taken branch -> sha256sum1", "", "    beq  zero, zero, 7f\n    li   a3, 0xbad\n7:  sha256sum1 a1, a0", ['a1', 'a3']),
+        P("illegal: RV64 sha512sum0, aes32esi, funct7 0101100, unzip neighbour", "",
+          "    .word 0x10459513\n    .word 0x22C58533\n    .word 0x58C58533\n    .word 0x08E5D513\n    addi a1, a0, 1",
+          ['a0', 'a1'], kmax=40),
+    ]
+
+# Families that sweep.py runs only when named (sweep.py run --fam ext, --fam crypto): they are not part
 # of 'all' or of 'sweep.py list', whose output the trapsweep record stores.
-OPT_FAMS = {'ext': ext_probes}
+OPT_FAMS = {'ext': ext_probes, 'crypto': crypto_probes}
 
 FAMS = {'ctl': ctl_probes, 'race': race_probes, 'csr': csr_probes, 'exc': exc_probes, 'exc_mie0': lambda: exc_probes('mie0'), 'exc_mie0mpie0': lambda: exc_probes('mie0mpie0'),
         'exc_mpie0': lambda: exc_probes('mpie0'), 'nested': nested_probes, 'flow': flow_probes, 'bus': bus_probes,
@@ -560,7 +623,7 @@ FAMS = {'ctl': ctl_probes, 'race': race_probes, 'csr': csr_probes, 'exc': exc_pr
 # Families that only run on the DUT: the golden CPU has no M/Zba (m, pre) and no
 # branch predictor (bp: it ignores MHPMEVENT10, so the sweep would test nothing).
 # pre_i is the M-free subset of pre, for the golden CPU.
-DUT_ONLY = {'m', 'pre', 'bp', 'ext'}
+DUT_ONLY = {'m', 'pre', 'bp', 'ext', 'crypto'}
 
 if __name__ == '__main__':
     # probes.py <family> [ext|timer|both] [ids-file]: print one program with every probe of a family

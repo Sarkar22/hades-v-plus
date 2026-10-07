@@ -19,7 +19,7 @@ d4a79fad12a9e27a5ae81fc61c0601d006c87e8e03d9e6a72564d2609f6b7d40  build/test/asm
 3ccd95548403e021f6f356624d32b95099778bc9a96fa3b768113b973a85e221  build/test/asm/trapirq/init.mem
 cfe6832eafdb011064d7069c9edaed656fb0e174bb6e5f058d2583db37008b25  build/test/asm/trapmpie/init.mem
 d4cc6e81a333149ad0de02297d495c4fe31b0111f8d633496dc25ac4d4281b80  build/test/asm/uartirq/init.mem
-f599bfab1987e0f3581b9bc9243992108d6c27b781dfeeeb31179a3c4ab8c8b3  build/test/asm/zbaadv/init.mem
+3a25a50d1a55aa238d1743144ef6aa4ae7dbecbf8db64763020e4cd0fd236fce  build/test/asm/zbaadv/init.mem
 1ebc809f5004d3a21891a37cb89785d4ec8647b91924220424258da7c912929f  build/test/asm/zba/init.mem
 bce2a4e416e785bfbcc419d547c12c735193fdfb522a782731cd27c39ec5c6dc  build/test/asm/zicntr/init.mem
 5a0a317c523941e8b418331f96e3059281eca40dd4896f643b8e303604a3d99b  build/test/c/basys3_demo/init.mem

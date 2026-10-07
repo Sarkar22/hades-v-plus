@@ -20,11 +20,17 @@
 #                      variant b, the ext probe family, the app
 #                      bitmanip in the loader's session-ext.txt
 #                      and the forms in its two builds
+#   sha256             make bench-sha256, at -O2, -Os and -O0        results/sha256/
+#   crypto             the Zbkb, Zbkx and Zknh tests: asm tests,     results/crypto/
+#                      fuzz variant k, the crypto probe family,
+#                      the app sha256 in the loader's
+#                      session-crypto.txt and the forms in its
+#                      two builds
 #   bitmanip-long      only when named: make ext-exhaustive and the  results/bitmanip/
-#                      campaign set bitmanip (about 30 minutes)
+#                      campaign set bitmanip (about an hour)
 #   freertos-campaign  only with --campaign: the 794-run suite       results/freertos-campaign/
 #   formal             only with --formal: make formal (formal tools) results/formal/
-# Without CHECK names it runs the first eight (6 to 14 minutes once the simulators are built,
+# Without CHECK names it runs the first ten (10 to 20 minutes once the simulators are built,
 # depending on the load of the machine).
 # Each check compares the stored values exactly: program output, cycle counts, verdict lines,
 # per-run tables and the sha256 of the program images. Wall times are never compared.
@@ -153,8 +159,19 @@ def show(cmd):
     return text.replace(BUILD + os.sep, BUILD_NAME + "/")
 
 
+def commit_depth(commit):
+    """The number of commits up to and including commit, or 0 outside a git checkout"""
+    try:
+        p = subprocess.run(["git", "rev-list", "--count", commit], env=ENV, stdin=subprocess.DEVNULL,
+                           stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, universal_newlines=True)
+        return int(p.stdout.strip()) if p.returncode == 0 else 0
+    except (OSError, ValueError):
+        return 0
+
+
 def newest_record(topic, statuses=("repeatable",)):
-    """The newest record of a topic with one of the statuses (by the date in its directory name)"""
+    """The newest record of a topic with one of the statuses: by the date in its directory name
+    (<date>_<commit>), and of two records of one day the one whose commit came later"""
     found = []
     for m in sorted(glob.glob(os.path.join("results", topic, "*", "meta.json"))):
         try:
@@ -163,7 +180,15 @@ def newest_record(topic, statuses=("repeatable",)):
             continue
         if status.startswith(statuses):
             found.append(os.path.dirname(m))
-    return found[-1] if found else None
+    days = {}
+    for d in found:
+        days.setdefault(os.path.basename(d).split("_")[0], []).append(d)
+    if not found:
+        return None
+    last = days[max(days)]
+    if len(last) == 1:
+        return last[0]
+    return max(last, key=lambda d: (commit_depth(os.path.basename(d).split("_", 1)[-1]), d))
 
 
 def diff_lines(want, got, limit=12):
@@ -278,6 +303,11 @@ def check_fencei(c):
 def check_zbb(c):
     check_bench(c, [(["make", "bench-zbb"], "-O2"), (["make", "bench-zbb", "OPT=-Os"], "-Os"),
                     (["make", "bench-zbb", "OPT=-O0"], "-O0")], "zbb")
+
+
+def check_sha256(c):
+    check_bench(c, [(["make", "bench-sha256"], "-O2"), (["make", "bench-sha256", "OPT=-Os"], "-Os"),
+                    (["make", "bench-sha256", "OPT=-O0"], "-O0")], "sha256")
 
 
 # ---- tests: every suite of docs/VERIFICATION.md ----------------------------------------------
@@ -596,9 +626,10 @@ def bitmanip_output(suite, out):
     return [l.rstrip() for l in lines if re.search(pats, l)]
 
 
-def run_figures(c, figures, jobs):
+def run_figures(c, figures, jobs, keep=LOADER_KEEP):
     """Runs the commands of figures (a list of {suite, command, exit_status, output}) and compares
-    the kept lines; returns {suite: output directory}"""
+    the kept lines (of a loader session: also the transcript's lines that match keep); returns
+    {suite: output directory}"""
     same, dirs = 0, {}
     for i, f in enumerate(figures):
         suite = f["suite"]
@@ -611,7 +642,7 @@ def run_figures(c, figures, jobs):
             uart = os.path.join(BUILD, "test", "freertos", "loader",
                                 "session-%s.uart" % ("golden" if "golden" in suite else "dut"))
             text = read(uart) if os.path.exists(uart) else ""
-            got += [l.rstrip("\r") for l in text.splitlines() if LOADER_KEEP.match(l.rstrip("\r"))]
+            got += [l.rstrip("\r") for l in text.splitlines() if keep.match(l.rstrip("\r"))]
         if got is None:
             c.problem("no rule for the row '%s' of the record: update results/check.sh" % suite)
             continue
@@ -634,40 +665,47 @@ def program_rows(out_dir):
     return rows
 
 
-def ext_form_line(name, dis):
-    """'<name>  N words, M forms: ...' of the Zbb, Zbs and Zicond words in the disassembly dis, counted
-    with the MATCH/MASK table of test/bench/bench.py, as bench-zbb prints it; None without dis"""
+def ext_form_line(name, dis, crypto=False):
+    """'<name>  N words, M forms: ...' of the Zbb, Zbs and Zicond words (crypto: of the Zbkb, Zbkx
+    and Zknh words) in the disassembly dis, counted with the MATCH/MASK tables of
+    test/bench/bench.py, as bench-zbb and bench-sha256 print them; None without dis"""
     sys.path.insert(0, os.path.join(ROOT, "test", "bench"))
     import bench
     if not os.path.exists(dis):
         return None
+    table = bench.CRYPTO_FORMS if crypto else bench.EXT_FORMS
     n = {}
     for line in read(dis).splitlines():
         m = re.match(r"^\s*[0-9a-f]+:\s+([0-9a-f]{8})\s", line)
         if m:
             w = int(m.group(1), 16)
-            for form, match, mask in bench.EXT_FORMS:
+            if crypto:
+                form = bench.crypto_form(w)
+                if form:
+                    n[form] = n.get(form, 0) + 1
+                continue
+            for form, match, mask in table:
                 if w & mask == match:
                     n[form] = n.get(form, 0) + 1
     return "%-28s %3d words, %2d forms: %s" % (name, sum(n.values()), len(n),
-                                               " ".join("%s=%d" % (k, n[k]) for k, _, _ in bench.EXT_FORMS
+                                               " ".join("%s=%d" % (k, n[k]) for k, _, _ in table
                                                         if k in n) or "-")
 
 
-def check_bitmanip(c, jobs):
-    meta = c.meta()
-    dirs = run_figures(c, meta["figures"], jobs)
-    # the instruction forms in the app's two builds, which the loader's session has just built
-    forms = meta["app_forms"]
-    got = [ext_form_line(name, os.path.join(BUILD, dis)) for name, dis in forms["files"]]
+def check_app_forms(c, forms, app, crypto=False):
+    """The instruction forms in the two builds of an app, which the loader's session has just built"""
+    got = [ext_form_line(name, os.path.join(BUILD, dis), crypto) for name, dis in forms["files"]]
     if None in got:
-        c.problem("no disassembly of the app bitmanip: %s" % ", ".join(
-            os.path.join(BUILD_NAME, d) for (n, d), g in zip(forms["files"], got) if g is None))
+        c.problem("no disassembly of the app %s: %s" % (app, ", ".join(
+            os.path.join(BUILD_NAME, d) for (n, d), g in zip(forms["files"], got) if g is None)))
     elif [norm(l) for l in got] == [norm(l) for l in forms["output"]]:
-        c.compared.append("the forms in %d builds of the app bitmanip" % len(got))
+        c.compared.append("the forms in %d builds of the app %s" % (len(got), app))
     else:
-        c.problem("the forms in the app bitmanip differ from the record",
+        c.problem("the forms in the app %s differ from the record" % app,
                   diff_lines([norm(l) for l in forms["output"]], [norm(l) for l in got]))
+
+
+def check_program_tables(c, meta, dirs):
     for suite, stored in meta["program_tables"].items():
         try:
             table = csv_text(["program", "dut_iss_consistent", "dut_cycles"], program_rows(dirs[suite]))
@@ -680,6 +718,26 @@ def check_bitmanip(c, jobs):
         else:
             c.problem("the per-program results of '%s' differ from %s" % (suite, stored),
                       diff_lines(want.splitlines(), table.splitlines()))
+
+
+def check_bitmanip(c, jobs):
+    meta = c.meta()
+    dirs = run_figures(c, meta["figures"], jobs)
+    check_app_forms(c, meta["app_forms"], "bitmanip")
+    check_program_tables(c, meta, dirs)
+
+
+# ---- crypto: the Zbkb, Zbkx and Zknh tests ----------------------------------------------------
+
+# The loader's transcript lines that the crypto record keeps
+CRYPTO_KEEP = re.compile(r"^(loaded |sha256: |app: |error: |cpu: )")
+
+
+def check_crypto(c, jobs):
+    meta = c.meta()
+    dirs = run_figures(c, meta["figures"], jobs, CRYPTO_KEEP)
+    check_app_forms(c, meta["app_forms"], "sha256", crypto=True)
+    check_program_tables(c, meta, dirs)
 
 
 def check_bitmanip_long(c, jobs):
@@ -756,13 +814,17 @@ CHECKS = [
      "under 2 minutes"),
     ("bitmanip", "bitmanip", "the Zbb, Zbs and Zicond tests (asm, Execute bench, ext-check, fuzz b, "
      "ext probes, the app bitmanip)", "about 3 minutes"),
+    ("sha256", "sha256", "make bench-sha256 at -O2, -Os and -O0", "about 4 minutes"),
+    ("crypto", "crypto", "the Zbkb, Zbkx and Zknh tests (asm, fuzz k, crypto probes, the app sha256)",
+     "about 3 minutes"),
     ("bitmanip-long", "bitmanip", "make ext-exhaustive and campaign.py --set bitmanip --compare",
-     "about 30 minutes with --jobs 4"),
+     "about an hour with --jobs 4"),
     ("freertos-campaign", "freertos-campaign", "campaign.py --suite sep2026 --wall-limit 0 --compare",
      "about 80 minutes with --jobs 12"),
     ("formal", "formal", "make formal (needs the formal tools)", "about a minute"),
 ]
-DEFAULT = ["zba", "zbb", "m-unit-cycles", "fencei-window", "tests", "trapsweep", "freertos-validate", "bitmanip"]
+DEFAULT = ["zba", "zbb", "m-unit-cycles", "fencei-window", "tests", "trapsweep", "freertos-validate", "bitmanip",
+           "sha256", "crypto"]
 # the formal record is repeatable only where the formal tools are installed
 STATUSES = {"formal": ("needs formal tools", "repeatable")}
 
@@ -881,6 +943,10 @@ def main():
                 check_zbb(c)
             elif c.name == "bitmanip":
                 check_bitmanip(c, a.jobs)
+            elif c.name == "sha256":
+                check_sha256(c)
+            elif c.name == "crypto":
+                check_crypto(c, a.jobs)
             elif c.name == "bitmanip-long":
                 check_bitmanip_long(c, a.jobs)
             elif c.name == "freertos-campaign":

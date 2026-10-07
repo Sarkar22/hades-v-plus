@@ -2,7 +2,7 @@
 # =============================================================================
 # formal/run.sh -- re-run the formal proofs of rtl/execute_stage.sv from the
 # sources in this repository: the M unit (divider and multiplier) and the EXT
-# unit (Zbb, Zbs, Zicond).
+# unit (Zbb, Zbs, Zicond, Zbkb, Zbkx, Zknh).
 #
 #   bash formal/run.sh [--mode default|full|ext] [--out DIR] [--par N]
 #   make formal            (= --mode default, output in $(BUILD_DIR)/formal)
@@ -12,13 +12,13 @@
 #   default  M unit: every proof obligation of the chain, the lemma validity
 #            checks (H6 by the z3 case split), the non-vacuity covers, the spec
 #            checks and the multiplier formulation check; EXT unit: the spec
-#            cross-check, the payload-map check, X1/X2 for each of the 28
-#            instructions, X3, the covers and 17 negative controls; the sv2v
+#            cross-check, the payload-map check, X1/X2 for each of the 45
+#            instructions, X3, the covers and 37 negative controls; the sv2v
 #            fidelity check (about 1.5 min on an idle 22-thread machine, --par 4)
 #   full     additionally H6 by bitwuzla monolithically (about 20-35 min, runs in
 #            the background from the start), second-solver runs of FINAL(mul),
 #            A1 and the EXT results, the formal mutation campaign of the M unit
-#            (19 mutants x 32 proofs) and that of the EXT unit (17 mutants x 29
+#            (19 mutants x 32 proofs) and that of the EXT unit (37 mutants x 46
 #            proofs) (about 25-35 min, dominated by the bitwuzla H6 runs)
 #   ext      only the EXT unit (the EXT checks of default, and the sv2v fidelity
 #            check with the EXT bench only; about 30 s)
@@ -176,7 +176,7 @@ many mul_formulation.sby CTL 1 300 mulhsu_bug_y
 fi
 # ---- end of the M unit ------------------------------------------------------------------
 
-# ---- the EXT unit: Zbb, Zbs, Zicond (steps E1 to E4; every mode) ----------------------
+# ---- the EXT unit: Zbb, Zbs, Zicond, Zbkb, Zbkx, Zknh (steps E1 to E4; every mode) ----
 step "E1. EXT reference: props/ext_spec.vh vs an independent Python model"
 s=$(now)
 r=$(cd "$W/spec_check" && bash run_ext.sh 1000000 2>&1 | tail -3); echo "$r" | sed 's/^/    /'
@@ -187,7 +187,7 @@ s=$(now)
 r=$(python3 "$HERE/scripts/ext_codes.py" "$REPO" "$W" 2>&1); echo "$r" | sed 's/^/    /'
 echo "$r" | grep -q "^ext payload map: op::EXT = 61" && record ext_payload_map PASS "$(since $s)" REQ || record ext_payload_map FAIL "$(since $s)" REQ
 
-step "E3. EXT X1/X2 for each of the 28 instructions, X3 (no stall), covers (bare environment; nothing of the M proof assumed)"
+step "E3. EXT X1/X2 for each of the 45 instructions, X3 (no stall), covers (bare environment; nothing of the M proof assumed)"
 many ext.sby REQ "$PAR" 600 $(tasks_of ext.sby '_yn$') cover_bw
 c=$(grep -a "Reached cover statement" "$W/runs/ext_cover_bw.log" 2>/dev/null | wc -l)
 u=$(grep -a "Unreached cover statement" "$W/runs/ext_cover_bw.log" 2>/dev/null | wc -l)
@@ -217,7 +217,7 @@ if [ "$MODE" = full ]; then
     step "14. formal mutation campaign (mutants/mutants.txt x 32 proofs each)"
     bash "$HERE/scripts/run_mutants.sh" "$W" "$PAR" 300
     MUTRES="$W/runs/mutants_summary.txt"
-    step "14b. EXT mutation campaign (mutants/ext_mutants.txt x the 29 required property tasks of ext.sby)"
+    step "14b. EXT mutation campaign (mutants/ext_mutants.txt x the 46 required property tasks of ext.sby)"
     bash "$HERE/scripts/run_ext_mutants.sh" "$W" "$PAR" 300
     cat "$W/runs/ext_mutants_summary.txt" >> "$MUTRES"
 fi
