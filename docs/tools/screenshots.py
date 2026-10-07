@@ -10,7 +10,7 @@
 #   python3 docs/tools/screenshots.py --render <dir>      only render recordings kept earlier
 #
 # The script runs each session's command in a pseudo-terminal of its own, as in a terminal
-# window of 86 columns, types the session's commands (SESSIONS below) with pauses like a
+# window of COLUMNS columns, types the session's commands (SESSIONS below) with pauses like a
 # person, and records what the terminal shows. Two sessions make three images:
 #
 #   'make freertos-shell' (docs/SHELL.md):
@@ -18,18 +18,18 @@
 #                          (the screen at that moment): version, tasks, stats;
 #     shell-hardware.svg   the rest of the session, from 'div' to the program's final verdict.
 #   'make freertos-shell APP=loader' (docs/APPS.md):
-#     shell-loader.svg     from 'load hello' up to the prompt at which 'halt' is typed: an app
-#                          loaded and run with an argument, the crash app loaded and run, its
-#                          report, and the shell's task list after it.
+#     shell-loader.svg     from 'version' up to the prompt at which 'halt' is typed: the CPU's
+#                          nine extensions, an app loaded and run with an argument, the crash
+#                          app loaded and run, its report, and the shell's task list after it.
 #
-# All images have the same terminal width (86 columns), theme and font size, and the command
-# of their session as the window title.
+# All images have the same terminal width (COLUMNS columns), theme and font size, and the
+# command of their session as the window title.
 #
 # A recording is changed in exactly these ways before it is rendered:
 #   * line endings, carriage returns and backspaces are resolved as a terminal shows them, the
 #     control characters that a terminal does not show (the bytes with which the loader and
-#     the console bridge pace a file transfer) are left out, and a line longer than 86 columns
-#     continues on the next line, as in a terminal of that width;
+#     the console bridge pace a file transfer) are left out, and a line longer than COLUMNS
+#     columns continues on the next line, as in a terminal of that width;
 #   * only the parts named above are kept;
 #   * in the console bridge's notes '[console] sending <file> (<n> bytes)', which name the file
 #     sent to the shell, the build directory at the start of the file's path is shown as '...',
@@ -77,7 +77,9 @@ except ImportError:
 REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 IMG_DIR = os.path.join(REPO, "docs", "img")
 PROMPT = "hades> "
-COLUMNS = 86                 # the terminal width of every image
+COLUMNS = 100                # the terminal width of every image (86 was too narrow once the
+                              # loader's 'version' line grew to 9 extensions: at 86 it hard-wrapped
+                              # 'yes' as 'ye'/'s', as a real 86-column terminal would)
 PAUSE_BEFORE_COMMAND = 1.0   # seconds, like a person reading the previous output
 PAUSE_PER_KEY = 0.04         # seconds between two keys
 
@@ -97,10 +99,10 @@ SESSIONS = [
                   first=r"^hades> div\b", last=r"^FRTOS-RESULT:"),
          ]),
     dict(name="loader", argv=["make", "freertos-shell", "APP=loader"],
-         commands=["load hello", "run Ada", "load crash", "run", "tasks", "halt"],
+         commands=["version", "load hello", "run Ada", "load crash", "run", "tasks", "halt"],
          images=[
              dict(file="shell-loader.svg", uid="hades-loader",
-                  first=r"^hades> load hello\b", before=r"^hades> halt\b", then_prompt=True),
+                  first=r"^hades> version\b", before=r"^hades> halt\b", then_prompt=True),
          ]),
 ]
 
