@@ -170,6 +170,42 @@ module mcu #(
         .slaves(mem_bus_slaves)
     );
 
+`ifdef HADES_SLOW_MEM
+    // Simulation only (+define+HADES_SLOW_MEM, e.g. make MEM_LAT=2): wait states in front of
+    // both RAM ports, see sim/slow_memory.sv. At latency 0 every signal passes unchanged.
+    wishbone_interface ram_port_a();
+    wishbone_interface ram_port_b();
+
+    slow_memory #(
+        .PORT("fetch"),
+        .INDEX(0)
+    ) fetch_memory_delay (
+        .clk(clk),
+        .rst(rst),
+        .master(fetch_bus.slave),
+        .memory(ram_port_a.master)
+    );
+
+    slow_memory #(
+        .PORT("data"),
+        .INDEX(1)
+    ) data_memory_delay (
+        .clk(clk),
+        .rst(rst),
+        .master(mem_bus_slaves[0]),
+        .memory(ram_port_b.master)
+    );
+
+    wishbone_ram #(
+        .ADDRESS(MEMORY_START),
+        .SIZE(MEMORY_SIZE)
+    ) ram (
+        .clk(clk_mem),
+        .rst(rst),
+        .port_a(ram_port_a.slave),
+        .port_b(ram_port_b.slave)
+    );
+`else
     wishbone_ram #(
         .ADDRESS(MEMORY_START),
         .SIZE(MEMORY_SIZE)
@@ -179,6 +215,7 @@ module mcu #(
         .port_a(fetch_bus.slave),
         .port_b(mem_bus_slaves[0])
     );
+`endif
 
     wishbone_leds #(
         .ADDRESS(LEDS_START),

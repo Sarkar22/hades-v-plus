@@ -35,6 +35,171 @@ C_DIR = $(TEST_DIR)/c
 SV_DIR = $(TEST_DIR)/sv
 
 ################################################################################
+#                           Simulator Configurations                           #
+################################################################################
+
+# Simulation-only options that change what a simulator is built from. They apply to
+# every simulator a flow builds (test/asm/*, test/c/*, test/sv/*, the FreeRTOS targets
+# including freertos-stress, lint-loops). The standard configuration has none of them;
+# any other one builds into a directory of its own, <build directory>/cfg-<name>, so the
+# standard simulators and their results stay untouched. Give them on the command line:
+#     make test/asm/ops MEM_LAT=2          make freertos APP=stress MEM_LAT=1:8
+#     make sim-config MEM_LAT=1:8          (prints the configuration and its directory)
+# Scripts that build their own simulators through make (test/freertos/campaign.py,
+# test/trapsweep/sweep.py) take them from the environment as HADES_<option>, together
+# with HADES_BUILD_DIR set to the configuration's directory; make sim-config prints that
+# command line, and make freertos-stress sets it up by itself. A plain <option> in the
+# environment is ignored.
+#   MEM_LAT=<n>|<min>:<max>     a slow memory (sim/slow_memory.sv): every RAM read, and
+#                               every write unless MEM_WR_LAT is given, waits <n> cycles,
+#                               or a number of cycles drawn from [<min>, <max>] for each
+#                               transfer (0 <= min <= max <= 1023; 0 behaves exactly as
+#                               the standard RAM). The data port waits at most 254 cycles:
+#                               the interconnect ends a data access after 255 cycles without
+#                               an answer (lib/wishbone/wishbone_interconnect.sv)
+#   MEM_WR_LAT=<n>|<min>:<max>  the wait of every RAM write
+#   MEM_BEAT_LAT=<n>            burst mode: the wait of a further transfer to the next
+#                               word while cyc stays high (default: off)
+#   MEM_ONLY=fetch|data         the waits above apply to that RAM port only; the other one
+#                               behaves as the standard RAM (default: both ports)
+#   MEM_SEED=<n>                seed of the latency generator (default 1)
+#   SCOREBOARD=0|1              the shadow-memory scoreboard of sim/top.sv (default: on
+#                               with a slow memory, off otherwise)
+#   BUSHASH=0|1                 print a hash of both CPU buses at the end of every run
+#   BUSTRACE=0|1                write a per-cycle bus trace of HaDes-V+ to bustrace.bin (for
+#                               the cache model test/memsys/cachemodel.py; default 0)
+# They are compiled into the simulator as its defaults; the run-time options of
+# sim/top.sv and sim/slow_memory.sv (+mem_lat=..., +noscoreboard, ...) override them.
+# A simulator with a slow memory also prints, at the end of every run, the instructions
+# HaDes-V+ retired and the cycles per instruction (RETIRED line; +noretired: not).
+# test/memsys/programs.py runs the assembly and C programs on both CPUs in a configuration.
+# Each option below adds its part to the configuration's name, its Verilator defines and
+# its description (SIM_CFG_NAME, SIM_CFG_DEFS, SIM_CFG_TEXT); a new option is one more
+# such block and one more name in SIM_CFG_VARS.
+SIM_CFG_VARS = MEM_LAT MEM_WR_LAT MEM_BEAT_LAT MEM_ONLY MEM_SEED SCOREBOARD BUSHASH BUSTRACE
+$(foreach v,$(SIM_CFG_VARS),$(if $(filter command line,$(origin $(v))),,$(eval $(v) := $(HADES_$(v)))))
+# the options that come from the environment
+SIM_CFG_ENV := $(strip $(foreach v,$(SIM_CFG_VARS),$(if $(filter command line,$(origin $(v))),,$(if $($(v)),$(v)))))
+
+# "<n>" or "<min>:<max>" with 0 <= min <= max <= 1023 -> "<min> <max>" (empty if invalid)
+sim_cfg_range = $(shell echo '$(1)' | awk -F: 'NF <= 2 && $$1 ~ /^[0-9]+$$/ && $$NF ~ /^[0-9]+$$/ && $$1 + 0 <= $$NF + 0 && $$NF + 0 <= 1023 { print $$1 + 0, $$NF + 0 }')
+# "<min> <max>" -> "<n>" or "<min>_<max>" (in names), "<n>" or "<min>..<max>" (in text)
+sim_cfg_rname  = $(if $(filter-out $(word 1,$(1)),$(word 2,$(1))),$(word 1,$(1))_$(word 2,$(1)),$(word 1,$(1)))
+sim_cfg_rtext  = $(if $(filter-out $(word 1,$(1)),$(word 2,$(1))),$(word 1,$(1))..$(word 2,$(1)),$(word 1,$(1)))
+sim_cfg_lat_error = $(error $(1)='$($(1))' is not a latency: give <n> or <min>:<max> with 0 <= min <= max <= 1023)
+# the longest wait of the data port, which the interconnect limits to 254 cycles
+SIM_MEM_DATA_MAX = 254
+sim_cfg_data_error = $(error $(1)='$($(1))': the data port waits at most $(SIM_MEM_DATA_MAX) cycles (the interconnect ends a data access after 255 cycles without an answer, lib/wishbone/wishbone_interconnect.sv); longer waits are possible on the fetch port alone, with MEM_ONLY=fetch)
+
+# SIM_CFG_NAME: the configuration's name (empty: standard), SIM_CFG_DEFS: its Verilator
+# defines, SIM_CFG_TEXT: its description
+SIM_CFG_NAME :=
+SIM_CFG_DEFS :=
+SIM_CFG_TEXT :=
+ifneq ($(strip $(MEM_LAT)$(MEM_WR_LAT)$(MEM_BEAT_LAT)$(MEM_ONLY)$(MEM_SEED)),)
+SIM_MEM_RD   := $(call sim_cfg_range,$(or $(MEM_LAT),0))
+SIM_MEM_WR   := $(call sim_cfg_range,$(or $(MEM_WR_LAT),$(MEM_LAT),0))
+SIM_MEM_BEAT := $(if $(MEM_BEAT_LAT),$(call sim_cfg_range,$(MEM_BEAT_LAT)))
+SIM_MEM_SEED := $(shell echo '$(or $(MEM_SEED),1)' | awk '/^[0-9]+$$/ && $$1 + 0 < 2147483648 { print $$1 + 0 }')
+$(if $(SIM_MEM_RD),,$(call sim_cfg_lat_error,MEM_LAT))
+$(if $(SIM_MEM_WR),,$(call sim_cfg_lat_error,$(if $(MEM_WR_LAT),MEM_WR_LAT,MEM_LAT)))
+ifneq ($(MEM_BEAT_LAT),)
+ifneq ($(words $(sort $(SIM_MEM_BEAT))),1)
+$(error MEM_BEAT_LAT='$(MEM_BEAT_LAT)': give one number from 0 to 1023)
+endif
+endif
+ifeq ($(SIM_MEM_SEED),)
+$(error MEM_SEED='$(MEM_SEED)': give a number from 0 to 2147483647)
+endif
+ifneq ($(MEM_ONLY),)
+ifeq ($(filter fetch data,$(MEM_ONLY)),)
+$(error MEM_ONLY='$(MEM_ONLY)': give fetch or data)
+endif
+endif
+ifneq ($(MEM_ONLY),fetch)
+ifeq ($(shell [ $(word 2,$(SIM_MEM_RD)) -le $(SIM_MEM_DATA_MAX) ] && echo ok),)
+$(call sim_cfg_data_error,MEM_LAT)
+endif
+ifeq ($(shell [ $(word 2,$(SIM_MEM_WR)) -le $(SIM_MEM_DATA_MAX) ] && echo ok),)
+$(call sim_cfg_data_error,$(if $(MEM_WR_LAT),MEM_WR_LAT,MEM_LAT))
+endif
+ifeq ($(shell [ $(or $(word 1,$(SIM_MEM_BEAT)),0) -le $(SIM_MEM_DATA_MAX) ] && echo ok),)
+$(call sim_cfg_data_error,MEM_BEAT_LAT)
+endif
+endif
+SIM_CFG_NAME += mem$(call sim_cfg_rname,$(SIM_MEM_RD))
+ifneq ($(SIM_MEM_WR),$(SIM_MEM_RD))
+SIM_CFG_NAME += wr$(call sim_cfg_rname,$(SIM_MEM_WR))
+endif
+ifneq ($(SIM_MEM_BEAT),)
+SIM_CFG_NAME += beat$(word 1,$(SIM_MEM_BEAT))
+endif
+ifneq ($(MEM_ONLY),)
+SIM_CFG_NAME += $(MEM_ONLY)only
+endif
+ifneq ($(SIM_MEM_SEED),1)
+SIM_CFG_NAME += seed$(SIM_MEM_SEED)
+endif
+SIM_CFG_DEFS += +define+HADES_SLOW_MEM \
+                +define+HADES_MEM_RD_LAT_MIN=$(word 1,$(SIM_MEM_RD)) +define+HADES_MEM_RD_LAT_MAX=$(word 2,$(SIM_MEM_RD)) \
+                +define+HADES_MEM_WR_LAT_MIN=$(word 1,$(SIM_MEM_WR)) +define+HADES_MEM_WR_LAT_MAX=$(word 2,$(SIM_MEM_WR)) \
+                +define+HADES_MEM_BEAT_LAT=$(or $(word 1,$(SIM_MEM_BEAT)),-1) +define+HADES_MEM_SEED=$(SIM_MEM_SEED) \
+                $(if $(MEM_ONLY),+define+HADES_MEM_ONLY_$(if $(filter fetch,$(MEM_ONLY)),FETCH,DATA))
+SIM_CFG_TEXT += slow memory$(if $(MEM_ONLY), on the $(MEM_ONLY) port only): reads wait $(call sim_cfg_rtext,$(SIM_MEM_RD)) and writes $(call sim_cfg_rtext,$(SIM_MEM_WR)) cycles,
+SIM_CFG_TEXT += $(if $(SIM_MEM_BEAT),a further beat of a burst waits $(word 1,$(SIM_MEM_BEAT)),bursts off), seed $(SIM_MEM_SEED);
+SIM_SCOREBOARD_DEFAULT := 1
+else
+SIM_SCOREBOARD_DEFAULT := 0
+endif
+ifneq ($(SCOREBOARD),)
+ifeq ($(filter 0 1,$(SCOREBOARD)),)
+$(error SCOREBOARD='$(SCOREBOARD)': give 0 or 1)
+endif
+ifneq ($(SCOREBOARD),$(SIM_SCOREBOARD_DEFAULT))
+SIM_CFG_NAME += $(if $(filter 1,$(SCOREBOARD)),sb,nosb)
+SIM_CFG_DEFS += +define+HADES_SCOREBOARD=$(SCOREBOARD)
+endif
+endif
+SIM_CFG_TEXT += scoreboard $(if $(filter 1,$(or $(SCOREBOARD),$(SIM_SCOREBOARD_DEFAULT))),on,off),
+ifneq ($(BUSHASH),)
+ifeq ($(filter 0 1,$(BUSHASH)),)
+$(error BUSHASH='$(BUSHASH)': give 0 or 1)
+endif
+ifeq ($(BUSHASH),1)
+SIM_CFG_NAME += hash
+SIM_CFG_DEFS += +define+HADES_BUSHASH=1
+endif
+endif
+sim_cfg_comma := ,
+SIM_CFG_TEXT += bus hash $(if $(filter 1,$(BUSHASH)),on,off)$(if $(filter 1,$(BUSTRACE)),$(sim_cfg_comma))
+ifneq ($(BUSTRACE),)
+ifeq ($(filter 0 1,$(BUSTRACE)),)
+$(error BUSTRACE='$(BUSTRACE)': give 0 or 1)
+endif
+ifeq ($(BUSTRACE),1)
+SIM_CFG_NAME += trace
+SIM_CFG_DEFS += +define+HADES_BUSTRACE
+SIM_CFG_TEXT += bus trace on
+endif
+endif
+sim_cfg_empty :=
+sim_cfg_space := $(sim_cfg_empty) $(sim_cfg_empty)
+SIM_CFG_NAME := $(subst $(sim_cfg_space),-,$(strip $(SIM_CFG_NAME)))
+SIM_CFG_DEFS := $(strip $(SIM_CFG_DEFS))
+SIM_CFG_TEXT := $(strip $(SIM_CFG_TEXT))
+
+# Pass the options on to the scripts the recipes run, and to the make commands those run
+$(foreach v,$(SIM_CFG_VARS),$(if $($(v)),$(eval export HADES_$(v) := $($(v)))))
+
+# The simulator configurations are simulation only: synthesis always builds the standard design
+# (checked here, before anything below creates a build directory).
+ifneq ($(SIM_CFG_NAME),)
+ifneq ($(filter synthesis,$(MAKECMDGOALS)),)
+$(error The simulator configuration $(SIM_CFG_NAME) is for simulation only; synthesis always builds the standard design: run it without $(strip $(foreach v,$(SIM_CFG_VARS),$(if $($(v)),$(v)=$($(v))))))
+endif
+endif
+
+################################################################################
 #                               Build Directory                                #
 ################################################################################
 
@@ -61,10 +226,28 @@ override BUILD_DIR := $(abspath $(BUILD_DIR))
 ifeq ($(BUILD_DIR),$(CURDIR)/build)
 override BUILD_DIR := build
 endif
+# A simulator configuration other than the standard one (see above) builds into its own
+# directory, cfg-<name> below the build directory, which counts as a relocated build
+# directory (absolute spelling, its own copies of the golden libraries). A script started
+# with the configuration in its environment passes that directory itself, or a directory
+# below it (campaign.py and sweep.py build other trees in <its directory>/other-trees/).
+ifneq ($(SIM_CFG_NAME),)
+ifeq ($(filter cfg-$(SIM_CFG_NAME),$(subst /, ,$(BUILD_DIR))),)
+ifneq ($(SIM_CFG_ENV),)
+$(error The simulator configuration $(SIM_CFG_NAME) comes from the environment ($(foreach v,$(SIM_CFG_ENV),HADES_$(v)=$($(v)))), so the build directory must be the configuration's own directory or one below it, not $(BUILD_DIR): set HADES_BUILD_DIR=$(abspath $(BUILD_DIR))/cfg-$(SIM_CFG_NAME) too, or give the options on the make command line instead (see make sim-config))
+endif
+ifneq ($(filter cfg-%,$(notdir $(BUILD_DIR))),)
+$(error $(BUILD_DIR) is the build directory of the simulator configuration $(patsubst cfg-%,%,$(notdir $(BUILD_DIR))), not of $(SIM_CFG_NAME))
+endif
+override BUILD_DIR := $(abspath $(BUILD_DIR)/cfg-$(SIM_CFG_NAME))
+endif
+else ifneq ($(filter cfg-%,$(notdir $(BUILD_DIR))),)
+$(error $(BUILD_DIR) is the build directory of the simulator configuration $(patsubst cfg-%,%,$(notdir $(BUILD_DIR))): give its options as well (make sim-config shows a configuration's name), or use another build directory)
+endif
 BUILD_ABS := $(abspath $(BUILD_DIR))
 
 ifneq ($(BUILD_DIR),build)
-ifeq ($(filter clean,$(MAKECMDGOALS)),)
+ifeq ($(filter clean sim-config help,$(MAKECMDGOALS)),)
 BUILD_OWNER := $(shell cat '$(BUILD_DIR)/.hades-source-dir' 2>/dev/null)
 ifeq ($(BUILD_OWNER),)
 BUILD_OWNER := $(shell mkdir -p '$(BUILD_DIR)' && echo '$(CURDIR)' > '$(BUILD_DIR)/.hades-source-dir' && echo '$(CURDIR)')
@@ -96,6 +279,9 @@ VERILATOR_FLAGS += -cc
 VERILATOR_FLAGS += -Wall -Wno-fatal
 VERILATOR_FLAGS += -f $(SIM_DIR)/files.txt
 VERILATOR_FLAGS += $(REF_SO) -j
+ifneq ($(SIM_CFG_DEFS),)
+VERILATOR_FLAGS += $(SIM_CFG_DEFS)
+endif
 
 ################################################################################
 #                                  Print Help                                  #
@@ -160,6 +346,28 @@ help:
 	@echo "Recorded results (guide: results/README.md):"
 	@echo "  check-results     Re-run the repeatable records of results/ and compare [CHECK_ARGS=--list]"
 	@echo ""
+	@echo "Simulator configurations (simulation only; any of these options builds the simulators of"
+	@echo "every target into <build directory>/cfg-<name>, the standard ones stay untouched):"
+	@echo "  MEM_LAT=<n>|<min>:<max>     slow memory: wait states of every RAM read and write, fixed or"
+	@echo "                              drawn per transfer (0..1023, at most 254 on the data port;"
+	@echo "                              0 behaves as the standard RAM)"
+	@echo "  MEM_WR_LAT=<n>|<min>:<max>  wait states of every RAM write (default: MEM_LAT; at most 254)"
+	@echo "  MEM_BEAT_LAT=<n>            burst mode: wait states of a further beat to the next word (default off)"
+	@echo "  MEM_ONLY=fetch|data         wait states on that RAM port only (default: both)"
+	@echo "  MEM_SEED=<n>                seed of the latency generator (default 1)"
+	@echo "  SCOREBOARD=0|1              shadow-memory scoreboard (default: 1 with a slow memory, else 0)"
+	@echo "  BUSHASH=0|1                 print a hash of both CPU buses at the end of every run (default 0)"
+	@echo "  BUSTRACE=0|1                write a per-cycle bus trace to bustrace.bin, HaDes-V+ only (default 0;"
+	@echo "                              for python3 test/memsys/cachemodel.py)"
+	@echo "  e.g. make test/asm/ops MEM_LAT=2    make freertos APP=stress MEM_LAT=1:8    make freertos-stress MEM_LAT=2"
+	@echo "  sim-config        Print the configuration, its build directory and the environment for scripts"
+	@echo "  lint-loops        List the combinational loops of the configuration (Verilator, no UNOPTFLAT waiver)"
+	@echo "  SIM_ARGS='<opts>' Run-time options for the simulator of test/asm/* and test/c/* (+scoreboard,"
+	@echo "                    +bushash, +retired, +mem_lat=<n>, ... see sim/top.sv and sim/slow_memory.sv;"
+	@echo "                    with a slow memory the default +timeout is 100000 times 1 + the longest wait)"
+	@echo "  python3 test/memsys/programs.py run [options]   all assembly and C programs, both CPUs"
+	@echo "  make test/memsys/<name>     an assembly program of the memory-system checks (test/memsys/*.s)"
+	@echo ""
 	@echo "Build directory: $(BUILD_DIR)  (relocate with BUILD_DIR=/abs/path or HADES_BUILD_DIR)"
 
 
@@ -181,6 +389,7 @@ clean::
 
 MODE ?= batch
 
+# (A simulator configuration is refused for synthesis, see Simulator Configurations above.)
 .PHONY: synthesis
 synthesis: $(BUILD_DIR)/$(C_DIR)/bootloader/init.mem
 	@ mkdir -p $(BUILD_DIR)/$(SYNTH_DIR)
@@ -194,6 +403,10 @@ bootloader: $(BUILD_DIR)/$(C_DIR)/bootloader/init.mem $(BUILD_DIR)/$(C_DIR)/boot
 #                                  Simulation                                  #
 ################################################################################
 
+# Run-time options for the simulator of the assembly and C tests (command line only), e.g.
+#     make test/asm/ops SIM_ARGS='+scoreboard +bushash'
+SIM_ARGS := $(if $(filter command line,$(origin SIM_ARGS)),$(SIM_ARGS))
+
 # Include dependency file (if it exists)
 -include $(BUILD_DIR)/$(SIM_DIR)/top__ver.d
 
@@ -205,6 +418,44 @@ $(BUILD_DIR)/$(SIM_DIR)/top.mk: $(REF_SO_DEPS)
 # Build simulation executable
 $(BUILD_DIR)/$(SIM_DIR)/top: $(BUILD_DIR)/$(SIM_DIR)/top.mk
 	$(MAKE) -C $(BUILD_DIR)/$(SIM_DIR) -f top.mk
+
+# The simulator configuration selected by the options above, its build directory, and
+# what a script that builds its own simulators needs in its environment
+.PHONY: sim-config
+sim-config:
+	@ echo "simulator configuration: $(or $(SIM_CFG_NAME),standard) ($(SIM_CFG_TEXT))"
+	@ echo "  build directory:   $(BUILD_DIR)"
+	@ echo "  Verilator defines: $(or $(SIM_CFG_DEFS),(none))"
+	@ echo "  environment for test/freertos/campaign.py, test/trapsweep/sweep.py and other scripts that build"
+	@ echo "  their own simulators:"
+	@ echo "      $(strip HADES_BUILD_DIR=$(BUILD_ABS) $(foreach v,$(SIM_CFG_VARS),$(if $($(v)),HADES_$(v)=$($(v)))))"
+
+# The combinational loops of the configuration, on both CPUs, as Verilator reports them
+# without the UNOPTFLAT waiver of sim/config.vlt: one line per signal that Verilator finds
+# on a loop, followed by the signals of its example path. The lists go to
+# $(BUILD_DIR)/lint/loops-dut.txt and loops-golden.txt; compare two configurations with
+#     diff build/lint/loops-dut.txt build/cfg-<name>/lint/loops-dut.txt
+# (-fno-dfg keeps Verilator from naming loops after signals of its own. The golden CPU is
+# a compiled library, so every one of its outputs counts as depending on all its inputs.)
+LINT_LOOPS_AWK = function flush() { if (sig != "") print sig ":" path; sig = "" } ; \
+                 /^%Warning-UNOPTFLAT/ { flush(); sig = substr($$NF, 2, length($$NF) - 2); path = ""; next } ; \
+                 sig != "" && /Example path: top\./ { path = path " " $$NF; next } ; \
+                 /^[%-]/ { flush() } ; \
+                 END { flush() }
+
+.PHONY: lint-loops
+lint-loops:
+	@ mkdir -p $(BUILD_DIR)/lint
+	@ grep -v '^$(SIM_DIR)/config.vlt$$' $(SIM_DIR)/files.txt > $(BUILD_DIR)/lint/files.txt
+	@ for cpu in dut golden; do \
+	      def=; if [ $$cpu = golden ]; then def=+define+USE_REF_CPU; fi; \
+	      $(VERILATOR) --lint-only -Wall -Wno-fatal -fno-dfg -f $(BUILD_DIR)/lint/files.txt $(SIM_CFG_DEFS) $$def \
+	          --timing --assert --top-module top $(SIM_DIR)/top.sv > $(BUILD_DIR)/lint/verilator-$$cpu.log 2>&1 || \
+	          { cat $(BUILD_DIR)/lint/verilator-$$cpu.log; exit 1; }; \
+	      awk '$(LINT_LOOPS_AWK)' $(BUILD_DIR)/lint/verilator-$$cpu.log | sort > $(BUILD_DIR)/lint/loops-$$cpu.txt; \
+	      echo "$$cpu ($(or $(SIM_CFG_NAME),standard)): $$(wc -l < $(BUILD_DIR)/lint/loops-$$cpu.txt) signal(s) on combinational loops, in $(BUILD_DIR)/lint/loops-$$cpu.txt"; \
+	      sed -e 's/:.*//' -e 's/^/    /' $(BUILD_DIR)/lint/loops-$$cpu.txt; \
+	  done
 
 ################################################################################
 #                                Assembly Tests                                #
@@ -231,8 +482,29 @@ $(BUILD_DIR)/$(ASM_DIR)/%/init.mem: $(BUILD_DIR)/$(ASM_DIR)/%/init.bin
 # Run test
 .PHONY: $(ASM_TEST_NAMES)
 $(ASM_TEST_NAMES): $(ASM_DIR)/%: $(BUILD_DIR)/$(ASM_DIR)/%/init.mem $(BUILD_DIR)/$(SIM_DIR)/top
-	cd $(BUILD_DIR)/$(ASM_DIR)/$* && $(BUILD_ABS)/$(SIM_DIR)/top
+	cd $(BUILD_DIR)/$(ASM_DIR)/$* && $(BUILD_ABS)/$(SIM_DIR)/top$(if $(SIM_ARGS), $(SIM_ARGS))
 	@echo 'gtkwave $(BUILD_DIR)/$(ASM_DIR)/$*/sim.fst $(SAVES_DIR)/pipeline.gtkw' > $(BUILD_DIR)/show.sh
+
+# Assembly programs of the memory-system checks (test/memsys/*.s), built and run the same way;
+# test/memsys/programs.py runs them together with the programs above
+MEMSYS_DIR = $(TEST_DIR)/memsys
+MEMSYS_TEST_NAMES = $(patsubst %.s, %, $(wildcard $(MEMSYS_DIR)/*.s))
+
+$(BUILD_DIR)/$(MEMSYS_DIR)/%/init.elf: $(MEMSYS_DIR)/%.s $(STD_LIB_DIR)/hades-v.ld
+	@ mkdir -p $(BUILD_DIR)/$(MEMSYS_DIR)/$*
+	$(CC) -nostdlib -nostartfiles -T $(STD_LIB_DIR)/hades-v.ld -o $@ $<
+	$(OBJDUMP) -d -r -t -S $@ > $(@:.elf=.dis)
+
+$(BUILD_DIR)/$(MEMSYS_DIR)/%/init.bin: $(BUILD_DIR)/$(MEMSYS_DIR)/%/init.elf
+	$(OBJCOPY) -O binary $< $@
+
+$(BUILD_DIR)/$(MEMSYS_DIR)/%/init.mem: $(BUILD_DIR)/$(MEMSYS_DIR)/%/init.bin
+	$(OBJCOPY) -I binary -O verilog --verilog-data-width 4 --reverse-bytes=4 $< $@
+
+.PHONY: $(MEMSYS_TEST_NAMES)
+$(MEMSYS_TEST_NAMES): $(MEMSYS_DIR)/%: $(BUILD_DIR)/$(MEMSYS_DIR)/%/init.mem $(BUILD_DIR)/$(SIM_DIR)/top
+	cd $(BUILD_DIR)/$(MEMSYS_DIR)/$* && $(BUILD_ABS)/$(SIM_DIR)/top$(if $(SIM_ARGS), $(SIM_ARGS))
+	@echo 'gtkwave $(BUILD_DIR)/$(MEMSYS_DIR)/$*/sim.fst $(SAVES_DIR)/pipeline.gtkw' > $(BUILD_DIR)/show.sh
 
 ################################################################################
 #                                   C Tests                                    #
@@ -279,7 +551,7 @@ $(BUILD_DIR)/$(C_DIR)/%/out.dis: $(BUILD_DIR)/$(C_DIR)/%/out.elf
 # Run test
 .PHONY: $(C_TEST_NAMES)
 $(C_TEST_NAMES): $(C_DIR)/%: $(BUILD_DIR)/$(C_DIR)/%/init.mem $(BUILD_DIR)/$(C_DIR)/%/out.hex $(BUILD_DIR)/$(C_DIR)/%/out.elf $(BUILD_DIR)/$(C_DIR)/%/out.dis $(BUILD_DIR)/$(SIM_DIR)/top
-	cd $(BUILD_DIR)/$(C_DIR)/$* && $(BUILD_ABS)/$(SIM_DIR)/top
+	cd $(BUILD_DIR)/$(C_DIR)/$* && $(BUILD_ABS)/$(SIM_DIR)/top$(if $(SIM_ARGS), $(SIM_ARGS))
 	@echo 'gtkwave $(BUILD_DIR)/$(C_DIR)/$*/sim.fst $(SAVES_DIR)/pipeline.gtkw' > $(BUILD_DIR)/show.sh
 
 ################################################################################

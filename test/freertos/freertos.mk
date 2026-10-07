@@ -39,6 +39,9 @@
 #                                         the transcripts of session.txt compared
 # Every short knob is an alias of the FRTOS_<KNOB> variable below and is honoured only on the
 # command line (so that a stray environment variable such as CPU or OPT changes nothing).
+# The simulator configurations of the Makefile (MEM_LAT=..., SCOREBOARD=1, ...; make help)
+# apply to every target here: the simulators and the outputs then go to the configuration's
+# own build directory, and the run's label names the configuration (cfg=<name>).
 #
 # Back end (used by the front end, campaign.py and check_rebuild.sh):
 #   make test/freertos/<app> [FRTOS_MARCH=rv32im] [FRTOS_OPT=-Os] [FRTOS_TICK=3000] ...
@@ -285,17 +288,19 @@ $(FRTOS_TEST_NAMES): $(FRTOS_DIR)/%:
 
 # ---- front end: build + run with a verdict ----
 frtos_cpu_name = $(if $(filter ref,$(1)),golden,dut)
+# the simulator configuration (MEM_LAT=... etc., see the Makefile), if not the standard one
+frtos_cfg_label = $(if $(SIM_CFG_NAME), cfg=$(SIM_CFG_NAME))
 # run.sh <simulator> <run dir> <timeout> <seed> <log name> <label> <waves>
 frtos_run_sh   = sh $(FRTOS_DIR)/run.sh $(BUILD_ABS)/frtos-model/$(1)-$(FRTOS_RAM_KB)k/top \
                  $(abspath $(FRTOS_OUT)) $(FRTOS_TIMEOUT) $(FRTOS_SEED) run-$(call frtos_cpu_name,$(1)).log \
-                 "app=$(FRTOS_APP) cpu=$(call frtos_cpu_name,$(1)) isa=$(FRTOS_MARCH) opt=$(FRTOS_OPT) tick=$(FRTOS_TICK) bpred=$(FRTOS_BPRED) seed=$(FRTOS_SEED)" \
+                 "app=$(FRTOS_APP) cpu=$(call frtos_cpu_name,$(1)) isa=$(FRTOS_MARCH) opt=$(FRTOS_OPT) tick=$(FRTOS_TICK) bpred=$(FRTOS_BPRED) seed=$(FRTOS_SEED)$(frtos_cfg_label)" \
                  "$(WAVES)"
 # Build the program and simulator(s) $(1) quietly into build.log (VERBOSE=1 shows everything).
 # The sub-make gets the same command-line knobs, so it builds exactly this configuration.
 FRTOS_BUILD_LOG = $(abspath $(FRTOS_OUT))/build.log
 define frtos_quiet_build
 @ mkdir -p $(FRTOS_OUT)
-@ echo "build: $(FRTOS_APP) [$(FRTOS_MARCH) $(FRTOS_OPT) tick=$(FRTOS_TICK) bpred=$(FRTOS_BPRED)] and the $(2) simulator(s)"
+@ echo "build: $(FRTOS_APP) [$(FRTOS_MARCH) $(FRTOS_OPT) tick=$(FRTOS_TICK) bpred=$(FRTOS_BPRED)] and the $(2) simulator(s)$(if $(SIM_CFG_NAME), [configuration $(SIM_CFG_NAME): $(SIM_CFG_TEXT)])"
 @ echo "       (the first build of a simulator takes up to a minute; log: $(FRTOS_BUILD_LOG))"
 @ if [ -n "$(VERBOSE)" ]; then $(MAKE) --no-print-directory $(1); else \
       $(MAKE) --no-print-directory $(1) > $(FRTOS_BUILD_LOG) 2>&1 || \
@@ -379,8 +384,9 @@ freertos-check-rebuild:
 # +console_prompt=<text> (the program's prompt, which paces scripts and pastes; default
 # "hades> "), +console_upload=<file>, +console_upload_dir=<dir> and +console_app_dir=<dir> (the
 # file sent when the program asks for one, the directory of relative file names, and that of
-# the apps the program asks for by name: the app loader, test/freertos/loader/SPEC.md). See
-# docs/FREERTOS.md, section 9.
+# the apps the program asks for by name: the app loader, test/freertos/loader/SPEC.md), and
+# +console_pace=<n> (n times longer pauses between typed characters; with a slow memory,
+# MEM_LAT=..., the default is 1 + its longest wait). See docs/FREERTOS.md, section 9.
 FRTOS_CONSOLE_CPP   = $(SIM_DIR)/console.cpp
 frtos_con_model_dir = $(BUILD_DIR)/frtos-model/$(1)-$(FRTOS_RAM_KB)k-console
 frtos_con_sim       = $(BUILD_ABS)/frtos-model/$(1)-$(FRTOS_RAM_KB)k-console/top
@@ -401,7 +407,7 @@ $(foreach c,dut ref,$(eval $(call frtos_con_model_rules,$(c))))
 FRTOS_SHELL_TIMEOUT = $(if $(filter command line,$(origin TIMEOUT) $(origin FRTOS_TIMEOUT)),$(FRTOS_TIMEOUT),9000000000000000000)
 FRTOS_SHELL_SCRIPT  = $(abspath $(if $(FRTOS_SCRIPT),$(FRTOS_SCRIPT),$(APP_DIR)/session.txt))
 FRTOS_SHELL_DUMP    = $(if $(filter-out 0,$(WAVES)),,+nodump)
-frtos_shell_label   = app=$(FRTOS_APP) cpu=$(call frtos_cpu_name,$(1)) isa=$(FRTOS_MARCH) opt=$(FRTOS_OPT) tick=$(FRTOS_TICK) bpred=$(FRTOS_BPRED) seed=$(FRTOS_SEED)
+frtos_shell_label   = app=$(FRTOS_APP) cpu=$(call frtos_cpu_name,$(1)) isa=$(FRTOS_MARCH) opt=$(FRTOS_OPT) tick=$(FRTOS_TICK) bpred=$(FRTOS_BPRED) seed=$(FRTOS_SEED)$(frtos_cfg_label)
 # What a console run builds (quietly): the program, the simulator(s) $(1), and the goals of
 # the program's APP_CONSOLE_DEPS.
 frtos_con_goals     = FRTOS_APP=$(FRTOS_APP) frtos-elf $(1) $(APP_CONSOLE_DEPS)
