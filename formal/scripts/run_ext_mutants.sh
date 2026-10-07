@@ -2,7 +2,7 @@
 # run_ext_mutants.sh <work_dir> <parallel> <timeout_s>
 #   Formal mutation campaign of the EXT unit: every mutant of mutants/ext_mutants.txt
 #   (one textual change of the sv2v model of the real RTL; created by
-#   scripts/ext_mutants.py, which run.sh has already run) against the 29 required
+#   scripts/ext_mutants.py, which run.sh has already run) against the 46 required
 #   property tasks of ext.sby (res_*_yn and nostall_yn). A mutant is REJECTED if any
 #   of them does not PASS, SURVIVED otherwise. The summary also names the failing
 #   tasks, which shows how precisely the properties locate each fault.

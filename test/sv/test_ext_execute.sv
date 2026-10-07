@@ -1,16 +1,21 @@
-/* Zbb, Zbs and Zicond: Execute-level test of the EXT unit.
+/* Zbb, Zbs, Zicond, Zbkb, Zbkx and Zknh: Execute-level test of the EXT unit.
  *
  * This drives execute_stage directly with op::EXT instructions, as the decoder
  * builds them (the sub-operation, use_imm and shamt in the immediate field, see
  * op::ext_payload_t), and checks three things:
  *
- *   1. THE ARITHMETIC of all 28 forms, against a model written here from the ISA
+ *   1. THE ARITHMETIC of all 45 forms, against a model written here from the ISA
  *      text and deliberately unlike the unit: the counts scan bit by bit, the
  *      rotates take a slice of the doubled word, min/max use SystemVerilog's own
- *      signed and unsigned compares, the byte operations loop over bytes. Every
- *      form runs on a corner set (144 values: 0, -1, single bits and their
- *      complements, low and high masks, byte and half-word patterns) crossed with
- *      itself or with every shift amount, plus random operands.
+ *      signed and unsigned compares, the byte operations loop over bytes, brev8,
+ *      zip and unzip compute a source index for every result bit, xperm indexes
+ *      the table with a part-select, and the six sha512 forms are the high and
+ *      low words of the 64-bit SHA-512 functions of FIPS 180-4 (the identities of
+ *      the ISA text) rather than the per-word shift expressions. Every form runs
+ *      on a corner set (144 values: 0, -1, single bits and their complements, low
+ *      and high masks, byte and half-word patterns) crossed with itself or with
+ *      every shift amount, plus random operands; xperm8 also with index bytes
+ *      drawn from 0..3 and 0x80..0x83, so that in-range indices are common.
  *
  *   2. THE PIPELINE PROTOCOL. An EXT instruction is an ordinary one-cycle ALU
  *      instruction: its result is forwarded in the same cycle with data_valid set
@@ -20,10 +25,11 @@
  *      forwarded as x0; next_program_counter is pc + 4; and the payload reaches
  *      instruction_reg_out unchanged.
  *
- *   3. THE OPERANDS THAT MUST NOT MATTER. The immediate and unary forms do not
- *      read rs2, so every one of their checks drives rs2 with a different garbage
- *      value; the register forms that use a bit index or rotate amount see rs2
- *      with its upper 27 bits set.
+ *   3. THE OPERANDS THAT MUST NOT MATTER. The immediate and unary forms (brev8,
+ *      zip, unzip and the sha256 forms among them) do not read rs2, so every one
+ *      of their checks drives rs2 with a different garbage value; the register
+ *      forms that use a bit index or rotate amount see rs2 with its upper 27 bits
+ *      set.
  */
 module test_ext_execute;
     import clk_params::*;
@@ -79,26 +85,35 @@ module test_ext_execute;
     );
 
     // ---------------------------------------------------------------------
-    // The 28 forms
+    // The 45 forms
     // ---------------------------------------------------------------------
-    localparam int FORMS = 28;
+    localparam int FORMS = 45;
     // Kind: 0 register (reads rs2), 1 immediate (shamt), 2 unary (rs1 only).
     localparam int KIND [FORMS] = '{
         0, 0, 0,  2, 2, 2,  0, 0, 0, 0,  2, 2, 2,  0, 0, 1,  2, 2,
-        0, 1, 0, 1,  0, 1, 0, 1,  0, 0
+        0, 1, 0, 1,  0, 1, 0, 1,  0, 0,
+        0, 0,  2, 2, 2,  0, 0,  2, 2, 2, 2,  0, 0, 0, 0,  0, 0
     };
     localparam ext_t SEL [FORMS] = '{
         EXT_ANDN, EXT_ORN, EXT_XNOR, EXT_CLZ, EXT_CTZ, EXT_CPOP,
         EXT_MAX, EXT_MAXU, EXT_MIN, EXT_MINU, EXT_SEXT_B, EXT_SEXT_H, EXT_ZEXT_H,
         EXT_ROL, EXT_ROR, EXT_ROR, EXT_ORC_B, EXT_REV8,
         EXT_BCLR, EXT_BCLR, EXT_BEXT, EXT_BEXT, EXT_BINV, EXT_BINV, EXT_BSET, EXT_BSET,
-        EXT_CZERO_EQZ, EXT_CZERO_NEZ
+        EXT_CZERO_EQZ, EXT_CZERO_NEZ,
+        EXT_PACK, EXT_PACKH, EXT_BREV8, EXT_ZIP, EXT_UNZIP, EXT_XPERM4, EXT_XPERM8,
+        EXT_SHA256SIG0, EXT_SHA256SIG1, EXT_SHA256SUM0, EXT_SHA256SUM1,
+        EXT_SHA512SIG0H, EXT_SHA512SIG0L, EXT_SHA512SIG1H, EXT_SHA512SIG1L,
+        EXT_SHA512SUM0R, EXT_SHA512SUM1R
     };
     localparam string NAME [FORMS] = '{
         "andn", "orn", "xnor", "clz", "ctz", "cpop", "max", "maxu", "min", "minu",
         "sext.b", "sext.h", "zext.h", "rol", "ror", "rori", "orc.b", "rev8",
         "bclr", "bclri", "bext", "bexti", "binv", "binvi", "bset", "bseti",
-        "czero.eqz", "czero.nez"
+        "czero.eqz", "czero.nez",
+        "pack", "packh", "brev8", "zip", "unzip", "xperm4", "xperm8",
+        "sha256sig0", "sha256sig1", "sha256sum0", "sha256sum1",
+        "sha512sig0h", "sha512sig0l", "sha512sig1h", "sha512sig1l",
+        "sha512sum0r", "sha512sum1r"
     };
     // The register forms whose rs2 is a bit index or rotate amount (only rs2[4:0]
     // counts): rol, ror, bclr, bext, binv, bset.
@@ -115,7 +130,7 @@ module test_ext_execute;
         i.rs1_address = 5'd11;
         i.rs2_address = use_imm ? shamt : 5'd12;
         i.csr         = csr::t'(12'h000);
-        i.immediate   = {21'b0, SEL[f], use_imm, use_imm ? shamt : 5'b0};
+        i.immediate   = {20'b0, SEL[f], use_imm, use_imm ? shamt : 5'b0};
         return i;
     endfunction
 
@@ -123,6 +138,26 @@ module test_ext_execute;
     // Model, from the ISA text. b is rs2 for the register forms and the shift
     // amount for the immediate forms.
     // ---------------------------------------------------------------------
+    // The SHA-512 functions of FIPS 180-4 on a 64-bit word; the sha512 forms of
+    // RV32 compute one 32-bit half each: for x = {hi, lo}, sigma0(x) is
+    // {sha512sig0h(hi, lo), sha512sig0l(lo, hi)}, sigma1(x) likewise with sig1,
+    // Sigma0(x) is {sha512sum0r(hi, lo), sha512sum0r(lo, hi)}, Sigma1(x) likewise.
+    function automatic logic [63:0] ror64(logic [63:0] x, int n);
+        return (x >> n) | (x << (64 - n));
+    endfunction
+    function automatic logic [63:0] sigma0_512(logic [63:0] x);
+        return ror64(x, 1) ^ ror64(x, 8) ^ (x >> 7);
+    endfunction
+    function automatic logic [63:0] sigma1_512(logic [63:0] x);
+        return ror64(x, 19) ^ ror64(x, 61) ^ (x >> 6);
+    endfunction
+    function automatic logic [63:0] bigsigma0_512(logic [63:0] x);
+        return ror64(x, 28) ^ ror64(x, 34) ^ ror64(x, 39);
+    endfunction
+    function automatic logic [63:0] bigsigma1_512(logic [63:0] x);
+        return ror64(x, 14) ^ ror64(x, 18) ^ ror64(x, 41);
+    endfunction
+
     function automatic logic [31:0] model(int f, logic [31:0] a, logic [31:0] b);
         logic [63:0] twice;
         int          s, n;
@@ -154,6 +189,29 @@ module test_ext_execute;
             "bset", "bseti": begin r = a; r[s] = 1'b1; end
             "czero.eqz": r = (b == 32'b0) ? 32'b0 : a;
             "czero.nez": r = (b != 32'b0) ? 32'b0 : a;
+            "pack":   r = {b[15:0], a[15:0]};
+            "packh":  r = {16'b0, b[7:0], a[7:0]};
+            "brev8":  for (int k = 0; k < 32; k++) r[k] = a[(k & ~7) + 7 - (k & 7)];
+            "zip":    for (int k = 0; k < 32; k++) r[k] = a[(k >> 1) + 16 * (k & 1)];
+            "unzip":  for (int k = 0; k < 32; k++) r[k] = a[2 * (k % 16) + k / 16];
+            "xperm4": for (int k = 0; k < 8; k++) begin
+                          n = int'(b[4*k +: 4]);
+                          if (n < 8) r[4*k +: 4] = a[4*n +: 4];
+                      end
+            "xperm8": for (int k = 0; k < 4; k++) begin
+                          n = int'(b[8*k +: 8]);
+                          if (n < 4) r[8*k +: 8] = a[8*n +: 8];
+                      end
+            "sha256sig0": r = twice[7 +: 32] ^ twice[18 +: 32] ^ (a >> 3);
+            "sha256sig1": r = twice[17 +: 32] ^ twice[19 +: 32] ^ (a >> 10);
+            "sha256sum0": r = twice[2 +: 32] ^ twice[13 +: 32] ^ twice[22 +: 32];
+            "sha256sum1": r = twice[6 +: 32] ^ twice[11 +: 32] ^ twice[25 +: 32];
+            "sha512sig0h": r = sigma0_512({a, b})[63:32];
+            "sha512sig0l": r = sigma0_512({b, a})[31:0];
+            "sha512sig1h": r = sigma1_512({a, b})[63:32];
+            "sha512sig1l": r = sigma1_512({b, a})[31:0];
+            "sha512sum0r": r = bigsigma0_512({a, b})[63:32];
+            "sha512sum1r": r = bigsigma1_512({a, b})[63:32];
             default:  r = 32'hDEAD_DEAD;
         endcase
         return r;
@@ -274,6 +332,43 @@ module test_ext_execute;
         check_one(24, 32'h0, 32'd37, 0);                   // bset, index 37 & 31 = 5
         check_one(26, 32'd5, 32'd0, 0);                    // czero.eqz(5, 0) = 0
         check_one(27, 32'd5, 32'd0, 0);                    // czero.nez(5, 0) = 5
+        check_one(28, 32'h1234_5678, 32'h9ABC_DEF0, 0);   // pack = DEF05678
+        check_one(29, 32'h1234_5678, 32'h9ABC_DEF0, 0);   // packh = 0000F078
+        check_one(30, 32'h1234_5678, 0, 32'hA5A5A5A5);     // brev8 = 482C6A1E
+        check_one(31, 32'h1234_5678, 0, 32'hA5A5A5A5);     // zip = 131C1F60
+        check_one(32, 32'h1234_5678, 0, 32'hA5A5A5A5);     // unzip = 141646EC
+        check_one(33, 32'hFEDC_BA98, 32'hF0F0_F0F0, 0);   // xperm4 = 08080808
+        check_one(34, 32'h4433_2211, 32'h04FF_0100, 0);   // xperm8 = 00002211
+        check_one(35, 32'h1234_5678, 0, 32'hA5A5A5A5);     // sha256sig0 = E7FCE6EE
+        check_one(38, 32'h1234_5678, 0, 32'hA5A5A5A5);     // sha256sum1 = 3561ABDA
+        check_one(40, 32'h1234_5678, 32'h9ABC_DEF0, 0);   // sha512sig0l = 192C77C6
+        check_one(41, 32'h1234_5678, 32'h9ABC_DEF0, 0);   // sha512sig1h = 0A3460DB
+        check_one(44, 32'h1234_5678, 32'h9ABC_DEF0, 0);   // sha512sum1r = 70311233
+        expect_true(model(28, 32'h1234_5678, 32'h9ABC_DEF0) == 32'hDEF0_5678 &&
+                    model(29, 32'h1234_5678, 32'h9ABC_DEF0) == 32'h0000_F078 &&
+                    model(30, 32'h0102_0304, 0) == 32'h8040_C020 && model(30, 32'h1234_5678, 0) == 32'h482C_6A1E &&
+                    model(31, 32'h0000_FFFF, 0) == 32'h5555_5555 && model(31, 32'h1234_5678, 0) == 32'h131C_1F60 &&
+                    model(32, 32'h1234_5678, 0) == 32'h1416_46EC && model(32, 32'h5555_5555, 0) == 32'h0000_FFFF &&
+                    model(33, 32'h7654_3210, 32'h0123_4567) == 32'h0123_4567 &&
+                    model(33, 32'h7654_3210, 32'h89AB_CDEF) == 32'h0 &&
+                    model(33, 32'hFEDC_BA98, 32'hF0F0_F0F0) == 32'h0808_0808 &&
+                    model(34, 32'h4433_2211, 32'h0001_0203) == 32'h1122_3344 &&
+                    model(34, 32'h4433_2211, 32'h04FF_0100) == 32'h0000_2211,
+                    "the bench model reproduces the known answers of Zbkb and Zbkx");
+        expect_true(model(35, 1, 0) == 32'h0200_4000 && model(36, 1, 0) == 32'h0000_A000 &&
+                    model(37, 1, 0) == 32'h4008_0400 && model(38, 1, 0) == 32'h0420_0080 &&
+                    model(35, 32'h1234_5678, 0) == 32'hE7FC_E6EE && model(36, 32'h1234_5678, 0) == 32'hA1F7_8649 &&
+                    model(37, 32'h1234_5678, 0) == 32'h6614_6474 && model(38, 32'h1234_5678, 0) == 32'h3561_ABDA &&
+                    model(39, 32'h1234_5678, 32'h9ABC_DEF0) == 32'hF92C_77C6 &&
+                    model(40, 32'h1234_5678, 32'h9ABC_DEF0) == 32'h192C_77C6 &&
+                    model(41, 32'h1234_5678, 32'h9ABC_DEF0) == 32'h0A34_60DB &&
+                    model(42, 32'h1234_5678, 32'h9ABC_DEF0) == 32'hCA34_60DB &&
+                    model(43, 32'h1234_5678, 32'h9ABC_DEF0) == 32'h7C57_A100 &&
+                    model(44, 32'h1234_5678, 32'h9ABC_DEF0) == 32'h7031_1233 &&
+                    model(39, 0, 1) == 32'h8100_0000 && model(40, 0, 1) == 32'h8300_0000 &&
+                    model(41, 0, 1) == 32'h0000_2000 && model(42, 0, 1) == 32'h0400_2000 &&
+                    model(43, 0, 1) == 32'h0000_0010 && model(44, 0, 1) == 32'h0004_4000,
+                    "the bench model reproduces the known answers of Zknh");
         expect_true(model(3, 0, 0) == 32 && model(16, 32'h0001_0080, 0) == 32'h00FF_00FF &&
                     model(17, 32'h1234_5678, 0) == 32'h7856_3412 && model(13, 32'h8000_0001, 1) == 3 &&
                     model(24, 0, 37) == 32'h20 && model(27, 5, 0) == 5 && model(8, 32'hFFFF_FFFF, 1) == 32'hFFFF_FFFF,
@@ -318,6 +413,14 @@ module test_ext_execute;
             check_one(26, $urandom(), 32'b0, 0);
             check_one(27, $urandom(), 32'b0, 0);
         end
+        // xperm8 with in-range indices often enough to matter: each index byte
+        // is 0..3 or 0x80..0x83 (in range or out of range only through bit 7);
+        // and with one high index bit at a time
+        for (int n = 0; n < 20000; n++)
+            check_one(34, $urandom(), $urandom() & 32'h8383_8383, 0);
+        for (int n = 0; n < 2000; n++)
+            for (int k = 2; k < 8; k++)
+                check_one(34, $urandom(), ($urandom() & 32'h0303_0303) | (32'h0101_0101 << k), 0);
 
         // =================================================================
         $display("=== 4: pipeline protocol ===");

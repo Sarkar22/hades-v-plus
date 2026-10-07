@@ -6,13 +6,14 @@ The programs in this directory reproduce figures that the documentation quotes. 
 |---|---|---|---|
 | `make bench-zba [OPT=-O2]` | [`zba/`](zba) | the Zba figures: 20.3 % fewer cycles (1.26×), 6–8 % smaller code, 16,704 operand comparisons without a mismatch ([docs/EXTENSIONS.md](../../docs/EXTENSIONS.md#zba--scaled-index-address-generation)) | [`results/zba/`](../../results/zba) |
 | `make bench-zbb [OPT=-O2]` | [`zbb/`](zbb) | the Zbb, Zbs and Zicond figures: 59.8 % fewer cycles (2.49×) in a best-case loop, 52,436 results of the 28 instruction forms compared without a mismatch ([docs/EXTENSIONS.md](../../docs/EXTENSIONS.md#zbb-and-zbs--bit-manipulation-b)) | [`results/zbb/`](../../results/zbb) |
+| `make bench-sha256 [OPT=-O2]` | [`sha256/`](sha256) | the SHA-256 figures: 84.2, 63.4 and 49.8 cycles per byte for RV32I, with Zba, Zbb and Zbs, and with Zknh; 33,260 results of the 17 Zbkb, Zbkx and Zknh instruction forms compared without a mismatch ([docs/EXTENSIONS.md](../../docs/EXTENSIONS.md#zbkb-zbkx-and-zknh--scalar-cryptography)) | [`results/sha256/`](../../results/sha256) |
 | `make bench-mcost` | [`mcost/`](mcost) | the *Measured* column of the M unit's cycle table ([docs/EXTENSIONS.md](../../docs/EXTENSIONS.md#execute-learns-to-stall)) | [`results/m-unit-cycles/`](../../results/m-unit-cycles) |
 | `make bench-fencei-window` | [`fencei-window/`](fencei-window) | the 3-slot staleness window without `FENCE.I` ([README.md](../../README.md), [docs/EXTENSIONS.md](../../docs/EXTENSIONS.md#zifencei--instruction-fetch-synchronisation)) | [`results/fencei-window/`](../../results/fencei-window) |
-| `make bench` | all four | | |
+| `make bench` | all five | | |
 
-Everything is built into `$(BUILD_DIR)/test/bench/` (`build/test/bench/` unless the build directory is relocated with `BUILD_DIR` or `HADES_BUILD_DIR`, see [docs/BUILDING.md](../../docs/BUILDING.md#building-running-and-debugging)); the objects of the assembly and C tests are not touched. The programs run again on every invocation, without writing waveforms, with a limit of 5,000,000 cycles per run (`BENCH_TIMEOUT`; 20,000,000 for `bench-zbb`, whose `zbb_diff` takes about 6 million cycles at `-O0`). The rules are in [`bench.mk`](bench.mk), the checks and summaries in [`bench.py`](bench.py). With `make -j`, add `-O` so that each summary is printed in one piece.
+Everything is built into `$(BUILD_DIR)/test/bench/` (`build/test/bench/` unless the build directory is relocated with `BUILD_DIR` or `HADES_BUILD_DIR`, see [docs/BUILDING.md](../../docs/BUILDING.md#building-running-and-debugging)); the objects of the assembly and C tests are not touched. The programs run again on every invocation, without writing waveforms, with a limit of 5,000,000 cycles per run (`BENCH_TIMEOUT`; 20,000,000 for `bench-zbb`, whose `zbb_diff` takes about 6 million cycles at `-O0`, and 100,000,000 for `bench-sha256`, whose `sha256_long` takes about 51 million). The rules are in [`bench.mk`](bench.mk), the checks and summaries in [`bench.py`](bench.py). With `make -j`, add `-O` so that each summary is printed in one piece.
 
-The programs were first written and run during development, outside the repository, and were recovered from the development log. In every recovered file, everything after the license header is the program exactly as it was measured, with one exception: `fencei-window/fencei_stale.s` was reconstructed from its first version and the four edits that the log records, and checked against the line numbers and disassembly addresses in the log ([results/fencei-window/2026-08-17_15b0b85](../../results/fencei-window/2026-08-17_15b0b85/RECORD.md)). The one program added later, `mcost/loop_empty.s`, says so in its header; the programs of `zbb/` were written for this repository when Zbb, Zbs and Zicond were added. The records in `results/` give the dates, the commits and the fingerprints.
+The programs were first written and run during development, outside the repository, and were recovered from the development log. In every recovered file, everything after the license header is the program exactly as it was measured, with one exception: `fencei-window/fencei_stale.s` was reconstructed from its first version and the four edits that the log records, and checked against the line numbers and disassembly addresses in the log ([results/fencei-window/2026-08-17_15b0b85](../../results/fencei-window/2026-08-17_15b0b85/RECORD.md)). The one program added later, `mcost/loop_empty.s`, says so in its header; the programs of `zbb/` were written for this repository when Zbb, Zbs and Zicond were added, and those of `sha256/` when Zbkb, Zbkx and Zknh were. The records in `results/` give the dates, the commits and the fingerprints.
 
 ## `make bench-zba`
 
@@ -61,6 +62,40 @@ BENCH ZBB: PASS
 ```
 
 `zbb_bench` is a best case, made of the code these extensions are for. `OPT=-Os` gives 62.0 % fewer cycles; at `OPT=-O0` GCC still uses some of the instructions, and the gain is 27.4 %. At `-O2`, GCC 12 emits neither `xnor` nor `zext.h` in these two programs; the [example app `bitmanip`](../../docs/APPS.md#the-example-apps) shows idioms for every form. The verdict depends only on the equality checks, not on the size of the gain ([record](../../results/zbb/2026-10-02_e75223e/RECORD.md)).
+
+## `make bench-sha256`
+
+One SHA-256 source, [`std/include/sha256.h`](../../std/include/sha256.h), with σ0, σ1, Σ0 and Σ1 from [`std/include/zknh.h`](../../std/include/zknh.h), is compiled three times, for `-march=rv32i` (plain C; the message words read with byte loads), for `-march=rv32im_zba_zbb_zbs` (plain C, in which GCC uses `rori` and `rol` for the rotations; the message words read with `lw` and `rev8`) and for `-march=rv32im_zba_zbb_zbkb_zbkx_zbs_zknh` (one Zknh instruction for each σ and Σ, by inline assembly: GCC 12.2 has no builtins for them; `rev8` as before), at `-O2` unless `OPT` says otherwise. The `std/` objects are built for `rv32i`, as for `bench-zbb`.
+
+- [`sha256_bench.c`](sha256/sha256_bench.c): checks the three SHA-256 examples of NIST (the empty message, `"abc"` and the 448-bit message), each hashed whole and fed in pieces of 1, 3, 5, 7, 11 and 13 bytes, then hashes a 16,384-byte buffer filled from a xorshift32 generator, with no I/O inside the timed window. It prints `NIST 6/6`, the digest of the buffer (`DIGEST`, which `bench.py` recomputes with Python's `hashlib`), the cycles (`CYC`) and the length. Built with `-DLONG` for the Zknh build only, as `sha256_long`, it hashes one million bytes `'a'`, the long example of FIPS 180-2, instead; that variant is not run at `-O0` (over 200 million cycles).
+- [`crypto_diff.c`](sha256/crypto_diff.c): built for `rv32i` only. It issues each of the 17 Zbkb, Zbkx and Zknh instruction forms as an `.insn` word and compares every result with a computation in RV32I C written from the instruction definitions, bit by bit: a pool of 24 special values (every pair for the two-operand forms), `xperm4` and `xperm8` with index words in range, out of range and mixed and with every index value in every element, 96 random pairs, a dependent chain, results used as load addresses and by branches, `rd = x0`, and the same register as both operands. It runs four times, as `zbb_diff` does. Every run must end in `CRYPTO DIFF OK`, with no mismatch, and its code must contain all 17 forms.
+
+The summary gives, for each build, the image size, the number of Zbkb, Zbkx and Zknh instructions in the code (counted with a table of their own, `CRYPTO_FORMS`), the timed cycles and the checks, then the cycles per byte, the speed-ups and, per form, the instructions GCC chose. At `-O2`:
+
+```
+  sha256_bench: 16384 bytes; NIST examples 6/6 in every build; DIGEST 00128dedfa357517a7718b37759dde4126b85c8029573169136c8a1e3e8892e9
+                DIGEST equal in the three builds and to Python's hashlib: yes
+  cycles per byte (one sha256() of 16384 bytes, padding block included):
+    rv32i                                   1378827 cycles  84.16 cycles per byte  3504 bytes
+    rv32im_zba_zbb_zbs                      1038045 cycles  63.36 cycles per byte  3160 bytes
+    rv32im_zba_zbb_zbkb_zbkx_zbs_zknh        815740 cycles  49.79 cycles per byte  3036 bytes
+  speed-ups: Zba+Zbb+Zbs over rv32i 1.328x, Zknh over Zba+Zbb+Zbs 1.273x, Zknh over rv32i 1.690x
+  sha256_long (Zknh): 1,000,000 bytes 'a', digest cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0 (as expected): 50521930 cycles, 50.52 cycles per byte
+  crypto_diff: 33260 checks in 4 runs (8621 + 8213 + 8213 + 8213), 0 mismatches, CRYPTO DIFF OK in 4 of 4; 17 of 17 forms in its code
+
+  Zbkb, Zbkx and Zknh instructions in the code (per form):
+    sha256_bench-rv32i                                 0 words,  0 forms: -
+    sha256_bench-rv32im_zba_zbb_zbs                    0 words,  0 forms: -
+    sha256_bench-rv32im_zba_zbb_zbkb_zbkx_zbs_zknh     4 words,  4 forms: sha256sig0=1 sha256sig1=1 sha256sum0=1 sha256sum1=1
+  Zbb, Zbs and Zicond instructions in the code (per form):
+    sha256_bench-rv32i                                 0 words,  0 forms: -
+    sha256_bench-rv32im_zba_zbb_zbs                   13 words,  5 forms: andn=1 minu=1 rol=5 rori=5 rev8=1
+    sha256_bench-rv32im_zba_zbb_zbkb_zbkx_zbs_zknh     3 words,  3 forms: andn=1 minu=1 rev8=1
+
+BENCH SHA256: PASS
+```
+
+The verdict depends only on the checks (the NIST examples, the digests, `crypto_diff`, and no Zknh instruction in the plain builds), not on the size of the gain. `OPT=-Os` gives 84.2, 64.0 and 49.8 cycles per byte, `OPT=-O0` 463.1, 407.6 and 213.3 ([record](../../results/sha256/2026-10-02_bd800d8/RECORD.md)).
 
 ## `make bench-mcost`
 

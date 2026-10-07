@@ -11,10 +11,17 @@
 #                                     must be equal; cycles, image size and instruction counts
 #                                     compared; zbb_diff.c, built for rv32i only, checks the
 #                                     results of all 28 instruction forms
+#   make bench-sha256 [OPT=-O2|-Os|-O0]
+#                                     SHA-256 (Zknh): sha256_bench.c built for rv32i,
+#                                     rv32im_zba_zbb_zbs and rv32im_zba_zbb_zbkb_zbkx_zbs_zknh,
+#                                     NIST examples checked, digests compared, cycles per byte;
+#                                     sha256_long (one million bytes, Zknh build only);
+#                                     crypto_diff.c, built for rv32i only, checks the results of
+#                                     the 17 Zbkb, Zbkx and Zknh instruction forms
 #   make bench-mcost                  cycles of each M instruction in the assembled core
 #   make bench-fencei-window          the instructions that still run stale after a store
 #                                     patches them, without FENCE.I
-#   make bench                        all four
+#   make bench                        all five
 #
 # The programs are built into $(BUILD_DIR)/test/bench/ (the objects of the assembly and C
 # tests are not touched) and run on $(BUILD_DIR)/sim/top, the simulator of the assembly and
@@ -37,8 +44,8 @@ BENCH_TIMEOUT = 5000000
 bench_run = cd $(1) && { $(BUILD_ABS)/$(SIM_DIR)/top +nodump +timeout=$(BENCH_TIMEOUT) > run.log 2>&1 \
                          || echo "SIMULATOR EXIT STATUS $$?" >> run.log; }
 
-.PHONY: bench bench-zba bench-zbb bench-mcost bench-fencei-window bench-rerun
-bench: bench-zba bench-zbb bench-mcost bench-fencei-window
+.PHONY: bench bench-zba bench-zbb bench-sha256 bench-mcost bench-fencei-window bench-rerun
+bench: bench-zba bench-zbb bench-sha256 bench-mcost bench-fencei-window
 
 # Every run log depends on this target, so the programs are run on every invocation.
 bench-rerun:
@@ -138,6 +145,41 @@ $(ZBB_OUT)/%/run.log: BENCH_TIMEOUT = 20000000
 
 bench-zbb: $(foreach v,$(ZBB_VARIANTS),$(ZBB_OUT)/$(v)/run.log)
 	@ $(BENCH_PY) zbb $(ZBB_OUT) $(ZBB_OPT)
+
+# ---- bench-sha256: SHA-256 with and without Zknh, see test/bench/README.md ------------------
+# OPT=<level> as for bench-zba; the std objects are built for rv32i, as for bench-zbb.
+SHA256_OPT := -O2
+ifneq ($(filter bench bench-sha256,$(MAKECMDGOALS)),)
+ifeq ($(origin OPT),command line)
+SHA256_OPT := $(OPT)
+endif
+ifneq ($(words $(SHA256_OPT)) $(filter -O0 -O1 -O2 -O3 -Os -Og,$(SHA256_OPT)),1 $(SHA256_OPT))
+$(error bench-sha256: OPT must be one optimisation level (-O0, -O1, -O2, -O3, -Os or -Og), not '$(SHA256_OPT)')
+endif
+endif
+SHA256_OUT     = $(BENCH_OUT)/sha256/$(subst -,,$(SHA256_OPT))
+SHA256_MARCHES = rv32i rv32im_zba_zbb_zbs rv32im_zba_zbb_zbkb_zbkx_zbs_zknh
+SHA256_ZKNH    = rv32im_zba_zbb_zbkb_zbkx_zbs_zknh
+SHA256_STD     = $(SHA256_OPT) -march=rv32i
+
+# The variants: sha256_bench for the three instruction sets; sha256_long (one million bytes)
+# for the Zknh build only, and not at -O0 (over 200 million cycles, more than three minutes of
+# simulation); crypto_diff for rv32i only (it issues the instructions as .insn words), once
+# with its defaults and three times with 400 random operand pairs only, from three seeds.
+SHA256_VARIANTS = $(foreach m,$(SHA256_MARCHES),sha256_bench-$(m)) \
+                  $(if $(filter -O0,$(SHA256_OPT)),,sha256_long-$(SHA256_ZKNH)) \
+                  crypto_diff crypto_diff-B5297A4D crypto_diff-1F123BB5 crypto_diff-9E3779B9
+$(foreach m,$(SHA256_MARCHES),$(eval $(call bench_c_rules,$(SHA256_OUT)/sha256_bench-$(m),$(BENCH_DIR)/sha256/sha256_bench.c,$(SHA256_OPT) -march=$(m),,$(SHA256_STD))))
+$(eval $(call bench_c_rules,$(SHA256_OUT)/sha256_long-$(SHA256_ZKNH),$(BENCH_DIR)/sha256/sha256_bench.c,$(SHA256_OPT) -march=$(SHA256_ZKNH),-DLONG,$(SHA256_STD)))
+$(eval $(call bench_c_rules,$(SHA256_OUT)/crypto_diff,$(BENCH_DIR)/sha256/crypto_diff.c,$(SHA256_OPT) -march=rv32i))
+$(foreach s,B5297A4D 1F123BB5 9E3779B9,$(eval $(call bench_c_rules,$(SHA256_OUT)/crypto_diff-$(s),$(BENCH_DIR)/sha256/crypto_diff.c,$(SHA256_OPT) -march=rv32i,-DSKIP_POOL -DN_RANDOM=400 -DSEED=0x$(s)u)))
+
+# sha256_long takes about 51 million cycles at -O2 and -Os, crypto_diff about 7 million at
+# -O2 and more than 20 million at -O0, sha256_bench at most 8 million
+$(SHA256_OUT)/%/run.log: BENCH_TIMEOUT = 100000000
+
+bench-sha256: $(foreach v,$(SHA256_VARIANTS),$(SHA256_OUT)/$(v)/run.log)
+	@ $(BENCH_PY) sha256 $(SHA256_OUT) $(SHA256_OPT)
 
 # ---- bench-mcost: cycles per M instruction, see test/bench/README.md -------------------------
 MCOST_OUT   = $(BENCH_OUT)/mcost

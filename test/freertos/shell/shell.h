@@ -133,8 +133,8 @@ void shell_console_start( void );
 /* Registers the commands with FreeRTOS+CLI (commands.c). */
 void shell_register_commands( void );
 
-/* Probes the CPU for M, Zba, Zbb, Zbs, Zicntr and Zicond by executing one instruction of each and
- * catching the illegal-instruction trap. Must run in a task (the trap handler
+/* Probes the CPU for M, Zba, Zbb, Zbs, Zicntr and Zicond (the loader's build: also Zbkb, Zbkx
+ * and Zknh) by executing one instruction of each and catching the illegal-instruction trap. Must run in a task (the trap handler
  * saves the context of the running task). */
 void shell_probe_cpu( void );
 
@@ -146,6 +146,13 @@ typedef struct
     uint8_t ucZbb;      /* clz executes */
     uint8_t ucZbs;      /* bset executes */
     uint8_t ucZicond;   /* czero.eqz executes */
+    #if SHELL_LOADER
+        /* Only in the loader's build: the shell's own image has no room for these probes
+         * in the board's 32 KiB. */
+        uint8_t ucZbkb; /* pack executes */
+        uint8_t ucZbkx; /* xperm8 executes */
+        uint8_t ucZknh; /* sha256sum0 executes */
+    #endif
 } ShellCpu_t;
 extern ShellCpu_t xShellCpu;
 

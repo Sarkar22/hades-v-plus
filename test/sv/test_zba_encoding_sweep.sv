@@ -1,11 +1,11 @@
 /* Adversarial encoding-hygiene sweep for the non-base extensions (Zba, M,
- * Zbb, Zbs and Zicond).
+ * Zbb, Zbs, Zicond, Zbkb, Zbkx and Zknh).
  *
  * Contract checked here: the DUT decoder must produce the SAME op::t as the
  * frozen reference decoder for every 32-bit word, with exactly three families of
  * exceptions -- the three SH1ADD / SH2ADD / SH3ADD encodings, the M encodings
- * (opcode 0110011, funct7 0000001) and the 28 Zbb/Zbs/Zicond encodings, which
- * all decode to op::EXT.  A decode arm that is too broad shows up as a word
+ * (opcode 0110011, funct7 0000001) and the 45 Zbb/Zbs/Zicond/Zbkb/Zbkx/Zknh
+ * encodings, which all decode to op::EXT.  A decode arm that is too broad shows up as a word
  * where DUT.op != REF.op that belongs to none of the families.
  *
  * The EXT family is described here independently of the decoder, as the
@@ -15,9 +15,10 @@
  * op::ext_payload_t), and the reference must call it ILLEGAL.  Sweeps E and F
  * cover every immediate of OP-IMM and every funct7 x rs2 field of OP, so every
  * shamt of every immediate form, every unary form and every RV32-reserved
- * neighbour (shamt[5] = 1, wrong rs2 field) is decided.  Sweep G does the same
- * for OP-32 and OP-IMM-32, where the RV64-only word forms (ctzw, cpopw, the RV64
- * zext.h, ...) live: all of them must stay illegal.
+ * neighbour (shamt[5] = 1, wrong rs2 field, the RV64-only sha512 forms of the
+ * sha256 group) is decided.  Sweep G does the same for OP-32 and OP-IMM-32,
+ * where the RV64-only word forms (ctzw, cpopw, the RV64 zext.h, packw, ...)
+ * live: all of them must stay illegal.
  *
  * The M family is checked the same way Zba is: the DUT must produce the exact
  * expected op for every word in the family, the reference must call every one
@@ -54,9 +55,9 @@ module test_zba_encoding_sweep;
     int unsigned m_f3_hits[8];
     int unsigned ext_hits  = 0;
     int unsigned ext_field_diverge = 0;  // EXT words: immediate differs from the reference by design
-    int unsigned ext_form_hits[28];      // all sweeps
-    int unsigned ext_det_hits[28];       // the deterministic sweeps (all but C)
-    logic [31:0] ext_shamt_seen[28];     // immediate forms: bit s set once shamt s was decoded
+    int unsigned ext_form_hits[45];      // all sweeps (one per EXT form, see EXT_FORMS)
+    int unsigned ext_det_hits[45];       // the deterministic sweeps (all but C)
+    logic [31:0] ext_shamt_seen[45];     // immediate forms: bit s set once shamt s was decoded
     bit          in_sweep_c = 0;
 
     instruction_decoder     dut  (.instruction_in(instr), .instruction_out(dut_out));
@@ -104,12 +105,15 @@ module test_zba_encoding_sweep;
     endfunction
 
 
-    // ---- Zbb, Zbs, Zicond ----------------------------------------------
-    // The 28 forms in the order of the ISA tables, as MATCH/MASK pairs. Register
-    // and immediate (shamt) forms match funct7 in full, which is what makes the
+    // ---- Zbb, Zbs, Zicond, Zbkb, Zbkx, Zknh ----------------------------
+    // The 45 forms in the order of the ISA tables, as MATCH/MASK pairs: the 28
+    // Zbb/Zbs/Zicond forms, then the 17 Zbkb/Zbkx/Zknh forms. Register and
+    // immediate (shamt) forms match funct7 in full, which is what makes the
     // RV32-reserved shamt[5] = 1 words illegal; the unary forms also match the
-    // rs2 field, which is part of their opcode.
-    localparam int EXT_FORMS = 28;
+    // rs2 field, which is part of their opcode. The first match wins, and zext.h
+    // comes before pack: the RV32 zext.h word is pack rd, rs1, x0, so pack's
+    // MATCH/MASK pair also matches zext.h, which keeps its own payload.
+    localparam int EXT_FORMS = 45;
     localparam logic [31:0] EXT_MATCH [EXT_FORMS] = '{
         32'h40007033, 32'h40006033, 32'h40004033,              // andn orn xnor
         32'h60001013, 32'h60101013, 32'h60201013,              // clz ctz cpop
@@ -119,7 +123,13 @@ module test_zba_encoding_sweep;
         32'h28705013, 32'h69805013,                            // orc.b rev8
         32'h48001033, 32'h48001013, 32'h48005033, 32'h48005013, // bclr bclri bext bexti
         32'h68001033, 32'h68001013, 32'h28001033, 32'h28001013, // binv binvi bset bseti
-        32'h0E005033, 32'h0E007033                             // czero.eqz czero.nez
+        32'h0E005033, 32'h0E007033,                            // czero.eqz czero.nez
+        32'h08004033, 32'h08007033,                            // pack packh
+        32'h68705013, 32'h08F01013, 32'h08F05013,              // brev8 zip unzip
+        32'h28002033, 32'h28004033,                            // xperm4 xperm8
+        32'h10201013, 32'h10301013, 32'h10001013, 32'h10101013, // sha256sig0 sig1 sum0 sum1
+        32'h5C000033, 32'h54000033, 32'h5E000033, 32'h56000033, // sha512sig0h sig0l sig1h sig1l
+        32'h50000033, 32'h52000033                             // sha512sum0r sum1r
     };
     localparam logic [31:0] EXT_MASK [EXT_FORMS] = '{
         32'hFE00707F, 32'hFE00707F, 32'hFE00707F,
@@ -130,33 +140,54 @@ module test_zba_encoding_sweep;
         32'hFFF0707F, 32'hFFF0707F,
         32'hFE00707F, 32'hFE00707F, 32'hFE00707F, 32'hFE00707F,
         32'hFE00707F, 32'hFE00707F, 32'hFE00707F, 32'hFE00707F,
+        32'hFE00707F, 32'hFE00707F,
+        32'hFE00707F, 32'hFE00707F,
+        32'hFFF0707F, 32'hFFF0707F, 32'hFFF0707F,
+        32'hFE00707F, 32'hFE00707F,
+        32'hFFF0707F, 32'hFFF0707F, 32'hFFF0707F, 32'hFFF0707F,
+        32'hFE00707F, 32'hFE00707F, 32'hFE00707F, 32'hFE00707F,
         32'hFE00707F, 32'hFE00707F
     };
-    // Expected sub-operation code of each form ({group, variant}, defines/op.sv).
-    localparam logic [4:0] EXT_SEL [EXT_FORMS] = '{
-        5'b000_00, 5'b000_01, 5'b000_10,
-        5'b001_00, 5'b001_01, 5'b001_10,
-        5'b010_10, 5'b010_11, 5'b010_00, 5'b010_01,
-        5'b011_00, 5'b011_01, 5'b011_10,
-        5'b100_00, 5'b100_01, 5'b100_01,
-        5'b101_00, 5'b101_01,
-        5'b110_00, 5'b110_00, 5'b110_01, 5'b110_01,
-        5'b110_10, 5'b110_10, 5'b110_11, 5'b110_11,
-        5'b111_00, 5'b111_01
+    // Expected sub-operation code of each form ({crypto, group, variant},
+    // defines/op.sv).
+    localparam logic [5:0] EXT_SEL [EXT_FORMS] = '{
+        6'b0_000_00, 6'b0_000_01, 6'b0_000_10,
+        6'b0_001_00, 6'b0_001_01, 6'b0_001_10,
+        6'b0_010_10, 6'b0_010_11, 6'b0_010_00, 6'b0_010_01,
+        6'b0_011_00, 6'b0_011_01, 6'b0_011_10,
+        6'b0_100_00, 6'b0_100_01, 6'b0_100_01,
+        6'b0_101_00, 6'b0_101_01,
+        6'b0_110_00, 6'b0_110_00, 6'b0_110_01, 6'b0_110_01,
+        6'b0_110_10, 6'b0_110_10, 6'b0_110_11, 6'b0_110_11,
+        6'b0_111_00, 6'b0_111_01,
+        6'b1_000_00, 6'b1_000_01,
+        6'b1_001_00, 6'b1_001_01, 6'b1_001_10,
+        6'b1_010_00, 6'b1_010_01,
+        6'b1_011_00, 6'b1_011_01, 6'b1_011_10, 6'b1_011_11,
+        6'b1_100_00, 6'b1_100_01, 6'b1_100_10, 6'b1_100_11,
+        6'b1_101_00, 6'b1_101_01
     };
-    // Kind of each form: 0 register, 1 immediate (shamt), 2 unary.
+    // Kind of each form: 0 register, 1 immediate (shamt), 2 unary, 3 register
+    // whose rs2 = x0 word is another form (pack: that word is zext.h).
     localparam int EXT_KIND [EXT_FORMS] = '{
         0, 0, 0,  2, 2, 2,  0, 0, 0, 0,  2, 2, 2,  0, 0, 1,  2, 2,
-        0, 1, 0, 1,  0, 1, 0, 1,  0, 0
+        0, 1, 0, 1,  0, 1, 0, 1,  0, 0,
+        3, 0,  2, 2, 2,  0, 0,  2, 2, 2, 2,  0, 0, 0, 0,  0, 0
     };
     localparam string EXT_NAME [EXT_FORMS] = '{
         "andn", "orn", "xnor", "clz", "ctz", "cpop", "max", "maxu", "min", "minu",
         "sext.b", "sext.h", "zext.h", "rol", "ror", "rori", "orc.b", "rev8",
         "bclr", "bclri", "bext", "bexti", "binv", "binvi", "bset", "bseti",
-        "czero.eqz", "czero.nez"
+        "czero.eqz", "czero.nez",
+        "pack", "packh", "brev8", "zip", "unzip", "xperm4", "xperm8",
+        "sha256sig0", "sha256sig1", "sha256sum0", "sha256sum1",
+        "sha512sig0h", "sha512sig0l", "sha512sig1h", "sha512sig1l",
+        "sha512sum0r", "sha512sum1r"
     };
-    // Sub-operation codes the decoder may produce (all others are reserved).
-    localparam logic [31:0] EXT_SEL_VALID = 32'h3F33_7F77;  // codes 0-2, 4-6, 8-14, 16, 17, 20, 21, 24-29
+    // Sub-operation codes the decoder may produce (all others are reserved):
+    // 0-2, 4-6, 8-14, 16, 17, 20, 21, 24-29 (the first 28 forms) and 32, 33,
+    // 36-38, 40, 41, 44-53 (the crypto half).
+    localparam logic [63:0] EXT_SEL_VALID = 64'h003F_F373_3F33_7F77;
 
     // Index of the EXT form w encodes, or -1.
     function automatic int ext_form(input logic [31:0] w);
@@ -190,7 +221,7 @@ module test_zba_encoding_sweep;
         end
 
         // Whatever the word, the decoder must never produce a reserved sub-operation.
-        if (dut_out.op === EXT && !EXT_SEL_VALID[dut_out.immediate[10:6]]) begin
+        if (dut_out.op === EXT && !EXT_SEL_VALID[dut_out.immediate[11:6]]) begin
             errors++;
             $display("EXT RESERVED SEL instr=%08h imm=%08h", w, dut_out.immediate);
         end
@@ -198,7 +229,7 @@ module test_zba_encoding_sweep;
         if (f >= 0) begin
             // The payload the decoder must put in the immediate (op::ext_payload_t).
             want_use_imm = (EXT_KIND[f] == 1);
-            want_imm     = {21'b0, EXT_SEL[f], want_use_imm, want_use_imm ? w[24:20] : 5'b0};
+            want_imm     = {20'b0, EXT_SEL[f], want_use_imm, want_use_imm ? w[24:20] : 5'b0};
             ext_hits++;
             ext_form_hits[f]++;
             if (!in_sweep_c) ext_det_hits[f]++;
@@ -404,12 +435,13 @@ module test_zba_encoding_sweep;
 
         // Coverage of the EXT family. Over the deterministic sweeps (A, B, D, E, F)
         // the count of each form is fixed by the sweep shapes: 73 for each register
-        // form, 66 for each immediate form, 2 for each unary form. Each immediate
-        // form must also have been decoded with every shamt 0..31.
+        // form, 66 for each immediate form, 2 for each unary form, and 71 for pack
+        // (its two rs2 = 0 words in sweep F are zext.h). Each immediate form must
+        // also have been decoded with every shamt 0..31.
         det_total = 0;
         for (int i = 0; i < EXT_FORMS; i++) begin
             int want;
-            want = (EXT_KIND[i] == 0) ? 73 : (EXT_KIND[i] == 1) ? 66 : 2;
+            want = (EXT_KIND[i] == 0) ? 73 : (EXT_KIND[i] == 1) ? 66 : (EXT_KIND[i] == 3) ? 71 : 2;
             det_total += ext_det_hits[i];
             if (ext_det_hits[i] != want) begin
                 errors++;
@@ -459,7 +491,7 @@ module test_zba_encoding_sweep;
         $display("INFO: pre-existing SYSTEM-opcode op divergences = %0d of %0d", sys_diverge, checks);
 
         if (errors == 0)
-            $display("\033[0;32mAll %0d encoding checks passed — dut op matches ref everywhere except the Zba, M, Zbb, Zbs and Zicond words\033[0m", checks);
+            $display("\033[0;32mAll %0d encoding checks passed — dut op matches ref everywhere except the Zba, M, Zbb, Zbs, Zicond, Zbkb, Zbkx and Zknh words\033[0m", checks);
         else
             $display("\033[0;31m%0d/%0d encoding checks FAILED\033[0m", errors, checks);
         $display("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");

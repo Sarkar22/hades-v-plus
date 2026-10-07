@@ -1,0 +1,212 @@
+{
+ "record": "results/crypto/2026-10-02_bd800d8",
+ "topic": "crypto",
+ "status": "repeatable",
+ "date": "2026-10-02",
+ "base_commit": "bd800d85cc121e39c85a9321e79876d78517085f",
+ "working_tree": "base commit plus the uncommitted Zbkb, Zbkx and Zknh changes; inputs.sha256 lists the files the commands use that differ from the base commit, other than documentation",
+ "figures": [
+  {
+   "suite": "asm/zbkb",
+   "command": "make test/asm/zbkb",
+   "exit_status": 0,
+   "output": [
+    "211 'Test pass!' lines",
+    "All tests passed! (# Errors: 1 = initial test)"
+   ]
+  },
+  {
+   "suite": "asm/zbkx",
+   "command": "make test/asm/zbkx",
+   "exit_status": 0,
+   "output": [
+    "165 'Test pass!' lines",
+    "All tests passed! (# Errors: 1 = initial test)"
+   ]
+  },
+  {
+   "suite": "asm/zknh",
+   "command": "make test/asm/zknh",
+   "exit_status": 0,
+   "output": [
+    "346 'Test pass!' lines",
+    "All tests passed! (# Errors: 1 = initial test)"
+   ]
+  },
+  {
+   "suite": "fuzz k 2001-3000",
+   "command": "python3 test/trapsweep/sweep.py fuzz --seeds 2001-3000 --variant k --targets dut --jobs {jobs} --out {out}",
+   "exit_status": 0,
+   "output": [
+    "DUT: 1000/1000 programs ISS-consistent"
+   ]
+  },
+  {
+   "suite": "sweep crypto",
+   "command": "python3 test/trapsweep/sweep.py run --fam crypto --targets dut --jobs {jobs} --out {out}",
+   "exit_status": 0,
+   "output": [
+    "crypto_ext_0 | dut:done | ISS[dut] groups_bad=0 violations=0 notes=0",
+    "crypto_timer_0 | dut:done | ISS[dut] groups_bad=0 violations=0 notes=0",
+    "crypto_both_0 | dut:done | ISS[dut] groups_bad=0 violations=0 notes=0",
+    "DUT: 3/3 programs ISS-consistent"
+   ]
+  },
+  {
+   "suite": "loader session-crypto (HaDes-V+)",
+   "command": "make freertos-shell-test APP=loader SCRIPT=test/freertos/loader/session-crypto.txt",
+   "exit_status": 0,
+   "output": [
+    "FREERTOS SHELL RESULT: PASS  app=loader cpu=dut isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=23377699",
+    "  typed lines: 11, prompts: 11, expectations met: 34/34",
+    "cpu:       M yes, Zba yes, Zbb yes, Zbs yes, Zicntr yes, Zicond yes, Zbkb yes, Zbkx yes, Zknh yes",
+    "loaded sha256: 4220 bytes at 0x00060000, entry 0x00060040, CRC32 0xb6478d14",
+    "sha256: self-test 4 of 4 NIST vectors: PASS (C)",
+    "sha256: 4096 bytes in 355950 cycles, 86.9 cycles per byte (C)",
+    "app: sha256 exited with code 0 after 486555 cycles",
+    "sha256: self-test 4 of 4 NIST vectors: PASS (C)",
+    "sha256: 4096 bytes in 356137 cycles, 86.9 cycles per byte (C)",
+    "sha256: type lines; an empty line ends",
+    "app: sha256 exited with code 0 after 540903 cycles",
+    "loaded sha256: 3768 bytes at 0x00060000, entry 0x00060040, CRC32 0xc6f91489",
+    "sha256: self-test 4 of 4 NIST vectors: PASS (Zknh)",
+    "sha256: 4096 bytes in 210991 cycles, 51.5 cycles per byte (Zknh)",
+    "app: sha256 exited with code 0 after 326453 cycles",
+    "sha256: self-test 4 of 4 NIST vectors: PASS (Zknh)",
+    "sha256: 4096 bytes in 210988 cycles, 51.5 cycles per byte (Zknh)",
+    "app: sha256 exited with code 0 after 330006 cycles"
+   ]
+  },
+  {
+   "suite": "loader session-crypto (golden CPU)",
+   "command": "make freertos-shell-test APP=loader SCRIPT=test/freertos/loader/session-crypto.txt CPU=golden",
+   "exit_status": 0,
+   "output": [
+    "FREERTOS SHELL RESULT: PASS  app=loader cpu=golden isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=22603337",
+    "  typed lines: 11, prompts: 11, expectations met: 31/31",
+    "cpu:       M no, Zba no, Zbb no, Zbs no, Zicntr no, Zicond no, Zbkb no, Zbkx no, Zknh no",
+    "loaded sha256: 4220 bytes at 0x00060000, entry 0x00060040, CRC32 0xb6478d14",
+    "sha256: self-test 4 of 4 NIST vectors: PASS (C)",
+    "sha256: 4096 bytes in 355855 cycles, 86.9 cycles per byte (C)",
+    "app: sha256 exited with code 0 after 486309 cycles",
+    "sha256: self-test 4 of 4 NIST vectors: PASS (C)",
+    "sha256: 4096 bytes in 356032 cycles, 86.9 cycles per byte (C)",
+    "sha256: type lines; an empty line ends",
+    "app: sha256 exited with code 0 after 541558 cycles",
+    "loaded sha256: 3768 bytes at 0x00060000, entry 0x00060040, CRC32 0xc6f91489",
+    "error: sha256 was built for rv32im_zba_zbb_zbkb_zbkx_zbs_zknh, but this CPU has no M, no Zba, no Zbb, no Zbkb, no Zbkx, no Zbs and no Zknh",
+    "error: sha256 was built for rv32im_zba_zbb_zbkb_zbkx_zbs_zknh, but this CPU has no M, no Zba, no Zbb, no Zbkb, no Zbkx, no Zbs and no Zknh"
+   ]
+  }
+ ],
+ "program_tables": {
+  "fuzz k 2001-3000": "fuzz-k.csv",
+  "sweep crypto": "crypto-family.csv"
+ },
+ "app_forms": {
+  "about": "the Zbkb, Zbkx and Zknh instruction words in the code of the app's two builds, per form: each word of the SDK's disassembly (objdump -d of the ELF) matched against CRYPTO_FORMS of test/bench/bench.py; the loader's session builds both",
+  "files": [
+   [
+    "sha256-rv32im_zba_zbb_zbkb_zbkx_zbs_zknh",
+    "test/freertos/sdk/rv32im_zba_zbb_zbkb_zbkx_zbs_zknh/sha256.dis"
+   ],
+   [
+    "sha256-rv32i",
+    "test/freertos/sdk/rv32i/sha256.dis"
+   ]
+  ],
+  "output": [
+   "sha256-rv32im_zba_zbb_zbkb_zbkx_zbs_zknh   4 words,  4 forms: sha256sig0=1 sha256sig1=1 sha256sum0=1 sha256sum1=1",
+   "sha256-rv32i                   0 words,  0 forms: -"
+  ]
+ },
+ "inputs": {
+  "files_sha256": {
+   "Makefile": "961e0adedb37309cc330b6a0d157b27e0590ac5748effb461531aa54314e62af",
+   "defines/op.sv": "7a1ee6abbf2a95a7273dd1c08a53610b89588708006e499eccfefdf0996b09b7",
+   "rtl/execute_stage.sv": "52201629b7dff698b0d98c98667b8ed80c9c9029d6f9d0d0fa64ed49fc2bfa5d",
+   "rtl/instruction_decoder.sv": "315462378c73c8e7710770b4e9790bf8d2abc4e2cd6c4c3288a540b8993f3726",
+   "std/include/sha256.h": "7dddf7a4566c3465da2b9f29e9cee47b9b873ca8ecd009ea3003994ed7e9fde4",
+   "std/include/zknh.h": "3740bfe438ae8d037fc14b18874fe9ae83364ee81c9f1293365068c2af07b75f",
+   "test/asm/zbkb.s": "2b763f0ba768962d60667f338330ec54cd53cd65e9e8a9cf24ca8a32ddf08ae3",
+   "test/asm/zbkx.s": "29aed40e29db2f1ebe129bf8b6f8d8973876cf33f583c0288a5464ea151d0a65",
+   "test/asm/zknh.s": "571589ec07a84cf9034ed5c9200bc39b13d9203abc961340dfc94cbc86137e2c",
+   "test/bench/bench.py": "17bd6275de0d29ae3addfd32519ba6bc915af17208ca1669202c39ff252ab55e",
+   "test/freertos/freertos.mk": "731a2df2fbd7d6b497fc25a17f4e0c39461a1664dd7fc970c451367aaa57c0be",
+   "test/freertos/loader/loader.c": "44e7c005a09c10504213bb33232d982352ef5a16f34c2001c17040b1d7012f00",
+   "test/freertos/loader/session-crypto.txt": "17a17f90e78f648b3395073799955c95b547a516b9d9779e5deb3542b68b454d",
+   "test/freertos/sdk/appimg.py": "92e8d510e749ad84dea9328978cce54b209b5df051ce4c4cc2153efe96dd791c",
+   "test/freertos/sdk/apps/sha256/sha256.c": "2c90dc88af314e8c676f9f53a8bb076ea0a468b59c97641214cb1273e5982d1c",
+   "test/freertos/sdk/hades_app.h": "1d9d71e9afa06ba4d8a0c594c3d4995c4ae86cbad3cd4e9f30aeebebc14e71cb",
+   "test/freertos/sdk/sdk.mk": "07a7a66223e8290a4385a9300f71b0532650c00863dcf6b758e61cc81a6377cb",
+   "test/freertos/shell/commands.c": "61360cae0d2a165d796a86f46339535641914b30cd39a8b78fa73eb59e687291",
+   "test/freertos/shell/shell.h": "826a1bcafe2e68d2268d374ca5b4d2f1f2fde05073e1667aa4a9fe4337c66250",
+   "test/trapsweep/fuzz.py": "f8a0c290ee89c00f2ba5bc7f8992528457e25141447d6429eef852d6b40e3254",
+   "test/trapsweep/iss.py": "935c7139b306c530d1fbb3aeefa143044fcd53f55280e6b21ff460ff5577a541",
+   "test/trapsweep/probes.py": "402fa5a465a4a5bc326f4f4a783600b391c67a0bda284a8f19626715b404e589",
+   "test/trapsweep/sweep.py": "500313a6476f2e03c25453b132d1f1751bc51583440ae5734d7df9d54c26668e"
+  }
+ },
+ "host": {
+  "cpu": "Intel Core Ultra 7 165H",
+  "threads": 22,
+  "os": "Linux"
+ },
+ "tools": {
+  "verilator": "Verilator 5.042 2025-11-02 rev v5.042",
+  "gcc": "riscv32-unknown-elf-gcc () 12.2.0",
+  "binutils": "GNU assembler (GNU Binutils) 2.39",
+  "python": "Python 3.12.3",
+  "make": "GNU Make 4.3"
+ },
+ "workers": 4,
+ "wall_time_s": {
+  "make test/asm/zbkb": 0.1,
+  "make test/asm/zbkx": 0.0,
+  "make test/asm/zknh": 0.1,
+  "python3 test/trapsweep/sweep.py fuzz --seeds 2001-3000 --variant k --targets dut --jobs {jobs} --out {out}": 53.9,
+  "python3 test/trapsweep/sweep.py run --fam crypto --targets dut --jobs {jobs} --out {out}": 1.0,
+  "make freertos-shell-test APP=loader SCRIPT=test/freertos/loader/session-crypto.txt": 19.6,
+  "make freertos-shell-test APP=loader SCRIPT=test/freertos/loader/session-crypto.txt CPU=golden": 22.5
+ },
+ "quoted": [
+  {
+   "figure": "zbkb.s 212, zbkx.s 166, zknh.s 347 assertions",
+   "quoted_in": [
+    "docs/EXTENSIONS.md (Zbkb, Zbkx and Zknh, Verification)",
+    "docs/VERIFICATION.md"
+   ]
+  },
+  {
+   "figure": "1,000 of 1,000 random programs consistent (fuzz variant k)",
+   "quoted_in": [
+    "README.md",
+    "docs/VERIFICATION.md",
+    "docs/EXTENSIONS.md"
+   ]
+  },
+  {
+   "figure": "27 probes, 3 of 3 programs consistent (sweep.py run --fam crypto)",
+   "quoted_in": [
+    "docs/VERIFICATION.md",
+    "docs/EXTENSIONS.md"
+   ]
+  },
+  {
+   "figure": "the app sha256: self-test 4 of 4 in both builds on HaDes-V+ and in the rv32i build on the golden CPU, which refuses the Zknh build; the digests of hashlib",
+   "quoted_in": [
+    "README.md",
+    "docs/APPS.md",
+    "docs/VERIFICATION.md",
+    "docs/EXTENSIONS.md"
+   ]
+  },
+  {
+   "figure": "mutation testing of the decoder and the cryptography half of Execute; the decode of all 2^32 words; the image identity of the FreeRTOS programs",
+   "quoted_in": [
+    "docs/EXTENSIONS.md",
+    "docs/VERIFICATION.md (Mutation Testing)"
+   ]
+  }
+ ]
+}

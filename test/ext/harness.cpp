@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // ---------------------------------------------------------------------------------------------
-// test/ext/harness.cpp -- runs the vectors of the Zbb, Zbs and Zicond check through the RTL
+// test/ext/harness.cpp -- runs the vectors of the Zbb, Zbs, Zicond, Zbkb, Zbkx and Zknh check
+// through the RTL
 // (test/ext/harness.sv: instruction_decoder -> execute_stage) and prints one digest line per
 // part, in the format the reference model prints, so that the two outputs can be compared
 // line by line.
@@ -8,7 +9,7 @@
 //   harness [--quick] [--form <mnemonic>]... [--dump <mnemonic> <part> <first> <count>]
 //
 //   --quick   of the unary forms' 256 chunks, run only c000, c127, c128 and c255
-//   --form    run only the named forms (repeatable); default: all 28, in the order of the
+//   --form    run only the named forms (repeatable); default: all 45, in the order of the
 //             ISA tables
 //   --dump    instead of digests, print the vectors <first> .. <first>+<count>-1 of one part
 //             as hex triples "a b rd": a = rs1 value, b = rs2 value (for the part 'shamt', b is
@@ -25,6 +26,8 @@
 //   digest: FNV-1a over 32-bit values (offset 0xCBF29CE484222325, prime 0x100000001B3)
 //   parts:  corner  (register forms) a over C, b over C; digest a, b, rd
 //           random  (register forms) 1,048,576 x z: a = z mod 2^32, b = z >> 32; digest a, b, rd
+//           index   (xperm4, xperm8) a over C, then 256 x z: b = (z >> 32) & mask, mask 0xFFFFFFFF
+//                   for xperm4 and 0x83838383 for xperm8 (half the indices in range); digest a, b, rd
 //           amount  (rol ror bclr bext binv bset) a over C, s = 0..31: b = s | ((z mod 2^27) << 5)
 //           zero    (czero.eqz, czero.nez) 4,096 x a = z mod 2^32, b = 0
 //           shamt   (immediate forms) s = 0..31: a over C (rs2 0xA5A5A5A5), then 4,096 x z:
@@ -60,8 +63,10 @@ struct Form {
     Kind        kind;
 };
 
-// The 28 forms in the order of the ISA tables (rd, rs1, rs2/shamt fields zero in MATCH).
-const Form FORMS[28] = {
+// The 45 forms in the order of the ISA tables (rd, rs1, rs2/shamt fields zero in MATCH). zext.h
+// comes before pack: the RV32 zext.h word is pack rd, rs1, x0, and pack runs with rs2 = x12.
+const int  NFORMS = 45;
+const Form FORMS[NFORMS] = {
     {"andn", 0x40007033, REG},  {"orn", 0x40006033, REG},     {"xnor", 0x40004033, REG},
     {"clz", 0x60001013, UNARY}, {"ctz", 0x60101013, UNARY},   {"cpop", 0x60201013, UNARY},
     {"max", 0x0A006033, REG},   {"maxu", 0x0A007033, REG},    {"min", 0x0A004033, REG},
@@ -72,6 +77,14 @@ const Form FORMS[28] = {
     {"bexti", 0x48005013, IMM}, {"binv", 0x68001033, REG},    {"binvi", 0x68001013, IMM},
     {"bset", 0x28001033, REG},  {"bseti", 0x28001013, IMM},
     {"czero.eqz", 0x0E005033, REG}, {"czero.nez", 0x0E007033, REG},
+    {"pack", 0x08004033, REG},  {"packh", 0x08007033, REG},   {"brev8", 0x68705013, UNARY},
+    {"zip", 0x08F01013, UNARY}, {"unzip", 0x08F05013, UNARY}, {"xperm4", 0x28002033, REG},
+    {"xperm8", 0x28004033, REG},
+    {"sha256sig0", 0x10201013, UNARY}, {"sha256sig1", 0x10301013, UNARY},
+    {"sha256sum0", 0x10001013, UNARY}, {"sha256sum1", 0x10101013, UNARY},
+    {"sha512sig0h", 0x5C000033, REG}, {"sha512sig0l", 0x54000033, REG},
+    {"sha512sig1h", 0x5E000033, REG}, {"sha512sig1l", 0x56000033, REG},
+    {"sha512sum0r", 0x50000033, REG}, {"sha512sum1r", 0x52000033, REG},
 };
 
 const uint32_t RS2_IDLE = 0xA5A5A5A5u;  // rs2 value for forms that do not read rs2
@@ -80,6 +93,11 @@ bool has_amount(const std::string& n) {
     return n == "rol" || n == "ror" || n == "bclr" || n == "bext" || n == "binv" || n == "bset";
 }
 bool is_czero(const std::string& n) { return n == "czero.eqz" || n == "czero.nez"; }
+// Index mask of the part 'index': every nibble index of xperm4 (out of range when >= 8), and
+// byte indices 0..3 or 0x80..0x83 for xperm8 (out of range only through bit 7); 0: no such part.
+uint32_t index_mask(const std::string& n) {
+    return n == "xperm4" ? 0xFFFFFFFFu : n == "xperm8" ? 0x83838383u : 0u;
+}
 
 std::vector<uint32_t> corner_set() {
     std::vector<uint32_t> c = {0u, 0xFFFFFFFFu};
@@ -180,6 +198,15 @@ void run_form(int index, Run& r, const std::vector<uint32_t>& C, bool quick) {
             if (!want_dump || r.dump_part == "random") vec3(random, word, uint32_t(z), uint32_t(z >> 32), uint32_t(z));
         }
         if (!want_dump) finish(f, random, r);
+        if (index_mask(n) != 0) {
+            Part index{"index"};
+            for (uint32_t a : C)
+                for (int i = 0; i < 256; i++) {
+                    uint32_t b = uint32_t(rng.next() >> 32) & index_mask(n);
+                    if (!want_dump || r.dump_part == "index") vec3(index, word, a, b, a);
+                }
+            if (!want_dump) finish(f, index, r);
+        }
         if (has_amount(n)) {
             Part amount{"amount"};
             for (uint32_t a : C)
@@ -297,7 +324,7 @@ int main(int argc, char** argv) {
         fprintf(stderr, "harness: the corner set has %zu values, not 144\n", C.size());
         return 2;
     }
-    for (int i = 0; i < 28; i++) {
+    for (int i = 0; i < NFORMS; i++) {
         if (!only.empty() && std::find(only.begin(), only.end(), FORMS[i].name) == only.end()) continue;
         run_form(i, r, C, quick);
     }

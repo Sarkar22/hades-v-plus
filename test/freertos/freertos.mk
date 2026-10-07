@@ -33,9 +33,9 @@
 #                                         the app SDK's targets (freertos-app, freertos-apps,
 #                                         freertos-send) are in test/freertos/sdk/sdk.mk
 #   make freertos-loader-test [CPU=golden] [...]   the app loader's scripted sessions,
-#                                         loader/session.txt and loader/session-ext.txt, on
-#                                         one CPU, with one verdict for both
-#   make freertos-loader-compare [...]    both sessions on the DUT and on the golden CPU;
+#                                         loader/session.txt, session-ext.txt and
+#                                         session-crypto.txt, on one CPU, with one verdict
+#   make freertos-loader-compare [...]    the sessions on the DUT and on the golden CPU;
 #                                         the transcripts of session.txt compared
 # Every short knob is an alias of the FRTOS_<KNOB> variable below and is honoured only on the
 # command line (so that a stray environment variable such as CPU or OPT changes nothing).
@@ -448,32 +448,37 @@ freertos-shell-tty-test:
 
 # ---- the app loader's scripted sessions (test/freertos/loader/): session.txt (every example
 # app, crash containment, Ctrl-C, every rejected file; RV32I apps only, so that it runs on both
-# CPUs) and session-ext.txt (compute built for rv32im_zba: run on HaDes-V+, refused by the
-# golden CPU). Each prints its own verdict; the last line sums them up, and make's exit status
-# is 0 only if every part passed. The logs: session-<cpu> and session-ext-<cpu>.log/.uart.
+# CPUs), session-ext.txt (compute and bitmanip built for the extensions: run on HaDes-V+,
+# refused by the golden CPU) and session-crypto.txt (sha256, likewise). Each prints its own
+# verdict; the last line sums them up, and make's exit status is 0 only if every part passed.
+# The logs: session-<cpu>, session-ext-<cpu> and session-crypto-<cpu>.log/.uart.
 FRTOS_LOADER_SCRIPT = $(abspath $(FRTOS_DIR)/loader/session.txt)
 FRTOS_LOADER_EXT    = $(abspath $(FRTOS_DIR)/loader/session-ext.txt)
+FRTOS_LOADER_CRYPTO = $(abspath $(FRTOS_DIR)/loader/session-crypto.txt)
 frtos_verdict       = if [ $$rc = 0 ]; then echo "$(1): PASS  $$sum"; else echo "$(1): FAIL  $$sum"; fi; exit $$rc
 
 .PHONY: freertos-loader-test freertos-loader-compare
 freertos-loader-test:
 	$(call frtos_quiet_build,$(call frtos_con_goals,$(call frtos_con_model_dir,$(FRTOS_CPU))/top),$(call frtos_cpu_name,$(FRTOS_CPU)) console)
-	@ rc=0; a=PASS; b=PASS; \
+	@ rc=0; a=PASS; b=PASS; c=PASS; \
 	  $(call frtos_session,$(FRTOS_CPU),$(FRTOS_LOADER_SCRIPT)) || { a='not passed'; rc=1; }; \
 	  $(call frtos_session,$(FRTOS_CPU),$(FRTOS_LOADER_EXT),session-ext) || { b='not passed'; rc=1; }; \
-	  sum="cpu=$(call frtos_cpu_name,$(FRTOS_CPU))  session.txt $$a, session-ext.txt $$b"; \
+	  $(call frtos_session,$(FRTOS_CPU),$(FRTOS_LOADER_CRYPTO),session-crypto) || { c='not passed'; rc=1; }; \
+	  sum="cpu=$(call frtos_cpu_name,$(FRTOS_CPU))  session.txt $$a, session-ext.txt $$b, session-crypto.txt $$c"; \
 	  $(call frtos_verdict,LOADER TEST)
 
 freertos-loader-compare:
 	$(call frtos_quiet_build,$(call frtos_con_goals,$(call frtos_con_model_dir,dut)/top $(call frtos_con_model_dir,ref)/top),dut and golden console)
-	@ rc=0; a=PASS; b=PASS; c=PASS; d=PASS; e=SAME; \
+	@ rc=0; a=PASS; b=PASS; c=PASS; d=PASS; e=SAME; f=PASS; g=PASS; \
 	  $(call frtos_session,dut,$(FRTOS_LOADER_SCRIPT)) || { a='not passed'; rc=1; }; \
 	  $(call frtos_session,ref,$(FRTOS_LOADER_SCRIPT)) || { b='not passed'; rc=1; }; \
 	  python3 $(FRTOS_DIR)/shell/session.py compare --script $(FRTOS_LOADER_SCRIPT) \
 	      $(abspath $(FRTOS_OUT))/session-dut.log $(abspath $(FRTOS_OUT))/session-golden.log || { e='not the same'; rc=1; }; \
 	  $(call frtos_session,dut,$(FRTOS_LOADER_EXT),session-ext) || { c='not passed'; rc=1; }; \
 	  $(call frtos_session,ref,$(FRTOS_LOADER_EXT),session-ext) || { d='not passed'; rc=1; }; \
-	  sum="session.txt: dut $$a, golden $$b, transcripts $$e; session-ext.txt: dut $$c, golden $$d"; \
+	  $(call frtos_session,dut,$(FRTOS_LOADER_CRYPTO),session-crypto) || { f='not passed'; rc=1; }; \
+	  $(call frtos_session,ref,$(FRTOS_LOADER_CRYPTO),session-crypto) || { g='not passed'; rc=1; }; \
+	  sum="session.txt: dut $$a, golden $$b, transcripts $$e; session-ext.txt: dut $$c, golden $$d; session-crypto.txt: dut $$f, golden $$g"; \
 	  $(call frtos_verdict,LOADER COMPARE)
 
 # ---- the app SDK (test/freertos/sdk/): freertos-app, freertos-apps, freertos-send, SDK_OUT,

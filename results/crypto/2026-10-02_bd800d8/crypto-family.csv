@@ -1,0 +1,4 @@
+program,dut_iss_consistent,dut_cycles
+crypto_ext_0,True,176180
+crypto_timer_0,True,192631
+crypto_both_0,True,252234

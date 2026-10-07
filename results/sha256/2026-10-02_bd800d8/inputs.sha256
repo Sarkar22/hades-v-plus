@@ -1,0 +1,13 @@
+# The files that differ from the base commit bd800d8 (changed or new), other than documentation,
+# under Makefile, test/bench/, std/, rtl/ and defines/, as the runs used them. Paths relative to
+# the repository root; check with sha256sum -c.
+961e0adedb37309cc330b6a0d157b27e0590ac5748effb461531aa54314e62af  Makefile
+7a1ee6abbf2a95a7273dd1c08a53610b89588708006e499eccfefdf0996b09b7  defines/op.sv
+52201629b7dff698b0d98c98667b8ed80c9c9029d6f9d0d0fa64ed49fc2bfa5d  rtl/execute_stage.sv
+315462378c73c8e7710770b4e9790bf8d2abc4e2cd6c4c3288a540b8993f3726  rtl/instruction_decoder.sv
+7dddf7a4566c3465da2b9f29e9cee47b9b873ca8ecd009ea3003994ed7e9fde4  std/include/sha256.h
+3740bfe438ae8d037fc14b18874fe9ae83364ee81c9f1293365068c2af07b75f  std/include/zknh.h
+1d6af92e519a30a025e736f26616037bde20445b9f377773441de2d777befefe  test/bench/bench.mk
+17bd6275de0d29ae3addfd32519ba6bc915af17208ca1669202c39ff252ab55e  test/bench/bench.py
+ce8b898a664ade3debea34a6cbddf4e1c126297e2719ddf301c2b14c705cab49  test/bench/sha256/crypto_diff.c
+488bd75772913469088bdecb66c83077545029e27eba238dca418f4581ece096  test/bench/sha256/sha256_bench.c

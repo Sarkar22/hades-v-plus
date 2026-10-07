@@ -416,15 +416,15 @@
     "=== SWEEP D: OP-IMM opcode, all funct7-position x funct3 ===",
     "    after D: checks=290288 errors=0",
     "=== SWEEP E: OP-IMM opcode, every imm[11:0] x funct3, 2 register pairs ===",
-    "    after E: checks=355824 errors=0 ext_hits=334",
+    "    after E: checks=355824 errors=0 ext_hits=348",
     "=== SWEEP F: OP opcode, every funct7 x rs2 field x funct3, 2 register pairs ===",
-    "    after F: checks=421360 errors=0 ext_hits=962",
+    "    after F: checks=421360 errors=0 ext_hits=1600",
     "=== SWEEP G: OP-32 and OP-IMM-32 opcodes, every funct7 x rs2 field x funct3 ===",
     "    after G: checks=486896 errors=0 ext_hits=0",
-    "EXT hits per sweep: A=20 B=120 C=30 D=5 E=334 F=962 G=0",
-    "All 486896 encoding checks passed — dut op matches ref everywhere except the Zba, M, Zbb, Zbs and Zicond words"
+    "EXT hits per sweep: A=30 B=200 C=48 D=5 E=348 F=1600 G=0",
+    "All 486896 encoding checks passed — dut op matches ref everywhere except the Zba, M, Zbb, Zbs, Zicond, Zbkb, Zbkx and Zknh words"
    ],
-   "quoted": "All 486896 encoding checks passed — dut op matches ref everywhere except the Zba, M, Zbb, Zbs and Zicond words",
+   "quoted": "All 486896 encoding checks passed — dut op matches ref everywhere except the Zba, M, Zbb, Zbs, Zicond, Zbkb, Zbkx and Zknh words",
    "quoted_at": "docs/VERIFICATION.md (Verification at a Glance, Module Benches); README.md (Verification in Depth); docs/EXTENSIONS.md (M, Zba, Zbb and Zbs: Verification; Zba: Implementation Notes)"
   },
   {

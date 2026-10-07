@@ -5,11 +5,12 @@ the branch predictor, and they have bugs of their own (see [below](#known-golden
 They cannot check a new instruction, and "DUT == golden" is only as good as the
 golden model. This directory adds a second oracle that does not depend on them:
 
-* **`iss.py`**: a small RV32IM + Zba + Zbb + Zbs + Zicond + Zicsr
-  instruction-set model of the bare-metal MCU, written in Python. It is
-  separate from the RTL and from the golden models, but it does encode this
-  platform's CSR map, reset values and memory map. Its Zbb, Zbs and Zicond
-  instructions are checked against a second, differently written model
+* **`iss.py`**: a small RV32IM + Zba + Zbb + Zbs + Zicond + Zbkb + Zbkx +
+  Zknh + Zicsr instruction-set model of the bare-metal MCU, written in Python.
+  It is separate from the RTL and from the golden models, but it does encode
+  this platform's CSR map, reset values and memory map. Its Zbb, Zbs, Zicond,
+  Zbkb, Zbkx and Zknh instructions are checked against a second, differently
+  written model
   (`python3 test/ext/ref.py --selftest`). It replays a recorded RTL run using only the RTL's choice of
   interrupt boundaries (the `minstret` value and `mcause` at every trap entry).
   It then checks that everything else the RTL did is architecturally correct:
@@ -58,7 +59,9 @@ python3 test/trapsweep/sweep.py fuzz --seeds 201-240 --variant m     # + M/Zba (
 python3 test/trapsweep/sweep.py fuzz --seeds 301-360 --variant bp    # + branch predictor on (DUT only)
 python3 test/trapsweep/sweep.py fuzz --seeds 401-430 --variant mt    # + csrrw mtvec (DUT + golden)
 python3 test/trapsweep/sweep.py fuzz --seeds 501-560 --variant b     # + M/Zba/Zbb/Zbs/Zicond (DUT only)
+python3 test/trapsweep/sweep.py fuzz --seeds 2001-3000 --variant k   # + Zbkb/Zbkx/Zknh as well (DUT only)
 python3 test/trapsweep/sweep.py run --fam ext --targets dut          # Zbb/Zbs/Zicond probes (only when named)
+python3 test/trapsweep/sweep.py run --fam crypto --targets dut       # Zbkb/Zbkx/Zknh probes (only when named)
 python3 test/trapsweep/sweep.py run --tree ../other-checkout         # test another tree's RTL
 python3 test/trapsweep/sweep.py file my_probe.s                      # a hand-written program
 ```
@@ -145,12 +148,21 @@ None of them is a DUT problem.
 * **`minstret` reads one higher than the DUT's from reset.** Not a spec
   question: `iss.py` models it (`instret_off=1` for `ref`), and the
   DUT-vs-golden compare uses `minstret` relative to each iteration's snapshot.
-* **No M, Zba, Zbb, Zbs, Zicond, Zicntr or branch predictor.** `iss.py` models
-  the golden CPU without them. Families `m`, `pre`, `bp` and `ext` and fuzz
-  variants `m`/`bp`/`b` run on the DUT only. `pre_i` is the M-free subset of `pre`.
-  `ext` (every Zbb, Zbs and Zicond form, dependent chains through them, their
-  pipeline neighbours and illegal neighbours) runs only when named with `--fam ext`:
-  it is not part of `all` or of `sweep.py list`, whose output the trapsweep record stores.
+* **No M, Zba, Zbb, Zbs, Zicond, Zbkb, Zbkx, Zknh, Zicntr or branch predictor.**
+  `iss.py` models the golden CPU without them. Families `m`, `pre`, `bp`, `ext`
+  and `crypto` and fuzz variants `m`/`bp`/`b`/`k` run on the DUT only. `pre_i` is
+  the M-free subset of `pre`. `ext` (every Zbb, Zbs and Zicond form, dependent
+  chains through them, their pipeline neighbours and illegal neighbours) and
+  `crypto` (the same for Zbkb, Zbkx and Zknh, with crypto results as branch
+  operand, store address and `jalr` base) run only when named with `--fam ext`
+  or `--fam crypto`: they are not part of `all` or of `sweep.py list`, whose
+  output the trapsweep record stores. Fuzz variant `k` adds the new forms to
+  variant `b`'s mix (its choices are drawn only with `--k`, so variant `b`'s
+  programs are unchanged). Their results are recorded with the tests of these
+  extensions: fuzz variant `b` (seeds 1001 to 2000) and the `ext` family in
+  [bitmanip](../../results/bitmanip/2026-10-02_e75223e/RECORD.md), fuzz variant
+  `k` (seeds 2001 to 3000, 1,000 of 1,000 consistent) and the `crypto` family
+  (27 probes, 3 of 3) in [crypto](../../results/crypto/2026-10-02_bd800d8/RECORD.md).
 
 ## Extending
 

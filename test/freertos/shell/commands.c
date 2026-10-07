@@ -8,7 +8,7 @@
  * command: docs/FREERTOS.md, "Add a command".
  *
  * Lines whose content depends on what the CPU implements (M, Zba, Zbb, Zbs, Zicntr,
- * Zicond, the branch predictor) begin with one of the labels "source:", "cpu:", "mode:"
+ * Zicond, in the loader's build also Zbkb, Zbkx and Zknh, the branch predictor) begin with one of the labels "source:", "cpu:", "mode:"
  * or "accuracy:". test/freertos/shell/session.py relies on that when it compares the
  * transcript of the DUT with that of the golden CPU, which implements none of these.
  */
@@ -211,6 +211,12 @@ void shell_probe_cpu( void )
     xShellCpu.ucZbs = PROBE( ".insn r 0x33, 1, 0x14, %0, %0, %0" );   /* bset      */
     xShellCpu.ucZicntr = PROBE( "csrr %0, 0xC00" );                     /* cycle     */
     xShellCpu.ucZicond = PROBE( ".insn r 0x33, 5, 7, %0, %0, %0" );   /* czero.eqz */
+    #if SHELL_LOADER
+        /* the loader's build only (shell.h) */
+        xShellCpu.ucZbkb = PROBE( ".insn r 0x33, 4, 4, %0, %0, %0" );    /* pack       */
+        xShellCpu.ucZbkx = PROBE( ".insn r 0x33, 4, 0x14, %0, %0, %0" ); /* xperm8     */
+        xShellCpu.ucZknh = PROBE( ".insn i 0x13, 1, %0, %0, 0x100" );    /* sha256sum0 */
+    #endif
 }
 
 static const char * prvYesNo( uint8_t ucHave )
@@ -226,11 +232,19 @@ static BaseType_t prvVersion( char * pcOut, size_t xOutLen, const char * pcComma
     shell_snprintf( pcOut, xOutLen,
                     "HaDes-V+ shell: FreeRTOS %s, FreeRTOS+CLI\n"
                     "build:     %s %s, GCC %s; heap_%d, tick %d cycles, RAM %d KiB, bpred %d\n"
-                    "cpu:       M %s, Zba %s, Zbb %s, Zbs %s, Zicntr %s, Zicond %s\n",
+                    "cpu:       M %s, Zba %s, Zbb %s, Zbs %s, Zicntr %s, Zicond %s"
+                    #if SHELL_LOADER
+                        ", Zbkb %s, Zbkx %s, Zknh %s"
+                    #endif
+                    "\n",
                     tskKERNEL_VERSION_NUMBER, SHELL_ISA, SHELL_OPT, __VERSION__, FRTOS_HEAP, FRTOS_TICK_CYCLES,
                     FRTOS_RAM_KB, FRTOS_BPRED, prvYesNo( xShellCpu.ucM ), prvYesNo( xShellCpu.ucZba ),
                     prvYesNo( xShellCpu.ucZbb ), prvYesNo( xShellCpu.ucZbs ), prvYesNo( xShellCpu.ucZicntr ),
-                    prvYesNo( xShellCpu.ucZicond ) );
+                    prvYesNo( xShellCpu.ucZicond )
+                    #if SHELL_LOADER
+                        , prvYesNo( xShellCpu.ucZbkb ), prvYesNo( xShellCpu.ucZbkx ), prvYesNo( xShellCpu.ucZknh )
+                    #endif
+                    );
     return pdFALSE;
 }
 

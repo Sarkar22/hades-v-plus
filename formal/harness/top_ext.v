@@ -1,5 +1,5 @@
 // =============================================================================
-// top_ext.v -- formal top for the EXT unit (Zbb, Zbs, Zicond) of the REAL
+// top_ext.v -- formal top for the EXT unit (Zbb, Zbs, Zicond, Zbkb, Zbkx, Zknh) of the REAL
 // rtl/execute_stage.sv: port-level properties X1, X2 and X3.
 //
 // Same top as harness/top_iface.v: the real execute_stage, every input free
@@ -13,8 +13,10 @@
 // An instruction is "EXT instruction <id>" when its opcode field is op::EXT
 // (61 in the frozen op::t enum of defines/op.sv) and its immediate field is the
 // payload the decoder builds for that instruction (op::ext_payload_t):
-//   [31:11] 0,  [10:6] sel,  [5] use_imm,  [4:0] shamt (inst[24:20] when use_imm,
+//   [31:12] 0,  [11:6] sel,  [5] use_imm,  [4:0] shamt (inst[24:20] when use_imm,
 //   else 0).
+// sel[5] (payload bit 11) selects the cryptography half: 0 for the 28 Zbb, Zbs and
+// Zicond instructions, 1 for the 17 Zbkb, Zbkx and Zknh instructions.
 // f_ext_payload below is that map (numbering of props/ext_spec.vh);
 // scripts/ext_codes.py checks every sel and use_imm against defines/op.sv. The
 // map from the 32-bit instruction word to this payload is the decoder's, outside
@@ -39,9 +41,9 @@
 //       READY (neither STALL nor JUMP). With X2 this means every VALID EXT
 //       instruction that Memory accepts leaves Execute in the same cycle with
 //       the specified result.
-//   EXT_COVER: non-vacuity -- each of the 28 instructions can leave Execute
+//   EXT_COVER: non-vacuity -- each of the 45 instructions can leave Execute
 //       VALID after a reset.
-// Macros: EXT_RES with EXT_ID=<0..27> (X1 and X2), EXT_NOSTALL (X3), EXT_COVER.
+// Macros: EXT_RES with EXT_ID=<0..44> (X1 and X2), EXT_NOSTALL (X3), EXT_COVER.
 // =============================================================================
 module top (
     input         clk,
@@ -77,53 +79,70 @@ module top (
         .jump_address_backwards_in(jump_address_backwards_in),
         .jump_address_backwards_out(jump_address_backwards_out));
 
-    // {sel[4:0], use_imm} of the decoder's payload for instruction <id>
+    // {sel[5:0], use_imm} of the decoder's payload for instruction <id>
     // (defines/op.sv, op::ext_t; one line per instruction, read by scripts/ext_codes.py)
-    function [5:0] f_ext_payload;
-        input [4:0] id;
+    function [6:0] f_ext_payload;
+        input [5:0] id;
         begin
             case (id)
-                5'd0:  f_ext_payload = {5'b000_00, 1'b0};  // andn       EXT_ANDN
-                5'd1:  f_ext_payload = {5'b000_01, 1'b0};  // orn        EXT_ORN
-                5'd2:  f_ext_payload = {5'b000_10, 1'b0};  // xnor       EXT_XNOR
-                5'd3:  f_ext_payload = {5'b001_00, 1'b0};  // clz        EXT_CLZ
-                5'd4:  f_ext_payload = {5'b001_01, 1'b0};  // ctz        EXT_CTZ
-                5'd5:  f_ext_payload = {5'b001_10, 1'b0};  // cpop       EXT_CPOP
-                5'd6:  f_ext_payload = {5'b010_10, 1'b0};  // max        EXT_MAX
-                5'd7:  f_ext_payload = {5'b010_11, 1'b0};  // maxu       EXT_MAXU
-                5'd8:  f_ext_payload = {5'b010_00, 1'b0};  // min        EXT_MIN
-                5'd9:  f_ext_payload = {5'b010_01, 1'b0};  // minu       EXT_MINU
-                5'd10: f_ext_payload = {5'b011_00, 1'b0};  // sext.b     EXT_SEXT_B
-                5'd11: f_ext_payload = {5'b011_01, 1'b0};  // sext.h     EXT_SEXT_H
-                5'd12: f_ext_payload = {5'b011_10, 1'b0};  // zext.h     EXT_ZEXT_H
-                5'd13: f_ext_payload = {5'b100_00, 1'b0};  // rol        EXT_ROL
-                5'd14: f_ext_payload = {5'b100_01, 1'b0};  // ror        EXT_ROR
-                5'd15: f_ext_payload = {5'b100_01, 1'b1};  // rori       EXT_ROR imm
-                5'd16: f_ext_payload = {5'b101_00, 1'b0};  // orc.b      EXT_ORC_B
-                5'd17: f_ext_payload = {5'b101_01, 1'b0};  // rev8       EXT_REV8
-                5'd18: f_ext_payload = {5'b110_00, 1'b0};  // bclr       EXT_BCLR
-                5'd19: f_ext_payload = {5'b110_00, 1'b1};  // bclri      EXT_BCLR imm
-                5'd20: f_ext_payload = {5'b110_01, 1'b0};  // bext       EXT_BEXT
-                5'd21: f_ext_payload = {5'b110_01, 1'b1};  // bexti      EXT_BEXT imm
-                5'd22: f_ext_payload = {5'b110_10, 1'b0};  // binv       EXT_BINV
-                5'd23: f_ext_payload = {5'b110_10, 1'b1};  // binvi      EXT_BINV imm
-                5'd24: f_ext_payload = {5'b110_11, 1'b0};  // bset       EXT_BSET
-                5'd25: f_ext_payload = {5'b110_11, 1'b1};  // bseti      EXT_BSET imm
-                5'd26: f_ext_payload = {5'b111_00, 1'b0};  // czero.eqz  EXT_CZERO_EQZ
-                5'd27: f_ext_payload = {5'b111_01, 1'b0};  // czero.nez  EXT_CZERO_NEZ
-                default: f_ext_payload = 6'b111111;        // no instruction
+                6'd0:  f_ext_payload = {6'b0_000_00, 1'b0};  // andn       EXT_ANDN
+                6'd1:  f_ext_payload = {6'b0_000_01, 1'b0};  // orn        EXT_ORN
+                6'd2:  f_ext_payload = {6'b0_000_10, 1'b0};  // xnor       EXT_XNOR
+                6'd3:  f_ext_payload = {6'b0_001_00, 1'b0};  // clz        EXT_CLZ
+                6'd4:  f_ext_payload = {6'b0_001_01, 1'b0};  // ctz        EXT_CTZ
+                6'd5:  f_ext_payload = {6'b0_001_10, 1'b0};  // cpop       EXT_CPOP
+                6'd6:  f_ext_payload = {6'b0_010_10, 1'b0};  // max        EXT_MAX
+                6'd7:  f_ext_payload = {6'b0_010_11, 1'b0};  // maxu       EXT_MAXU
+                6'd8:  f_ext_payload = {6'b0_010_00, 1'b0};  // min        EXT_MIN
+                6'd9:  f_ext_payload = {6'b0_010_01, 1'b0};  // minu       EXT_MINU
+                6'd10: f_ext_payload = {6'b0_011_00, 1'b0};  // sext.b     EXT_SEXT_B
+                6'd11: f_ext_payload = {6'b0_011_01, 1'b0};  // sext.h     EXT_SEXT_H
+                6'd12: f_ext_payload = {6'b0_011_10, 1'b0};  // zext.h     EXT_ZEXT_H
+                6'd13: f_ext_payload = {6'b0_100_00, 1'b0};  // rol        EXT_ROL
+                6'd14: f_ext_payload = {6'b0_100_01, 1'b0};  // ror        EXT_ROR
+                6'd15: f_ext_payload = {6'b0_100_01, 1'b1};  // rori       EXT_ROR imm
+                6'd16: f_ext_payload = {6'b0_101_00, 1'b0};  // orc.b      EXT_ORC_B
+                6'd17: f_ext_payload = {6'b0_101_01, 1'b0};  // rev8       EXT_REV8
+                6'd18: f_ext_payload = {6'b0_110_00, 1'b0};  // bclr       EXT_BCLR
+                6'd19: f_ext_payload = {6'b0_110_00, 1'b1};  // bclri      EXT_BCLR imm
+                6'd20: f_ext_payload = {6'b0_110_01, 1'b0};  // bext       EXT_BEXT
+                6'd21: f_ext_payload = {6'b0_110_01, 1'b1};  // bexti      EXT_BEXT imm
+                6'd22: f_ext_payload = {6'b0_110_10, 1'b0};  // binv       EXT_BINV
+                6'd23: f_ext_payload = {6'b0_110_10, 1'b1};  // binvi      EXT_BINV imm
+                6'd24: f_ext_payload = {6'b0_110_11, 1'b0};  // bset       EXT_BSET
+                6'd25: f_ext_payload = {6'b0_110_11, 1'b1};  // bseti      EXT_BSET imm
+                6'd26: f_ext_payload = {6'b0_111_00, 1'b0};  // czero.eqz  EXT_CZERO_EQZ
+                6'd27: f_ext_payload = {6'b0_111_01, 1'b0};  // czero.nez  EXT_CZERO_NEZ
+                6'd28: f_ext_payload = {6'b1_000_00, 1'b0};  // pack        EXT_PACK
+                6'd29: f_ext_payload = {6'b1_000_01, 1'b0};  // packh       EXT_PACKH
+                6'd30: f_ext_payload = {6'b1_001_00, 1'b0};  // brev8       EXT_BREV8
+                6'd31: f_ext_payload = {6'b1_001_01, 1'b0};  // zip         EXT_ZIP
+                6'd32: f_ext_payload = {6'b1_001_10, 1'b0};  // unzip       EXT_UNZIP
+                6'd33: f_ext_payload = {6'b1_010_00, 1'b0};  // xperm4      EXT_XPERM4
+                6'd34: f_ext_payload = {6'b1_010_01, 1'b0};  // xperm8      EXT_XPERM8
+                6'd35: f_ext_payload = {6'b1_011_00, 1'b0};  // sha256sig0  EXT_SHA256SIG0
+                6'd36: f_ext_payload = {6'b1_011_01, 1'b0};  // sha256sig1  EXT_SHA256SIG1
+                6'd37: f_ext_payload = {6'b1_011_10, 1'b0};  // sha256sum0  EXT_SHA256SUM0
+                6'd38: f_ext_payload = {6'b1_011_11, 1'b0};  // sha256sum1  EXT_SHA256SUM1
+                6'd39: f_ext_payload = {6'b1_100_00, 1'b0};  // sha512sig0h EXT_SHA512SIG0H
+                6'd40: f_ext_payload = {6'b1_100_01, 1'b0};  // sha512sig0l EXT_SHA512SIG0L
+                6'd41: f_ext_payload = {6'b1_100_10, 1'b0};  // sha512sig1h EXT_SHA512SIG1H
+                6'd42: f_ext_payload = {6'b1_100_11, 1'b0};  // sha512sig1l EXT_SHA512SIG1L
+                6'd43: f_ext_payload = {6'b1_101_00, 1'b0};  // sha512sum0r EXT_SHA512SUM0R
+                6'd44: f_ext_payload = {6'b1_101_01, 1'b0};  // sha512sum1r EXT_SHA512SUM1R
+                default: f_ext_payload = 7'b1111111;         // no instruction
             endcase
         end
     endfunction
 
     // is instruction_in the EXT instruction <id> (opcode op::EXT, decoder's payload)?
     function f_is_ext;
-        input [4:0]  id;
+        input [5:0]  id;
         input [64:0] insn;
-        reg   [5:0]  p;
+        reg   [6:0]  p;
         begin
             p = f_ext_payload(id);
-            f_is_ext = insn[64:59] == 6'd61 && insn[31:11] == 21'd0 && insn[10:6] == p[5:1]
+            f_is_ext = insn[64:59] == 6'd61 && insn[31:12] == 20'd0 && insn[11:6] == p[6:1]
                        && insn[5] == p[0] && (p[0] || insn[4:0] == 5'd0);
         end
     endfunction
@@ -167,7 +186,7 @@ module top (
     reg c_seen_rst = 1'b0;
     always @(posedge clk) if (rst) c_seen_rst <= 1'b1;
     genvar gi;
-    for (gi = 0; gi < 28; gi = gi + 1) begin : g_cov
+    for (gi = 0; gi < 45; gi = gi + 1) begin : g_cov
         always @(*) if (!a_init) cover(c_seen_rst && a_leave && f_is_ext(gi, instruction_in)
                                        && rs1_data_in != 32'd0 && rs2_data_in != 32'd0);
     end

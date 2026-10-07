@@ -2,13 +2,14 @@
 # SPDX-License-Identifier: MIT
 # ---------------------------------------------------------------------------------------------
 # bench.py -- checks and summaries for the measurement programs in test/bench/, called by
-# make bench-zba, bench-zbb, bench-mcost and bench-fencei-window (test/bench/bench.mk). It reads what the
+# make bench-zba, bench-zbb, bench-sha256, bench-mcost and bench-fencei-window (test/bench/bench.mk). It reads what the
 # make rules leave in the build directory (run.log, out.bin, out.dis) and prints a summary
 # that ends in one line, "BENCH <NAME>: PASS" or "BENCH <NAME>: FAIL"; the exit status is 0
 # only for PASS. Guide: test/bench/README.md.
 #
 #   bench.py zba <dir> <opt>       one subdirectory of <dir> per Zba variant
 #   bench.py zbb <dir> <opt>       one subdirectory of <dir> per Zbb variant
+#   bench.py sha256 <dir> <opt>    one subdirectory of <dir> per SHA-256 variant
 #   bench.py mcost <dir>           <dir>/loop_*/ and <dir>/mcost/
 #   bench.py fencei-window <dir>   <dir>/fencei_stale/
 # ---------------------------------------------------------------------------------------------
@@ -325,6 +326,211 @@ def bench_zbb(top, opt):
     return verdict('ZBB', failures)
 
 
+# ---- bench-sha256 ----------------------------------------------------------------------------
+
+# The 17 Zbkb, Zbkx and Zknh instruction forms as (name, MATCH, MASK): word & MASK == MATCH, as
+# EXT_FORMS. pack with rs2 field x0 is zext.h (a Zbb form, the same instruction), so pack
+# counts only words whose rs2 field is not 0 (crypto_count). A table of its own: EXT_FORMS
+# stays the table of the Zbb, Zbs and Zicond records.
+CRYPTO_FORMS = [
+    ('pack', 0x08004033, 0xFE00707F), ('packh', 0x08007033, 0xFE00707F),
+    ('brev8', 0x68705013, 0xFFF0707F), ('zip', 0x08F01013, 0xFFF0707F), ('unzip', 0x08F05013, 0xFFF0707F),
+    ('xperm4', 0x28002033, 0xFE00707F), ('xperm8', 0x28004033, 0xFE00707F),
+    ('sha256sig0', 0x10201013, 0xFFF0707F), ('sha256sig1', 0x10301013, 0xFFF0707F),
+    ('sha256sum0', 0x10001013, 0xFFF0707F), ('sha256sum1', 0x10101013, 0xFFF0707F),
+    ('sha512sig0h', 0x5C000033, 0xFE00707F), ('sha512sig0l', 0x54000033, 0xFE00707F),
+    ('sha512sig1h', 0x5E000033, 0xFE00707F), ('sha512sig1l', 0x56000033, 0xFE00707F),
+    ('sha512sum0r', 0x50000033, 0xFE00707F), ('sha512sum1r', 0x52000033, 0xFE00707F),
+]
+ZKNH_FORMS = ['sha256sig0', 'sha256sig1', 'sha256sum0', 'sha256sum1', 'sha512sig0h', 'sha512sig0l',
+              'sha512sig1h', 'sha512sig1l', 'sha512sum0r', 'sha512sum1r']
+SHA256_MARCHES = ['rv32i', 'rv32im_zba_zbb_zbs', 'rv32im_zba_zbb_zbkb_zbkx_zbs_zknh']
+SHA256_ZKNH = SHA256_MARCHES[-1]
+CRYPTO_DIFF_RUNS = ['crypto_diff', 'crypto_diff-B5297A4D', 'crypto_diff-1F123BB5', 'crypto_diff-9E3779B9']
+SHA256_BYTES = 16384
+SHA256_MILLION_A = 'cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0'
+
+
+def crypto_form(word):
+    """The name of the Zbkb, Zbkx or Zknh form of an instruction word, or None."""
+    for name, match, mask in CRYPTO_FORMS:
+        if word & mask == match and not (name == 'pack' and (word >> 20) & 31 == 0):
+            return name
+    return None
+
+
+def crypto_count(d):
+    """{form: count} of the Zbkb, Zbkx and Zknh instruction words in the code of directory d."""
+    n = {}
+    try:
+        with open(os.path.join(d, 'out.dis')) as f:
+            for line in f:
+                m = re.match(r'^\s*[0-9a-f]+:\s+([0-9a-f]{8})\s', line)
+                if m:
+                    name = crypto_form(int(m.group(1), 16))
+                    if name:
+                        n[name] = n.get(name, 0) + 1
+    except OSError:
+        return None
+    return n
+
+
+def sha256_buffer_digest():
+    """The SHA-256 of sha256_bench's buffer: 4096 words of xorshift32 from 0x2545F491, each
+    stored little-endian (Python's hashlib, independent of the program)."""
+    import hashlib
+    import struct
+    x, words = 0x2545F491, []
+    for _ in range(SHA256_BYTES // 4):
+        x ^= (x << 13) & 0xFFFFFFFF
+        x ^= x >> 17
+        x ^= (x << 5) & 0xFFFFFFFF
+        words.append(x)
+    return hashlib.sha256(struct.pack('<%dI' % len(words), *words)).hexdigest()
+
+
+def text_field(log, key):
+    """The rest of the first line 'KEY ...' of a program's output, or None."""
+    for line in log.splitlines():
+        if line.startswith(key + ' '):
+            return line[len(key) + 1:].strip()
+    return None
+
+
+def per_byte(cycles, nbytes):
+    """cycles per byte with two decimals, in integer arithmetic"""
+    h = (200 * cycles + nbytes) // (2 * nbytes)
+    return '%d.%02d' % (h // 100, h % 100)
+
+
+def bench_sha256(top, opt):
+    failures = []
+    runs = {}
+    long_v = 'sha256_long-' + SHA256_ZKNH
+    # sha256_long is not run at -O0 (bench.mk)
+    with_long = opt != '-O0'
+    names = ['sha256_bench-' + m for m in SHA256_MARCHES] + ([long_v] if with_long else []) + CRYPTO_DIFF_RUNS
+    for v in names:
+        d = os.path.join(top, v)
+        log = read_log(d)
+        runs[v] = {'log': log, 'f': fields(log), 'size': size(d), 'k': crypto_count(d), 'ext': ext_count(d)}
+        for p in run_problems(log):
+            failures.append('%s: %s' % (v, p))
+
+    print('SHA-256 benchmark (test/bench/sha256), %s: sha256_bench built for -march=%s' % (opt, ', '.join(SHA256_MARCHES)))
+    print()
+    print('  %-48s %11s %10s %13s  %s' % ('variant', 'image bytes', 'new instrs', 'timed cycles', 'result'))
+
+    def row(v, result):
+        r = runs[v]
+        cyc = r['f'].get('CYC') or r['f'].get('CYCLES')
+        print('  %-48s %11s %10s %13s  %s' % (v, r['size'], sum(r['k'].values()) if r['k'] is not None else '-',
+                                              int(cyc, 16) if cyc else '-', result))
+
+    for m in SHA256_MARCHES:
+        log = runs['sha256_bench-' + m]['log']
+        row('sha256_bench-' + m, 'NIST %s, %s' % (text_field(log, 'NIST') or '-',
+                                                  'OK' if 'SHA256 BENCH OK' in log else 'not OK'))
+    if with_long:
+        log = runs[long_v]['log']
+        row(long_v, 'NIST %s, %s' % (text_field(log, 'NIST') or '-', 'OK' if 'SHA256 BENCH OK' in log else 'not OK'))
+    for v in CRYPTO_DIFF_RUNS:
+        f = runs[v]['f']
+        ok = 'CRYPTO DIFF OK' in runs[v]['log']
+        row(v, 'CASES %s BAD %s EXTRA %s%s' % (
+            int(f['CASES'], 16) if 'CASES' in f else '-', int(f['BAD'], 16) if 'BAD' in f else '-',
+            int(f['EXTRA'], 16) if 'EXTRA' in f else '-', ', CRYPTO DIFF OK' if ok else ''))
+    print()
+
+    # sha256_bench: the NIST examples pass and the digest of the buffer is the same in every
+    # build and equal to Python's
+    want = sha256_buffer_digest()
+    for v in ['sha256_bench-' + m for m in SHA256_MARCHES] + ([long_v] if with_long else []):
+        log = runs[v]['log']
+        nist = text_field(log, 'NIST') or ''
+        if not re.match(r'^(\d+)/\1$', nist) or nist.startswith('0/'):
+            failures.append('%s: NIST examples %s' % (v, nist or 'not reported'))
+        if 'SHA256 BENCH OK' not in log or 'SHA256 BENCH FAILED' in log:
+            failures.append('%s: no SHA256 BENCH OK' % v)
+    digests = [text_field(runs['sha256_bench-' + m]['log'], 'DIGEST') for m in SHA256_MARCHES]
+    if any(dg != want for dg in digests):
+        failures.append('sha256_bench: DIGEST differs from hashlib (%s) in %s' % (
+            want, ', '.join(m for m, dg in zip(SHA256_MARCHES, digests) if dg != want)))
+    print('  sha256_bench: %d bytes; NIST examples %s in every build; DIGEST %s' % (
+        SHA256_BYTES, text_field(runs['sha256_bench-rv32i']['log'], 'NIST') or '-', want))
+    print('                DIGEST equal in the three builds and to Python\'s hashlib: %s'
+          % ('yes' if all(dg == want for dg in digests) else 'NO'))
+    cyc = [runs['sha256_bench-' + m]['f'].get('CYC') for m in SHA256_MARCHES]
+    if None in cyc:
+        failures.append('sha256_bench: CYC missing')
+    else:
+        c = [int(x, 16) for x in cyc]
+        sizes = [runs['sha256_bench-' + m]['size'] for m in SHA256_MARCHES]
+        print('  cycles per byte (one sha256() of %d bytes, padding block included):' % SHA256_BYTES)
+        for m, ci, si in zip(SHA256_MARCHES, c, sizes):
+            print('    %-38s %8d cycles  %s cycles per byte  %s bytes' % (m, ci, per_byte(ci, SHA256_BYTES), si))
+        print('  speed-ups: Zba+Zbb+Zbs over rv32i %.3fx, Zknh over Zba+Zbb+Zbs %.3fx, Zknh over rv32i %.3fx'
+              % (c[0] / c[1], c[1] / c[2], c[0] / c[2]))
+    if not with_long:
+        print('  sha256_long (Zknh): not run at -O0 (over 200 million cycles)')
+    else:
+        f = runs[long_v]['f']
+        dg = text_field(runs[long_v]['log'], 'DIGEST')
+        if dg != SHA256_MILLION_A:
+            failures.append('%s: DIGEST %s, expected %s' % (long_v, dg, SHA256_MILLION_A))
+        if 'CYC' in f:
+            print('  sha256_long (Zknh): 1,000,000 bytes \'a\', digest %s (%s): %d cycles, %s cycles per byte'
+                  % (dg, 'as expected' if dg == SHA256_MILLION_A else 'NOT as expected', int(f['CYC'], 16),
+                     per_byte(int(f['CYC'], 16), 1000000)))
+        else:
+            failures.append('%s: CYC missing' % long_v)
+
+    # crypto_diff: every run reports CRYPTO DIFF OK with BAD = EXTRA = 0
+    per_run, bad, ok = [], 0, 0
+    for v in CRYPTO_DIFF_RUNS:
+        log, f = runs[v]['log'], runs[v]['f']
+        per_run.append(int(f['CASES'], 16) if 'CASES' in f else 0)
+        bad += int(f['BAD'], 16) if 'BAD' in f else 0
+        if 'CRYPTO DIFF OK' not in log or 'MISMATCH' in log or f.get('BAD') != '00000000' \
+                or f.get('EXTRA') != '00000000' or 'CASES' not in f:
+            failures.append('%s: no clean CRYPTO DIFF OK' % v)
+        else:
+            ok += 1
+    forms = runs['crypto_diff']['k'] or {}
+    print('  crypto_diff: %d checks in %d runs (%s), %d mismatches, CRYPTO DIFF OK in %d of %d; '
+          '%d of 17 forms in its code'
+          % (sum(per_run), len(per_run), ' + '.join(str(c) for c in per_run), bad, ok, len(CRYPTO_DIFF_RUNS),
+             len(forms)))
+    if len(forms) != 17:
+        failures.append('crypto_diff: its code holds %d of the 17 forms' % len(forms))
+
+    # the instruction words GCC chose: the new forms, and the Zbb words (rori, rev8, ...)
+    print()
+    print('  Zbkb, Zbkx and Zknh instructions in the code (per form):')
+    for v in ['sha256_bench-' + m for m in SHA256_MARCHES]:
+        n = runs[v]['k'] or {}
+        print('    %-48s %3d words, %2d forms: %s' % (v, sum(n.values()), len(n), ' '.join(
+            '%s=%d' % (k, n[k]) for k, _, _ in CRYPTO_FORMS if k in n) or '-'))
+    print('  Zbb, Zbs and Zicond instructions in the code (per form):')
+    for v in ['sha256_bench-' + m for m in SHA256_MARCHES]:
+        n = runs[v]['ext'] or {}
+        print('    %-48s %3d words, %2d forms: %s' % (v, sum(n.values()), len(n), ' '.join(
+            '%s=%d' % (k, n[k]) for k, _, _ in EXT_FORMS if k in n) or '-'))
+
+    # the plain builds must not contain a Zknh word (nor the rv32i build any new instruction)
+    for m in SHA256_MARCHES[:2]:
+        n = runs['sha256_bench-' + m]['k']
+        if n is None or any(k in ZKNH_FORMS for k in n):
+            failures.append('sha256_bench-%s: no disassembly, or it contains Zknh instructions' % m)
+    n = runs['sha256_bench-rv32i']
+    if n['k'] is None or n['ext'] is None or sum(n['k'].values()) or sum(n['ext'].values()):
+        failures.append('sha256_bench-rv32i: no disassembly, or it contains instructions beyond RV32I')
+    n = runs['sha256_bench-' + SHA256_ZKNH]['k'] or {}
+    if sorted(k for k in n if k in ZKNH_FORMS) != sorted(['sha256sig0', 'sha256sig1', 'sha256sum0', 'sha256sum1']):
+        failures.append('sha256_bench-%s: the four sha256 forms are not all in its code' % SHA256_ZKNH)
+    return verdict('SHA256', failures)
+
+
 # ---- bench-mcost -----------------------------------------------------------------------------
 
 LOOPS = [('loop_empty', '(empty body)'), ('loop_addi', 'addi s1, t5, 0'),
@@ -476,11 +682,13 @@ def main(argv):
         return bench_zba(argv[2], argv[3] if len(argv) > 3 else '-O2')
     if len(argv) >= 3 and argv[1] == 'zbb':
         return bench_zbb(argv[2], argv[3] if len(argv) > 3 else '-O2')
+    if len(argv) >= 3 and argv[1] == 'sha256':
+        return bench_sha256(argv[2], argv[3] if len(argv) > 3 else '-O2')
     if len(argv) == 3 and argv[1] == 'mcost':
         return bench_mcost(argv[2])
     if len(argv) == 3 and argv[1] == 'fencei-window':
         return bench_fencei(argv[2])
-    sys.stderr.write('usage: bench.py zba <dir> <opt> | zbb <dir> <opt> | mcost <dir> | fencei-window <dir>\n')
+    sys.stderr.write('usage: bench.py zba <dir> <opt> | zbb <dir> <opt> | sha256 <dir> <opt> | mcost <dir> | fencei-window <dir>\n')
     return 2
 
 

@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # ---------------------------------------------------------------------------------------------
-# run.py -- the check of the Zbb, Zbs and Zicond results: the RTL (instruction_decoder feeding
-# execute_stage, driven by test/ext/harness.sv and harness.cpp) against the C reference model
-# (test/ext/ref_exh.c), compared through the digest lines of the vector protocol
-# (test/ext/README.md). Called by make ext-check and make ext-exhaustive (test/ext/ext.mk).
+# run.py -- the check of the Zbb, Zbs, Zicond, Zbkb, Zbkx and Zknh results: the RTL
+# (instruction_decoder feeding execute_stage, driven by test/ext/harness.sv and harness.cpp)
+# against the C reference model (test/ext/ref_exh.c), compared through the digest lines of the
+# vector protocol (test/ext/README.md). Called by make ext-check and make ext-exhaustive
+# (test/ext/ext.mk).
 #
 #   python3 test/ext/run.py [--quick | --exhaustive] [--jobs N] [--build DIR] [--form M]...
 #
 #   --quick       (default) every part except the unary forms' chunks, of which c000, c127,
-#                 c128 and c255 run: 75 digest lines, under a minute
-#   --exhaustive  every part, the unary forms over all 2^32 inputs: 2,091 digest lines,
-#                 34,376,492,288 vectors, about 14 minutes with 4 jobs
+#                 c128 and c255 run: 125 digest lines, 1,034,153,728 vectors
+#   --exhaustive  every part, the unary forms over all 2^32 inputs: 3,905 digest lines,
+#                 64,452,030,208 vectors
 #   --jobs N      processes at a time (default 4)
 #   --build DIR   build directory (default $HADES_BUILD_DIR, else build/): the harness is built
 #                 in DIR/test/ext/harness/, ref_exh in DIR/test/ext/
@@ -31,11 +32,14 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
-# The forms in the order of the ISA tables (the protocol's form numbers 0..27).
+# The forms in the order of the ISA tables (the protocol's form numbers 0..44).
 FORMS = ['andn', 'orn', 'xnor', 'clz', 'ctz', 'cpop', 'max', 'maxu', 'min', 'minu', 'sext.b', 'sext.h',
          'zext.h', 'rol', 'ror', 'rori', 'orc.b', 'rev8', 'bclr', 'bclri', 'bext', 'bexti', 'binv', 'binvi',
-         'bset', 'bseti', 'czero.eqz', 'czero.nez']
-UNARY = {'clz', 'ctz', 'cpop', 'sext.b', 'sext.h', 'zext.h', 'orc.b', 'rev8'}
+         'bset', 'bseti', 'czero.eqz', 'czero.nez',
+         'pack', 'packh', 'brev8', 'zip', 'unzip', 'xperm4', 'xperm8', 'sha256sig0', 'sha256sig1', 'sha256sum0',
+         'sha256sum1', 'sha512sig0h', 'sha512sig0l', 'sha512sig1h', 'sha512sig1l', 'sha512sum0r', 'sha512sum1r']
+UNARY = {'clz', 'ctz', 'cpop', 'sext.b', 'sext.h', 'zext.h', 'orc.b', 'rev8',
+         'brev8', 'zip', 'unzip', 'sha256sig0', 'sha256sig1', 'sha256sum0', 'sha256sum1'}
 # The harness's sources, in the order its header gives (the packages first).
 HARNESS_SRC = ['defines/csr.sv', 'defines/op.sv', 'defines/instruction.sv', 'defines/pipeline_status.sv',
                'defines/constants.sv', 'defines/forwarding.sv', 'defines/clk_params.sv', 'defines/bpredict.sv',
@@ -71,8 +75,8 @@ def run_one(cmd):
 
 
 def main():
-    ap = argparse.ArgumentParser(description='The Zbb, Zbs and Zicond results of the RTL against the C '
-                                             'reference model (test/ext/README.md).')
+    ap = argparse.ArgumentParser(description='The Zbb, Zbs, Zicond, Zbkb, Zbkx and Zknh results of the RTL '
+                                             'against the C reference model (test/ext/README.md).')
     mode = ap.add_mutually_exclusive_group()
     mode.add_argument('--quick', action='store_true', help='the quick vector set (default)')
     mode.add_argument('--exhaustive', action='store_true', help='every part, the unary forms over all inputs')

@@ -183,3 +183,5 @@ eight `defines/` packages that `gen.sh` translates, every file of the flow of th
 - What is and is not proven is stated in formal/README.md, section 5; for the EXT unit, item 9:
   the decoder's map from instruction word to payload, payloads the decoder never builds (covered
   by X3 only), and everything downstream of Execute are outside the proof.
+
+**Update, 2026-10-02 (Zbkb, Zbkx and Zknh).** The cryptography half of the EXT unit changes the input of this proof: `rtl/execute_stage.sv` gains Part 2d and `defines/op.sv` a sixth bit of the sub-operation, and the flow was extended to the 45 instructions (121 required checks in the default run instead of 104). Those runs are recorded in [formal/2026-10-02_bd800d8](../2026-10-02_bd800d8/RECORD.md), which `sh results/check.sh formal` now compares with: of two records of the same day it takes the one whose commit came later. This record remains the run of record for the file `c36613c8…3ae969`; its figures are quoted as those of the earlier run.

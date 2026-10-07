@@ -1,14 +1,14 @@
-# The EXT unit (Zbb, Zbs, Zicond) of the real execute_stage: port-level properties
+# The EXT unit (Zbb, Zbs, Zicond, Zbkb, Zbkx, Zknh) of the real execute_stage: port-level properties
 # of harness/top_ext.v, by k-induction (depth 3) under the bare environment E0-E2 of
 # props/div_props.vh. No group of the M proof and no lemma is assumed.
 # Depth 3, not 2: cycle 0 is a reset, so only a base case of three cycles reaches a cycle in
 # which X2 applies, and a wrong registered result is then a counterexample (FAIL), not UNKNOWN.
-#   res_<insn>_yn   X1 (forwarded result) and X2 (registered result) for one of the 28
+#   res_<insn>_yn   X1 (forwarded result) and X2 (registered result) for one of the 45
 #                   instructions, against props/ext_spec.vh, all operand values (required)
 #   res_<insn>_bwn  the same with bitwuzla (second solver, run by --mode full, reported only)
 #   nostall_yn      X3: an op::EXT instruction with any payload never makes Execute
 #                   answer STALL or JUMP (required)
-#   cover_bw        each of the 28 instructions can leave Execute VALID after a reset
+#   cover_bw        each of the 45 instructions can leave Execute VALID after a reset
 #                   (non-vacuity, required)
 # Instruction names: a dot is written as an underscore (sext_b = sext.b).
 [tasks]
@@ -40,6 +40,23 @@ res_bset_yn    res_bset       yn
 res_bseti_yn   res_bseti      yn
 res_czero_eqz_yn res_czero_eqz  yn
 res_czero_nez_yn res_czero_nez  yn
+res_pack_yn       res_pack        yn
+res_packh_yn      res_packh       yn
+res_brev8_yn      res_brev8       yn
+res_zip_yn        res_zip         yn
+res_unzip_yn      res_unzip       yn
+res_xperm4_yn     res_xperm4      yn
+res_xperm8_yn     res_xperm8      yn
+res_sha256sig0_yn res_sha256sig0  yn
+res_sha256sig1_yn res_sha256sig1  yn
+res_sha256sum0_yn res_sha256sum0  yn
+res_sha256sum1_yn res_sha256sum1  yn
+res_sha512sig0h_yn res_sha512sig0h yn
+res_sha512sig0l_yn res_sha512sig0l yn
+res_sha512sig1h_yn res_sha512sig1h yn
+res_sha512sig1l_yn res_sha512sig1l yn
+res_sha512sum0r_yn res_sha512sum0r yn
+res_sha512sum1r_yn res_sha512sum1r yn
 res_andn_bwn   res_andn       bwn
 res_orn_bwn    res_orn        bwn
 res_xnor_bwn   res_xnor       bwn
@@ -68,6 +85,23 @@ res_bset_bwn   res_bset       bwn
 res_bseti_bwn  res_bseti      bwn
 res_czero_eqz_bwn res_czero_eqz  bwn
 res_czero_nez_bwn res_czero_nez  bwn
+res_pack_bwn      res_pack        bwn
+res_packh_bwn     res_packh       bwn
+res_brev8_bwn     res_brev8       bwn
+res_zip_bwn       res_zip         bwn
+res_unzip_bwn     res_unzip       bwn
+res_xperm4_bwn    res_xperm4      bwn
+res_xperm8_bwn    res_xperm8      bwn
+res_sha256sig0_bwn res_sha256sig0  bwn
+res_sha256sig1_bwn res_sha256sig1  bwn
+res_sha256sum0_bwn res_sha256sum0  bwn
+res_sha256sum1_bwn res_sha256sum1  bwn
+res_sha512sig0h_bwn res_sha512sig0h bwn
+res_sha512sig0l_bwn res_sha512sig0l bwn
+res_sha512sig1h_bwn res_sha512sig1h bwn
+res_sha512sig1l_bwn res_sha512sig1l bwn
+res_sha512sum0r_bwn res_sha512sum0r bwn
+res_sha512sum1r_bwn res_sha512sum1r bwn
 nostall_yn     nostall    yn
 cover_bw       cover
 
@@ -112,6 +146,23 @@ res_bset: read_verilog -sv -formal -DEXT_RES -DEXT_ID=24 top_ext.v
 res_bseti: read_verilog -sv -formal -DEXT_RES -DEXT_ID=25 top_ext.v
 res_czero_eqz: read_verilog -sv -formal -DEXT_RES -DEXT_ID=26 top_ext.v
 res_czero_nez: read_verilog -sv -formal -DEXT_RES -DEXT_ID=27 top_ext.v
+res_pack: read_verilog -sv -formal -DEXT_RES -DEXT_ID=28 top_ext.v
+res_packh: read_verilog -sv -formal -DEXT_RES -DEXT_ID=29 top_ext.v
+res_brev8: read_verilog -sv -formal -DEXT_RES -DEXT_ID=30 top_ext.v
+res_zip: read_verilog -sv -formal -DEXT_RES -DEXT_ID=31 top_ext.v
+res_unzip: read_verilog -sv -formal -DEXT_RES -DEXT_ID=32 top_ext.v
+res_xperm4: read_verilog -sv -formal -DEXT_RES -DEXT_ID=33 top_ext.v
+res_xperm8: read_verilog -sv -formal -DEXT_RES -DEXT_ID=34 top_ext.v
+res_sha256sig0: read_verilog -sv -formal -DEXT_RES -DEXT_ID=35 top_ext.v
+res_sha256sig1: read_verilog -sv -formal -DEXT_RES -DEXT_ID=36 top_ext.v
+res_sha256sum0: read_verilog -sv -formal -DEXT_RES -DEXT_ID=37 top_ext.v
+res_sha256sum1: read_verilog -sv -formal -DEXT_RES -DEXT_ID=38 top_ext.v
+res_sha512sig0h: read_verilog -sv -formal -DEXT_RES -DEXT_ID=39 top_ext.v
+res_sha512sig0l: read_verilog -sv -formal -DEXT_RES -DEXT_ID=40 top_ext.v
+res_sha512sig1h: read_verilog -sv -formal -DEXT_RES -DEXT_ID=41 top_ext.v
+res_sha512sig1l: read_verilog -sv -formal -DEXT_RES -DEXT_ID=42 top_ext.v
+res_sha512sum0r: read_verilog -sv -formal -DEXT_RES -DEXT_ID=43 top_ext.v
+res_sha512sum1r: read_verilog -sv -formal -DEXT_RES -DEXT_ID=44 top_ext.v
 nostall: read_verilog -sv -formal -DEXT_NOSTALL top_ext.v
 cover: read_verilog -sv -formal -DEXT_COVER top_ext.v
 prep -top top

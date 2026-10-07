@@ -1,0 +1,149 @@
+{
+ "record": "results/sha256/2026-10-02_bd800d8",
+ "topic": "sha256",
+ "status": "repeatable",
+ "date": "2026-10-02",
+ "base_commit": "bd800d85cc121e39c85a9321e79876d78517085f",
+ "working_tree": "base commit plus the uncommitted Zbkb, Zbkx and Zknh changes; inputs.sha256 lists every file under Makefile, test/bench/, std/, rtl/ and defines/ that differs from the base commit, other than documentation",
+ "figures": [
+  {
+   "figure": "84.2, 63.4 and 49.8 cycles per byte at -O2 (rv32i, Zba+Zbb+Zbs, Zknh); Zknh 1.27x as fast as Zbb alone, 1.69x as RV32I",
+   "value": "sha256_bench, 16384 bytes: 1378827 / 1038045 / 815740 cycles = 84.16 / 63.36 / 49.79 cycles per byte; speed-ups 1.328x, 1.273x, 1.690x",
+   "quoted_in": [
+    "README.md (An Extended CPU)",
+    "docs/EXTENSIONS.md (Zbkb, Zbkx and Zknh, Verification)",
+    "test/bench/README.md"
+   ]
+  },
+  {
+   "figure": "-Os: 84.2, 64.0, 49.8; -O0: 463.1, 407.6, 213.3 cycles per byte",
+   "value": "-Os 1379765 / 1048235 / 815650 cycles; -O0 7586542 / 6677790 / 3495102 cycles",
+   "quoted_in": [
+    "docs/EXTENSIONS.md (Zbkb, Zbkx and Zknh, Verification)",
+    "test/bench/README.md"
+   ]
+  },
+  {
+   "figure": "one million bytes a: the FIPS 180-2 digest, 50.5 cycles per byte with Zknh at -O2",
+   "value": "sha256_long: cdc76e5c...c7112cd0, 50521930 cycles at -O2 (50.52 per byte), 50865722 at -Os; not run at -O0",
+   "quoted_in": [
+    "docs/EXTENSIONS.md (Zbkb, Zbkx and Zknh, Verification)",
+    "test/bench/README.md"
+   ]
+  },
+  {
+   "figure": "33,260 results of the 17 forms compared without a mismatch",
+   "value": "crypto_diff in 4 runs: 8621 + 8213 + 8213 + 8213 checks, 0 mismatches, CRYPTO DIFF OK in all four, at every level; its code holds all 17 forms",
+   "quoted_in": [
+    "docs/EXTENSIONS.md (Zbkb, Zbkx and Zknh, Verification)",
+    "docs/VERIFICATION.md",
+    "test/bench/README.md"
+   ]
+  },
+  {
+   "figure": "GCC emits no Zbkb, Zbkx or Zknh instruction from C; in the Zbb build it uses rori and rol for the rotations",
+   "value": "the per-form counts of the summaries: the Zknh build holds the four sha256 forms (zknh.h) and rev8 (sha256.h); the rv32im_zba_zbb_zbs build rol=5 rori=5 rev8=1 at -O2",
+   "quoted_in": [
+    "docs/EXTENSIONS.md (Zbkb, Zbkx and Zknh)",
+    "test/bench/README.md"
+   ]
+  }
+ ],
+ "commands": [
+  "make bench-sha256",
+  "make bench-sha256 OPT=-Os",
+  "make bench-sha256 OPT=-O0"
+ ],
+ "inputs": {
+  "files_sha256": {
+   "Makefile": "961e0adedb37309cc330b6a0d157b27e0590ac5748effb461531aa54314e62af",
+   "defines/op.sv": "7a1ee6abbf2a95a7273dd1c08a53610b89588708006e499eccfefdf0996b09b7",
+   "rtl/execute_stage.sv": "52201629b7dff698b0d98c98667b8ed80c9c9029d6f9d0d0fa64ed49fc2bfa5d",
+   "rtl/instruction_decoder.sv": "315462378c73c8e7710770b4e9790bf8d2abc4e2cd6c4c3288a540b8993f3726",
+   "std/include/sha256.h": "7dddf7a4566c3465da2b9f29e9cee47b9b873ca8ecd009ea3003994ed7e9fde4",
+   "std/include/zknh.h": "3740bfe438ae8d037fc14b18874fe9ae83364ee81c9f1293365068c2af07b75f",
+   "test/bench/bench.mk": "1d6af92e519a30a025e736f26616037bde20445b9f377773441de2d777befefe",
+   "test/bench/bench.py": "17bd6275de0d29ae3addfd32519ba6bc915af17208ca1669202c39ff252ab55e",
+   "test/bench/sha256/crypto_diff.c": "ce8b898a664ade3debea34a6cbddf4e1c126297e2719ddf301c2b14c705cab49",
+   "test/bench/sha256/sha256_bench.c": "488bd75772913469088bdecb66c83077545029e27eba238dca418f4581ece096"
+  }
+ },
+ "outputs_sha256": {
+  "build/test/bench/sha256/O2/sha256_bench-rv32i/init.mem": "eb4e1b855e198d9ea6265e9379723544f0cc7f42932ca663601fc80ccc7d3ef2",
+  "build/test/bench/sha256/O2/sha256_bench-rv32i/out.elf": "ff0bd075362fcdf90e6132d1d0704692dab56f5547547cd8791d2255f6748fbc",
+  "build/test/bench/sha256/O2/sha256_bench-rv32im_zba_zbb_zbs/init.mem": "60d1da1c981415f5fbb5de3c95641ee12a419f99a341366d0d0359a14da91d5b",
+  "build/test/bench/sha256/O2/sha256_bench-rv32im_zba_zbb_zbs/out.elf": "5d5f4862db5a9fff5924c6546e00c54e730cf5a80c27a0c5255c86e44e32f8c7",
+  "build/test/bench/sha256/O2/sha256_bench-rv32im_zba_zbb_zbkb_zbkx_zbs_zknh/init.mem": "8edda7cb8f740d8398001964c758d5b99f8d4a104f74be009b88060e1f3a185d",
+  "build/test/bench/sha256/O2/sha256_bench-rv32im_zba_zbb_zbkb_zbkx_zbs_zknh/out.elf": "0c327964a7e3a718f906035c643d167ff3cff8cdd9699bb79008bd5e07f6ebc1",
+  "build/test/bench/sha256/O2/sha256_long-rv32im_zba_zbb_zbkb_zbkx_zbs_zknh/init.mem": "7811e18e81be4705d1838d940c64a8a02a8bc935337f578161776817141702c8",
+  "build/test/bench/sha256/O2/sha256_long-rv32im_zba_zbb_zbkb_zbkx_zbs_zknh/out.elf": "3e349cc66c6fa1a5757a94d08b3461c9f4f9cbf3a8c8ccd3a1dc51e02894d010",
+  "build/test/bench/sha256/O2/crypto_diff/init.mem": "aab93fa1fa454419ecec010b54c9cf6319890964703364ceb72d1c3808304ec4",
+  "build/test/bench/sha256/O2/crypto_diff/out.elf": "a2278ab7257a5c5ae69500d48393cbea583a195b676abc4defeaa88f48d8e607",
+  "build/test/bench/sha256/O2/crypto_diff-B5297A4D/init.mem": "889245faeeaec626bab9f860c8935e719d989b1132e69528a2b3d92b38ce014a",
+  "build/test/bench/sha256/O2/crypto_diff-B5297A4D/out.elf": "06025129c88d1e9cf26dec5775cdf7b609f43ca40137d385c015673ddfd9a189",
+  "build/test/bench/sha256/O2/crypto_diff-1F123BB5/init.mem": "9ff535ef9d996c01d79ed0e7bcc489415d4b8ce403831b08bb792a6c1ced1828",
+  "build/test/bench/sha256/O2/crypto_diff-1F123BB5/out.elf": "2899e1f47017d8122a84c4ef5de2a2b99955c972b50345fe462cf5cddc76658d",
+  "build/test/bench/sha256/O2/crypto_diff-9E3779B9/init.mem": "13320de370373fef4f44b12f63ef18d33a557ea79484f7f0d3407af8e3f3ab9d",
+  "build/test/bench/sha256/O2/crypto_diff-9E3779B9/out.elf": "b0908b400e508234f79d56d3d8569714afd31abff926fbdb619953022475b10e",
+  "build/test/bench/sha256/Os/sha256_bench-rv32i/init.mem": "dc06169644e865b282e8315103e910318225eefb4bbe000c284798ef55c29c36",
+  "build/test/bench/sha256/Os/sha256_bench-rv32i/out.elf": "0dae55c66e5003b2e03a5b45a7cdff984f6deb3d657db5b41dcdc8c273f48516",
+  "build/test/bench/sha256/Os/sha256_bench-rv32im_zba_zbb_zbs/init.mem": "de043aa5a9b45835c1f13d5eb4e49a3ccd8b239294f3b844ae1180be245f7a5a",
+  "build/test/bench/sha256/Os/sha256_bench-rv32im_zba_zbb_zbs/out.elf": "ca3e1c244a4ac185cc47f1ceb49de04c3f65da0c48079e13fbf7fa88ff09159f",
+  "build/test/bench/sha256/Os/sha256_bench-rv32im_zba_zbb_zbkb_zbkx_zbs_zknh/init.mem": "d651cc2f606a3e41dcd7118f7935fda5e52f0f27dd5041bfde842c631718e29d",
+  "build/test/bench/sha256/Os/sha256_bench-rv32im_zba_zbb_zbkb_zbkx_zbs_zknh/out.elf": "2b036a57791a8571bde373fc37e79baefe828c6e4d03a343e17f8f63874b71cc",
+  "build/test/bench/sha256/Os/sha256_long-rv32im_zba_zbb_zbkb_zbkx_zbs_zknh/init.mem": "434bc8246f91bc8916febfb9d68e950f3b6894ed1011bc099b7b2cc96d578f9f",
+  "build/test/bench/sha256/Os/sha256_long-rv32im_zba_zbb_zbkb_zbkx_zbs_zknh/out.elf": "3ae9ab23bc5337225ffb74d190d10a6542513183c498105dbfa0276cdef8564f",
+  "build/test/bench/sha256/Os/crypto_diff/init.mem": "0601e896490a5f83fa2f83dc307c3eeca1d86b97e0a7a53e166faa6374c34573",
+  "build/test/bench/sha256/Os/crypto_diff/out.elf": "55617e4af3e8cd4cbf14fa68661877d6ee29982a4adfd1f1393717d4f5d32aef",
+  "build/test/bench/sha256/Os/crypto_diff-B5297A4D/init.mem": "e2e94f85e4a92f521770669b43d781f65e0bdb8d82f16169e34c77f2ab0b5cc5",
+  "build/test/bench/sha256/Os/crypto_diff-B5297A4D/out.elf": "f551e0550f8902b773590c15331fd9b62ac4ceb64ea20b23b68102f7e41e21b7",
+  "build/test/bench/sha256/Os/crypto_diff-1F123BB5/init.mem": "d0b64a44c7ee8a2b102fefeac778665c20d135122255aad2117ebc66d2ccf198",
+  "build/test/bench/sha256/Os/crypto_diff-1F123BB5/out.elf": "3c63ca59b277b401f3295bd0772c6850898bd98929df89112fb70fa753478219",
+  "build/test/bench/sha256/Os/crypto_diff-9E3779B9/init.mem": "ade2a013e802c9d64e9d19c40b02357bceb09f059bd6400f1c8e567c6af926d2",
+  "build/test/bench/sha256/Os/crypto_diff-9E3779B9/out.elf": "7acaee6dbe5f884776185e20f24199170a15d6ae7ce56ae5c7c44804b0225e79",
+  "build/test/bench/sha256/O0/sha256_bench-rv32i/init.mem": "9d1c8df58581d37f41a0332640335b39ac1334ccd6bf2d8f868f2801fa61b113",
+  "build/test/bench/sha256/O0/sha256_bench-rv32i/out.elf": "20154622aae8af4aae4560564cdd6d473e89a88377895a659ef5c8cc1f4cb7fe",
+  "build/test/bench/sha256/O0/sha256_bench-rv32im_zba_zbb_zbs/init.mem": "490265a2dfc0224181bacebf0cc41c247a10c87e61530d100e33782325d2ad91",
+  "build/test/bench/sha256/O0/sha256_bench-rv32im_zba_zbb_zbs/out.elf": "b6628a0e17357cbd82626960ec5aa7664a780f430ecae328b243769cdfa051fc",
+  "build/test/bench/sha256/O0/sha256_bench-rv32im_zba_zbb_zbkb_zbkx_zbs_zknh/init.mem": "86c63006002870790f1b26ba9f2af0261cb6f2648057c96b484c03e8b8f72d18",
+  "build/test/bench/sha256/O0/sha256_bench-rv32im_zba_zbb_zbkb_zbkx_zbs_zknh/out.elf": "f6029ea345793edbe70a05b9e7ae5bbf2f3379b3235a06d1d38ae300cb904da6",
+  "build/test/bench/sha256/O0/crypto_diff/init.mem": "a8ad3583f96282e177e5e43b1028c894dac66e48f25ec23cd3d5150526119ccc",
+  "build/test/bench/sha256/O0/crypto_diff/out.elf": "b055841af15cfa001c53c4d0f2969e22689f0429a8fddb79d28486def0a23081",
+  "build/test/bench/sha256/O0/crypto_diff-B5297A4D/init.mem": "ec69ff5e5728f75df2700962c8805992e353f6b74f3cfdc3a57a88e8fe63dbf4",
+  "build/test/bench/sha256/O0/crypto_diff-B5297A4D/out.elf": "0931e2a96447acbf9375ce74eff835741b7a12feef30ede0911bf2d24920dc73",
+  "build/test/bench/sha256/O0/crypto_diff-1F123BB5/init.mem": "d1f9ed6be13cfd6de3209e2e0da374c5b9b510e8cf261cc26a03e6a7f4eaea26",
+  "build/test/bench/sha256/O0/crypto_diff-1F123BB5/out.elf": "1decc9b4766d554fde36ddf8353a443189b5c5dd88249ad30afb2b744730cfcc",
+  "build/test/bench/sha256/O0/crypto_diff-9E3779B9/init.mem": "09a68ef3f1ec0160f5734d85845e7b2123db17160fe3d10c48e0d64f576ec2d2",
+  "build/test/bench/sha256/O0/crypto_diff-9E3779B9/out.elf": "bdfc6174e61c0444dbe5271db79c03831c4175a9af582099d04c4da8f28d1c57"
+ },
+ "host": {
+  "cpu": "Intel Core Ultra 7 165H",
+  "threads": 22,
+  "os": "Linux"
+ },
+ "tools": {
+  "verilator": "Verilator 5.042 2025-11-02 rev v5.042",
+  "gcc": "riscv32-unknown-elf-gcc () 12.2.0",
+  "binutils": "GNU assembler (GNU Binutils) 2.39",
+  "python": "Python 3.12.3",
+  "make": "GNU Make 4.3"
+ },
+ "workers": 1,
+ "wall_time_s": {
+  "make bench-sha256": 61.5,
+  "make bench-sha256 OPT=-Os": 64.4,
+  "make bench-sha256 OPT=-O0": 96.1
+ },
+ "summary_output": {
+  "-O2": "SHA-256 benchmark (test/bench/sha256), -O2: sha256_bench built for -march=rv32i, rv32im_zba_zbb_zbs, rv32im_zba_zbb_zbkb_zbkx_zbs_zknh\n\n  variant                                          image bytes new instrs  timed cycles  result\n  sha256_bench-rv32i                                      3504          0       1378827  NIST 6/6, OK\n  sha256_bench-rv32im_zba_zbb_zbs                         3160          0       1038045  NIST 6/6, OK\n  sha256_bench-rv32im_zba_zbb_zbkb_zbkx_zbs_zknh          3036          4        815740  NIST 6/6, OK\n  sha256_long-rv32im_zba_zbb_zbkb_zbkx_zbs_zknh           3108          4      50521930  NIST 6/6, OK\n  crypto_diff                                             7548         43       7058515  CASES 8621 BAD 0 EXTRA 0, CRYPTO DIFF OK\n  crypto_diff-B5297A4D                                    7384         43       5835097  CASES 8213 BAD 0 EXTRA 0, CRYPTO DIFF OK\n  crypto_diff-1F123BB5                                    7384         43       5835013  CASES 8213 BAD 0 EXTRA 0, CRYPTO DIFF OK\n  crypto_diff-9E3779B9                                    7384         43       5834745  CASES 8213 BAD 0 EXTRA 0, CRYPTO DIFF OK\n\n  sha256_bench: 16384 bytes; NIST examples 6/6 in every build; DIGEST 00128dedfa357517a7718b37759dde4126b85c8029573169136c8a1e3e8892e9\n                DIGEST equal in the three builds and to Python's hashlib: yes\n  cycles per byte (one sha256() of 16384 bytes, padding block included):\n    rv32i                                   1378827 cycles  84.16 cycles per byte  3504 bytes\n    rv32im_zba_zbb_zbs                      1038045 cycles  63.36 cycles per byte  3160 bytes\n    rv32im_zba_zbb_zbkb_zbkx_zbs_zknh        815740 cycles  49.79 cycles per byte  3036 bytes\n  speed-ups: Zba+Zbb+Zbs over rv32i 1.328x, Zknh over Zba+Zbb+Zbs 1.273x, Zknh over rv32i 1.690x\n  sha256_long (Zknh): 1,000,000 bytes 'a', digest cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0 (as expected): 50521930 cycles, 50.52 cycles per byte\n  crypto_diff: 33260 checks in 4 runs (8621 + 8213 + 8213 + 8213), 0 mismatches, CRYPTO DIFF OK in 4 of 4; 17 of 17 forms in its code\n\n  Zbkb, Zbkx and Zknh instructions in the code (per form):\n    sha256_bench-rv32i                                 0 words,  0 forms: -\n    sha256_bench-rv32im_zba_zbb_zbs                    0 words,  0 forms: -\n    sha256_bench-rv32im_zba_zbb_zbkb_zbkx_zbs_zknh     4 words,  4 forms: sha256sig0=1 sha256sig1=1 sha256sum0=1 sha256sum1=1\n  Zbb, Zbs and Zicond instructions in the code (per form):\n    sha256_bench-rv32i                                 0 words,  0 forms: -\n    sha256_bench-rv32im_zba_zbb_zbs                   13 words,  5 forms: andn=1 minu=1 rol=5 rori=5 rev8=1\n    sha256_bench-rv32im_zba_zbb_zbkb_zbkx_zbs_zknh     3 words,  3 forms: andn=1 minu=1 rev8=1\n\nBENCH SHA256: PASS\n",
+  "-Os": "SHA-256 benchmark (test/bench/sha256), -Os: sha256_bench built for -march=rv32i, rv32im_zba_zbb_zbs, rv32im_zba_zbb_zbkb_zbkx_zbs_zknh\n\n  variant                                          image bytes new instrs  timed cycles  result\n  sha256_bench-rv32i                                      3068          0       1379765  NIST 6/6, OK\n  sha256_bench-rv32im_zba_zbb_zbs                         2740          0       1048235  NIST 6/6, OK\n  sha256_bench-rv32im_zba_zbb_zbkb_zbkx_zbs_zknh          2640          4        815650  NIST 6/6, OK\n  sha256_long-rv32im_zba_zbb_zbkb_zbkx_zbs_zknh           2656          4      50865722  NIST 6/6, OK\n  crypto_diff                                             4752         41       8616331  CASES 8621 BAD 0 EXTRA 0, CRYPTO DIFF OK\n  crypto_diff-B5297A4D                                    4360         41       6896128  CASES 8213 BAD 0 EXTRA 0, CRYPTO DIFF OK\n  crypto_diff-1F123BB5                                    4360         41       6896044  CASES 8213 BAD 0 EXTRA 0, CRYPTO DIFF OK\n  crypto_diff-9E3779B9                                    4360         41       6895777  CASES 8213 BAD 0 EXTRA 0, CRYPTO DIFF OK\n\n  sha256_bench: 16384 bytes; NIST examples 6/6 in every build; DIGEST 00128dedfa357517a7718b37759dde4126b85c8029573169136c8a1e3e8892e9\n                DIGEST equal in the three builds and to Python's hashlib: yes\n  cycles per byte (one sha256() of 16384 bytes, padding block included):\n    rv32i                                   1379765 cycles  84.21 cycles per byte  3068 bytes\n    rv32im_zba_zbb_zbs                      1048235 cycles  63.98 cycles per byte  2740 bytes\n    rv32im_zba_zbb_zbkb_zbkx_zbs_zknh        815650 cycles  49.78 cycles per byte  2640 bytes\n  speed-ups: Zba+Zbb+Zbs over rv32i 1.316x, Zknh over Zba+Zbb+Zbs 1.285x, Zknh over rv32i 1.692x\n  sha256_long (Zknh): 1,000,000 bytes 'a', digest cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0 (as expected): 50865722 cycles, 50.87 cycles per byte\n  crypto_diff: 33260 checks in 4 runs (8621 + 8213 + 8213 + 8213), 0 mismatches, CRYPTO DIFF OK in 4 of 4; 17 of 17 forms in its code\n\n  Zbkb, Zbkx and Zknh instructions in the code (per form):\n    sha256_bench-rv32i                                 0 words,  0 forms: -\n    sha256_bench-rv32im_zba_zbb_zbs                    0 words,  0 forms: -\n    sha256_bench-rv32im_zba_zbb_zbkb_zbkx_zbs_zknh     4 words,  4 forms: sha256sig0=1 sha256sig1=1 sha256sum0=1 sha256sum1=1\n  Zbb, Zbs and Zicond instructions in the code (per form):\n    sha256_bench-rv32i                                 0 words,  0 forms: -\n    sha256_bench-rv32im_zba_zbb_zbs                   13 words,  5 forms: andn=1 minu=1 rol=5 rori=5 rev8=1\n    sha256_bench-rv32im_zba_zbb_zbkb_zbkx_zbs_zknh     3 words,  3 forms: andn=1 minu=1 rev8=1\n\nBENCH SHA256: PASS\n",
+  "-O0": "SHA-256 benchmark (test/bench/sha256), -O0: sha256_bench built for -march=rv32i, rv32im_zba_zbb_zbs, rv32im_zba_zbb_zbkb_zbkx_zbs_zknh\n\n  variant                                          image bytes new instrs  timed cycles  result\n  sha256_bench-rv32i                                      5120          0       7586542  NIST 6/6, OK\n  sha256_bench-rv32im_zba_zbb_zbs                         4888          0       6677790  NIST 6/6, OK\n  sha256_bench-rv32im_zba_zbb_zbkb_zbkx_zbs_zknh          4632          4       3495102  NIST 6/6, OK\n  crypto_diff                                             7448         41      32835904  CASES 8621 BAD 0 EXTRA 0, CRYPTO DIFF OK\n  crypto_diff-B5297A4D                                    6820         41      27079377  CASES 8213 BAD 0 EXTRA 0, CRYPTO DIFF OK\n  crypto_diff-1F123BB5                                    6820         41      27079104  CASES 8213 BAD 0 EXTRA 0, CRYPTO DIFF OK\n  crypto_diff-9E3779B9                                    6820         41      27078233  CASES 8213 BAD 0 EXTRA 0, CRYPTO DIFF OK\n\n  sha256_bench: 16384 bytes; NIST examples 6/6 in every build; DIGEST 00128dedfa357517a7718b37759dde4126b85c8029573169136c8a1e3e8892e9\n                DIGEST equal in the three builds and to Python's hashlib: yes\n  cycles per byte (one sha256() of 16384 bytes, padding block included):\n    rv32i                                   7586542 cycles  463.05 cycles per byte  5120 bytes\n    rv32im_zba_zbb_zbs                      6677790 cycles  407.58 cycles per byte  4888 bytes\n    rv32im_zba_zbb_zbkb_zbkx_zbs_zknh       3495102 cycles  213.32 cycles per byte  4632 bytes\n  speed-ups: Zba+Zbb+Zbs over rv32i 1.136x, Zknh over Zba+Zbb+Zbs 1.911x, Zknh over rv32i 2.171x\n  sha256_long (Zknh): not run at -O0 (over 200 million cycles)\n  crypto_diff: 33260 checks in 4 runs (8621 + 8213 + 8213 + 8213), 0 mismatches, CRYPTO DIFF OK in 4 of 4; 17 of 17 forms in its code\n\n  Zbkb, Zbkx and Zknh instructions in the code (per form):\n    sha256_bench-rv32i                                 0 words,  0 forms: -\n    sha256_bench-rv32im_zba_zbb_zbs                    0 words,  0 forms: -\n    sha256_bench-rv32im_zba_zbb_zbkb_zbkx_zbs_zknh     4 words,  4 forms: sha256sig0=1 sha256sig1=1 sha256sum0=1 sha256sum1=1\n  Zbb, Zbs and Zicond instructions in the code (per form):\n    sha256_bench-rv32i                                 0 words,  0 forms: -\n    sha256_bench-rv32im_zba_zbb_zbs                    2 words,  2 forms: ror=1 rev8=1\n    sha256_bench-rv32im_zba_zbb_zbkb_zbkx_zbs_zknh     1 words,  1 forms: rev8=1\n\nBENCH SHA256: PASS\n"
+ },
+ "caveats": [
+  "sha256_bench measures SHA-256 alone, a best case for Zknh; programs that hash little gain little.",
+  "The std objects are built for rv32i in every variant (the GCC 12.2 crash with Zbs on std/src/helperfunctions.c); they only print, outside the timed windows.",
+  "sha256_long is not run at -O0: at about 213 cycles per byte it would take over 200 million cycles, more than three minutes of simulation.",
+  "GCC 12.2 has no builtins for the Zknh instructions: zknh.h issues them by inline assembly, and rev8 is inline assembly as well (GCC 12 does not emit it on RV32).",
+  "The cycles are those of the Verilator model of the RTL of this working tree. The RTL has not been implemented on an FPGA since the Zbb, Zbs and Zicond unit was added, nor since the cryptography half, so whether it still meets 50 MHz is unknown."
+ ]
+}

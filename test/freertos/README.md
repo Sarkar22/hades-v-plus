@@ -129,8 +129,8 @@ checks all end the run at once.
   one (control bytes DC2, ACK/NAK per line, DC1 for app input), and `make freertos-send`
   asks it to, through a send request next to the pseudo-terminal's link. Guide: docs/APPS.md;
   specification: `loader/SPEC.md`. `session.txt` (83 lines, 146 expectations)
-  and `session-ext.txt` (the `rv32im_zba` build of `compute`, both builds of `bitmanip`) are
-  its scripted sessions,
+  `session-ext.txt` (the `rv32im_zba` build of `compute`, both builds of `bitmanip`) and
+  `session-crypto.txt` (both builds of `sha256`) are its scripted sessions,
   `tty_test.py` its interactive test. Its `app.mk` uses the console-target knobs
   `APP_CONSOLE_DEPS` (goals built before a console run: `freertos-apps`),
   `APP_CONSOLE_ARGS` (simulator arguments), `APP_TTY_TEST` and `APP_TTY_ARGS` (the script of

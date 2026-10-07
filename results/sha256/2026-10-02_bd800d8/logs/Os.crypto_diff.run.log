@@ -1,0 +1,16 @@
+CASES 000021ad
+BAD 00000000
+EXTRA 00000000
+CSUM 9d1d1f21
+CYCLES 0083798b
+CRYPTO DIFF OK
+- sim/top.sv:131: Verilog $finish
+[0;33m
+Inital test failed! (# Errors: 0)
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!! TEST DONE !!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[0m
+- S i m u l a t i o n   R e p o r t: Verilator 5.042 2025-11-02
+- Verilator: $finish at 173us; walltime 6.169 s; speed 27.985 us/s
+- Verilator: cpu 6.168 s on 1 threads; alloced 175 MB

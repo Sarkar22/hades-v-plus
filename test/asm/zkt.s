@@ -20,7 +20,8 @@
 # | 1. A block of 8 identical, independent instructions is timed with mcycle (no                 |
 # |    data-dependent control flow inside the window) for a set of operand values:               |
 # |    0, 1, -1, 0x80000000, 0x7FFFFFFF, 0x80000000 x -1, amounts 0/1/31/32+k for                |
-# |    shifts and rotates, a zero and a non-zero condition for czero.                            |
+# |    shifts and rotates, a zero and a non-zero condition for czero, tables and indices in      |
+# |    and out of range for xperm4/xperm8, both operand orders for pack and the sha512 forms.    |
 # | 2. Every block takes exactly the cycles of a block of add (1 cycle per instruction),         |
 # |    except mul/mulh/mulhsu/mulhu, which take exactly 2 cycles per instruction.                |
 # | Division (1 or 34 cycles), loads, stores and branches are not in the Zkt list and are        |
@@ -43,7 +44,7 @@
 # |                                                                                              |
 # ------------------------------------------------------------------------------------------------
 
-.option arch, +zbb, +zbs, +m
+.option arch, +zbb, +zbs, +m, +zbkb, +zbkx, +zknh
 
 .macro pass
     sw zero, 0(t3)
@@ -3157,11 +3158,1576 @@ test_immediate_forms:
     sub  s8, s6, s5
     assert_equal s8, s9                # auipc
 
+# -----------------------------------------------
+# Zbkb pack packh brev8 zip unzip (the other seven Zbkb instructions are
+# Zbb's and timed above). pack is timed with rs2 = a2 also when a2 holds 0,
+# so the word is pack, not zext.h.
+# Every block of 8 takes the same number of cycles whatever the operands.
+test_zbkb:
+    addi t2, zero, 9
+    flush_pipeline
+    li32 a1, 0x00000000
+    li32 a2, 0x00000000
+    flush_pipeline
+    csrr s5, mcycle
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # pack 0x00000000, 0x00000000
+    li32 a1, 0x00000001
+    li32 a2, 0x00000001
+    flush_pipeline
+    csrr s5, mcycle
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # pack 0x00000001, 0x00000001
+    li32 a1, 0xFFFFFFFF
+    li32 a2, 0xFFFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # pack 0xFFFFFFFF, 0xFFFFFFFF
+    li32 a1, 0x80000000
+    li32 a2, 0x7FFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # pack 0x80000000, 0x7FFFFFFF
+    li32 a1, 0x7FFFFFFF
+    li32 a2, 0x80000000
+    flush_pipeline
+    csrr s5, mcycle
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # pack 0x7FFFFFFF, 0x80000000
+    li32 a1, 0x12345678
+    li32 a2, 0x00000000
+    flush_pipeline
+    csrr s5, mcycle
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    pack       a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # pack 0x12345678, 0x00000000
+    li32 a1, 0x00000000
+    li32 a2, 0x00000000
+    flush_pipeline
+    csrr s5, mcycle
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # packh 0x00000000, 0x00000000
+    li32 a1, 0x00000001
+    li32 a2, 0x00000001
+    flush_pipeline
+    csrr s5, mcycle
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # packh 0x00000001, 0x00000001
+    li32 a1, 0xFFFFFFFF
+    li32 a2, 0xFFFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # packh 0xFFFFFFFF, 0xFFFFFFFF
+    li32 a1, 0x80000000
+    li32 a2, 0x7FFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # packh 0x80000000, 0x7FFFFFFF
+    li32 a1, 0x7FFFFFFF
+    li32 a2, 0x80000000
+    flush_pipeline
+    csrr s5, mcycle
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # packh 0x7FFFFFFF, 0x80000000
+    li32 a1, 0x12345678
+    li32 a2, 0x00000000
+    flush_pipeline
+    csrr s5, mcycle
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    packh      a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # packh 0x12345678, 0x00000000
+    li32 a1, 0x00000000
+    flush_pipeline
+    csrr s5, mcycle
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # brev8 0x00000000
+    li32 a1, 0x00000001
+    flush_pipeline
+    csrr s5, mcycle
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # brev8 0x00000001
+    li32 a1, 0xFFFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # brev8 0xFFFFFFFF
+    li32 a1, 0x80000000
+    flush_pipeline
+    csrr s5, mcycle
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # brev8 0x80000000
+    li32 a1, 0x7FFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # brev8 0x7FFFFFFF
+    li32 a1, 0x55555555
+    flush_pipeline
+    csrr s5, mcycle
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    brev8      a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # brev8 0x55555555
+    li32 a1, 0x00000000
+    flush_pipeline
+    csrr s5, mcycle
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # zip 0x00000000
+    li32 a1, 0x00000001
+    flush_pipeline
+    csrr s5, mcycle
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # zip 0x00000001
+    li32 a1, 0xFFFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # zip 0xFFFFFFFF
+    li32 a1, 0x80000000
+    flush_pipeline
+    csrr s5, mcycle
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # zip 0x80000000
+    li32 a1, 0x7FFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # zip 0x7FFFFFFF
+    li32 a1, 0x55555555
+    flush_pipeline
+    csrr s5, mcycle
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    zip        a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # zip 0x55555555
+    li32 a1, 0x00000000
+    flush_pipeline
+    csrr s5, mcycle
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # unzip 0x00000000
+    li32 a1, 0x00000001
+    flush_pipeline
+    csrr s5, mcycle
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # unzip 0x00000001
+    li32 a1, 0xFFFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # unzip 0xFFFFFFFF
+    li32 a1, 0x80000000
+    flush_pipeline
+    csrr s5, mcycle
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # unzip 0x80000000
+    li32 a1, 0x7FFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # unzip 0x7FFFFFFF
+    li32 a1, 0x55555555
+    flush_pipeline
+    csrr s5, mcycle
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    unzip      a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # unzip 0x55555555
+
+# -----------------------------------------------
+# Zbkx xperm4 xperm8: tables 0, -1 and a permutation, with indices all in
+# range, all out of range and mixed.
+# Every block of 8 takes the same number of cycles whatever the operands.
+test_zbkx:
+    addi t2, zero, 10
+    flush_pipeline
+    li32 a1, 0x00000000
+    li32 a2, 0x01234567
+    flush_pipeline
+    csrr s5, mcycle
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # xperm4 0x00000000, 0x01234567
+    li32 a1, 0x00000000
+    li32 a2, 0x89ABCDEF
+    flush_pipeline
+    csrr s5, mcycle
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # xperm4 0x00000000, 0x89ABCDEF
+    li32 a1, 0x00000000
+    li32 a2, 0x0F1E2D3C
+    flush_pipeline
+    csrr s5, mcycle
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # xperm4 0x00000000, 0x0F1E2D3C
+    li32 a1, 0xFFFFFFFF
+    li32 a2, 0x01234567
+    flush_pipeline
+    csrr s5, mcycle
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # xperm4 0xFFFFFFFF, 0x01234567
+    li32 a1, 0xFFFFFFFF
+    li32 a2, 0x89ABCDEF
+    flush_pipeline
+    csrr s5, mcycle
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # xperm4 0xFFFFFFFF, 0x89ABCDEF
+    li32 a1, 0xFFFFFFFF
+    li32 a2, 0x0F1E2D3C
+    flush_pipeline
+    csrr s5, mcycle
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # xperm4 0xFFFFFFFF, 0x0F1E2D3C
+    li32 a1, 0x76543210
+    li32 a2, 0x01234567
+    flush_pipeline
+    csrr s5, mcycle
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # xperm4 0x76543210, 0x01234567
+    li32 a1, 0x76543210
+    li32 a2, 0x89ABCDEF
+    flush_pipeline
+    csrr s5, mcycle
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # xperm4 0x76543210, 0x89ABCDEF
+    li32 a1, 0x76543210
+    li32 a2, 0x0F1E2D3C
+    flush_pipeline
+    csrr s5, mcycle
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    xperm4     a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # xperm4 0x76543210, 0x0F1E2D3C
+    li32 a1, 0x00000000
+    li32 a2, 0x00010203
+    flush_pipeline
+    csrr s5, mcycle
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # xperm8 0x00000000, 0x00010203
+    li32 a1, 0x00000000
+    li32 a2, 0xFFFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # xperm8 0x00000000, 0xFFFFFFFF
+    li32 a1, 0x00000000
+    li32 a2, 0x04040404
+    flush_pipeline
+    csrr s5, mcycle
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # xperm8 0x00000000, 0x04040404
+    li32 a1, 0x00000000
+    li32 a2, 0x04FF0100
+    flush_pipeline
+    csrr s5, mcycle
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # xperm8 0x00000000, 0x04FF0100
+    li32 a1, 0xFFFFFFFF
+    li32 a2, 0x00010203
+    flush_pipeline
+    csrr s5, mcycle
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # xperm8 0xFFFFFFFF, 0x00010203
+    li32 a1, 0xFFFFFFFF
+    li32 a2, 0xFFFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # xperm8 0xFFFFFFFF, 0xFFFFFFFF
+    li32 a1, 0xFFFFFFFF
+    li32 a2, 0x04040404
+    flush_pipeline
+    csrr s5, mcycle
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # xperm8 0xFFFFFFFF, 0x04040404
+    li32 a1, 0xFFFFFFFF
+    li32 a2, 0x04FF0100
+    flush_pipeline
+    csrr s5, mcycle
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # xperm8 0xFFFFFFFF, 0x04FF0100
+    li32 a1, 0x44332211
+    li32 a2, 0x00010203
+    flush_pipeline
+    csrr s5, mcycle
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # xperm8 0x44332211, 0x00010203
+    li32 a1, 0x44332211
+    li32 a2, 0xFFFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # xperm8 0x44332211, 0xFFFFFFFF
+    li32 a1, 0x44332211
+    li32 a2, 0x04040404
+    flush_pipeline
+    csrr s5, mcycle
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # xperm8 0x44332211, 0x04040404
+    li32 a1, 0x44332211
+    li32 a2, 0x04FF0100
+    flush_pipeline
+    csrr s5, mcycle
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    xperm8     a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # xperm8 0x44332211, 0x04FF0100
+
+# -----------------------------------------------
+# Zknh sha256sig0 sha256sig1 sha256sum0 sha256sum1.
+# Every block of 8 takes the same number of cycles whatever the operands.
+test_zknh_sha256:
+    addi t2, zero, 11
+    flush_pipeline
+    li32 a1, 0x00000000
+    flush_pipeline
+    csrr s5, mcycle
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha256sig0 0x00000000
+    li32 a1, 0x00000001
+    flush_pipeline
+    csrr s5, mcycle
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha256sig0 0x00000001
+    li32 a1, 0xFFFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha256sig0 0xFFFFFFFF
+    li32 a1, 0x80000000
+    flush_pipeline
+    csrr s5, mcycle
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha256sig0 0x80000000
+    li32 a1, 0x7FFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha256sig0 0x7FFFFFFF
+    li32 a1, 0x55555555
+    flush_pipeline
+    csrr s5, mcycle
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    sha256sig0 a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha256sig0 0x55555555
+    li32 a1, 0x00000000
+    flush_pipeline
+    csrr s5, mcycle
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha256sig1 0x00000000
+    li32 a1, 0x00000001
+    flush_pipeline
+    csrr s5, mcycle
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha256sig1 0x00000001
+    li32 a1, 0xFFFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha256sig1 0xFFFFFFFF
+    li32 a1, 0x80000000
+    flush_pipeline
+    csrr s5, mcycle
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha256sig1 0x80000000
+    li32 a1, 0x7FFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha256sig1 0x7FFFFFFF
+    li32 a1, 0x55555555
+    flush_pipeline
+    csrr s5, mcycle
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    sha256sig1 a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha256sig1 0x55555555
+    li32 a1, 0x00000000
+    flush_pipeline
+    csrr s5, mcycle
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha256sum0 0x00000000
+    li32 a1, 0x00000001
+    flush_pipeline
+    csrr s5, mcycle
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha256sum0 0x00000001
+    li32 a1, 0xFFFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha256sum0 0xFFFFFFFF
+    li32 a1, 0x80000000
+    flush_pipeline
+    csrr s5, mcycle
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha256sum0 0x80000000
+    li32 a1, 0x7FFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha256sum0 0x7FFFFFFF
+    li32 a1, 0x55555555
+    flush_pipeline
+    csrr s5, mcycle
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    sha256sum0 a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha256sum0 0x55555555
+    li32 a1, 0x00000000
+    flush_pipeline
+    csrr s5, mcycle
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha256sum1 0x00000000
+    li32 a1, 0x00000001
+    flush_pipeline
+    csrr s5, mcycle
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha256sum1 0x00000001
+    li32 a1, 0xFFFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha256sum1 0xFFFFFFFF
+    li32 a1, 0x80000000
+    flush_pipeline
+    csrr s5, mcycle
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha256sum1 0x80000000
+    li32 a1, 0x7FFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha256sum1 0x7FFFFFFF
+    li32 a1, 0x55555555
+    flush_pipeline
+    csrr s5, mcycle
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    sha256sum1 a0, a1
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha256sum1 0x55555555
+
+# -----------------------------------------------
+# Zknh sha512sig0h sha512sig0l sha512sig1h sha512sig1l sha512sum0r
+# sha512sum1r.
+# Every block of 8 takes the same number of cycles whatever the operands.
+test_zknh_sha512:
+    addi t2, zero, 12
+    flush_pipeline
+    li32 a1, 0x00000000
+    li32 a2, 0x00000000
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sig0h 0x00000000, 0x00000000
+    li32 a1, 0x00000001
+    li32 a2, 0x00000001
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sig0h 0x00000001, 0x00000001
+    li32 a1, 0xFFFFFFFF
+    li32 a2, 0xFFFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sig0h 0xFFFFFFFF, 0xFFFFFFFF
+    li32 a1, 0x80000000
+    li32 a2, 0x7FFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sig0h 0x80000000, 0x7FFFFFFF
+    li32 a1, 0x7FFFFFFF
+    li32 a2, 0x80000000
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    sha512sig0h a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sig0h 0x7FFFFFFF, 0x80000000
+    li32 a1, 0x00000000
+    li32 a2, 0x00000000
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sig0l 0x00000000, 0x00000000
+    li32 a1, 0x00000001
+    li32 a2, 0x00000001
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sig0l 0x00000001, 0x00000001
+    li32 a1, 0xFFFFFFFF
+    li32 a2, 0xFFFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sig0l 0xFFFFFFFF, 0xFFFFFFFF
+    li32 a1, 0x80000000
+    li32 a2, 0x7FFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sig0l 0x80000000, 0x7FFFFFFF
+    li32 a1, 0x7FFFFFFF
+    li32 a2, 0x80000000
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    sha512sig0l a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sig0l 0x7FFFFFFF, 0x80000000
+    li32 a1, 0x00000000
+    li32 a2, 0x00000000
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sig1h 0x00000000, 0x00000000
+    li32 a1, 0x00000001
+    li32 a2, 0x00000001
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sig1h 0x00000001, 0x00000001
+    li32 a1, 0xFFFFFFFF
+    li32 a2, 0xFFFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sig1h 0xFFFFFFFF, 0xFFFFFFFF
+    li32 a1, 0x80000000
+    li32 a2, 0x7FFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sig1h 0x80000000, 0x7FFFFFFF
+    li32 a1, 0x7FFFFFFF
+    li32 a2, 0x80000000
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    sha512sig1h a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sig1h 0x7FFFFFFF, 0x80000000
+    li32 a1, 0x00000000
+    li32 a2, 0x00000000
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sig1l 0x00000000, 0x00000000
+    li32 a1, 0x00000001
+    li32 a2, 0x00000001
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sig1l 0x00000001, 0x00000001
+    li32 a1, 0xFFFFFFFF
+    li32 a2, 0xFFFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sig1l 0xFFFFFFFF, 0xFFFFFFFF
+    li32 a1, 0x80000000
+    li32 a2, 0x7FFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sig1l 0x80000000, 0x7FFFFFFF
+    li32 a1, 0x7FFFFFFF
+    li32 a2, 0x80000000
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    sha512sig1l a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sig1l 0x7FFFFFFF, 0x80000000
+    li32 a1, 0x00000000
+    li32 a2, 0x00000000
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sum0r 0x00000000, 0x00000000
+    li32 a1, 0x00000001
+    li32 a2, 0x00000001
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sum0r 0x00000001, 0x00000001
+    li32 a1, 0xFFFFFFFF
+    li32 a2, 0xFFFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sum0r 0xFFFFFFFF, 0xFFFFFFFF
+    li32 a1, 0x80000000
+    li32 a2, 0x7FFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sum0r 0x80000000, 0x7FFFFFFF
+    li32 a1, 0x7FFFFFFF
+    li32 a2, 0x80000000
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    sha512sum0r a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sum0r 0x7FFFFFFF, 0x80000000
+    li32 a1, 0x00000000
+    li32 a2, 0x00000000
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sum1r 0x00000000, 0x00000000
+    li32 a1, 0x00000001
+    li32 a2, 0x00000001
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sum1r 0x00000001, 0x00000001
+    li32 a1, 0xFFFFFFFF
+    li32 a2, 0xFFFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sum1r 0xFFFFFFFF, 0xFFFFFFFF
+    li32 a1, 0x80000000
+    li32 a2, 0x7FFFFFFF
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sum1r 0x80000000, 0x7FFFFFFF
+    li32 a1, 0x7FFFFFFF
+    li32 a2, 0x80000000
+    flush_pipeline
+    csrr s5, mcycle
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    sha512sum1r a0, a1, a2
+    csrr s6, mcycle
+    sub  s8, s6, s5
+    assert_equal s8, s9                # sha512sum1r 0x7FFFFFFF, 0x80000000
+
 # ------------------------------------------------------------------------------------------------
 # |                                          Test done!                                          |
 # ------------------------------------------------------------------------------------------------
 test_finish:
-    addi t2, zero, 9
+    addi t2, zero, 13
     flush_pipeline
     halt
     fail

@@ -7,20 +7,21 @@ This directory holds machine-checked proofs about two units of `rtl/execute_stag
   zero and the `-2^31 / -1` overflow. It holds for **all 2^64 operand pairs**, in
   **every reachable state** (unbounded, by k-induction), under any interleaving of Memory
   `STALL`/`JUMP` and of resets. No bug was found in the M unit.
-- **The EXT unit (Zbb, Zbs, Zicond).** For each of the 28 instructions, the result that
-  Execute forwards in the same cycle and registers for Memory in the next is the result
-  defined by the ratified specifications. This holds for **all operand values**, every
-  rotate amount and bit index, in every reachable state. An EXT instruction also never
+- **The EXT unit (Zbb, Zbs, Zicond, Zbkb, Zbkx, Zknh).** For each of the 45
+  instructions, the result that Execute forwards in the same cycle and registers for
+  Memory in the next is the result defined by the ratified specifications. This holds
+  for **all operand values**, every rotate amount, bit index and permutation index, in
+  every reachable state. An EXT instruction also never
   makes Execute stall or jump. The proof uses the same environment as the M proof and
   assumes nothing of it. No bug was found in the EXT unit.
 
 Both proofs were last run on 2026-10-02, on `rtl/execute_stage.sv` with SHA-256
-`c36613c8…3ae969`, the file of commit c1a7c85
-([record](../results/formal/2026-10-02_c1a7c85/RECORD.md)).
+`52201629…2bfa5d`, the file with the cryptography half of the EXT unit (Zbkb, Zbkx,
+Zknh) ([record](../results/formal/2026-10-02_bd800d8/RECORD.md)).
 
 ```sh
-make formal          # both units: every proof obligation + lemma checks + covers + controls + spec/sv2v checks (about 1.5 minutes)
-make formal-full     # also H6 by bitwuzla, second solvers and both mutation campaigns (about 25 minutes; longer on a loaded machine)
+make formal          # both units: every proof obligation + lemma checks + covers + controls + spec/sv2v checks (about 2.5 minutes)
+make formal-full     # also H6 by bitwuzla, second solvers and both mutation campaigns (about 45 minutes; longer on a loaded machine)
 make formal-ext      # the EXT unit alone (under a minute)
 ```
 
@@ -31,7 +32,7 @@ for `PASS`. The tools are listed in [Tools](#tools).
 
 Contents:
 
-1. [What is proven](#1-what-is-proven): [the M unit](#the-m-unit), [the EXT unit](#the-ext-unit-zbb-zbs-zicond)
+1. [What is proven](#1-what-is-proven): [the M unit](#the-m-unit), [the EXT unit](#the-ext-unit-zbb-zbs-zicond-zbkb-zbkx-zknh)
 2. [Environment assumptions](#2-environment-assumptions)
 3. [How the proof works](#3-how-the-proof-works) ([the EXT proof](#the-ext-proof))
 4. [Results and runtimes](#4-results-and-runtimes)
@@ -83,7 +84,7 @@ while it stalls. An independent audit demonstrated this with real-bug mutants th
 F1-F3. A1 and A3a close the gap: the mutants `rem_not_decoded`, `mulh_not_decoded` and
 `stall_valid_to_mem` are rejected *only* by A1/A3a (section 4).
 
-### The EXT unit (Zbb, Zbs, Zicond)
+### The EXT unit (Zbb, Zbs, Zicond, Zbkb, Zbkx, Zknh)
 
 **Target and model.** The same as for the M unit: the sv2v model of the real
 `rtl/execute_stage.sv` with the one inserted line, every input free apart from E0-E2
@@ -92,8 +93,10 @@ of its lemmas is assumed, so the EXT proof does not depend on the M proof.
 
 **Which instruction.** Execute sees an EXT instruction as the opcode `op::EXT` (entry 61
 of `op::t`) and a payload in the immediate field, `op::ext_payload_t`: the sub-operation
-`sel` in bits 10:6, `use_imm` in bit 5, and `shamt` in bits 4:0 (the instruction's
-`inst[24:20]` for the five immediate forms, otherwise 0), with bits 31:11 zero. For
+`sel` in bits 11:6, `use_imm` in bit 5, and `shamt` in bits 4:0 (the instruction's
+`inst[24:20]` for the five immediate forms, otherwise 0), with bits 31:12 zero. Bit 11,
+the top bit of `sel`, selects the cryptography half of the unit: it is 0 for the 28
+Zbb, Zbs and Zicond instructions and 1 for the 17 Zbkb, Zbkx and Zknh instructions. For
 each instruction the harness requires exactly the payload that the decoder builds for
 it; `rs1_data_in`, `rs2_data_in` and, for the immediate forms, `shamt` are free. The
 map from instruction to payload is written in the harness as numbers, and
@@ -101,15 +104,23 @@ map from instruction to payload is written in the harness as numbers, and
 
 **Specification.** `spec_ext(insn, rs1, rs2, shamt)` is `f_spec_ext` in
 `props/ext_spec.vh`, written from the ratified specifications (RISC-V Bit-Manipulation
-ISA-extensions 1.0.0 for Zbb and Zbs; Zicond 1.0), not from the RTL. It follows the
-specifications' Sail operations: the counts scan bit by bit, the rotates use the
-two-shift formula, `orc.b` and `rev8` loop over bytes, and the single-bit instructions
-build the mask `1 << (rs2 & 31)`.
+ISA-extensions 1.0.0 for Zbb and Zbs; Zicond 1.0; RISC-V Cryptography Extensions
+Volume I, Scalar & Entropy Source Instructions, 1.0.1, for Zbkb, Zbkx and Zknh), not
+from the RTL. It follows the specifications' Sail operations: the counts scan bit by
+bit, the rotates use the two-shift formula, `orc.b` and `rev8` loop over bytes, and the
+single-bit instructions build the mask `1 << (rs2 & 31)`. For the cryptography
+instructions, `pack` and `packh` concatenate the two halves, `brev8`, `zip` and `unzip`
+are the Sail loops over bytes and bits, `xperm4` and `xperm8` look up
+`(rs1 >> (idx @ 0b00))[3..0]` and `(rs1 >> (idx @ 0b000))[7..0]` (0 for an index past
+the end of `rs1`), the four `sha256` functions use a `ror32` written as two shifts, and
+the six `sha512` functions are the Sail shift expressions verbatim.
 
 **Properties.** The following hold in every reachable state (k-induction), for each of
-the 28 instructions `insn` (andn, orn, xnor, clz, ctz, cpop, max, maxu, min, minu,
+the 45 instructions `insn` (andn, orn, xnor, clz, ctz, cpop, max, maxu, min, minu,
 sext.b, sext.h, zext.h, rol, ror, rori, orc.b, rev8, bclr, bclri, bext, bexti, binv,
-binvi, bset, bseti, czero.eqz, czero.nez):
+binvi, bset, bseti, czero.eqz, czero.nez; pack, packh, brev8, zip, unzip, xperm4,
+xperm8, sha256sig0, sha256sig1, sha256sum0, sha256sum1, sha512sig0h, sha512sig0l,
+sha512sig1h, sha512sig1l, sha512sum0r, sha512sum1r):
 
 | Group | Property |
 |---|---|
@@ -117,7 +128,7 @@ binvi, bset, bseti, czero.eqz, czero.nez):
 | **X2** | Result. If a VALID `insn` leaves Execute (Memory `READY`, Execute not answering `STALL`, no reset), then in the next cycle `rd_data_reg_out == spec_ext` of its operands and `status_forwards_out == VALID`. |
 | **X3** | No stall, no jump. Out of reset, with Memory `READY`, an instruction with the `op::EXT` opcode and **any** immediate field makes Execute answer `READY`, neither `STALL` nor `JUMP`. |
 
-X1 and X2 are checked in one proof per instruction (28 proofs), X3 in one. Like A1, they
+X1 and X2 are checked in one proof per instruction (45 proofs), X3 in one. Like A1, they
 look only at the module's ports and the opcode field; nothing is gated by an internal
 signal of the RTL. X2 and X3 together give: every VALID EXT instruction that Memory
 accepts leaves Execute in that cycle and hands Memory the specified result.
@@ -258,20 +269,28 @@ the induction step rejects it, as `UNKNOWN`. The checks around them (all run by 
 in every mode):
 
 - **Specification vs an independent model.** `spec_check/run_ext.sh` simulates
-  `f_spec_ext` with Verilator and compares it with a Python model of the 28
+  `f_spec_ext` with Verilator and compares it with a Python model of the 45
   instructions (`spec_check/check_ext_spec.py`), written differently again: string
-  slicing for the rotates, `bit_length` for the counts, byte conversions for `rev8`. It
-  runs 26 × 26 corner pairs and every shift amount and bit index for each instruction
-  (42,224 vectors), plus 1,000,000 random vectors, and must give 0 mismatches.
+  slicing for the rotates, `bit_length` for the counts, byte conversions for `rev8`,
+  `brev8` and `xperm8`, nibble lists for `xperm4`, bit strings for `zip` and `unzip`,
+  the SHA-256 functions of FIPS 180-4, and the SHA-512 halves taken from the 64-bit
+  SHA-512 functions of FIPS 180-4 through the identities in the specification's notes
+  (for example σ0(x) = {sha512sig0h(hi, lo), sha512sig0l(lo, hi)}), not from the
+  instructions' shift expressions. The model must also reproduce 21 known answers and
+  the identities `brev8(brev8(x)) = x` and `unzip(zip(x)) = x`. The check runs 37 × 37
+  corner pairs and every shift amount and bit index for each instruction, every index
+  value in every element of `xperm4` and `xperm8` (157,509 vectors in all), plus
+  1,000,000 random vectors, and must give 0 mismatches.
 - **Payload map.** `scripts/ext_codes.py` checks that `op::EXT` is entry 61 of `op::t`,
-  that `op::ext_payload_t` has the layout the harness assumes, that each of the 28
+  that `op::ext_payload_t` has the layout the harness assumes, that each of the 45
   entries of the harness's map has the `sel` of the `op::ext_t` constant it names and
   `use_imm` set exactly for rori, bclri, bexti, binvi and bseti, that every constant is
   used, and that the harness and `ext_spec.vh` number the instructions alike.
-- **Non-vacuity.** `cover_bw` must reach, for each of the 28 instructions, a cycle after
+- **Non-vacuity.** `cover_bw` must reach, for each of the 45 instructions, a cycle after
   a reset in which it leaves Execute VALID with non-zero operands (depth 4).
-- **Negative controls.** Each of the 17 mutants in `mutants/ext_mutants.txt` is one
-  textual change of the sv2v model, as for the M unit. Thirteen break a result or the
+- **Negative controls.** Each of the 37 mutants in `mutants/ext_mutants.txt` is one
+  textual change of the sv2v model, as for the M unit. The first 17 concern the Zbb, Zbs
+  and Zicond half (Part 2c, `alu_sel` 1110). Thirteen of them break a result or the
   stall: andn computing and, clz/ctz of 0 giving 31, ctz counting leading zeros, a wrong
   cpop adder, min/max with the signedness swapped, sext.h zero-extending, rol rotating
   right, orc.b using AND in one byte, rev8 leaving the middle bytes in place, bext
@@ -280,10 +299,22 @@ in every mode):
   leave the computed result intact and break only how it leaves Execute: the result
   registered for Memory with one bit inverted, an EXT instruction handed to Memory as
   `BUBBLE` (both X2 only), the forwarded result marked not valid, and the forwarding
-  address taken from the `rs1` field (both X1). In every mode, each mutant is run
-  against the property of an instruction it breaks (X3 for the stall), which must `FAIL`
-  with a counterexample.
-- **Mutation campaign** (full mode). Each of the 17 mutants is also run against all 29
+  address taken from the `rs1` field (both X1). The other 20 concern the cryptography
+  half (Part 2d, `alu_sel` 1111), at least one per instruction: `pack` with its halves
+  swapped, `packh` taking `rs2[15:8]`, `brev8` reversing the bytes, `zip` computing
+  `unzip`, `unzip` with its halves swapped, `xperm4` wrapping an index of 8 or more
+  instead of giving 0, `xperm8`'s range test ignoring index bit 7, `sha256sig0` rotating
+  by 3 instead of shifting, `sha256sig1` shifting by 11, `sha256sum0` rotating left,
+  `sha256sum1` rotating by 24, the `rs2 << 25` term moved from `sha512sig0l` to
+  `sha512sig0h`, `sha512sig0l` without that term, `sha512sig1h` with the `rs2 << 26`
+  term of `sha512sig1l`, both `sha512sig1` halves shifting `rs1` by 18, `sha512sum0r`
+  reading `rs1` for `rs2` in one term, `sha512sum1r` shifting by 13 for 14, the
+  cryptography half never selected (`alu_sel` 1110 for every EXT instruction), a
+  cryptography instruction stalling Execute when `rs1[31:24]` is `0xA5` (X3), and the
+  cryptography result registered for Memory with bit 31 inverted (X2 only). In every
+  mode, each mutant is run against the property of an instruction it breaks (X3 for the
+  stalls), which must `FAIL` with a counterexample.
+- **Mutation campaign** (full mode). Each of the 37 mutants is also run against all 46
   required property tasks. Every mutant must be rejected; the summary names the tasks
   that fail, which shows how precisely the properties locate each fault.
 - **sv2v fidelity** includes the bench `test_ext_execute` (see above).
@@ -293,21 +324,29 @@ in every mode):
 ## 4. Results and runtimes
 
 **Run of record: 2026-10-02**, on `rtl/execute_stage.sv` with SHA-256
-`c36613c8…3ae969`, the file of commit c1a7c85, which contains the EXT unit
-([record](../results/formal/2026-10-02_c1a7c85/RECORD.md)). The machine has 22 hardware
-threads; parallelism was `--par 4`. Wall times are per task.
+`52201629…2bfa5d`, the file with both halves of the EXT unit
+([record](../results/formal/2026-10-02_bd800d8/RECORD.md)). The machine has 22 hardware threads; parallelism was `--par 4`. Wall
+times are per task.
 
 | Run | Flow | Verdict | Wall |
 |---|---|---|---|
-| `make formal-full` | this directory (M and EXT) | `FORMAL RESULT: PASS (mode=full)`: 106 required checks, all PASS; 21 negative controls, all FAIL as required; 48 second-solver runs; 1,101 mutant runs (608 of the M unit, 493 of the EXT unit) | 26 min 18 s |
-| `make formal` | this directory (M and EXT) | `FORMAL RESULT: PASS (mode=default)`: 104 required checks, 21 negative controls | 1 min 40 s |
-| `make formal-ext` | this directory (EXT only) | `FORMAL RESULT: PASS (mode=ext)`: 34 required checks, 17 negative controls | 27 s |
-| `make formal-full` | the M-unit flow of c1a7c85, unchanged | `FORMAL RESULT: PASS (mode=full)`: 74 required checks, 4 negative controls, 20 second-solver runs, 608 mutant runs | 24 min 08 s |
-| `make formal` | the M-unit flow of c1a7c85, unchanged | `FORMAL RESULT: PASS (mode=default)`: 72 required checks, 4 negative controls | 1 min 10 s |
+| `make formal-full` | this directory (M and EXT) | `FORMAL RESULT: PASS (mode=full)`: 123 required checks, all PASS; 41 negative controls, all FAIL as required; 65 second-solver runs; 2,310 mutant runs (608 of the M unit, 1,702 of the EXT unit) | 45 min 07 s |
+| `make formal` | this directory (M and EXT) | `FORMAL RESULT: PASS (mode=default)`: 121 required checks, 41 negative controls | 2 min 22 s |
+| `make formal-ext` | this directory (EXT only) | `FORMAL RESULT: PASS (mode=ext)`: 51 required checks, 37 negative controls | 57 s |
 
-The last two runs repeat the M proof as it stood, on the new file: every check gave the
-verdict that the tables below record for the earlier run, including the same four
-second-solver time-outs, and every mutant the verdict of the mutation table.
+The M unit's checks gave the verdicts that the tables below record for the earlier runs,
+including the same four second-solver time-outs, and every M mutant the verdict of the
+mutation table. The full run is longer than the one of c1a7c85 (26 min 18 s) because of
+the EXT mutation campaign (1,702 runs instead of 493) and the monolithic H6 by bitwuzla
+(`hint_validity_h6_bwn` 1,699 s, `h6_bw` 826 s), which ran alongside.
+
+**Run of record of the first EXT unit: 2026-10-02**, on the file of commit c1a7c85
+(`c36613c8…3ae969`), with the 28 Zbb, Zbs and Zicond instructions
+([record](../results/formal/2026-10-02_c1a7c85/RECORD.md)): `make formal-full` 106
+required checks, 21 negative controls, 48 second-solver runs, 1,101 mutant runs, 26 min
+18 s; `make formal` 104 required checks, 1 min 40 s; `make formal-ext` 34 required
+checks, 27 s. The same record holds the M flow of c1a7c85 re-run unchanged on that file
+(74 and 72 required checks, the verdicts of 2026-09-28).
 
 **Earlier run of record: 2026-09-28**, `make formal-full` at commit 588d76a
 ([record](../results/formal/2026-09-28_588d76a/RECORD.md)), on `rtl/execute_stage.sv`
@@ -378,16 +417,19 @@ without the second solver and the mutation campaign):
 
 | Check | Engine | Result | Wall |
 |---|---|---|---|
-| `f_spec_ext` vs Python model (Verilator) | - | 1,042,224 vectors (42,224 corner and shift, 1,000,000 random), 0 mismatches | 3.3 s |
-| Payload map vs `defines/op.sv` | - | 28 entries, 23 `op::ext_t` constants, `op::EXT` = 61: PASS | < 0.1 s |
-| X1 + X2 × 28 instructions, depth 3 | yn | 28/28 PASS | 1.3-3.9 s each; rol, ror, rori 12.4-13.7 s |
-| same, second solver | bwn | 28/28 PASS (reported only) | 1.4-3.6 s each |
-| X3 (no stall, no jump, any payload) | yn | PASS | 1.1 s |
-| Covers, each instruction leaves Execute VALID after a reset, depth 4 | bw | 28/28 reached | 1.7 s |
-| Negative controls, 17 mutants × a property each breaks | yn | 17/17 FAIL (counterexample), as required | 1.1-1.6 s each |
-| sv2v fidelity: `test_ext_execute` | - | Identical output (14 lines) for SystemVerilog and sv2v; `All 927129 EXT-unit checks passed` | (within the fidelity check) |
+| `f_spec_ext` vs Python model (Verilator) | - | 1,157,509 vectors (157,509 corner, shift and index, 1,000,000 random), 0 mismatches | 5.2 s |
+| Payload map vs `defines/op.sv` | - | 45 entries, 40 `op::ext_t` constants, `op::EXT` = 61: PASS | < 0.1 s |
+| X1 + X2 × 45 instructions, depth 3 | yn | 45/45 PASS | 1.5-3.2 s each for the 17 cryptography instructions; 1.6-5.8 s for the others, rol, ror, rori 16.2-21.8 s |
+| same, second solver | bwn | 45/45 PASS (reported only) | 2.0-5.4 s each |
+| X3 (no stall, no jump, any payload) | yn | PASS | 1.4 s |
+| Covers, each instruction leaves Execute VALID after a reset, depth 4 | bw | 45/45 reached | 2.6 s |
+| Negative controls, 37 mutants × a property each breaks | yn | 37/37 FAIL (counterexample), as required | 1.4-2.4 s each |
+| sv2v fidelity: `test_ext_execute` | - | Identical output (14 lines) for SystemVerilog and sv2v; `All 1507647 EXT-unit checks passed` | (within the fidelity check) |
 
-**EXT mutation campaign** (full mode; 17 mutants × 29 proofs; 300 s per task). Every
+The full run ran these tasks alongside the monolithic H6 proof, so its times are longer
+than those of `make formal-ext` (1.1-2.2 s for the cryptography instructions).
+
+**EXT mutation campaign** (full mode; 37 mutants × 46 proofs; 300 s per task). Every
 mutant is rejected by a concrete counterexample, and only by the proofs of the
 instructions whose result, or whose hand-off of the result, it changes:
 
@@ -406,10 +448,30 @@ instructions whose result, or whose hand-off of the result, it changes:
 | bseti_rs2 | the single-bit immediate forms read rs2 instead of shamt | bclri, binvi, bseti |
 | czero_rs1 | czero tests rs1 instead of rs2 | czero.eqz, czero.nez |
 | stall_dead | an EXT instruction stalls Execute for one operand value | X3 |
-| reg_flip | the result registered for Memory has bit 8 inverted (X2 only) | the 28 result proofs |
-| reg_bubble | an EXT instruction is handed to Memory as `BUBBLE` (X2 only) | the 28 result proofs |
-| fwd_invalid | the forwarded result is marked not valid (X1) | the 28 result proofs |
-| fwd_addr_rs1 | the forwarding address is taken from the `rs1` field (X1) | the 28 result proofs |
+| reg_flip | the result registered for Memory has bit 8 inverted (X2 only) | the 28 result proofs of Part 2c |
+| reg_bubble | an EXT instruction is handed to Memory as `BUBBLE` (X2 only) | the 28 result proofs of Part 2c |
+| fwd_invalid | the forwarded result is marked not valid (X1) | the 28 result proofs of Part 2c |
+| fwd_addr_rs1 | the forwarding address is taken from the `rs1` field (X1) | the 28 result proofs of Part 2c |
+| pack_swap | pack puts rs1 in the high half | pack |
+| packh_byte1 | packh takes rs2[15:8] | packh |
+| brev8_bytes | brev8 reverses the byte order | brev8 |
+| zip_unzip | zip computes unzip | zip |
+| unzip_halves | unzip swaps the halves of its result | unzip |
+| xperm4_wrap | xperm4 ignores index bit 3 (an index of 8 or more wraps) | xperm4 |
+| xperm8_bound | xperm8's range test ignores index bit 7 | xperm8 |
+| sig0_ror3 | sha256sig0 rotates by 3 instead of shifting | sha256sig0 |
+| sig1_srl11 | sha256sig1 shifts by 11 instead of 10 | sha256sig1 |
+| sum0_rol2 | sha256sum0 rotates left by 2 | sha256sum0 |
+| sum1_ror24 | sha256sum1 rotates by 24 instead of 25 | sha256sum1 |
+| sig0h_gate | the `rs2 << 25` term goes to sha512sig0h instead of sha512sig0l | sha512sig0h, sha512sig0l |
+| sig0l_no25 | sha512sig0l without the `rs2 << 25` term | sha512sig0l |
+| sig1h_with26 | sha512sig1h with the `rs2 << 26` term | sha512sig1h |
+| sig1_srl18 | sha512sig1h/l shift rs1 by 18 instead of 19 | sha512sig1h, sha512sig1l |
+| sum0r_swap | sha512sum0r reads rs1 for rs2 in one term | sha512sum0r |
+| sum1r_13 | sha512sum1r shifts rs2 by 13 instead of 14 | sha512sum1r |
+| crypto_never | the cryptography half is never selected | the 17 result proofs of Part 2d |
+| stall_crypto | a cryptography instruction stalls Execute when `rs1[31:24]` is `0xA5` | X3 |
+| reg_flip_k | the cryptography result registered for Memory has bit 31 inverted (X2 only) | the 17 result proofs of Part 2d |
 
 `FORMAL RESULT` also requires every EXT mutant to be rejected.
 
@@ -470,12 +532,21 @@ instructions whose result, or whose hand-off of the result, it changes:
    - **The decoder.** X1 and X2 start from the payload the decoder builds; that the
      decoder turns each 32-bit instruction word into `op::EXT` and that payload, and
      rejects every other word, is not proven. It is checked by simulation: the decoder
-     sweep (`test_zba_encoding_sweep`, 486,896 checks) and `make ext-check`, which runs
+     sweep (`test_zba_encoding_sweep`, 486,896 checks, the exact payload of every word of
+     the 45 forms that it meets) and `make ext-check`, which runs
      `instruction_decoder` and `execute_stage` together against a C model
-     ([record](../results/bitmanip/2026-10-02_e75223e/RECORD.md)).
-   - **Payloads the decoder never builds** (an unused `sel` code, `use_imm` on a
-     register form, non-zero bits 31:11) are covered by X3 only: Execute still neither
-     stalls nor jumps, but their result is not specified.
+     ([record](../results/bitmanip/2026-10-02_e75223e/RECORD.md)). A one-off comparison of
+     the decoder with that of the previous commit on all 2^32 instruction words is recorded
+     in [crypto](../results/crypto/2026-10-02_bd800d8/RECORD.md#checks-made-once).
+   - **Payloads the decoder never builds** (an unused `sel` code, such as the reserved
+     codes `1_110_xx` and `1_111_xx` of the cryptography half, `use_imm` on a register
+     form, non-zero bits 31:12) are covered by X3 only: Execute still neither stalls nor
+     jumps, but their result is not specified.
+   - **Data-independent latency (Zkt).** X3 says that every EXT instruction, with any
+     payload and any operand values, leaves Execute in its own cycle when Memory is
+     `READY`; the stall control `stall_crypto` must fail it. That is the EXT unit's part
+     of the Zkt evidence; the pipeline around it (hazards, forwarding, Memory stalls) is
+     outside this proof.
    - **Downstream,** as for the M unit (item 1): what Memory, Writeback, the register
      file and Decode's forwarding consumers do with the result.
    - **The specification** is hand-written from the ratified text and validated against
@@ -644,7 +715,7 @@ no longer occurs exactly once.
 | `props/div_props.vh` | Environment E0-E2, ghost state, CTRL, DIVF, MULREG, FINAL (F1-F3), covers C1-C6 |
 | `props/hints.vh` | The lemma instances (written once, assumed by the proof, asserted by the validity check) |
 | `props/spec.vh` | RV32M spec: `f_spec_m` (used) and `f_spec_ref` (cross-check) |
-| `props/ext_spec.vh` | Zbb, Zbs and Zicond spec: `f_spec_ext` |
+| `props/ext_spec.vh` | Zbb, Zbs, Zicond, Zbkb, Zbkx and Zknh spec: `f_spec_ext` |
 | `sby/div.sby` | CTRL, DIVF, MULREG, FINAL(div) |
 | `sby/fmul_ops.sby` | FINAL(mul), per opcode and property |
 | `sby/iface.sby` | A1, A3a per opcode |
@@ -656,7 +727,7 @@ no longer occurs exactly once.
 | `spec_check/` | Verilator + Python cross-checks of the specs (`run.sh` for RV32M, `run_ext.sh` for the EXT unit) |
 | `mul/` | Hand-copy multiplier formulation and its negative control |
 | `mutants/mutants.txt` | The 19 mutants of the M unit |
-| `mutants/ext_mutants.txt` | The 17 mutants of the EXT unit, each with the property it must fail |
+| `mutants/ext_mutants.txt` | The 37 mutants of the EXT unit, each with the property it must fail |
 
 ---------------------------------------------------------------------------------------
 
@@ -667,6 +738,17 @@ The proof was developed against `rtl/execute_stage.sv` of commit `97ef211` (SHA-
 contains fix E: the architectural `next_pc`, independent of the branch prediction. Its
 sv2v model differs from the `97ef211` one in exactly one line, `assign next_pc = ...`,
 which is outside the M unit. `run.sh` re-proves everything on the file in the tree.
+
+**2026-10-02: Zbkb, Zbkx and Zknh.** The cryptography half of the EXT unit (Part 2d,
+reached through `alu_sel` 1111 when bit 11 of the payload is set) and the sixth bit of
+`sel` were added to `rtl/execute_stage.sv` (now `52201629…2bfa5d`) and `defines/op.sv`;
+Part 2c and the M unit did not change. The EXT proof was extended to the 17 new
+instructions: `f_spec_ext` from the scalar cryptography specification, the Python model
+(with the SHA-512 halves taken from the 64-bit FIPS 180-4 functions), the harness's map
+(6-bit `sel`, 45 rows), 17 new result proofs and second-solver runs, 45 covers and 20
+new mutants. X3 was not changed: it already covered every payload. The 28 existing
+result proofs and the 17 existing mutants kept their meaning, because every existing
+payload is unchanged (bit 11 is 0).
 
 **2026-10-02: Zbb, Zbs and Zicond.** Commit c1a7c85 added the EXT unit (Part 2c), an
 `EXT` arm in the ALU's operation decode and one arm of its result select to

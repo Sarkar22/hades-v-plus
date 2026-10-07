@@ -5,8 +5,9 @@ independent instruction-set model (iss.py) and, where it applies, against the go
 
   sweep.py list                                  families, probe counts, DUT-only marks
   sweep.py run  [--fam csr,exc|all] [--src ext,timer,both] [--targets dut,ref] [--no-mtvec]
-                ('all' is every listed family; --fam ext, Zbb/Zbs/Zicond on the DUT, only when named)
-  sweep.py fuzz --seeds 101-130 [--variant i|m|mt|bp|b] [--nseg 40]
+                ('all' is every listed family; --fam ext, Zbb/Zbs/Zicond on the DUT, and --fam crypto,
+                Zbkb/Zbkx/Zknh on the DUT, only when named)
+  sweep.py fuzz --seeds 101-130 [--variant i|m|mt|bp|b|k] [--nseg 40]
   sweep.py file prog.s [prog2.s ...]              hand-written programs (probes.py trace protocol)
 common options: --jobs N (6)  --out DIR (<build dir>/trapsweep/<mode>)  --tree ROOT (simulators from
 another checkout; default: this repository)  --timeout CYCLES
@@ -305,9 +306,10 @@ def main():
     ap.add_argument("--targets", default="dut,ref", help="dut and/or ref (golden CPU)")
     ap.add_argument("--no-mtvec", action="store_true", help="drop the probes that write mtvec")
     ap.add_argument("--seeds", default="101-110", help="fuzz: seed range a-b or list a,b,c")
-    ap.add_argument("--variant", default="i", choices=["i", "m", "mt", "bp", "b"],
+    ap.add_argument("--variant", default="i", choices=["i", "m", "mt", "bp", "b", "k"],
                     help="fuzz: i=RV32I (DUT+golden), m=+M/Zba (DUT), mt=+mtvec writes (DUT+golden), "
-                         "bp=+M/Zba, predictor on (DUT), b=+M/Zba/Zbb/Zbs/Zicond (DUT)")
+                         "bp=+M/Zba, predictor on (DUT), b=+M/Zba/Zbb/Zbs/Zicond (DUT), "
+                         "k=+M/Zba/Zbb/Zbs/Zicond/Zbkb/Zbkx/Zknh (DUT)")
     ap.add_argument("--nseg", type=int, default=40, help="fuzz: segments per program")
     ap.add_argument("--jobs", type=int, default=6)
     ap.add_argument("--out", default=None)
@@ -347,7 +349,7 @@ def main():
             seeds = range(int(a, 0), int(b, 0) + 1)
         else:
             seeds = [int(x, 0) for x in args.seeds.split(",")]
-        flags = {"i": "", "m": "--m", "mt": "--mtvec", "bp": "--m --bp", "b": "--b"}[args.variant]
+        flags = {"i": "", "m": "--m", "mt": "--mtvec", "bp": "--m --bp", "b": "--b", "k": "--k"}[args.variant]
         tg = [t for t in (["dut", "ref"] if args.variant in ("i", "mt") else ["dut"]) if t in want]
         for s in seeds:
             name = f"fz_{args.variant}_{s}"

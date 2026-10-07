@@ -6,7 +6,8 @@
 #   python3 appimg.py hex --name <name> --march <march> [--opt=<level>] <app.bin> <app.hex>
 #       Completes the raw image of an app (objcopy -O binary of its ELF, linked with app.ld and
 #       crt0.S): checks it, fills in the header's flags (from the -march: rv32i, rv32im,
-#       rv32i_zba, rv32im_zba, rv32im_zba_zbb_zbs), name and CRC-32, rewrites <app.bin> and writes <app.hex>, the
+#       rv32i_zba, rv32im_zba, rv32im_zba_zbb_zbs, rv32im_zba_zbb_zbkb_zbkx_zbs_zknh), name and
+#       CRC-32, rewrites <app.bin> and writes <app.hex>, the
 #       file that the shell's 'load' receives: a type 04 record, data records of 16 bytes (a
 #       type 04 record before every further 64 KiB), a type 05 record with the entry and the
 #       end-of-file record, in upper case with CR LF line ends. Prints one line: the name, the
@@ -45,7 +46,10 @@ NEEDS_M = 1 << 0
 NEEDS_ZBA = 1 << 1
 NEEDS_ZBB = 1 << 2
 NEEDS_ZBS = 1 << 3
-NEEDS_KNOWN = NEEDS_M | NEEDS_ZBA | NEEDS_ZBB | NEEDS_ZBS
+NEEDS_ZBKB = 1 << 4
+NEEDS_ZBKX = 1 << 5
+NEEDS_ZKNH = 1 << 6
+NEEDS_KNOWN = NEEDS_M | NEEDS_ZBA | NEEDS_ZBB | NEEDS_ZBS | NEEDS_ZBKB | NEEDS_ZBKX | NEEDS_ZKNH
 CRC_OFFSET = 28
 HEADER = struct.Struct('<IHHIIIIII16s16s')   # HadesAppHeader_t (hades_app.h)
 MAX_LINE = 75                   # characters of a record without its line end: 32 data bytes
@@ -53,7 +57,9 @@ RECORD_BYTES = 16               # data bytes per record that 'hex' writes
 CTRL_C = 0x03
 EOF_RECORD = ':00000001FF'
 MARCH_FLAGS = {'rv32i': 0, 'rv32im': NEEDS_M, 'rv32i_zba': NEEDS_ZBA, 'rv32im_zba': NEEDS_M | NEEDS_ZBA,
-               'rv32im_zba_zbb_zbs': NEEDS_M | NEEDS_ZBA | NEEDS_ZBB | NEEDS_ZBS}
+               'rv32im_zba_zbb_zbs': NEEDS_M | NEEDS_ZBA | NEEDS_ZBB | NEEDS_ZBS,
+               'rv32im_zba_zbb_zbkb_zbkx_zbs_zknh': NEEDS_M | NEEDS_ZBA | NEEDS_ZBB | NEEDS_ZBKB | NEEDS_ZBKX |
+               NEEDS_ZBS | NEEDS_ZKNH}
 NAME_CHARS = frozenset(b'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-')
 HEX_DIGITS = frozenset(b'0123456789ABCDEFabcdef')
 BAD_NAME = "bad name (1 to 15 letters, digits, '_' or '-', then NULs)"
@@ -69,8 +75,11 @@ def crc32(image):
 
 
 def isa_name(flags):
+    """The -march of the flags, the extensions in canonical order"""
     return 'rv32i' + ('m' if flags & NEEDS_M else '') + ''.join(
-        '_' + name for bit, name in ((NEEDS_ZBA, 'zba'), (NEEDS_ZBB, 'zbb'), (NEEDS_ZBS, 'zbs')) if flags & bit)
+        '_' + name for bit, name in ((NEEDS_ZBA, 'zba'), (NEEDS_ZBB, 'zbb'), (NEEDS_ZBKB, 'zbkb'),
+                                     (NEEDS_ZBKX, 'zbkx'), (NEEDS_ZBS, 'zbs'), (NEEDS_ZKNH, 'zknh'))
+        if flags & bit)
 
 
 class Header:
@@ -285,7 +294,8 @@ def fail(message):
 
 def cmd_hex(a):
     if a.march not in MARCH_FLAGS:
-        return fail(f"unknown -march '{a.march}' (rv32i, rv32im, rv32i_zba, rv32im_zba or rv32im_zba_zbb_zbs)")
+        return fail(f"unknown -march '{a.march}' (rv32i, rv32im, rv32i_zba, rv32im_zba, rv32im_zba_zbb_zbs "
+                    "or rv32im_zba_zbb_zbkb_zbkx_zbs_zknh)")
     name = a.name.encode('latin-1', 'replace')
     if not 1 <= len(name) <= NAME_SIZE - 1 or not all(c in NAME_CHARS for c in name):
         return fail(f"bad name '{a.name}' (1 to 15 letters, digits, '_' or '-')")

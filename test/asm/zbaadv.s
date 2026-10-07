@@ -403,7 +403,7 @@ test_illegal_neighbour_funct7:
     expect_trap 0x30C5A533, 2       # funct7 0011000
     expect_trap 0x22C5A533, 2       # funct7 0010001
     expect_trap 0x60C5A533, 2       # funct7 0110000 (Zbs bset)
-    expect_trap 0x28C5A533, 2       # funct7 0010100
+    expect_trap 0x28C5B533, 2       # funct7 0010100, funct3 011
     expect_trap 0x20059513, 2       # slli-shaped OP-IMM with funct7 0010000
 
 # 4g. FENCE/SYSTEM opcodes untouched

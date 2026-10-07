@@ -7,7 +7,7 @@
 # HaDes-V+ — An Extended RISC-V Soft Core
 
 [![RISC-V Community Challenge](https://img.shields.io/badge/RISC--V%20Community%20Challenge-Gold%20%C2%B7%20Silver%20%C2%B7%20Bronze-d4af37)](https://www.credly.com/badges/a78e3644-1597-450d-8020-f03662391719/public_url)
-[![ISA](https://img.shields.io/badge/ISA-rv32imb__zicntr__zicond__zicsr__zifencei-1f6feb)](docs/ARCHITECTURE.md#instruction-set)
+[![ISA](https://img.shields.io/badge/ISA-rv32imb__zicntr__zicond__zicsr__zifencei__zihintntl__zihintpause__zbkb__zbkx__zknh__zkt-1f6feb)](docs/ARCHITECTURE.md#instruction-set)
 [![FreeRTOS](https://img.shields.io/badge/FreeRTOS-V11.1.0%2B%20%C2%B7%20interactive%20shell-0f766e)](docs/FREERTOS.md)
 [![Target](https://img.shields.io/badge/target-Basys3%20%C2%B7%20Artix--7%20xc7a35t-0e7490)](docs/ARCHITECTURE.md#clocks--reset)
 [![Simulation](https://img.shields.io/badge/simulation-Verilator-2ea44f)](docs/BUILDING.md#building-running-and-debugging)
@@ -15,7 +15,7 @@
 
 **A 32-bit RISC-V soft core in SystemVerilog that runs unmodified FreeRTOS with an interactive shell, and loads and runs programs built on the PC.**
 
-HaDes-V+ extends the [HaDes-V][lvref] teaching core of Graz University of Technology, a classic in-order, five-stage pipeline, to **`rv32imb_zicntr_zicond_zicsr_zifencei`** (B = Zba + Zbb + Zbs) in machine mode with a branch predictor. It targets the Digilent [Basys3][basys] (Xilinx Artix-7 `xc7a35tcpg236-1`) at 50 MHz: it boots bare-metal C, takes interrupts, drives the board's LEDs, seven-segment display and VGA output, reads its switches and buttons, communicates over a UART, and loads programs through a UART bootloader. The sessions below run on a cycle-accurate Verilator model of the complete microcontroller, and every result quoted on this page has a record under [results/](results/README.md).
+HaDes-V+ extends the [HaDes-V][lvref] teaching core of Graz University of Technology, a classic in-order, five-stage pipeline, to **`rv32imb_zicntr_zicond_zicsr_zifencei_zihintntl_zihintpause_zbkb_zbkx_zknh_zkt`** (B = Zba + Zbb + Zbs) in machine mode with a branch predictor. It targets the Digilent [Basys3][basys] (Xilinx Artix-7 `xc7a35tcpg236-1`) at 50 MHz: it boots bare-metal C, takes interrupts, drives the board's LEDs, seven-segment display and VGA output, reads its switches and buttons, communicates over a UART, and loads programs through a UART bootloader. The sessions below run on a cycle-accurate Verilator model of the complete microcontroller, and every result quoted on this page has a record under [results/](results/README.md).
 
 <p align="center"><b><a href="#quick-start">Quick Start</a> · <a href="docs/README.md">Documentation</a> · <a href="docs/VERIFICATION.md">Verification</a> · <a href="results/README.md">Recorded Results</a></b></p>
 
@@ -30,7 +30,7 @@ The unmodified official RISC-V port of FreeRTOS V11.1.0+ runs on the core in mac
 
 ### Programs Built on the PC, Loaded and Run
 
-A program compiled on the PC with the project's GCC and a small SDK is sent to the running shell over the UART and runs there as a FreeRTOS task: `load hello` transfers it, `run Ada` starts it with its arguments. An app that raises an exception or overflows its stack is stopped and reported while the shell carries on, and Ctrl-C stops one that hangs. The example app `bitmanip`, built for `rv32im_zba_zbb_zbs`, puts every Zbb, Zbs and Zicond instruction to work and passes the same self-checks as its RV32I build. Guide: [building, loading and running apps](docs/APPS.md); specification: [SPEC.md](test/freertos/loader/SPEC.md).
+A program compiled on the PC with the project's GCC and a small SDK is sent to the running shell over the UART and runs there as a FreeRTOS task: `load hello` transfers it, `run Ada` starts it with its arguments. An app that raises an exception or overflows its stack is stopped and reported while the shell carries on, and Ctrl-C stops one that hangs. The example app `bitmanip`, built for `rv32im_zba_zbb_zbs`, puts every Zbb, Zbs and Zicond instruction to work and passes the same self-checks as its RV32I build; the app `sha256` hashes text with the Zknh instructions. Guide: [building, loading and running apps](docs/APPS.md); specification: [SPEC.md](test/freertos/loader/SPEC.md).
 
 <p align="center"><img src="docs/img/shell-loader.svg" width="820" alt="Terminal session of make freertos-shell APP=loader: load hello receives the app hello from the PC; run Ada prints Hello, Ada! and its arguments, and the app exits with code 1; load crash receives the app crash; run executes an illegal instruction, and the shell reports that the app was stopped by an exception, with the cause and the faulting address; the tasks command then lists the console, blink and IDLE tasks"></p>
 <p align="center"><sub><code>make freertos-shell APP=loader</code>: the example app <code>hello</code> is loaded and run with an argument; <code>crash</code> executes an illegal instruction, and the shell reports it and carries on.</sub></p>
@@ -44,9 +44,12 @@ The upstream core implements **RV32I + Zicsr** (its `FENCE.I` was present but un
 | **M** | Multiply and divide: all eight instructions, with a 2-cycle multiply and a 34-cycle divider ([record](results/m-unit-cycles/2026-10-01_03386fd/RECORD.md)) |
 | **Zba** | Address generation: `sh1add`, `sh2add`, `sh3add`, which GCC emits for array indexing; 20.3&nbsp;% fewer cycles in a best-case loop at `-O2` ([record](results/zba/2026-10-01_03386fd/RECORD.md)) |
 | **Zbb**, **Zbs** | Bit manipulation: leading and trailing zeros, population count, `min`/`max`, sign and zero extension, `andn`/`orn`/`xnor`, rotates, byte operations, and single-bit set, clear, invert and extract, all single-cycle; GCC emits most of them from plain C; 59.8&nbsp;% fewer cycles in a best-case loop at `-O2` ([record](results/zbb/2026-10-02_e75223e/RECORD.md)). With Zba, Zbb and Zbs, HaDes-V+ implements the ratified **B** extension (B = Zba + Zbb + Zbs) |
+| **Zbkb**, **Zbkx** | Bit manipulation for cryptography: `pack`, `packh`, `brev8`, `zip` and `unzip` (the other seven Zbkb instructions are Zbb's) and the crossbar permutations `xperm4` and `xperm8`, all single-cycle |
+| **Zknh** | SHA-2 hash functions: the four SHA-256 σ and Σ functions and the six RV32 instructions for the halves of the SHA-512 ones, single-cycle; SHA-256 takes 49.8 instead of 63.4 cycles per byte with Zbb alone and 84.2 in RV32I at `-O2` ([record](results/sha256/2026-10-02_bd800d8/RECORD.md)) |
 | **Zicond** | Conditional zero: `czero.eqz`, `czero.nez`, a select without a branch, usable from C through [`zicond.h`](std/include/zicond.h) |
 | **Zicntr** | User counters: `cycle`, `time`, `instret` and their high halves, with `time` shadowing the memory-mapped `mtime` |
 | **Zifencei** | Fetch synchronisation: `FENCE.I`, now tested, and the 3-slot staleness window that it closes measured ([record](results/fencei-window/2026-10-01_03386fd/RECORD.md)) |
+| **Zihintpause**, **Zihintntl**, **Zmmul**, **Zkt** | Claimed without new hardware, each with its evidence: `pause` and the non-temporal-locality hints execute as one-cycle no-ops, M includes Zmmul, and every instruction of the Zkt list that HaDes-V+ implements takes the same time whatever its operands hold |
 | **Branch predictor** | Never-taken, always-taken, backward-taken or bimodal 2-bit counters, selected at run time, with four outcome counters as CSRs |
 
 <p align="center"><img src="docs/img/shell-hardware.svg" width="820" alt="The make freertos-shell session continued: div -2147483648 -1 shows the results of div, rem, divu and remu for the overflow case, which does not trap; bpred 3 switches the branch predictor to its bimodal algorithm and shows its counters; counters shows mcycle, minstret, the instructions per cycle and the Zicntr counters; bpred shows the prediction accuracy; halt ends the simulation with FRTOS-RESULT: PASS"></p>
@@ -56,11 +59,11 @@ The upstream core implements **RV32I + Zicsr** (its `FENCE.I` was present but un
 
 Its behaviour is compared with the upstream project's reference implementation — the *golden* CPU and pipeline stages, shipped as precompiled libraries in [`ref/`](ref) — and checked by an independent instruction-set model and, for the multiply/divide unit and the bit-manipulation unit, by formal proofs:
 
-- **Golden models:** the Decode stage, including forwarding and hazards, matches the golden Decode stage in 11,026 checks, and the instruction decoder matches the golden decoder in 486,896 checks of every opcode, `funct3` and `funct7` combination, every immediate and `rs2` field of the arithmetic opcodes and 150,000 random words, apart from the new M, Zba, Zbb, Zbs and Zicond encodings, which must decode to exactly their own operations ([record](results/tests/2026-10-01_03386fd/RECORD.md)).
-- **Bit manipulation against models of the ISA text:** the golden models cannot check Zbb, Zbs and Zicond, so the decoder and Execute stage are compared with a C model written from the ratified text: every one of the 28 instruction forms on corner and random operands, and the eight one-operand instructions on all 2^32 inputs, 34,376,492,288 results in all, identical; 1,000 random programs replayed by the instruction-set model agree ([record](results/bitmanip/2026-10-02_e75223e/RECORD.md)).
+- **Golden models:** the Decode stage, including forwarding and hazards, matches the golden Decode stage in 11,026 checks, and the instruction decoder matches the golden decoder in 486,896 checks of every opcode, `funct3` and `funct7` combination, every immediate and `rs2` field of the arithmetic opcodes and 150,000 random words, apart from the new M, Zba, Zbb, Zbs, Zicond, Zbkb, Zbkx and Zknh encodings, which must decode to exactly their own operations ([record](results/tests/2026-10-01_03386fd/RECORD.md)).
+- **Bit manipulation and cryptography against models of the ISA text:** the golden models cannot check Zbb, Zbs, Zicond, Zbkb, Zbkx and Zknh, so the decoder and Execute stage are compared with a C model written from the ratified texts: every one of the 45 instruction forms on corner and random operands, and the 15 one-operand instructions on all 2^32 inputs, 64,452,030,208 results in all, identical; 2,000 random programs replayed by the instruction-set model agree ([record](results/bitmanip/2026-10-02_e75223e/RECORD.md), [record](results/crypto/2026-10-02_bd800d8/RECORD.md)).
 - **Independent ISA model:** interrupts swept over every cycle offset around 532 distinct trap-relevant instruction sequences, each run replayed by a Python model of the microcontroller: 61 of 61 programs consistent ([record](results/trapsweep/2026-10-01_03386fd/RECORD.md)).
 - **FreeRTOS differential campaign:** 794 of 794 runs passed on HaDes-V+, 102 of them with the branch predictor on, and all 523 twin runs on the golden CPU agreed ([record](results/freertos-campaign/2026-10-01_03386fd/RECORD.md)).
-- **Formal proofs:** by k-induction, on the current `rtl/execute_stage.sv`: the multiply/divide unit produces the RISC-V result for all 2^64 operand pairs in every reachable state, and, in Execute, each of the 28 Zbb, Zbs and Zicond instructions, as the decoder hands it over, gets the result of the ratified specifications for all operand values without making Execute stall or jump (`make formal`, 104 required checks and 21 negative controls; [record](results/formal/2026-10-02_c1a7c85/RECORD.md)).
+- **Formal proofs:** by k-induction, on the current `rtl/execute_stage.sv`: the multiply/divide unit produces the RISC-V result for all 2^64 operand pairs in every reachable state, and, in Execute, each of the 45 Zbb, Zbs, Zicond, Zbkb, Zbkx and Zknh instructions, as the decoder hands it over, gets the result of the ratified specifications for all operand values without making Execute stall or jump (`make formal`, 121 required checks and 41 negative controls; [record](results/formal/2026-10-02_bd800d8/RECORD.md)).
 - **Recorded results:** each of these results has a record with its command, inputs and output as printed, and `make check-results` re-runs the repeatable records and compares the output with the stored values.
 
 The work found and fixed nine defects of the upstream design, six of them trap and interrupt defects exposed by FreeRTOS and the interrupt sweep ([record](results/history/2026-09-27_6b19d41/RECORD.md)). The results at a glance, the methods and every suite: [VERIFICATION.md](docs/VERIFICATION.md).
@@ -92,7 +95,7 @@ Build output goes to `build/`; to put it elsewhere, for example when the reposit
 ## Status and Limitations
 
 - **Simulation first; not yet run on a board.** All results are from Verilator simulation and Vivado implementation. Programs that need more than the board's 32 KiB of RAM, such as the FreeRTOS standard demo set and the app loader (256 KiB each), run on a larger simulated RAM, which the board does not have.
-- **FPGA timing at 50 MHz is marginal, and not measured since Zbb, Zbs and Zicond.** The RTL met timing with a worst negative slack of **+0.016 ns** (Vivado 2024.2), measured at commit cbae9b9 ([record](results/fpga-timing/2026-09-30_cbae9b9/RECORD.md)); small RTL changes move the worst path and its slack ([details](docs/BUILDING.md#synthesis-and-fpga-timing)). The bit-manipulation unit added to Execute since then has not been implemented: whether the core still meets 50 MHz with it is unknown.
+- **FPGA timing at 50 MHz is marginal, and not measured since Zbb, Zbs, Zicond, Zbkb, Zbkx and Zknh.** The RTL met timing with a worst negative slack of **+0.016 ns** (Vivado 2024.2), measured at commit cbae9b9 ([record](results/fpga-timing/2026-09-30_cbae9b9/RECORD.md)); small RTL changes move the worst path and its slack ([details](docs/BUILDING.md#synthesis-and-fpga-timing)). The bit-manipulation and cryptography unit added to Execute since then has not been implemented: whether the core still meets 50 MHz with it is unknown.
 - **No memory protection.** The core runs in machine mode only, so an app has the same rights as the shell: exceptions, stack overflows that FreeRTOS detects, and Ctrl-C are contained, but an app that writes outside its memory or disables interrupts can stop the whole system ([details](docs/APPS.md#what-is-contained-and-what-is-not)).
 
 ## Origin
@@ -109,10 +112,10 @@ This repository is a derivative work. The HaDes-V core, its build system, the Wi
 
 The following are original contributions by **Emon Sarkar**, added after completing the upstream lab:
 
-- The **M**, **Zba**, **Zbb**, **Zbs**, **Zicond** and **Zicntr** extensions, and the substantiation of **Zifencei**
+- The **M**, **Zba**, **Zbb**, **Zbs**, **Zicond**, **Zbkb**, **Zbkx**, **Zknh** and **Zicntr** extensions, the substantiation of **Zifencei**, and the evidence for **Zihintpause**, **Zihintntl**, **Zmmul** and **Zkt**
 - The **bimodal branch predictor** and its performance-counter CSRs
 - Nine correctness fixes to the upstream design: decoder `rd` handling for S/B-type instructions, `FENCE` forwarding suppression in the Memory stage, six trap/interrupt defects found by running FreeRTOS and the trap sweep, and the UART's transmit-interrupt enable
-- The formal proofs of the multiply/divide unit and of the Zbb, Zbs and Zicond unit ([`formal/`](formal))
+- The formal proofs of the multiply/divide unit and of the Zbb, Zbs, Zicond, Zbkb, Zbkx and Zknh unit ([`formal/`](formal))
 - FreeRTOS support ([`test/freertos/`](test/freertos), [docs/FREERTOS.md](docs/FREERTOS.md)), including the interactive shell and its app loader, and the independent trap-sweep model ([`test/trapsweep/`](test/trapsweep))
 - The test suites in [`test/asm/`](test/asm) and [`test/sv/`](test/sv) beyond the upstream set, including the golden-comparison, encoding-sweep, and adversarial suites
 - Repairs to the synthesis flow ([`synth/synth.tcl`](synth/synth.tcl)) and the architectural documentation in this README and in [`docs/`](docs)
@@ -133,7 +136,7 @@ Contributions to this OER are welcome and encouraged! The LaTeX sources for the 
 
 ## Contact
 
-For questions about the **extensions in this repository** (M, Zba, Zbb, Zbs, Zicond, Zicntr, the branch predictor, or the verification work), please open an issue here.
+For questions about the **extensions in this repository** (M, Zba, Zbb, Zbs, Zicond, Zbkb, Zbkx, Zknh, Zicntr, the branch predictor, or the verification work), please open an issue here.
 
 For questions about the **upstream HaDes-V project**, its licensing, or the closed-source test-bench system, contact the original authors:
 - **Email**: [tobias.scheipel@tugraz.at](mailto:tobias.scheipel@tugraz.at)

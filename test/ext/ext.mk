@@ -1,12 +1,13 @@
 # ---------------------------------------------------------------------------------------------
-# ext.mk -- the check of the Zbb, Zbs and Zicond results (included by the top-level Makefile).
+# ext.mk -- the check of the Zbb, Zbs, Zicond, Zbkb, Zbkx and Zknh results (included by the
+# top-level Makefile).
 # Guide: test/ext/README.md.
 #
 #   make ext-check [JOBS=4]        the RTL (instruction_decoder -> execute_stage) against the
 #                                  C reference model test/ext/ref_exh.c on the quick vector set:
-#                                  75 digest lines, under a minute
-#   make ext-exhaustive [JOBS=4]   every part, the eight unary forms over all 2^32 inputs:
-#                                  2,091 digest lines, about 14 minutes with 4 jobs
+#                                  125 digest lines
+#   make ext-exhaustive [JOBS=4]   every part, the fifteen unary forms over all 2^32 inputs:
+#                                  3,905 digest lines
 #
 # test/ext/run.py builds the harness (Verilator) into $(BUILD_DIR)/test/ext/harness/ and the
 # model into $(BUILD_DIR)/test/ext/, runs both, compares their lines and ends with

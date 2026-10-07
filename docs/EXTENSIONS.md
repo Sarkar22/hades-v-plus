@@ -4,7 +4,7 @@
 
 Everything in this document is work added after the upstream lab; the baseline core implements RV32I with `Zicsr`, and its `FENCE.I` was present but untested (see [Zifencei](#zifencei--instruction-fetch-synchronisation)).
 
-With them the core implements `rv32imb_zicntr_zicond_zicsr_zifencei` (B = Zba + Zbb + Zbs), summarised under [Instruction Set](ARCHITECTURE.md#instruction-set). Each section below describes one extension: its design, how it is verified, and implementation notes. The output of every test in the tables below is recorded in [results/tests](../results/tests/2026-10-01_03386fd/RECORD.md); each measured figure links its own record.
+With them the core implements `rv32imb_zicntr_zicond_zicsr_zifencei_zihintntl_zihintpause_zbkb_zbkx_zknh_zkt` (B = Zba + Zbb + Zbs; M implies Zmmul), summarised under [Instruction Set](ARCHITECTURE.md#instruction-set). Each section below describes one extension: its design, how it is verified, and implementation notes. The output of every test in the tables below is recorded in [results/tests](../results/tests/2026-10-01_03386fd/RECORD.md); each measured figure links its own record.
 
 **Contents**
 
@@ -16,6 +16,8 @@ With them the core implements `rv32imb_zicntr_zicond_zicsr_zifencei` (B = Zba + 
 6. [Branch Predictor Extension](#branch-predictor-extension)
 7. [Zbb and Zbs — Bit Manipulation (B)](#zbb-and-zbs--bit-manipulation-b)
 8. [Zicond — Conditional Zero](#zicond--conditional-zero)
+9. [Zbkb, Zbkx and Zknh — Scalar Cryptography](#zbkb-zbkx-and-zknh--scalar-cryptography)
+10. [Hints, Zmmul and Zkt](#hints-zmmul-and-zkt)
 
 ## What HaDes-V+ Adds
 
@@ -27,6 +29,8 @@ With them the core implements `rv32imb_zicntr_zicond_zicsr_zifencei` (B = Zba + 
 | **Zifencei** — documented & tested | `FENCE.I` was implemented but never actually verified upstream; now tested ([fencei.s](../test/asm/fencei.s)), and the 3-slot staleness window that it closes is measured (`make bench-fencei-window`, [record](../results/fencei-window/2026-10-01_03386fd/RECORD.md)) | [§](#zifencei--instruction-fetch-synchronisation) |
 | **Zbb**, **Zbs** — bit manipulation | 26 instructions on RV32: counts (`clz`, `ctz`, `cpop`), `min`/`max`, sign and zero extension, `andn`/`orn`/`xnor`, rotates, `orc.b`, `rev8`, and single-bit set, clear, invert and extract. With Zba they make the ratified **B** extension. One new op for all of them, single-cycle; GCC emits most of them from plain C; `make bench-zbb` ([record](../results/zbb/2026-10-02_e75223e/RECORD.md)) | [§](#zbb-and-zbs--bit-manipulation-b) |
 | **Zicond** — conditional zero | `czero.eqz` and `czero.nez`, a branch-free select; usable from C through [std/include/zicond.h](../std/include/zicond.h) | [§](#zicond--conditional-zero) |
+| **Zbkb**, **Zbkx**, **Zknh** — scalar cryptography | The 17 RV32 instructions of these extensions that Zbb does not already provide: `pack`, `packh`, `brev8`, `zip`, `unzip`, the crossbar permutations `xperm4` and `xperm8`, and the SHA-256 and SHA-512 functions; single-cycle, in a second half of the same unit; SHA-256 at 49.8 cycles per byte instead of 63.4 with Zbb alone (`make bench-sha256`, [record](../results/sha256/2026-10-02_bd800d8/RECORD.md)) | [§](#zbkb-zbkx-and-zknh--scalar-cryptography) |
+| **Zihintpause**, **Zihintntl**, **Zmmul**, **Zkt** — claims | No new hardware: the hints execute as one-cycle no-ops, M includes Zmmul, and every implemented instruction of the Zkt list has a latency that does not depend on the data; each claim with its evidence | [§](#hints-zmmul-and-zkt) |
 | **Branch predictor** | Four run-time selectable algorithms — never-taken (the reset default), always-taken, backward-taken and bimodal 2-bit counters — with four outcome counters as CSRs; a correctly predicted branch causes no pipeline flush | [§](#branch-predictor-extension) |
 | **FreeRTOS** | The official RISC-V port boots unmodified; one-command build and run, a differential stress campaign against the golden CPU, a template for your own programs, and an interactive command shell (FreeRTOS+CLI) you type into from your terminal. In simulation, the shell can also receive programs compiled on the host over the UART and run them as a task (`make freertos-shell APP=loader UPLOAD=hello`, then `load` and `run`); an app that raises an exception is stopped and reported while the shell carries on, as far as machine mode without memory protection allows ([guide](APPS.md)) | [§](FREERTOS.md) |
 
@@ -431,7 +435,7 @@ On RV32 the immediate forms (`rori`, `bclri`, `bexti`, `binvi`, `bseti`) are leg
 
 ### Design: one op, the sub-operation in the immediate
 
-`op::t` had three free codes left (61 to 63), not 28, and its 6-bit width and the 65-bit `instruction::t` are shared with the frozen golden stage libraries, so neither could grow. All 28 Zbb, Zbs and Zicond instructions therefore share **one** new op, `op::EXT` = 61, appended after `REMU` as Zba and M were appended after `ILLEGAL` (62 of 64 codes in use). The decoder says which instruction it is through the `immediate` field of `instruction::t`, which R-type instructions never used: a 32-bit payload, `op::ext_payload_t` in [defines/op.sv](../defines/op.sv), with a 5-bit sub-operation `{group, variant}`, a `use_imm` bit and the 5-bit shift amount of the immediate forms. The payload is canonical (unused bits are 0), so the decoder sweep can require it exactly. The sub-operation reaches Execute in a field that already exists, without a new port.
+`op::t` had three free codes left (61 to 63), not 28, and its 6-bit width and the 65-bit `instruction::t` are shared with the frozen golden stage libraries, so neither could grow. All 28 Zbb, Zbs and Zicond instructions therefore share **one** new op, `op::EXT` = 61, appended after `REMU` as Zba and M were appended after `ILLEGAL` (62 of 64 codes in use); the 17 instructions of [Zbkb, Zbkx and Zknh](#zbkb-zbkx-and-zknh--scalar-cryptography) use it as well. The decoder says which instruction it is through the `immediate` field of `instruction::t`, which R-type instructions never used: a 32-bit payload, `op::ext_payload_t` in [defines/op.sv](../defines/op.sv), with a 6-bit sub-operation `{crypto, group, variant}` in bits 11:6 (`crypto` = 0 for the 28 instructions of this section, whose payloads are those of the original 5-bit layout), a `use_imm` bit (bit 5) and the 5-bit shift amount of the immediate forms (bits 4:0). The payload is canonical (unused bits are 0), so the decoder sweep can require it exactly. The sub-operation reaches Execute in a field that already exists, without a new port.
 
 In [rtl/execute_stage.sv](../rtl/execute_stage.sv) (Part 2c) the eight groups are computed in parallel from rs1, rs2 and the payload, and one 8-way select picks the group; the result enters the ALU's result mux through the free `alu_sel` code `1110`, so it is written, forwarded and committed like an `add`:
 
@@ -454,12 +458,12 @@ The frozen reference models decode every Zbb, Zbs and Zicond word as an illegal 
 
 | Test | What it covers |
 |---|---|
-| [test/sv/test_zba_encoding_sweep.sv](../test/sv/test_zba_encoding_sweep.sv) | The decoder sweep, extended: 486,896 words, among them every OP-IMM immediate × `funct3`, every OP `funct7` × rs2 field × `funct3`, and every OP-32 and OP-IMM-32 `funct7` × rs2 field × `funct3` (the RV64 word forms). Each of the 28 forms must decode to `op::EXT` with the exact payload, checked against the MATCH/MASK table of the ISA manual; every other word must decode as the golden decoder decodes it |
-| [test/sv/test_ext_execute.sv](../test/sv/test_ext_execute.sv) | 927,129 checks of the Execute stage alone: known answers, every form on a 144-value corner set, random operands, and the pipeline protocol (forwarded in its own cycle, no stall) |
-| `make formal` ([formal/](../formal/README.md#the-ext-unit-zbb-zbs-zicond)) | A proof by k-induction on the real Execute stage, for **all operand values** and every rotate amount and bit index: each of the 28 forms, given the decoder's payload, forwards in its own cycle and hands Memory in the next the result of the ratified specifications, and no EXT instruction stalls or jumps. 17 seeded faults, four of them confined to how the result leaves Execute, must each fail their property ([record](../results/formal/2026-10-02_c1a7c85/RECORD.md)) |
-| `make ext-check` | The decoder feeding Execute ([test/ext/harness.sv](../test/ext/harness.sv)) against `ref_exh.c`, compared through digests: 75 digest lines, 553,624,832 vectors, identical |
-| `make ext-exhaustive` | The same with the eight unary instructions (`clz`, `ctz`, `cpop`, `sext.b`, `sext.h`, `zext.h`, `orc.b`, `rev8`) over **all 2^32 inputs**: 2,091 digest lines, 34,376,492,288 vectors, identical (about 14 minutes with 4 jobs) |
-| [test/asm/zbb.s](../test/asm/zbb.s), [zbs.s](../test/asm/zbs.s) | 442 and 374 assertions on the whole core: the known answers of the ISA text and corner operands, every rotate amount and bit index (with the upper 27 bits of rs2 set, which must be ignored), `x0` and aliased registers, forwarding into rs1 and rs2 at distance 1 to 3 and out into an ALU operation, a branch, a load address, store data, a `jalr` base and a CSR write, the shadow of a taken branch, an interrupt at every position of a chain, `minstret`, a dependent chain as fast as a chain of `add`, and the illegal neighbours (RV32-reserved, Zbc, Zbkb, Zbkx and RV64 encodings), which must trap with `mcause = 2` |
+| [test/sv/test_zba_encoding_sweep.sv](../test/sv/test_zba_encoding_sweep.sv) | The decoder sweep, extended: 486,896 words, among them every OP-IMM immediate × `funct3`, every OP `funct7` × rs2 field × `funct3`, and every OP-32 and OP-IMM-32 `funct7` × rs2 field × `funct3` (the RV64 word forms). Each of the 45 EXT forms (these 28 and the 17 of [Zbkb, Zbkx and Zknh](#zbkb-zbkx-and-zknh--scalar-cryptography)) must decode to `op::EXT` with the exact payload, checked against the MATCH/MASK table of the ISA manual; every other word must decode as the golden decoder decodes it |
+| [test/sv/test_ext_execute.sv](../test/sv/test_ext_execute.sv) | 1,507,647 checks of the Execute stage alone, for all 45 forms: known answers, every form on a 144-value corner set, random operands, and the pipeline protocol (forwarded in its own cycle, no stall) |
+| `make formal` ([formal/](../formal/README.md#the-ext-unit-zbb-zbs-zicond-zbkb-zbkx-zknh)) | A proof by k-induction on the real Execute stage, for **all operand values** and every rotate amount and bit index: each of the 45 forms, given the decoder's payload, forwards in its own cycle and hands Memory in the next the result of the ratified specifications, and no EXT instruction stalls or jumps. 37 seeded faults, 17 of them in the Zbb, Zbs and Zicond half and five confined to how the result leaves Execute, must each fail their property ([record](../results/formal/2026-10-02_bd800d8/RECORD.md)) |
+| `make ext-check` | The decoder feeding Execute ([test/ext/harness.sv](../test/ext/harness.sv)) against `ref_exh.c`, compared through digests, for all 45 forms: 125 digest lines, 1,034,153,728 vectors, identical (the 75 lines of these 28 forms are those recorded before the cryptography instructions were added) |
+| `make ext-exhaustive` | The same with the 15 one-operand instructions (the eight here: `clz`, `ctz`, `cpop`, `sext.b`, `sext.h`, `zext.h`, `orc.b`, `rev8`; and `brev8`, `zip`, `unzip` and the four `sha256` functions) over **all 2^32 inputs**: 3,905 digest lines, 64,452,030,208 vectors, identical (under an hour with 4 jobs) |
+| [test/asm/zbb.s](../test/asm/zbb.s), [zbs.s](../test/asm/zbs.s) | 442 and 374 assertions on the whole core: the known answers of the ISA text and corner operands, every rotate amount and bit index (with the upper 27 bits of rs2 set, which must be ignored), `x0` and aliased registers, forwarding into rs1 and rs2 at distance 1 to 3 and out into an ALU operation, a branch, a load address, store data, a `jalr` base and a CSR write, the shadow of a taken branch, an interrupt at every position of a chain, `minstret`, a dependent chain as fast as a chain of `add`, and the illegal neighbours (RV32-reserved, Zbc, the unused neighbours of the Zbkb and Zbkx encodings, and RV64 encodings), which must trap with `mcause = 2` |
 | Random programs (`sweep.py fuzz --variant b`) | 1,000 random programs mixing the 28 forms with RV32IM, Zba, loads, stores and branches, each run replayed by the instruction-set model: 1,000 of 1,000 consistent |
 | Interrupt-offset sweep (`sweep.py run --fam ext`) | 31 probes (every form, dependent chains, a load result used at once, M neighbours, `ecall`, `mret`, results to `x0`, illegal neighbours, use in the interrupt handler) swept over every interrupt offset with the external and timer interrupts: 3 of 3 programs consistent with the model |
 | `make bench-zbb` | The same C programs built for `rv32i`, `rv32i_zbb_zbs` and `rv32im_zba_zbb_zbs` must print the same values; `zbb_diff` compares 52,436 results of all 28 forms with RV32I code, with no mismatch (below) |
@@ -487,7 +491,8 @@ A mutation campaign during development checked that these tests can fail: hand-w
 - **Assembled via a directive.** As with Zba, [test/asm/zbb.s](../test/asm/zbb.s) and [zbs.s](../test/asm/zbs.s) carry `.option arch, +zbb, +zbs`; the Makefile still gives no `-march`. The RV32-reserved words (`shamt[5] = 1`) cannot be written as mnemonics, so the tests write them with `.word`; binutils 2.39 disassembles them as if they were legal, so its output is no legality oracle for them.
 - **A GCC 12.2 crash with Zbs.** With Zbs enabled, GCC 12.2 stops with an internal compiler error ("unrecognizable insn") on a conditional set or clear of bit 11, for example `e ? m | 2048u : m & ~2048u`. Two existing sources contain such code: `std/src/helperfunctions.c` (`enableDisable_externalInterrupts`) and the FreeRTOS program `brk`. `make bench-zbb` therefore builds the std objects for `rv32i`, and the campaign builds `brk` for `rv32im_zba_zbb`. Newer GCC versions were not tried.
 - **Timing was not measured after this change.** The unit adds about 3 to 5 LUT levels before the ALU select on the full-cycle Execute → forwarding path and an estimated 500 to 700 LUTs (an estimate, not a measurement). The recorded worst path does not pass through Execute, but its margin is within routing noise, so the area may move it. The RTL has not been implemented since the change; see [Status and Limitations](../README.md#status-and-limitations).
-- **Data-independent timing.** Every instruction of these extensions takes one cycle whatever its operands hold (the Execute unit has no state and never stalls). [test/asm/zkt.s](../test/asm/zkt.s) times blocks of identical instructions with `mcycle` for a set of operand values and requires exactly one cycle per instruction for the RV32I ALU instructions, the Zbb instructions of the Zkt list and `czero.*`, and exactly two for `mul`/`mulh`/`mulhsu`/`mulhu` (199 assertions); [test/asm/hints.s](../test/asm/hints.s) checks that the hint encodings `pause` and `ntl.*` change nothing and retire as one instruction each (57 assertions). The ISA string does not claim Zkt, Zihintpause or Zihintntl.
+- **Timing was not measured after the cryptography instructions either.** They enter the ALU's result mux on a code of their own and add no logic level to the paths above; see [their notes](#implementation-notes-6).
+- **Data-independent timing.** Every instruction of these extensions takes one cycle whatever its operands hold (the Execute unit has no state and never stalls). This is part of the evidence for the Zkt claim, with [test/asm/zkt.s](../test/asm/zkt.s) and [test/asm/hints.s](../test/asm/hints.s): see [Hints, Zmmul and Zkt](#hints-zmmul-and-zkt).
 
 ## Zicond — Conditional Zero
 
@@ -519,3 +524,134 @@ x = zicond_select( ( uint32_t ) ( lX < -1000 ), ( uint32_t ) -1000, x );
 ### Verification
 
 The tests of [Zbb and Zbs](#verification-5) cover Zicond as well: the decoder sweep, `test_ext_execute`, the formal proof, `make ext-check` (including 4,096 zero conditions per form), the random programs and the interrupt sweep. [test/asm/zicond.s](../test/asm/zicond.s) (190 assertions) checks the polarity of both instructions with every single-bit condition (the value rs1 is never tested), the select idiom, `x0` as destination, value and condition, aliased registers, a zero condition forwarded, forwarding in and out as for Zbb, an interrupt at every position of a chain, and the illegal neighbours. `zbb_diff` and phase 8 of `zbb_arr` in `make bench-zbb` use `zicond.h`, and the `rv32i` build of `zbb_arr` (with `ZICOND_PORTABLE`) must print the same values.
+
+## Zbkb, Zbkx and Zknh — Scalar Cryptography
+
+Three extensions of the ratified *RISC-V Cryptography Extensions Volume I: Scalar & Entropy Source Instructions* (Version 1.0.1; the extensions are version 1.0), each implemented completely for RV32:
+
+- **Zbkb** (bit manipulation for cryptography) has twelve instructions on RV32. Seven of them, `rol`, `ror`, `rori`, `andn`, `orn`, `xnor` and `rev8`, are Zbb's, with the same encodings, so they needed nothing new; the other five are `pack`, `packh`, `brev8`, `zip` and `unzip`.
+- **Zbkx** (crossbar permutations) has two: `xperm4` and `xperm8`.
+- **Zknh** (SHA-2 hash functions) has ten on RV32: the four SHA-256 functions and six instructions that compute the high and low halves of the SHA-512 functions from the two halves of a 64-bit word (the RV64 forms of SHA-512 do not exist on RV32).
+
+Every one of the 17 new instructions is a single-cycle operation in Execute with the forwarding of an `add`, and none can raise an exception. Not implemented: Zbkc (`clmul`, `clmulh`), the AES instructions (Zkne, Zknd), SM3 and SM4 (Zksh, Zksed) and the entropy source (Zkr); so HaDes-V+ claims neither Zkn nor Zk, whose definitions include them. Their encodings stay illegal instructions.
+
+| Instruction | Ext | Opcode | funct7 | rs2 field | funct3 | Operation (x = rs1, y = rs2) |
+|---|---|---|---|---|---|---|
+| `pack` | Zbkb | OP | `0000100` | rs2 | `100` | `{y[15:0], x[15:0]}`; with rs2 = `x0` it is the word of `zext.h` |
+| `packh` | Zbkb | OP | `0000100` | rs2 | `111` | `{16'b0, y[7:0], x[7:0]}` |
+| `brev8` | Zbkb | OP-IMM | `0110100` | `00111` | `101` | the bit order reversed inside each byte |
+| `zip` | Zbkb | OP-IMM | `0000100` | `01111` | `001` | bit i of the low half to bit 2i, bit i of the high half to bit 2i+1 |
+| `unzip` | Zbkb | OP-IMM | `0000100` | `01111` | `101` | the inverse of `zip` |
+| `xperm4` | Zbkx | OP | `0010100` | rs2 | `010` | each nibble of y is an index into the eight nibbles of x; 0 for an index of 8 or more |
+| `xperm8` | Zbkx | OP | `0010100` | rs2 | `100` | each byte of y is an index into the four bytes of x; 0 for an index of 4 or more |
+| `sha256sig0` | Zknh | OP-IMM | `0001000` | `00010` | `001` | σ0: `ror(x,7) ^ ror(x,18) ^ (x >> 3)` |
+| `sha256sig1` | Zknh | OP-IMM | `0001000` | `00011` | `001` | σ1: `ror(x,17) ^ ror(x,19) ^ (x >> 10)` |
+| `sha256sum0` | Zknh | OP-IMM | `0001000` | `00000` | `001` | Σ0: `ror(x,2) ^ ror(x,13) ^ ror(x,22)` |
+| `sha256sum1` | Zknh | OP-IMM | `0001000` | `00001` | `001` | Σ1: `ror(x,6) ^ ror(x,11) ^ ror(x,25)` |
+| `sha512sig0h` | Zknh | OP | `0101110` | rs2 | `000` | `(x >> 1) ^ (x >> 7) ^ (x >> 8) ^ (y << 31) ^ (y << 24)` |
+| `sha512sig0l` | Zknh | OP | `0101010` | rs2 | `000` | the same `^ (y << 25)` |
+| `sha512sig1h` | Zknh | OP | `0101111` | rs2 | `000` | `(x << 3) ^ (x >> 6) ^ (x >> 19) ^ (y >> 29) ^ (y << 13)` |
+| `sha512sig1l` | Zknh | OP | `0101011` | rs2 | `000` | the same `^ (y << 26)` |
+| `sha512sum0r` | Zknh | OP | `0101000` | rs2 | `000` | `(x << 25) ^ (x << 30) ^ (x >> 28) ^ (y >> 7) ^ (y >> 2) ^ (y << 4)` |
+| `sha512sum1r` | Zknh | OP | `0101001` | rs2 | `000` | `(x << 23) ^ (x >> 14) ^ (x >> 18) ^ (y >> 9) ^ (y << 18) ^ (y << 14)` |
+
+For a 64-bit word `{hi, lo}`, SHA-512's σ0 is `{sha512sig0h(hi, lo), sha512sig0l(lo, hi)}`, σ1 likewise with the `sig1` pair, and Σ0 and Σ1 are `{sha512sum0r(hi, lo), sha512sum0r(lo, hi)}` and the same with `sum1r`. The illegal neighbours stay illegal: the RV64-only forms in the `sha256` group (rs2 field 4 to 7), `sm3p0`/`sm3p1`, the AES and SM4 encodings, `clmul`, `clmulh`, the other `funct3` values of `funct7` `0000100` and `0010100`, and the shapes of the new instructions with a reserved bit set.
+
+### Design: the cryptography half of the EXT unit
+
+No new op: the 17 instructions are `op::EXT` like the Zbb, Zbs and Zicond ones ([the design](#design-one-op-the-sub-operation-in-the-immediate)). The sub-operation of the payload grew from five to six bits, taking bit 11, which the original layout had left free for that purpose; the 28 existing codes keep their values with the new top bit 0, so every existing payload is unchanged, and the new instructions have the top bit 1 (`use_imm` and the shift amount are 0 for all of them). `op::t`, `ILLEGAL` (49) and the 65-bit `instruction::t` are unchanged, so the golden stage libraries, the decoder sweep and the existing proofs stay valid.
+
+In [rtl/execute_stage.sv](../rtl/execute_stage.sv), payload bit 11 sends an EXT instruction to the last free `alu_sel` code, `1111`, whose result comes from a second combinational half of the unit (Part 2d); the first half (Part 2c, `alu_sel` `1110`) is not edited. Part 2d computes six groups in parallel from rs1, rs2 and the sub-operation and selects one; none needs a rotator, an adder or a comparator, because a rotation or shift by a constant is wiring:
+
+| Group | Instructions | Hardware |
+|---|---|---|
+| PACK | `pack`, `packh` | wiring and a 2:1 select |
+| PERM | `brev8`, `zip`, `unzip` | three fixed bit permutations and a 3:1 select |
+| XPERM | `xperm4`, `xperm8` | per nibble an 8:1 nibble select, per byte a 4:1 byte select, each forced to 0 by its range test |
+| SHA256 | the four `sha256` functions | per result bit the XOR of at most three input bits, a 4:1 select |
+| SHA512SIG | `sha512sig0h`/`l`, `sha512sig1h`/`l` | XORs of at most six bits; the variant bit adds the extra rs2 term of the low halves |
+| SHA512SUM | `sha512sum0r`, `sha512sum1r` | XORs of six terms, a 2:1 select |
+
+Codes the decoder never produces return a defined value (0 for groups 6 and 7 and for the unused PERM variant; the unused variants of PACK, XPERM and SHA512SUM give the result of a used one). Hazards and the rest of the pipeline are unchanged, as for every EXT instruction: a dependent instruction right behind gets the result forwarded without a stall, and a load followed by an instruction that reads the loaded register stalls one cycle. One encoding detail, not a data dependence: Decode compares the `rs2` field of every word with the destination of a load in Execute, also where the field is part of the opcode, so `brev8` (field 7), `zip` and `unzip` (15), `sha256sig0` (2), `sha256sig1` (3) and `sha256sum1` (1) can take a one-cycle load-use stall that they do not need, as Zbb's one-operand instructions already could.
+
+**Using them from C.** GCC 12.2 accepts `-march=rv32im_zba_zbb_zbkb_zbkx_zbs_zknh` and defines `__riscv_zbkb`, `__riscv_zbkx` and `__riscv_zknh`, and binutils 2.39 assembles all 17 mnemonics, but GCC has no builtins for them and never emits them from C: built with this `-march` instead of `rv32im_zba_zbb_zbs`, the five FreeRTOS programs of the bitmanip campaign give byte-identical images at `-O2`, `-Os` and `-O0` ([record](../results/crypto/2026-10-02_bd800d8/RECORD.md#checks-made-once)). It does emit Zbb's `rori` and `rol` for the rotations of a plain C SHA-256, and `rev8` needs inline assembly (`__builtin_bswap32` stays a library call). [std/include/zknh.h](../std/include/zknh.h) wraps the ten Zknh instructions as `static inline` functions, one instruction each when `-march` names Zknh and the same functions in C otherwise; [std/include/sha256.h](../std/include/sha256.h) is a small SHA-256 built on it, which reads the message words with `rev8` when the build has Zbb or Zbkb. `zip`, `unzip`, `pack`, `packh`, `brev8` and the `xperm` instructions are written as inline assembly where they are wanted.
+
+```c
+#include "sha256.h"            /* includes zknh.h */
+
+uint8_t digest[32];
+sha256( "abc", 3, digest );    /* ba7816bf 8f01cfea 414140de 5dae2223 b00361a3 96177a9c b410ff61 f20015ad */
+```
+
+### Verification
+
+The golden models decode every one of these words as an illegal instruction, so correctness rests, as for Zbb, on the models written from the ratified text without reading the RTL ([test/ext/README.md](../test/ext/README.md)): `ref.py`, `ref_exh.c` and the instruction-set model `iss.py`, which also check the pair identities above, `unzip(zip(x)) = x`, `brev8(brev8(x)) = x` and the NIST SHA-256 examples. The tests of [Zbb and Zbs](#verification-5) cover the 17 instructions too: the decoder sweep (exact payload for every word of the 45 forms), `test_ext_execute` (1,507,647 checks of the 45 forms), the formal proof (each of the 45 forms for all operand values, no EXT instruction stalls; 20 seeded faults in this half), `make ext-check` (125 digest lines, 1,034,153,728 vectors) and `make ext-exhaustive` (`brev8`, `zip`, `unzip` and the four `sha256` functions on all 2^32 inputs; with the Zbb ones, 3,905 digest lines, 64,452,030,208 vectors). The outputs below are recorded in [results/crypto](../results/crypto/2026-10-02_bd800d8/RECORD.md), the others in the records named above.
+
+| Test | What it covers |
+|---|---|
+| [test/asm/zbkb.s](../test/asm/zbkb.s), [zbkx.s](../test/asm/zbkx.s), [zknh.s](../test/asm/zknh.s) | 212, 166 and 347 assertions on the whole core: the known answers of the specification and the operand roles (`pack` puts rs1 low; `xperm` takes the table from rs1, and an index out of range gives 0, not a wrapped element; the `sha256` σ functions end in a shift, the Σ functions in a rotation; the `h` and `l` halves differ by one term), every index value at every element position of `xperm4` and `xperm8`, the SHA-512 pair identities, `zip` and `unzip` as inverses, `x0` and aliased registers, forwarding into rs1 and rs2 at distance 1 to 3 and out into an ALU operation, a branch, a load address, store data, a `jalr` base and a CSR write, the shadow of a taken branch, an interrupt at 8 positions of a chain, `minstret`, a dependent chain as fast as a chain of `add`, the seven Zbkb instructions that Zbb provides (assembled with Zbkb alone), `zext.h` as `pack` with `x0`, and the illegal neighbours, which must trap with `mcause = 2` |
+| Random programs (`sweep.py fuzz --variant k`) | 1,000 random programs mixing the 17 instructions with the 28 of Zbb, Zbs and Zicond, RV32IM, Zba, loads, stores and branches, each run replayed by the instruction-set model: 1,000 of 1,000 consistent |
+| Interrupt-offset sweep (`sweep.py run --fam crypto`) | 27 probes (every form, dependent chains into and out of them, a load result used at once, a branch operand, a store address, a `jalr` base, `ecall` and `mret` next to them, results to `x0`, nested use in the handler, illegal neighbours) over every interrupt offset with the external and timer interrupts: 3 of 3 programs consistent with the model |
+| `make bench-sha256` | `crypto_diff` issues the 17 instructions as `.insn` words in an RV32I program and compares them with RV32I code written from the specification: 33,260 results in four runs, no mismatch, at `-O2`, `-Os` and `-O0`; the SHA-256 benchmark checks the NIST examples and its digest in every build (below) |
+| The app [`sha256`](APPS.md#the-example-apps) | Its self-test (the NIST examples) passes in both builds on HaDes-V+ and in the `rv32i` build on the golden CPU, which refuses the Zknh build; the digests of its input lines are those of Python's `hashlib` |
+
+```bash
+make test/asm/zbkb
+make test/asm/zbkx
+make test/asm/zknh
+make bench-sha256                   # OPT=-Os, OPT=-O0
+python3 test/trapsweep/sweep.py fuzz --seeds 2001-3000 --variant k --targets dut --jobs 4
+python3 test/trapsweep/sweep.py run --fam crypto --targets dut --jobs 4
+make freertos-shell-test APP=loader SCRIPT=test/freertos/loader/session-crypto.txt
+```
+
+`make bench-sha256` measures the effect on SHA-256 ([test/bench/sha256/](../test/bench/sha256), [guide](../test/bench/README.md#make-bench-sha256)). One source, [std/include/sha256.h](../std/include/sha256.h), hashes 16,384 bytes, built for `rv32i` (plain C), for `rv32im_zba_zbb_zbs` (plain C, where GCC uses `rori` and `rol` for the rotations, and `rev8`) and for `rv32im_zba_zbb_zbkb_zbkx_zbs_zknh` (one Zknh instruction for each σ and Σ, and `rev8`). At `-O2` the hash takes **84.2, 63.4 and 49.8 cycles per byte**: Zknh is 1.27× as fast as Zbb alone and 1.69× as fast as RV32I; at `-Os` the figures are 84.2, 64.0 and 49.8, at `-O0` 463.1, 407.6 and 213.3. One million bytes `'a'` hash to the FIPS 180-2 digest in 50.5 cycles per byte with Zknh at `-O2` ([record](../results/sha256/2026-10-02_bd800d8/RECORD.md)). The remaining time is the message schedule's additions and the round's `Ch`, `Maj` and additions, which no instruction of these extensions computes.
+
+A mutation campaign during development checked that these tests can fail: faults in the decoder (wrong or swapped codes, a truncated sub-operation) and in Part 2d (wrong rotate and shift amounts, swapped high and low halves, wrong index width or range test in `xperm`, wrong bytes in `packh`, wrong bit order in `brev8`, `zip` and `unzip` swapped, a stall for one operand value), each applied to a copy of the RTL. Every fault that changes a result or the timing was caught, and an independent check decoded all 2^32 instruction words with the old and new decoders: the 333,824 words of the 17 forms decode to their payloads and every other word decodes as before ([record](../results/crypto/2026-10-02_bd800d8/RECORD.md#mutation-testing)).
+
+### Implementation Notes
+
+- **Assembled via a directive.** [test/asm/zbkb.s](../test/asm/zbkb.s), [zbkx.s](../test/asm/zbkx.s) and [zknh.s](../test/asm/zknh.s) carry `.option arch, +zbkb` (and `+zbkx`, `+zknh`). binutils 2.39 disassembles `zip` and `unzip` as `.4byte` under `-M no-aliases`; without that option, and with Zbkb in the object's arch attribute, it names them.
+- **The same GCC 12.2 crash with Zbs** as in [Zbb and Zbs](#implementation-notes-5): a constant 2048 can trigger it in code built with Zbs, which the app `sha256` avoids by dividing by 4096 with shifts.
+- **Timing was not measured.** The cryptography half is shallower than the Zbb half (its deepest group, XPERM, is about two to three LUT levels before its select), it enters the ALU's result mux on its own code, so it lengthens no existing path, and payload bit 11 adds about one LUT on the mux's select path. The area is estimated at 300 to 600 LUTs on top of the unmeasured 500 to 700 of the Zbb half (estimates, not measurements); the real risk is the fan-out of the operand registers, which gain roughly twice their EXT loads. The RTL has not been implemented since these changes; see [Status and Limitations](../README.md#status-and-limitations).
+
+## Hints, Zmmul and Zkt
+
+Four extensions need no new hardware: what they ask, HaDes-V+ already does. Each is claimed with its evidence.
+
+| Extension | What it requires | Why HaDes-V+ meets it | Evidence |
+|---|---|---|---|
+| **Zihintpause** 2.0 | `pause` (`fence` with predecessor W, successor none, `fm` = 0, `rd` = `rs1` = `x0`: the word `0x0100000F`) must execute; its effect is bounded and may be zero | The decoder decodes every MISC-MEM word with `funct3` = 000 as `FENCE`, which writes no register and neither stalls nor flushes: a one-cycle no-op, a pause of length zero | [test/asm/hints.s](../test/asm/hints.s) (57 assertions: `pause` after a store, before a dependent load and in a loop changes nothing and retires as one instruction); the decoder sweep's `HINTS:` line (`pause` is `FENCE` in both decoders); binutils assembles `pause` to `0x0100000F` |
+| **Zihintntl** 1.0 | `ntl.p1`, `ntl.pall`, `ntl.s1`, `ntl.all` (`add x0, x0, x2` to `x5`) change no architectural state and do not alter the effects of the instruction they precede; they may be ignored; compressed forms only with C | They are `add`s to `x0`; HaDes-V+ has no C extension | `hints.s` (each hint before a store, a dependent load and in a loop: `x0` stays 0, `x2` to `x5` and the stored word are unchanged, one instruction retired each); the sweep's `HINTS:` line (`add` in both decoders). The toolchain cannot name the mnemonics, so the tests write `add x0, x0, xN` |
+| **Zmmul** 1.0 | `mul`, `mulh`, `mulhsu`, `mulhu` with the encodings and results of M | The ISA manual: "M implies Zmmul"; HaDes-V+ implements all of M | [M's verification](#verification): `test/asm/mul.s`, `test_m_execute`, `test/c/m_extension.c`, the formal proof of the M unit for all operand pairs, `make bench-mcost` (2 cycles per multiply). The ISA string says M, and so Zmmul |
+| **Zkt** 1.0 | Every implemented instruction of the Zkt list has a latency that does not depend on the data | The audit below | `zkt.s`, the formal proofs, the unit benches and the audit below |
+
+### Zkt: data-independent latency
+
+Zkt lists the instructions that cryptographic code may rely on to take a time that does not depend on the values they process; an implementation that claims Zkt and implements any of them must give them data-independent latency. HaDes-V+ implements **51** of them on RV32:
+
+| From the list | Implemented | Not implemented |
+|---|---|---|
+| RVI | all 21: `lui auipc addi slti sltiu xori ori andi slli srli srai add sub sll slt sltu xor srl sra or and` | (the RV64 word forms) |
+| Zicond | `czero.eqz`, `czero.nez` | – |
+| RVM | `mul mulh mulhsu mulhu` | (RV64 `mulw`) |
+| Zca, Zcb | – | all (no compressed instructions) |
+| RVK | the ten Zknh RV32 instructions | the AES, SM3 and SM4 instructions; the RV64 forms |
+| RVB (Zbkb, Zbkc, Zbkx) | 14: `ror rol rori andn orn xnor rev8` (through Zbb), `pack packh brev8 zip unzip xperm4 xperm8`; `zext.h` is `pack` with `x0` | `clmul`, `clmulh` (Zbkc); the RV64 forms |
+
+Loads, stores, branches, CSR accesses, `FENCE.I` and division are not on the list, and neither are the other Zba, Zbb and Zbs instructions (all of which are single-cycle anyway); HINT forms are excluded as well.
+
+**Why the latency does not depend on the data**, stage by stage (line numbers as of this writing):
+
+- **Decode** stalls only for the load-use, CSR-use and Writeback-use hazards ([rtl/decode_stage.sv:167-192](../rtl/decode_stage.sv)), which compare register numbers and the producer's `data_valid`, never register values.
+- **Execute** answers `STALL` only for a stall from Memory or for `m_stall = m_active && !m_ready` ([rtl/execute_stage.sv:619-623](../rtl/execute_stage.sv)), and `JUMP` only for branches and jumps ([rtl/execute_stage.sv:1134](../rtl/execute_stage.sv)). The only early-out, `m_early = div_by_zero || div_overflow`, is gated by `is_m_div` ([rtl/execute_stage.sv:438-442](../rtl/execute_stage.sv)): a multiply never takes it and always spends exactly one extra cycle, `M_IDLE` → `M_READY` ([rtl/execute_stage.sv:552-556](../rtl/execute_stage.sv)), 2 cycles in all whatever its operands. Division (1 or 34 cycles) is the one latency that depends on values, and it is not on the list. Every other listed instruction is computed combinationally in one cycle: the ALU, and both halves of the EXT unit, which have no state and no early-out ([rtl/execute_stage.sv:147](../rtl/execute_stage.sv) selects them).
+- **Memory** stalls only while a load or a store waits for the bus ([rtl/memory_stage.sv:195-211](../rtl/memory_stage.sv)); **Writeback** never stalls ([rtl/writeback_stage.sv:32](../rtl/writeback_stage.sv)); **Fetch** and the branch predictor react only to branches and jumps.
+- Effects that depend on the encoding, such as the unneeded load-use stall of a one-operand instruction described [above](#design-the-cryptography-half-of-the-ext-unit), are not data dependence: Zkt treats the program as public.
+
+The evidence:
+
+- **For all operand values:** the formal proof of the EXT unit shows that an EXT instruction with any payload never makes Execute answer `STALL` or `JUMP` (X3) and that each of the 45 forms forwards its result in its own cycle (X1); a seeded fault that stalls a cryptography instruction for one value of `rs1` is caught by X3 ([formal/README.md](../formal/README.md#the-ext-unit-zbb-zbs-zicond-zbkb-zbkx-zknh)). The proof of the M unit shows that the unit never stalls anything but a VALID M instruction (CTRL); `make bench-mcost` measures 2 cycles per multiply ([record](../results/m-unit-cycles/2026-10-01_03386fd/RECORD.md)).
+- **For every vector:** `test_ext_execute` checks for each of its 1,507,647 vectors that the result is ready in the instruction's own cycle, and `make ext-check` and `make ext-exhaustive` count every cycle in which an EXT instruction does not complete at once as a violation (`violations=0` on all 64,452,030,208 vectors of the exhaustive run).
+- **On the whole core:** [test/asm/zkt.s](../test/asm/zkt.s) (304 assertions) times, for each of the 51 instructions and several operand sets (zero, one, all ones, the sign boundaries, alternating bits, in-range and out-of-range `xperm` indices), a window of eight identical independent instructions with `mcycle` and requires exactly the cycles of eight `add`s, and eight more for the multiplies. It samples operand values and so cannot prove the property alone; the proofs and the per-vector checks cover all values.
+
+What Zkt does not give: a program built from these instructions is constant-time only if it also avoids branches and memory addresses that depend on secrets, and division, loads, stores and branches are outside the claim.

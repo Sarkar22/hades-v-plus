@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""fuzz.py <seed> <out.s> [--m] [--b] [--mtvec] [--bp] [--nseg N]
+"""fuzz.py <seed> <out.s> [--m] [--b] [--k] [--mtvec] [--bp] [--nseg N]
 Random-program + random-interrupt-timing generator for test/trapsweep.
 Each segment: canonical state, arm the external interrupt (random delay) and/or the timer
 (random delay), run a random block, re-enable, wait for every armed interrupt, dump registers.
@@ -8,6 +8,8 @@ Uses the handler/vector/footer and trace layout of probes.py, so iss.py checks i
   --m      also M and Zba instructions (DUT only: the golden CPU has neither)
   --b      also Zbb, Zbs and Zicond instructions (implies --m; DUT only): register, immediate
            and unary forms, dependent chains behind a load, czero.* written with .insn
+  --k      also Zbkb, Zbkx and Zknh instructions (implies --b; DUT only): register and unary
+           forms, dependent chains behind a load, results to x0
   --mtvec  also csrrw mtvec (vectors A/B/C)
   --bp     switch the branch predictor on (random mode 1..3) at start-up
   --nseg   number of segments (default 60)"""
@@ -20,7 +22,9 @@ args = sys.argv[1:]
 if len(args) < 2:
     sys.exit(__doc__)
 seed = int(args[0], 0); outp = args[1]
-USE_M = '--m' in args or '--b' in args; USE_B = '--b' in args; USE_MTVEC = '--mtvec' in args; USE_BP = '--bp' in args
+USE_K = '--k' in args
+USE_M = '--m' in args or '--b' in args or USE_K; USE_B = '--b' in args or USE_K
+USE_MTVEC = '--mtvec' in args; USE_BP = '--bp' in args
 nseg = int(args[args.index('--nseg') + 1]) if '--nseg' in args else 60
 R = random.Random(seed)
 W = ['a0', 'a1', 'a2', 'a3', 'a4', 'a5', 's0', 's1', 's5', 's6', 't1', 't3', 't4']   # writable
@@ -75,6 +79,31 @@ def bchain():
         d = nd
     l = L()
     return out + [f"    sw   {d}, {R.randrange(0, 32, 4)}(t2)", f"    beqz {d}, {l}", f"    addi {r()}, {d}, 1", f"{l}:"]
+# Zbkb (the forms Zbb does not have), Zbkx, Zknh. Drawn only with --k, so variant b is unchanged.
+K_REG = ['pack', 'packh', 'xperm4', 'xperm8', 'sha512sig0h', 'sha512sig0l', 'sha512sig1h', 'sha512sig1l',
+         'sha512sum0r', 'sha512sum1r']
+K_UNARY = ['brev8', 'zip', 'unzip', 'sha256sig0', 'sha256sig1', 'sha256sum0', 'sha256sum1']
+def k_ins(op, rd, rs1, rs2=None):
+    return f"    {op} {rd}, {rs1}" if op in K_UNARY else f"    {op} {rd}, {rs1}, {rs2}"
+def kbitm():
+    k = R.random(); rd = 'zero' if R.random() < 0.05 else r()
+    if k < 0.55:
+        return [k_ins(R.choice(K_REG), rd, r(), R.choice([r(), r(), r(), 'zero']))]
+    return [k_ins(R.choice(K_UNARY), rd, R.choice([r(), r(), 'zero']))]
+def kchain():
+    """a load, then 2-4 dependent crypto instructions (forwarding at distance 1), the last result
+    stored and branched on"""
+    d = r(); out = [f"    lw   {d}, {R.randrange(0, 32, 4)}(t2)"]
+    for _ in range(R.randint(2, 4)):
+        nd = r()
+        if R.random() < 0.5:
+            a, b = (d, r()) if R.random() < 0.5 else (r(), d)
+            out.append(k_ins(R.choice(K_REG), nd, a, b))
+        else:
+            out.append(k_ins(R.choice(K_UNARY), nd, d))
+        d = nd
+    l = L()
+    return out + [f"    sw   {d}, {R.randrange(0, 32, 4)}(t2)", f"    beqz {d}, {l}", f"    addi {r()}, {d}, 1", f"{l}:"]
 def lui(): return [f"    lui  {r()}, {R.randint(0, 0xfffff)}"]
 def ram_ld():
     op, al = R.choice([('lw', 4), ('lh', 2), ('lhu', 2), ('lb', 1), ('lbu', 1)])
@@ -118,13 +147,14 @@ def csr():
 def branch():
     l = L(); cond = R.choice(['beq', 'bne', 'blt', 'bge', 'bltu', 'bgeu'])
     body = []
-    for _ in range(R.randint(1, 3)): body += R.choice([alu, alui, lui] + ([bitm] if USE_B else []))()
+    for _ in range(R.randint(1, 3)): body += R.choice([alu, alui, lui] + ([bitm] if USE_B else []) + ([kbitm] if USE_K else []))()
     return [f"    {cond} {r()}, {r()}, {l}"] + body + [f"{l}:"]
 def loop():
     l = L(); n = R.randint(1, 5)
     body = []
     for _ in range(R.randint(1, 3)):
-        body += R.choice([alu, alui, ram_ld, csr] + ([bitm] if USE_B else []))() if USE_M else R.choice([alu, alui, ram_ld])()
+        body += R.choice([alu, alui, ram_ld, csr] + ([bitm] if USE_B else []) + ([kbitm] if USE_K else []))() if USE_M \
+            else R.choice([alu, alui, ram_ld])()
     body = [b for b in body if 't4' not in b]
     return [f"    li   t4, {n}", f"{l}:"] + body + ["    addi t4, t4, -1", f"    bnez t4, {l}"]
 def jal():
@@ -142,11 +172,13 @@ POOL = [(alu, 12), (alui, 12), (lui, 2), (ram_ld, 6), (ram_st, 6), (misal, 2), (
         (branch, 6), (loop, 3), (jal, 2), (jalr, 2), (fences, 2), (mret, 2), (loaduse, 4)]
 if USE_B:
     POOL += [(bitm, 12), (bchain, 4)]
+if USE_K:
+    POOL += [(kbitm, 12), (kchain, 4)]
 FUNCS = [f for f, w in POOL for _ in range(w)]
 
 out = [g.HDR]
 if USE_B:
-    out.insert(0, "    .option arch, +zbb, +zbs\n")
+    out.insert(0, "    .option arch, +zbb, +zbs, +zbkb, +zbkx, +zknh\n" if USE_K else "    .option arch, +zbb, +zbs\n")
 if USE_BP:
     out.append(f"    li   t1, {R.choice([1, 2, 3])}\n    csrw mhpmevent10, t1\n")
 for seg in range(nseg):

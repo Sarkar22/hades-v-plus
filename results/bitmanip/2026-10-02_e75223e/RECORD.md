@@ -1,6 +1,6 @@
 # Zbb, Zbs and Zicond: 2026-10-02, e75223e
 
-**Status: repeatable.** `make check-results` (its check `bitmanip`) re-runs every command of the first part and compares the output; the long runs of the second part are repeated by `make check-results CHECK_ARGS=bitmanip-long` (about 30 minutes with 4 jobs). The mutation results of the last part are historical: they were made with scripts that are not in the repository.
+**Status: repeatable.** `make check-results` (its check `bitmanip`) re-runs every command of the first part and compares the output; the long runs of the second part are repeated by `make check-results CHECK_ARGS=bitmanip-long` (about an hour with 4 jobs). The mutation results of the last part are historical: they were made with scripts that are not in the repository.
 
 The frozen golden models decode every Zbb, Zbs and Zicond instruction as illegal, so none of these results comes from them. The oracles are the models written from the ratified ISA text in [test/ext/](../../../test/ext/README.md) (`ref.py`, `ref_exh.c`) and the instruction-set model `test/trapsweep/iss.py`, the expected values in the assembly tests (computed by a separate model from the ISA text), the self-checks of the programs, and the same C program built with and without the extensions.
 
@@ -8,10 +8,10 @@ The frozen golden models decode every Zbb, Zbs and Zicond instruction as illegal
 
 | Figure | Quoted in | From |
 |---|---|---|
-| `make ext-check`: 75 digest lines, 553,624,832 vectors, identical, `violations=0` | docs/VERIFICATION.md; docs/EXTENSIONS.md (Zbb and Zbs, Verification); test/ext/README.md | [ext-check](#make-ext-check) |
-| `make ext-exhaustive`: 2,091 digest lines, 34,376,492,288 vectors, identical; about 14 minutes with 4 jobs | README.md (Verification in Depth); docs/VERIFICATION.md; docs/EXTENSIONS.md; docs/BUILDING.md; test/ext/README.md | [long runs](#long-runs) |
-| `zbb.s` 442 assertions, `zbs.s` 374, `zicond.s` 190, `hints.s` 57, `zkt.s` 199 (the `Test pass!` lines plus the deliberate initial-test assertion, as for `zba.s`) | docs/EXTENSIONS.md | [assembly tests](#assembly-tests) |
-| `test_ext_execute`: 927,129 checks | docs/VERIFICATION.md; docs/EXTENSIONS.md | [Execute bench](#execute-bench) |
+| `make ext-check`: 125 digest lines, 1,034,153,728 vectors, identical, `violations=0` (45 forms; the 75 lines of the 28 forms of Zbb, Zbs and Zicond unchanged) | docs/VERIFICATION.md; docs/EXTENSIONS.md (Zbb and Zbs, Verification); test/ext/README.md | [ext-check](#make-ext-check) |
+| `make ext-exhaustive`: 3,905 digest lines, 64,452,030,208 vectors, identical (the 15 one-operand instructions of the 45 forms on all 2^32 inputs); under an hour with 4 jobs | README.md (Verification in Depth); docs/VERIFICATION.md; docs/EXTENSIONS.md; docs/BUILDING.md; test/ext/README.md | [long runs](#long-runs) |
+| `zbb.s` 442 assertions, `zbs.s` 374, `zicond.s` 190, `hints.s` 57, `zkt.s` 304 (the `Test pass!` lines plus the deliberate initial-test assertion, as for `zba.s`) | docs/EXTENSIONS.md | [assembly tests](#assembly-tests) |
+| `test_ext_execute`: 1,507,647 checks (45 forms) | docs/VERIFICATION.md; docs/EXTENSIONS.md | [Execute bench](#execute-bench) |
 | fuzz variant b: 1,000 of 1,000 programs consistent with the model | README.md; docs/VERIFICATION.md; docs/EXTENSIONS.md | [random programs](#random-programs-and-the-ext-probe-family) |
 | the `ext` probe family: 31 probes, 3 of 3 programs consistent | docs/VERIFICATION.md; docs/EXTENSIONS.md; test/trapsweep/README.md | [random programs](#random-programs-and-the-ext-probe-family) |
 | the campaign set `bitmanip`: 120 of 120 runs passed; 12 of the 26 Zbb and Zbs forms in the FreeRTOS programs, mostly `sext.b`, `zext.h`, `andn`, `bset` | docs/VERIFICATION.md; docs/EXTENSIONS.md; test/freertos/README.md | [long runs](#long-runs) |
@@ -50,7 +50,7 @@ asm/zbb:    441 'Test pass!' lines; All tests passed! (# Errors: 1 = initial tes
 asm/zbs:    373 'Test pass!' lines; All tests passed! (# Errors: 1 = initial test)
 asm/zicond: 189 'Test pass!' lines; All tests passed! (# Errors: 1 = initial test)
 asm/hints:  56 'Test pass!' lines; All tests passed! (# Errors: 1 = initial test)
-asm/zkt:    198 'Test pass!' lines; All tests passed! (# Errors: 1 = initial test)
+asm/zkt:    303 'Test pass!' lines; All tests passed! (# Errors: 1 = initial test)
 ```
 
 ### Execute bench
@@ -60,14 +60,14 @@ asm/zkt:    198 'Test pass!' lines; All tests passed! (# Errors: 1 = initial tes
 === 2: every form on the corner set ===
 === 3: random operands ===
 === 4: pipeline protocol ===
-  Checks: 927129   Errors: 0
-All 927129 EXT-unit checks passed
+  Checks: 1507647   Errors: 0
+All 1507647 EXT-unit checks passed
 ```
 
 ### make ext-check
 
 ```
-ext check (quick): the RTL (instruction_decoder -> execute_stage) against the C reference model, 28 forms, 4 jobs
+ext check (quick): the RTL (instruction_decoder -> execute_stage) against the C reference model, 45 forms, 4 jobs
   andn          2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok
   orn           2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok
   xnor          2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok
@@ -96,8 +96,25 @@ ext check (quick): the RTL (instruction_decoder -> execute_stage) against the C 
   bseti         1 of    1 digest lines identical,        135,680 vectors, violations=0  ok
   czero.eqz     3 of    3 digest lines identical,      1,073,408 vectors, violations=0  ok
   czero.nez     3 of    3 digest lines identical,      1,073,408 vectors, violations=0  ok
-  75 digest lines, 553,624,832 vectors, violations=0
-EXT CHECK: PASS (28 of 28 forms identical)
+  pack          2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok
+  packh         2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok
+  brev8         4 of    4 digest lines identical,     67,108,864 vectors, violations=0  ok
+  zip           4 of    4 digest lines identical,     67,108,864 vectors, violations=0  ok
+  unzip         4 of    4 digest lines identical,     67,108,864 vectors, violations=0  ok
+  xperm4        3 of    3 digest lines identical,      1,106,176 vectors, violations=0  ok
+  xperm8        3 of    3 digest lines identical,      1,106,176 vectors, violations=0  ok
+  sha256sig0    4 of    4 digest lines identical,     67,108,864 vectors, violations=0  ok
+  sha256sig1    4 of    4 digest lines identical,     67,108,864 vectors, violations=0  ok
+  sha256sum0    4 of    4 digest lines identical,     67,108,864 vectors, violations=0  ok
+  sha256sum1    4 of    4 digest lines identical,     67,108,864 vectors, violations=0  ok
+  sha512sig0h    2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok
+  sha512sig0l    2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok
+  sha512sig1h    2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok
+  sha512sig1l    2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok
+  sha512sum0r    2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok
+  sha512sum1r    2 of    2 digest lines identical,      1,069,312 vectors, violations=0  ok
+  125 digest lines, 1,034,153,728 vectors, violations=0
+EXT CHECK: PASS (45 of 45 forms identical)
 ```
 
 ### Random programs and the ext probe family
@@ -117,45 +134,45 @@ The 1,000 programs of fuzz variant b mix the 28 forms (register, immediate and u
 `make freertos-shell-test APP=loader SCRIPT=test/freertos/loader/session-ext.txt`, the verdict and the transcript lines that the record keeps:
 
 ```
-FREERTOS SHELL RESULT: PASS  app=loader cpu=dut isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=28018784
+FREERTOS SHELL RESULT: PASS  app=loader cpu=dut isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=28039273
   typed lines: 14, prompts: 14, expectations met: 34/34
 loaded compute: 1048 bytes at 0x00060000, entry 0x00060040, CRC32 0x41352324
 compute: trace 1093898742, quotients 1445856025, remainders 22, mulhu 198418: PASS (75838 cycles)
 app: compute exited with code 0 after 139294 cycles
 loaded compute: 1048 bytes at 0x00060000, entry 0x00060040, CRC32 0x41352324
-cpu:       M yes, Zba yes, Zbb yes, Zbs yes, Zicntr yes, Zicond yes
+cpu:       M yes, Zba yes, Zbb yes, Zbs yes, Zicntr yes, Zicond yes, Zbkb yes, Zbkx yes, Zknh yes
 loaded bitmanip: 4172 bytes at 0x00060000, entry 0x00060040, CRC32 0x31515268
 bitmanip: zbb    popcount 1020, log2 1907, ctz 62, mix 5dd12d14 00203fcc 648904fb, hash 200eb485: PASS (11163 cycles)
 bitmanip: bytes  rev8 bb05f113, string lengths 102: PASS (1761 cycles, C)
-bitmanip: zbs    primes below 4096: 564 (sum 1070091), after toggling 1928, flags 7f6b4d42: PASS (267172 cycles)
-bitmanip: zicond select b23616d0, clamp 000013b0, add-if e806a5c8: PASS (1817 cycles, C)
+bitmanip: zbs    primes below 4096: 564 (sum 1070091), after toggling 1928, flags 7f6b4d42: PASS (267173 cycles)
+bitmanip: zicond select b23616d0, clamp 000013b0, add-if e806a5c8: PASS (1999 cycles, C)
 bitmanip: 4 of 4 sections passed
-app: bitmanip exited with code 0 after 448180 cycles
+app: bitmanip exited with code 0 after 447999 cycles
 loaded bitmanip: 3336 bytes at 0x00060000, entry 0x00060040, CRC32 0xa8bf5894
 bitmanip: zbb    popcount 1020, log2 1907, ctz 62, mix 5dd12d14 00203fcc 648904fb, hash 200eb485: PASS (5443 cycles)
 bitmanip: bytes  rev8 bb05f113, string lengths 102: PASS (331 cycles, rev8 and orc.b)
-bitmanip: zbs    primes below 4096: 564 (sum 1070091), after toggling 1928, flags 7f6b4d42: PASS (209356 cycles)
+bitmanip: zbs    primes below 4096: 564 (sum 1070091), after toggling 1928, flags 7f6b4d42: PASS (209345 cycles)
 bitmanip: zicond select b23616d0, clamp 000013b0, add-if e806a5c8: PASS (1612 cycles, czero)
 bitmanip: 4 of 4 sections passed
-app: bitmanip exited with code 0 after 385103 cycles
+app: bitmanip exited with code 0 after 385220 cycles
 ```
 
 With `CPU=golden`:
 
 ```
-FREERTOS SHELL RESULT: PASS  app=loader cpu=golden isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=27529337
+FREERTOS SHELL RESULT: PASS  app=loader cpu=golden isa=rv32i opt=-Os tick=10000 bpred=0 seed=0 cycles=27534391
   typed lines: 14, prompts: 14, expectations met: 30/30
 loaded compute: 1048 bytes at 0x00060000, entry 0x00060040, CRC32 0x41352324
 error: compute was built for rv32im_zba, but this CPU has no M and no Zba
 loaded compute: 1048 bytes at 0x00060000, entry 0x00060040, CRC32 0x41352324
-cpu:       M no, Zba no, Zbb no, Zbs no, Zicntr no, Zicond no
+cpu:       M no, Zba no, Zbb no, Zbs no, Zicntr no, Zicond no, Zbkb no, Zbkx no, Zknh no
 loaded bitmanip: 4172 bytes at 0x00060000, entry 0x00060040, CRC32 0x31515268
 bitmanip: zbb    popcount 1020, log2 1907, ctz 62, mix 5dd12d14 00203fcc 648904fb, hash 200eb485: PASS (11161 cycles)
 bitmanip: bytes  rev8 bb05f113, string lengths 102: PASS (1753 cycles, C)
-bitmanip: zbs    primes below 4096: 564 (sum 1070091), after toggling 1928, flags 7f6b4d42: PASS (267153 cycles)
+bitmanip: zbs    primes below 4096: 564 (sum 1070091), after toggling 1928, flags 7f6b4d42: PASS (266968 cycles)
 bitmanip: zicond select b23616d0, clamp 000013b0, add-if e806a5c8: PASS (1817 cycles, C)
 bitmanip: 4 of 4 sections passed
-app: bitmanip exited with code 0 after 448136 cycles
+app: bitmanip exited with code 0 after 447872 cycles
 loaded bitmanip: 3336 bytes at 0x00060000, entry 0x00060040, CRC32 0xa8bf5894
 error: bitmanip was built for rv32im_zba_zbb_zbs, but this CPU has no M, no Zba, no Zbb and no Zbs
 ```

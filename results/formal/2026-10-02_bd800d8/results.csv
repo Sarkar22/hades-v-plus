@@ -1,0 +1,4 @@
+run,flow,mode,required,required_not_pass,negative_controls,controls_not_fail,second_solver_runs,second_solver_not_pass,mutant_runs,mutants_rejected,mutants_survived,verdict,wall_s
+1,this record,ext,51,0,37,0,0,0,0,0,0,PASS,57.13
+2,this record,default,121,0,41,0,0,0,0,0,0,PASS,141.97
+3,this record,full,123,0,41,0,65,4,2310,55,1,PASS,2706.56

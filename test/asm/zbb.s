@@ -33,8 +33,8 @@
 # |    fence.i; an interrupt at every position of a chain changes nothing.                       |
 # | 6. minstret counts each instruction once; a dependent chain takes exactly as many            |
 # |    cycles as the same chain of add (no stall, forwarded in its own cycle).                   |
-# | 7. The illegal neighbours (RV32-reserved, Zbc/Zbkb/RV64 encodings, unused                    |
-# |    funct3/funct7/rs2 fields) raise illegal-instruction.                                      |
+# | 7. The illegal neighbours (RV32-reserved, Zbc/RV64 encodings, unused funct3/funct7/rs2       |
+# |    fields, the neighbours of the Zbkb forms) raise illegal-instruction.                      |
 # |                                                                                              |
 # | Register allocation:                                                                         |
 # |     x0  (zero): hardwired 0                                                                  |
@@ -1949,17 +1949,17 @@ test_illegal_neighbours:
     flush_pipeline
     expect_trap 0x6205D513, 2       # rori with shamt[5] = 1 (reserved on RV32)
     expect_trap 0x6B85D513, 2       # rev8, RV64 encoding 0x6B8
-    expect_trap 0x6875D513, 2       # brev8 (Zbkb)
+    expect_trap 0x6865D513, 2       # brev8 neighbour, imm 0x686
     expect_trap 0x2865D513, 2       # orc.b neighbour, imm 0x286
     expect_trap 0x28F5D513, 2       # orc.b neighbour, imm 0x28F
     expect_trap 0x6995D513, 2       # rev8 neighbour, imm 0x699
     expect_trap 0x60359513, 2       # unary group, rs2 field 3
     expect_trap 0x60659513, 2       # unary group, rs2 field 6
     expect_trap 0x61F59513, 2       # unary group, rs2 field 31
-    expect_trap 0x08F59513, 2       # zip (Zbkb)
-    expect_trap 0x08F5D513, 2       # unzip (Zbkb)
-    expect_trap 0x08C5C533, 2       # pack (Zbkb): zext.h shape with rs2 != 0
-    expect_trap 0x08C5F533, 2       # packh (Zbkb)
+    expect_trap 0x08E59513, 2       # zip neighbour, rs2 field 14
+    expect_trap 0x08E5D513, 2       # unzip neighbour, rs2 field 14
+    expect_trap 0x08C5D533, 2       # funct7 0000100, funct3 101 (zext.h/pack shape)
+    expect_trap 0x08C5E533, 2       # funct7 0000100, funct3 110
     expect_trap 0x0AC59533, 2       # clmul (Zbc)
     expect_trap 0x0AC5A533, 2       # clmulr (Zbc)
     expect_trap 0x0AC5B533, 2       # clmulh (Zbc)
