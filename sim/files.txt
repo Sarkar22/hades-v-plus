@@ -16,3 +16,5 @@ defines/bpredict.sv
 -y ref
 
 -y rtl
+
+-y sim

@@ -456,6 +456,12 @@ and their tests, its settings, how it works, and how to
 make freertos-shell
 ```
 
+The console types each character only after a pause, so that the program has taken the
+previous one out of its receive queue. With a slow memory (`MEM_LAT=...`, see
+[test/memsys/README.md](../test/memsys/README.md)) the program runs slower, and the pauses
+are 1 + the memory's longest wait times longer. The simulator's run option
+`+console_pace=<n>` sets that factor (1 or more; 1 is the pace of the standard simulator).
+
 ## 10. Load and run programs on the shell
 
 The shell's `loader` configuration runs programs that you compile on the host: `load <name>`

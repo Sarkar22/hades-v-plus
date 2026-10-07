@@ -130,7 +130,7 @@ The repository also contains programs and benches that print no verdict of their
 
 ## Test Hierarchy
 
-The [test/](../test/) tree has three progressively integrative tiers, plus two system-level stress suites:
+The [test/](../test/) tree has three progressively integrative tiers, plus two system-level stress suites and the memory-system checks:
 
 | Tier | Location | What it exercises | Invocation |
 |---|---|---|---|
@@ -139,6 +139,7 @@ The [test/](../test/) tree has three progressively integrative tiers, plus two s
 | **SystemVerilog** | [test/sv/](../test/sv/) | Module-level benches that run DUT vs. REF side-by-side and compare every cycle. Examples: [test_writeback_compare.sv](../test/sv/test_writeback_compare.sv), [test_execute_compare.sv](../test/sv/test_execute_compare.sv), [test_decode_hazard.sv](../test/sv/test_decode_hazard.sv), [test_execute_bpred_nextpc.sv](../test/sv/test_execute_bpred_nextpc.sv) (Execute with a branch prediction applied, against the predictor-less reference). Where the frozen reference cannot help — `Zba`, `M`, `Zbb`, `Zbs`, `Zicond` — the bench carries its own golden model instead: [test_m_execute.sv](../test/sv/test_m_execute.sv), [test_ext_execute.sv](../test/sv/test_ext_execute.sv). | `make test/sv/test_writeback_compare` |
 | **FreeRTOS** | [test/freertos/](../test/freertos/) | FreeRTOS V11 programs (`minimal`, `stress`, `full` standard demo, `mzba`, and the `brk` RTOS breaker) with randomised, desynchronised interrupt timing, plus `campaign.py`, which runs every configuration on the DUT and on the golden CPU. `FRTOS_BPRED=1..3` runs a program with the branch predictor on. User guide: [docs/FREERTOS.md](FREERTOS.md); details: [test/freertos/README.md](../test/freertos/README.md). | `make freertos APP=stress`, `make freertos-compare APP=stress`, `make freertos-stress` |
 | **Trap sweep** | [test/trapsweep/](../test/trapsweep/) | Interrupts swept over every cycle offset around 532 distinct probe instruction sequences, plus random programs. Every run is checked by an independent Python ISA model (`iss.py`) and compared with the golden CPU. This is the oracle for extensions that the frozen golden models cannot check. See [test/trapsweep/README.md](../test/trapsweep/README.md). | `python3 test/trapsweep/sweep.py run` |
+| **Memory system** | [test/memsys/](../test/memsys/) | Simulation only: a slow RAM with fixed or random wait states on both ports (`MEM_LAT=...` on any simulator target), a shadow-memory scoreboard that checks every answer of the RAM, bus hashes, and `programs.py`, which runs every assembly and C program and the programs of `test/memsys/` (not the module benches, FreeRTOS or the trap sweep) on both CPUs and judges each run against latency 0; directed programs for back-to-back RAM accesses, interrupts while Fetch waits, abandoned fetches and instruction-stream coherence; a bus trace and a trace-driven L1 cache model for sizing caches. Without these options the simulators behave as before. See [test/memsys/README.md](../test/memsys/README.md). | `make test/asm/ops MEM_LAT=2`, `python3 test/memsys/programs.py run MEM_LAT=1:8` |
 
 Together these give coverage at the instruction level, the system level, and the per-module bit-level — catch a bug as early as possible in whichever tier first exposes it.
 
