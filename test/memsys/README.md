@@ -1,17 +1,17 @@
 # Memory-System Checks
 
 Simulation tools for the memory system: a RAM that answers late, an oracle that checks every
-answer of the RAM, and a trace-driven model of L1 caches. They are the groundwork for caches
-between the CPU and the RAM. The design and synthesis do not change, and the standard
-simulators behave as before: every option below builds its own simulators, in
+answer of the RAM, and a trace-driven model of L1 caches. They test the memory system and
+size caches between the CPU and the RAM. The design and synthesis do not change, and the
+standard simulators behave as before: every option below builds its own simulators, in
 `build/cfg-<name>`.
 
 | Piece | Where | What it does |
 |---|---|---|
 | Slow memory | [sim/slow_memory.sv](../../sim/slow_memory.sv), selected in [rtl/mcu.sv](../../rtl/mcu.sv) under `HADES_SLOW_MEM` | A wrapper in front of each RAM port (fetch and data) that holds every transfer for a fixed or random number of wait states; optional burst timing for consecutive words. At latency 0 it is a wire: bus hashes and cycle counts equal the standard simulator's. |
-| Scoreboard | [sim/top.sv](../../sim/top.sv) | A shadow copy of the RAM, loaded from the same `init.mem` and updated from every acknowledged store, byte lane by byte lane. Every fetch and load from the RAM must return the copy's word, the RAM must equal the copy after every store and at the end of the run, and `ack` and `err` must never come together. A mismatch stops the simulation. It checks the memory system, not the CPU: it does not see register results, and a single wrong instruction fetch is caught only by its fetch compare, so keep it on. |
+| Scoreboard | [sim/top.sv](../../sim/top.sv) | A shadow copy of the RAM, loaded from the same `init.mem` and updated from every acknowledged store, byte lane by byte lane. Every fetch and load from the RAM must return the copy's word, the RAM must equal the copy after every store and at the end of the run, and `ack` and `err` must never come together. A mismatch stops the simulation. It checks the memory system, not the CPU: it does not see register results, and in most programs a single wrong instruction fetch shows only in its fetch compare, so keep it on. |
 | RAM timeout check | [sim/top.sv](../../sim/top.sv) | Always on: an interconnect timeout on a RAM access stops the simulation. |
-| Bus hash, retired instructions | [sim/top.sv](../../sim/top.sv) | `BUSHASH` lines (a hash of every transfer on both CPU buses) and `RETIRED cycles=... instructions=... cpi=...` at the end of a run. |
+| Bus hash, retired instructions | [sim/top.sv](../../sim/top.sv) | `BUSHASH` lines (a hash of both CPU buses, cycle by cycle, and of the completed data transfers) and `RETIRED cycles=... instructions=... cpi=...` at the end of a run. |
 | [programs.py](programs.py) | here | Runs every assembly and C program (`test/asm/*.s`, `test/c/*.c`) and the programs here (`test/memsys/*.s`) on both CPUs in one configuration, and judges each run against the same program at latency 0. The module benches, FreeRTOS and the trap sweep are not part of it. |
 | [stores.s](stores.s) | here | Back-to-back loads and stores with no idle cycle between them, which expose early acknowledgements and dropped, repeated or reordered writes at any latency, also without the scoreboard. |
 | [irqchain.s](irqchain.s) | here | An interrupt armed 1 to 200 cycles ahead of a chain of 16 instructions, each of which changes `a0`, so that it lands before every chain instruction, also while Fetch waits: every instruction must retire exactly once, and the handler checks `mcause`, `mepc` and `a0` at every interrupt. |
@@ -72,22 +72,26 @@ With a slow memory every program also runs at latency 0 in the same simulator, a
 must give the same reports, verdict and output as that run, apart from the differences that
 `WAIT_STATES` in programs.py lists with their reasons: checks that measure the timing of a
 single-cycle memory (interrupt-position sweeps, `mcycle` deltas, the constant-time checks of
-`zkt.s`). Which of them are excused depends on the latency profile, which the run prints:
+`zkt.s`). Which of them are excused depends on the latency profile, which the run prints.
+The checks that time straight-line instructions are judged by the profile of the fetch port
+alone: wait states of the data port alone excuse none of them.
 
 - checks that compare a block of instructions with the cycle count of single-cycle fetch
   (the 17-cycle check of `test_cycle_exact` in the Zb\*, Zk\* and Zicond programs) whenever
-  instruction fetch waits;
+  an instruction fetch takes more than one cycle: a read latency above 0 on the fetch port,
+  unless a burst beat latency of 0 makes the instructions behind the first one of a block
+  take one cycle each;
 - checks that compare two blocks with each other (the equality check of `test_cycle_exact`,
-  `zicntr.s` reports 4 and 5, the block comparisons of `zkt.s`) only with random per-access
-  latencies or in burst mode. At a fixed latency every fetch waits the same, so they still
-  hold and still mean something; of `zkt.s` only report 2 (the 9-cycle reference block) and
-  the 28 `mul`-family blocks (reports 67-94) are excused there, the same at latencies 1, 2,
-  3, 4 and 8.
+  `zicntr.s` reports 4 and 5, the block comparisons of `zkt.s`) only with random fetch
+  latencies, or in burst mode with a beat latency that differs from the read latency. At a
+  fixed latency every fetch waits the same, so they still hold and still mean something; of
+  `zkt.s` only report 2 (the 9-cycle reference block) and the 28 `mul`-family blocks (reports
+  67-94) are excused there, the same at latencies 1, 2, 3, 4 and 8.
 
 The exit status is 1 when a HaDes-V+ run differs otherwise, or when any run is bad: its
 scoreboard reports a mismatch, its simulator stops with an error or returns a non-zero status
-without a verdict line, or a HaDes-V+ run at latency 0 does not end with the verdict of the
-standard memory (`VERDICT_AT_LATENCY0` in programs.py; judging compares with that run, so it
+(the simulators exit with 0 after any verdict and after a timeout), or a HaDes-V+ run at
+latency 0 does not end with the verdict of the standard memory (`VERDICT_AT_LATENCY0` in programs.py; judging compares with that run, so it
 must be right). The golden CPU's runs are judged the same way but only recorded: it is a
 frozen model, and its stale-`mtvec` defect shows in `mtvecirq.s` at some latencies and not at
 others (a golden-only rule lists it). Keep the latency-0 judging on (no `--no-judge`): it is
@@ -106,9 +110,9 @@ their own progress in real time and fail on both CPUs alike unless the tick is s
 1 + the mean wait, for example `TICK=30000` at `MEM_LAT=2` and `TICK=60000` at `MEM_LAT=1:8`.
 The `rv32i` build of `mzba` also needs its test-device interrupt interval, which is set in
 cycles, scaled: `DEFS=-DMZBA_IRQ_MEAN=18000` (latency 2) or `36000` (1 to 8). The console
-lengthens its pauses between typed characters by the factor `+console_pace=<n>` (1 or more;
-default with a slow memory: 1 + its longest wait), so the scripted shell session passes at
-every latency.
+lengthens its pauses between typed characters by the factor `+console_pace=<n>` (1 to 32767;
+default with a slow memory: 1 + its longest read, write or beat wait), so the scripted shell
+session passes at every latency.
 
 ## Cache Model
 
@@ -123,11 +127,11 @@ python3 test/memsys/cachemodel.py check /abs/minimal --w1 2000000   # and the tr
 The trace monitor only reads signals (the run's cycle count is the standard one) and writes
 16 bytes per cycle, so mind the disk: about 51 MB for `minimal` (3.2 million cycles), 2.4 GB
 for `full` (151 million); `prep` keeps about 40% of that. The model (Python 3 with numpy)
-replays the trace through a direct-mapped or 2-way I-cache and a write-through,
+replays the trace through direct-mapped or 2-way caches: an I-cache and a write-through,
 no-write-allocate D-cache behind one memory port, with the I-cache snooping stores, optional
 abort-on-redirect and an optional write buffer, under a per-beat or a burst memory latency,
 and reports cycles per instruction, misses per 1000 instructions and the stall shares.
-`check` runs hand-computed cases; given prepared traces, it also replays the first 2 million
-cycles of each (`--w1`) through eight cache configurations with the fast replay and with the
+`check` runs hand-computed cases; given prepared traces, it also replays the cycles that
+`--w1` gives (2 million in the example) of each through eight cache configurations with the fast replay and with the
 plain per-cycle replay that specifies it, and requires equal results (`CHECK: PASS`). The
 header of cachemodel.py documents the trace format, the model and its approximations.

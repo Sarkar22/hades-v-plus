@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # ---------------------------------------------------------------------------------------------
-# cachemodel.py -- trace-driven model of the planned L1 caches of HaDes-V+
+# cachemodel.py -- trace-driven model of L1 caches for HaDes-V+
 #
-# Answers the sizing questions of L1 caches before any cache RTL exists: cache sizes, line
-# size, direct-mapped or 2-way, abort-on-redirect, and whether stores without a write buffer
-# stall too often. It replays a bus trace of the core without caches (taken with the standard
+# Answers sizing questions of L1 caches from a trace of the core without caches: cache sizes,
+# line size, direct-mapped or 2-way, abort-on-redirect, and whether stores without a write
+# buffer stall too often. It replays a bus trace of the core (taken with the standard
 # single-cycle RAM) through split L1 caches in front of a slow memory and counts misses,
 # refills and the cycles they cost.
 #
@@ -1141,7 +1141,7 @@ def check_main(a):
 
 
 def main():
-    ap = argparse.ArgumentParser(description='Trace-driven model of the planned L1 caches (see the file header).')
+    ap = argparse.ArgumentParser(description='Trace-driven model of L1 caches for HaDes-V+ (see the file header).')
     sub = ap.add_subparsers(dest='cmd', required=True)
     p = sub.add_parser('prep', help='prepare a bustrace.bin')
     p.add_argument('trace'); p.add_argument('outdir')

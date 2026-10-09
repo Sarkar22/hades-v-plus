@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""programs.py -- run the assembly and C test programs on both CPUs in one simulator
-configuration, and compare the runs of two configurations.
+"""programs.py -- run all assembly, C and memory-system test programs on both CPUs in one
+simulator configuration, and compare the runs of two configurations.
 
 The make targets test/asm/<name>, test/c/<name> and test/memsys/<name> (the assembly
-programs of this directory) run one program on HaDes-V+ only. This script runs all of them, on HaDes-V+ (dut) and on the golden CPU, with the
-full-system simulators of a simulator configuration (the Makefile's MEM_LAT=...,
-SCOREBOARD=1, BUSHASH=1, ...; see `make help`), e.g.
+programs of this directory) run one program on HaDes-V+ only. This script runs all of them,
+on HaDes-V+ (dut) and on the golden CPU, with the full-system simulators of a simulator
+configuration (the Makefile's MEM_LAT=..., SCOREBOARD=1, BUSHASH=1, ...; see `make help`),
+e.g.
 
     python3 test/memsys/programs.py run MEM_LAT=2
     python3 test/memsys/programs.py run MEM_LAT=1:8 MEM_SEED=2
@@ -31,11 +32,13 @@ run: builds the simulators (make frtos-model FRTOS_CPU=dut|ref FRTOS_RAM_KB=32 w
      the same way but only recorded: it is a frozen model with known deviations
      (docs/VERIFICATION.md).
      A run is also counted as bad when its scoreboard reports a mismatch, its simulator
-     stops with an error, or its simulator returns a non-zero status without a verdict line
-     (that run or its latency-0 run), and when a HaDes-V+ run at latency 0 (the latency-0
-     runs above, and every run of a configuration without wait states) does not end with
-     the verdict its program gives on the standard memory (VERDICT_AT_LATENCY0): judging
-     against latency 0 compares with that run, so it must be right.
+     stops with an error, or its simulator returns a non-zero status (that run or its
+     latency-0 run; a simulator exits with 0 after any verdict, passing or failing, and
+     after a timeout, so a non-zero status is an abnormal end), and when a HaDes-V+ run at
+     latency 0 (the latency-0 runs above, and every run of a configuration without wait
+     states) does not end with the verdict its program gives on the standard memory
+     (VERDICT_AT_LATENCY0): judging against latency 0 compares with that run, so it must
+     be right.
      With a slow memory the scoreboard must be on (the default): a fault of the memory path
      that is present at every latency gives the same wrong result at latency 0, and only
      the scoreboard sees it. The run refuses to start when SCOREBOARD=0 or +noscoreboard
@@ -43,7 +46,8 @@ run: builds the simulators (make frtos-model FRTOS_CPU=dut|ref FRTOS_RAM_KB=32 w
      Exit status 1 when a HaDes-V+ run DIFFERS or any run is bad, else 0. Without a slow
      memory (or with --no-judge) the verdicts are printed, not judged: some programs end
      without the "initial test" marker (docs/VERIFICATION.md, "The Testbench's Verdict
-     Line"), and the golden CPU cannot run the M, Zba, Zicntr and branch-predictor programs.
+     Line"), and the golden CPU cannot run the M, Zb*, Zk*, Zicond and Zicntr programs and
+     bpred.s.
 compare: for every program and CPU in both run directories, the simulator output must be
      the same apart from the lines of the configuration (SLOW MEMORY ...), the checkers
      (SCOREBOARD ..., BUSHASH ..., RETIRED ...) and the simulator's own run-time report,
@@ -98,12 +102,16 @@ def verdict_at_latency0(prog):
 
 # TIMING: when a rule of WAIT_STATES applies, by the latency profile of the configuration and
 # the run options (+mem_lat=... in --sim-args); `when` of a rule, default ALWAYS:
-#   ALWAYS       every profile with wait states
-#   FETCH_WAITS  instruction fetch waits: a read latency (or a burst beat) above 0 on the
-#                fetch port
-#   VARIABLE     the latency of an access is not always the same: random per-access
-#                latencies (MIN < MAX) on a port that waits, or burst mode (MEM_BEAT_LAT)
-#   FIXED        wait states, all at one fixed latency, no burst mode
+#   ALWAYS       every profile with wait states on either port
+#   FETCH_WAITS  a fetched instruction takes more than one cycle: a read latency above 0 on
+#                the fetch port with no burst beat of 0, or a burst beat above 0
+#   VARIABLE     the fetch port's latency is not always the same: random per-access latencies
+#                (MIN < MAX), or burst mode (MEM_BEAT_LAT) with a beat latency that differs
+#                from the read latency
+#   FIXED        the fetch port waits, all at one fixed latency, no burst mode
+# FETCH_WAITS, VARIABLE and FIXED are decided by the fetch port alone: the checks they excuse
+# time straight-line instructions (no load, store or I/O access between two counter reads), so
+# wait states of the data port, which do not reach them, must not excuse them.
 # The checks of a program that time its own instructions against mcycle are of two kinds.
 # Some compare two blocks of instructions with each other: at a fixed latency every fetch
 # waits the same, the comparison still holds and still means something (an operand-dependent
@@ -267,24 +275,32 @@ def latency_profile(defs, sim_args):
                 beat=beat if only != "fetch" else off)
     ranges = [fetch["rd"], data["rd"], data["wr"]]
     beats = [fetch["beat"], data["beat"]]
-    fetch_waits = fetch["rd"][1] > 0 or fetch["beat"] > 0
     waits = any(hi > 0 for _, hi in ranges) or any(b > 0 for b in beats)
     variable = any(lo < hi for lo, hi in ranges) or any(b >= 0 for b in beats)
     mode = (VARIABLE if variable else FIXED) if waits else "latency 0"
+    # the instruction-timing rules look at the fetch port alone (TIMING above): in burst mode
+    # a further word of a block takes the beat latency, so with a beat latency of 0 the
+    # instructions behind the first one of a block take one cycle each
+    (f_lo, f_hi), f_beat = fetch["rd"], fetch["beat"]
+    fetch_waits = (f_hi > 0 and f_beat != 0) or f_beat > 0
+    fetch_variable = f_lo < f_hi or (f_beat >= 0 and f_beat != f_lo)
+    fetch_mode = (VARIABLE if fetch_variable else FIXED) if f_hi > 0 or f_beat > 0 else "latency 0"
 
     def text(r):
         return f"{r[0]}" if r[0] == r[1] else f"{r[0]}..{r[1]}"
     desc = (f"fetch port reads {text(fetch['rd'])}, data port reads {text(data['rd'])} and writes "
             f"{text(data['wr'])} cycles, bursts {'off' if max(beats) < 0 else 'beat ' + str(max(beats))}")
     longest = max([hi for _, hi in ranges] + beats + [0])
-    return dict(fetch_waits=fetch_waits, waits=waits, mode=mode, text=desc, longest=longest)
+    return dict(fetch_waits=fetch_waits, fetch_mode=fetch_mode, waits=waits, mode=mode, text=desc,
+                longest=longest)
 
 
 def rules_for(program, cpu, profile):
     """The rules of WAIT_STATES that apply to a run of <program> on <cpu> with this profile."""
     def holds(when):
         return {ALWAYS: profile["waits"], FETCH_WAITS: profile["fetch_waits"],
-                VARIABLE: profile["mode"] == VARIABLE, FIXED: profile["mode"] == FIXED}[when]
+                VARIABLE: profile["fetch_mode"] == VARIABLE,
+                FIXED: profile["fetch_mode"] == FIXED}[when]
     return [r for r in WAIT_STATES.get(program, [])
             if holds(r.get("when", ALWAYS)) and r.get("cpu", cpu) == cpu]
 
@@ -406,8 +422,8 @@ def problems(r, latency0, scoreboard_needed):
     p = []
     if r["scoreboard"] == "FAIL":
         p.append(f"scoreboard: {r['scoreboard_line']}")
-    if r["rc"] != 0 and r["verdict"] == "(no verdict)":
-        p.append(f"the simulator returned {r['rc']} without a verdict line")
+    if r["rc"] != 0:
+        p.append(f"the simulator returned {r['rc']}")
     if scoreboard_needed and r["scoreboard"] == "-" and not r["errors"]:
         p.append("no SCOREBOARD line, although the scoreboard should be on")
     if latency0 and r["cpu"] == "dut":
@@ -446,8 +462,9 @@ def run(a, variables):
     print(f"configuration {name}; simulators and programs in {bdir}; runs in {out}; cycle limit {timeout}",
           flush=True)
     if slow:
-        print(f"latency profile: {profile['text']}; timing checks judged as: "
-              f"{ {VARIABLE: 'random latency or burst mode', FIXED: 'fixed latency'}.get(profile['mode'], profile['mode']) }"
+        kinds = {VARIABLE: "random latency or burst mode", FIXED: "fixed latency"}
+        print(f"latency profile: {profile['text']}; timing checks judged by the fetch port as: "
+              f"{kinds.get(profile['fetch_mode'], profile['fetch_mode'])}"
               f", instruction fetch {'waits' if profile['fetch_waits'] else 'does not wait'}", flush=True)
     if judged and not scoreboard:
         print("WARNING: the scoreboard is off (--allow-no-scoreboard): a fault of the memory path that is "
@@ -506,9 +523,10 @@ def run(a, variables):
                        profile=profile, scoreboard=scoreboard, results=results), f, indent=1)
 
     bad, differs = 0, 0
-    print(f"{'cpu':6} {'program':18} {'pass':>4} {'fail':>4} {'cycles':>9}  {'scoreboard':10} {'judged':8} verdict")
+    pw = max([len("program")] + [len(r["program"]) for r in results])
+    print(f"{'cpu':6} {'program':{pw}} {'pass':>4} {'fail':>4} {'cycles':>9}  {'scoreboard':10} {'judged':8} verdict")
     for r in results:
-        print(f"{r['cpu']:6} {r['program']:18} {r['passes']:4} {r['fails']:4} {str(r['cycles']):>9}  "
+        print(f"{r['cpu']:6} {r['program']:{pw}} {r['passes']:4} {r['fails']:4} {str(r['cycles']):>9}  "
               f"{r['scoreboard']:10} {r['judged']:8} {r['verdict']}")
         for e in r["errors"] + (r["latency0"]["errors"] if judged else []):
             print(f"{'':12}{e}")

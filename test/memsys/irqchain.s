@@ -13,8 +13,9 @@
 # | of 16 RV32I instructions, each of which changes a0 (every step is a bijection of a0 that     |
 # | does not leave it unchanged, so a doubled or a skipped instruction changes the final a0),    |
 # | for every N from 1 to NMAX. NMAX = 200 is enough for the interrupt to land before every      |
-# | chain instruction and in the wait loop behind the chain with 0 to 8 wait states per access,  |
-# | fixed or random (see the recorded positions below).                                          |
+# | chain instruction and in the wait loop behind the chain with 0 to 8 fixed wait states per    |
+# | access. With random 1 to 8 wait states it does so for most seeds, not for every one: the     |
+# | recorded positions below show which were reached.                                            |
 # |                                                                                              |
 # | The handler checks that the trap is the external interrupt and that it is precise: mepc      |
 # | lies in the nops, the chain or its wait loop, and a0 holds the value after exactly the chain |
@@ -24,8 +25,9 @@
 # |                                                                                              |
 # | The handler also records where the interrupts landed, as a mask of positions (bits 0-2: a    |
 # | nop, bit 3 + k: before chain instruction k, bits 19-21: the wait loop), in the buffer: word  |
-# | 0 for mode 0, word 1 for mode 3. The positions depend on the memory's timing, so the         |
-# | program does not check them. The reports are the same at every latency.                      |
+# | 0 for mode 0, word 1 for mode 3 (RAM 0x46000 and 0x46004; look at them in sim.fst). The      |
+# | positions depend on the memory's timing, so the program does not check them. The reports     |
+# | are the same at every latency.                                                               |
 # |                                                                                              |
 # | Register allocation:                                                                         |
 # |     x5  (t0):   reserved for macro use                                                       |
@@ -198,7 +200,8 @@ irq_handler:
     sw   zero, 4(t3)
     addi s7, s7, 1
     csrr s5, mcause
-    bge  s5, zero, 5f              # an exception
+    li32 s6, 0x8000000B            # machine external interrupt
+    bne  s5, s6, 5f                # an exception or another interrupt
     csrr s4, mepc
     sub  s4, s4, s10               # byte offset from the first nop before the chain
     sltiu s5, s4, 4*POSITIONS

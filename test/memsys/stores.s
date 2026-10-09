@@ -4,7 +4,7 @@
 #
 # ------------------------------------------------------------------------------------------------
 # |                                                                                              |
-# | BACK-TO-BACK RAM ACCESSES, for the memory-system checks (test/memsys/programs.py).          |
+# | BACK-TO-BACK RAM ACCESSES, for the memory-system checks (test/memsys/programs.py).           |
 # |                                                                                              |
 # | Every block below issues its loads and stores with no gap between them, so that each data    |
 # | access reaches the bus in the cycle after the previous one was acknowledged. A memory path   |
@@ -13,16 +13,17 @@
 # | the slow memory and also without the scoreboard. Most other test programs space their RAM    |
 # | accesses out, so such a fault often stays invisible in them at a fixed latency.              |
 # |                                                                                              |
-# | Every case writes values that differ from what the words held before. Its reports are the   |
-# | same at every latency (no check measures time).                                             |
+# | Every case writes values that differ from what the words held before. The whole body runs    |
+# | with the branch predictor off (mode 0) and in mode 3 (the golden CPU ignores the mode). Its  |
+# | reports are the same at every latency (no check measures time).                              |
 # |                                                                                              |
 # | Register allocation:                                                                         |
 # |     x5  (t0):   reserved for macro use                                                       |
-# |     x6  (t1):   1 (the value a failed check writes)                                         |
+# |     x6  (t1):   1 (the value a failed check writes)                                          |
 # |     x7  (t2):   test case number                                                             |
 # |     x28 (t3):   test peripheral address                                                      |
-# |     x8  (s0):   buffer address (0x46000: unused RAM above the program)                      |
-# |     s1..s11, a0..a7: data                                                                    |
+# |     x8  (s0):   buffer address (0x46000: unused RAM above the program)                       |
+# |     s1..s10, a0..a7: data    s11: branch-predictor mode    t4: scratch                       |
 # |                                                                                              |
 # ------------------------------------------------------------------------------------------------
 
@@ -76,6 +77,10 @@ test_init:
 test_fail:
     addi t2, zero, 1
     assert_value zero, 1
+
+    addi s11, zero, 0              # branch-predictor mode 0, then 3
+test_mode:
+    csrw 0x32A, s11                # MHPMEVENT10: branch-predictor mode
 
 # -----------------------------------------------
 # Case 2: eight stores to consecutive words, then eight loads of them.
@@ -212,10 +217,15 @@ test_loop:
     bne  s1, s2, 1b
     assert_equal s3, s4
 
+    addi s11, s11, 3
+    addi t4, zero, 6
+    bne  s11, t4, test_mode
+
 # ------------------------------------------------------------------------------------------------
 # |                                          Test done!                                          |
 # ------------------------------------------------------------------------------------------------
 test_finish:
+    csrwi 0x32A, 0
     addi t2, zero, 9
     halt
     fail
