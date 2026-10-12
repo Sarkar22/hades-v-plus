@@ -183,6 +183,7 @@ module mcu #(
         .clk(clk),
         .rst(rst),
         .master(fetch_bus.slave),
+        .block_cont(1'b1),
         .memory(ram_port_a.master)
     );
 
@@ -193,6 +194,7 @@ module mcu #(
         .clk(clk),
         .rst(rst),
         .master(mem_bus_slaves[0]),
+        .block_cont(1'b1),
         .memory(ram_port_b.master)
     );
 

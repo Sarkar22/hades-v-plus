@@ -8,6 +8,10 @@
 // single-cycle RAM into a memory with a latency, so that the CPU's bus ports, and any
 // caches between them and the RAM, can be tested against a slow memory. The standard
 // simulators and synthesis do not contain it (Vivado does not read sim/).
+// In a simulator with caches (+define+HADES_ICACHE_BYTES, `make ICACHE=...`) there is one
+// instance instead, PORT "memory": the one memory port, between the arbiter that shares it
+// (rtl/cache/mem_arbiter.sv) and port A of the RAM; port B is idle (see "The memory port"
+// below).
 //
 // What it does:
 //   - Each transfer (cyc && stb) is held back from the RAM for its latency L: for L cycles
@@ -28,7 +32,9 @@
 //     dat_mosi undefined during a read, so a read whose dat_mosi changes is the same read.
 //   - Burst mode (off unless a beat latency is set): a further transfer to the next word,
 //     in the same direction, while cyc has stayed high since the previous transfer was
-//     answered, costs the beat latency instead. The fetch port holds cyc high all the time,
+//     answered, costs the beat latency instead, if the master also marks it as continuing
+//     its block (input block_cont; the fetch and data ports tie it to 1, so for them only
+//     the conditions before count). The fetch port holds cyc high all the time,
 //     so with burst mode on every sequential fetch counts as a beat. On the data port an
 //     access to another slave of the interconnect (cyc high, an address outside the RAM
 //     window, so stb stays low here) ends the block.
@@ -55,6 +61,19 @@
 // answered within 255 cycles: the interconnect ends a longer one with err
 // (lib/wishbone/wishbone_interconnect.sv), and sim/top.sv stops the simulation when that
 // happens to a RAM access. So the data port refuses a read, write or beat latency above 254.
+//
+// The memory port (PORT "memory", INDEX 2: its own latency sequence) of a simulator with
+// caches carries the cache refills and the data side's RAM accesses, one at a time:
+//   - block_cont is the arbiter's continuation tag, 1 exactly for the beats after the first
+//     of a cache refill block, so only those get the beat latency in burst mode: a data
+//     transfer always costs a drawn latency, also back to back with cyc held. The
+//     configuration line says so ("cache refill blocks only").
+//   - block_cont = 1 for a transfer that is not a read of the word after the previous
+//     transfer, with cyc held since that one was answered, stops the simulation (a wrong tag
+//     would otherwise give a silent discount).
+//   - No limit of 254 cycles: the interconnect exempts the RAM from its timeout in these
+//     simulators, so a data access may also wait behind a refill.
+//   - +mem_only is refused: there is only the one port.
 // ---------------------------------------------------------------------------------------------
 
 `ifndef HADES_MEM_RD_LAT_MIN
@@ -90,8 +109,9 @@ module slow_memory #(
     input logic clk,
     input logic rst,
 
-    wishbone_interface.slave  master,  // the bus, as the CPU side drives it
-    wishbone_interface.master memory   // the RAM port
+    wishbone_interface.slave  master,      // the bus, as the CPU side drives it
+    input  logic              block_cont,  // the master marks the transfer as continuing its block
+    wishbone_interface.master memory       // the RAM port
 );
     localparam int MAX_LATENCY      = 1023;
     localparam int DATA_MAX_LATENCY = 254;    // the interconnect's limit, see above
@@ -183,6 +203,9 @@ module slow_memory #(
         void'($value$plusargs("mem_seed=%d", seed));
         text = `HADES_MEM_ONLY;
         void'($value$plusargs("mem_only=%s", text));
+        if (PORT == "memory" && text != "")
+            $fatal(1, "slow_memory: +mem_only=%s: a simulator with caches has one memory port, shared by the fetches and the data side; there is no port to choose",
+                   text);
         if (text != "" && text != "fetch" && text != "data")
             $fatal(1, "slow_memory: +mem_only=%s: give fetch or data", text);
         if (text != "" && text != PORT) begin
@@ -205,9 +228,14 @@ module slow_memory #(
         z = z ^ (z >> 16);
         rng = (z == 0) ? 32'h1 : z;
 
-        $display("SLOW MEMORY %-5s port: read latency %s, write latency %s, burst beats %s, seed %0d",
-                 PORT, range_text(rd_min, rd_max), range_text(wr_min, wr_max),
-                 (beat_lat < 0) ? "off" : $sformatf("%0d", beat_lat), seed);
+        if (PORT == "memory")
+            $display("SLOW MEMORY memory port: read latency %s, write latency %s, burst beats %s (cache refill blocks only), seed %0d",
+                     range_text(rd_min, rd_max), range_text(wr_min, wr_max),
+                     (beat_lat < 0) ? "off" : $sformatf("%0d", beat_lat), seed);
+        else
+            $display("SLOW MEMORY %-5s port: read latency %s, write latency %s, burst beats %s, seed %0d",
+                     PORT, range_text(rd_min, rd_max), range_text(wr_min, wr_max),
+                     (beat_lat < 0) ? "off" : $sformatf("%0d", beat_lat), seed);
     end
 
     // --------------------------------------------------------------------------------------------
@@ -234,7 +262,8 @@ module slow_memory #(
         other   = master.cyc && !master.stb && master.adr - RAM_START >= RAM_WORDS;
         same    = held && master.adr == held_adr && master.sel == held_sel &&
                   master.we == held_we && (!master.we || master.dat_mosi == held_dat);
-        beat    = beat_lat >= 0 && in_block && master.adr == last_adr + 1 && master.we == last_we;
+        beat    = beat_lat >= 0 && block_cont && in_block && master.adr == last_adr + 1 &&
+                  master.we == last_we;
         if (beat)
             latency = int'(beat_lat);
         else if (master.we)
@@ -255,6 +284,18 @@ module slow_memory #(
     assign master.ack      = memory.ack;
     assign master.err      = memory.err;
     assign master.dat_miso = memory.dat_miso;
+
+    // The memory port's check of block_cont, at the start of every transfer (the cycle is
+    // counted as sim/top.sv counts it)
+    longint unsigned sim_cycle;
+
+    always @(posedge clk) begin
+        sim_cycle <= sim_cycle + 1;
+        if (PORT == "memory" && !rst && request && !same && block_cont &&
+            !(in_block && !master.we && !last_we && master.adr == last_adr + 1))
+            $fatal(1, "slow_memory: memory port: block_cont = 1 at cycle %0d for a transfer that does not continue a read block (address 0x%08x we=%0d; the previous answer: address 0x%08x we=%0d, cyc held since: %0d)",
+                   sim_cycle, master.adr << 2, master.we, last_adr << 2, last_we, in_block);
+    end
 
     // (not always_ff: the generator state is also written by the initial block above)
     always @(posedge clk) begin
