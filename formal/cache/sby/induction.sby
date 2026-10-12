@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: MIT
+# The k-induction attempt on the I-cache alone (harness/icache_top.sv): the fetched word, the
+# cached word, the window rule and the state after a reset, with the helper invariants of
+# props/cache_props.vh (macro INDUCTION), proved together by k-induction (mode prove). The result
+# is recorded either way: PASS is an unbounded proof; otherwise the induction step's
+# counterexample is kept in the run directory for analysis.
+[tasks]
+induction_tiny     tiny
+induction_second   second
+
+[options]
+mode prove
+depth 4
+
+[engines]
+smtbmc bitwuzla
+
+[script]
+verilog_defaults -add -DFH_ICACHE -DINDUCTION
+verilog_defaults -add -DCHECK_FETCH_DATA -DCHECK_LINE_DATA -DCHECK_WINDOW -DCHECK_RESET_STATE
+tiny:   read_verilog -sv -formal icache_tiny.v
+second: read_verilog -sv -formal icache_second.v
+hierarchy -top icache_top
+proc
+flatten
+memory -nomap
+memory_map
+opt_clean
+prep -top icache_top
+
+[files]
+../gen/icache_tiny.v
+../gen/icache_second.v
+../gen/observe_ram.vh
+../props/cache_props.vh

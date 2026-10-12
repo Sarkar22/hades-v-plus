@@ -1,0 +1,98 @@
+# SPDX-License-Identifier: MIT
+# The decomposed harness of the fallback ladder: each property's share on the I-cache alone
+# (harness/icache_top.sv, tasks icache_<property>_<configuration>) and on the arbiter alone
+# (harness/arbiter_top.sv, tasks arbiter_<property>_<configuration>). A property passes this step
+# when each of its shares passes. Depths: those of the minimum-depth step, set by run.sh.
+[tasks]
+icache_fetch_data_tiny           fetch_data       ic  ic_tiny        tiny
+icache_line_data_tiny            line_data        ic  ic_tiny        tiny
+icache_window_tiny               window           ic  ic_tiny        tiny
+icache_ack_err_tiny              ack_err          ic  ic_tiny        tiny
+icache_answer_req_tiny           answer_req       ic  ic_tiny        tiny
+icache_bound_tiny                bound            ic  ic_tiny        tiny
+icache_reset_state_tiny          reset_state      ic  ic_tiny        tiny
+icache_store_fetch_tiny          store_fetch      ic  ic_tiny        tiny
+icache_refill_window_tiny        refill_window    ic  ic_tiny        tiny
+icache_refill_stable_tiny        refill_stable    ic  ic_tiny        tiny
+arbiter_ack_err_tiny             ack_err          ar  ar_tiny        tiny
+arbiter_answer_req_tiny          answer_req       ar  ar_tiny        tiny
+arbiter_grant_route_tiny         grant_route      ar  ar_tiny        tiny
+arbiter_refill_no_write_tiny     refill_no_write  ar  ar_tiny        tiny
+arbiter_grant_kept_tiny          grant_kept       ar  ar_tiny        tiny
+arbiter_bound_tiny               bound            ar  ar_tiny        tiny
+arbiter_bound_cpu_tiny           bound_cpu        ar  ar_tiny_cpu    tiny_cpu
+arbiter_reset_state_tiny         reset_state      ar  ar_tiny        tiny
+arbiter_store_once_tiny          store_once       ar  ar_tiny        tiny
+icache_fetch_data_second         fetch_data       ic  ic_second      second
+icache_line_data_second          line_data        ic  ic_second      second
+icache_window_second             window           ic  ic_second      second
+icache_ack_err_second            ack_err          ic  ic_second      second
+icache_answer_req_second         answer_req       ic  ic_second      second
+icache_bound_second              bound            ic  ic_second      second
+icache_reset_state_second        reset_state      ic  ic_second      second
+icache_store_fetch_second        store_fetch      ic  ic_second      second
+icache_refill_window_second      refill_window    ic  ic_second      second
+icache_refill_stable_second      refill_stable    ic  ic_second      second
+arbiter_ack_err_second           ack_err          ar  ar_second      second
+arbiter_answer_req_second        answer_req       ar  ar_second      second
+arbiter_grant_route_second       grant_route      ar  ar_second      second
+arbiter_refill_no_write_second   refill_no_write  ar  ar_second      second
+arbiter_grant_kept_second        grant_kept       ar  ar_second      second
+arbiter_bound_second             bound            ar  ar_second      second
+arbiter_bound_cpu_second         bound_cpu        ar  ar_second_cpu  second_cpu
+arbiter_reset_state_second       reset_state      ar  ar_second      second
+arbiter_store_once_second        store_once       ar  ar_second      second
+
+[options]
+mode bmc
+tiny: depth 35
+tiny_cpu: depth 20
+second: depth 30
+second_cpu: depth 20
+
+[engines]
+smtbmc bitwuzla
+
+[script]
+ack_err: verilog_defaults -add -DCHECK_ACK_ERR
+answer_req: verilog_defaults -add -DCHECK_ANSWER_REQ
+bound: verilog_defaults -add -DCHECK_BOUND
+bound_cpu: verilog_defaults -add -DCHECK_BOUND_CPU
+fetch_data: verilog_defaults -add -DCHECK_FETCH_DATA
+grant_kept: verilog_defaults -add -DCHECK_GRANT_KEPT
+grant_route: verilog_defaults -add -DCHECK_GRANT_ROUTE
+line_data: verilog_defaults -add -DCHECK_LINE_DATA
+refill_no_write: verilog_defaults -add -DCHECK_REFILL_NO_WRITE
+refill_stable: verilog_defaults -add -DCHECK_REFILL_STABLE
+refill_window: verilog_defaults -add -DCHECK_REFILL_WINDOW
+reset_state: verilog_defaults -add -DCHECK_RESET_STATE
+store_fetch: verilog_defaults -add -DCHECK_STORE_FETCH
+store_once: verilog_defaults -add -DCHECK_STORE_ONCE
+window: verilog_defaults -add -DCHECK_WINDOW
+ic: verilog_defaults -add -DFH_ICACHE
+ar: verilog_defaults -add -DFH_ARBITER
+ic_tiny: read_verilog -sv -formal icache_tiny.v
+ic_second: read_verilog -sv -formal icache_second.v
+ar_tiny: read_verilog -sv -formal arbiter_tiny.v
+ar_tiny_cpu: read_verilog -sv -formal arbiter_tiny_cpu.v
+ar_second: read_verilog -sv -formal arbiter_second.v
+ar_second_cpu: read_verilog -sv -formal arbiter_second_cpu.v
+ic: hierarchy -top icache_top
+ar: hierarchy -top arbiter_top
+proc
+flatten
+memory -nomap
+memory_map
+opt_clean
+ic: prep -top icache_top
+ar: prep -top arbiter_top
+
+[files]
+../gen/icache_tiny.v
+../gen/icache_second.v
+../gen/arbiter_tiny.v
+../gen/arbiter_tiny_cpu.v
+../gen/arbiter_second.v
+../gen/arbiter_second_cpu.v
+../gen/observe_ram.vh
+../props/cache_props.vh

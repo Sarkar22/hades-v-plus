@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: MIT
+# Non-interference with data values (harness/cache_pair_top.sv): data_indep_tiny, a bounded proof
+# at depth 40, and its covers.
+[tasks]
+data_indep_tiny   data_indep tiny
+cover_pair_tiny   cover      tiny
+
+[options]
+data_indep: mode bmc
+cover: mode cover
+tiny: depth 40
+
+[engines]
+smtbmc bitwuzla
+
+[script]
+data_indep: verilog_defaults -add -DCHECK_DATA_INDEP
+cover:      verilog_defaults -add -DCOVERS
+tiny: read_verilog -sv -formal pair_tiny.v
+hierarchy -top cache_pair_top
+proc
+flatten
+memory -nomap
+memory_map
+opt_clean
+prep -top cache_pair_top
+
+[files]
+../gen/pair_tiny.v
+../gen/observe_ram.vh
+../props/pair_props.vh

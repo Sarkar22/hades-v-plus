@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: MIT
+// observe_ram.vh -- written by formal/cache/run.sh from props/observe_ram.vh.in, with the name of
+// the only memory array of rtl/cache/cache_ram.sv in place of @ARRAY@, and inserted, as one
+// include line, before the final endmodule of the sv2v output of that module (never into the
+// source itself). It exports every word of the array, word k at bits [k*WIDTH +: WIDTH], so that
+// the properties can read the tag and data arrays: Yosys connects the harness's wires named
+// <instance>.f_obs_words to it when it flattens the design.
+    wire [WIDTH*DEPTH-1:0] f_obs_words;
+    genvar f_obs_k;
+    generate
+        for (f_obs_k = 0; f_obs_k < DEPTH; f_obs_k = f_obs_k + 1) begin : f_obs
+            assign f_obs_words[f_obs_k*WIDTH +: WIDTH] = @ARRAY@[f_obs_k];
+        end
+    endgenerate

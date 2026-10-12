@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: MIT
+# The interconnect's timeout exemption (harness/interconnect_top.sv), unbounded proofs by
+# induction:
+#   ic_default     the module with its default mask equals the base module (outputs and counter)
+#   ic_ram_exempt  with the mask of rtl/mcu.sv's cached branch and a master that holds its request
+#                  until the answer: no timeout while slave 0 is selected, the counter is 0 then
+#   ic_io_timeout  with that mask, for every input that never selects slave 0: equal to the base
+#                  module (every I/O slave keeps its timeout)
+# The <name>_bmc tasks are the fallback, a bounded check to depth 260; the cover_* tasks show that
+# an I/O access still times out and that a RAM access can wait 256 cycles without one.
+[tasks]
+ic_default           m_default eq  prove
+ic_ram_exempt        m_ram     ram prove
+ic_io_timeout        m_io      eq  prove
+ic_default_bmc       m_default eq  bmc
+ic_ram_exempt_bmc    m_ram     ram bmc
+ic_io_timeout_bmc    m_io      eq  bmc
+cover_ic_default     m_default cov
+cover_ic_ram_exempt  m_ram     cov
+cover_ic_io_timeout  m_io      cov
+
+[options]
+prove: mode prove
+prove: depth 4
+bmc: mode bmc
+bmc: depth 260
+cov: mode cover
+cov: depth 262
+
+[engines]
+smtbmc bitwuzla
+
+[script]
+eq:        verilog_defaults -add -DCHECK_IC_EQUAL
+ram:       verilog_defaults -add -DCHECK_IC_RAM_EXEMPT
+cov:       verilog_defaults -add -DCOVERS
+m_default: read_verilog -sv -formal ic_default.v
+m_ram:     read_verilog -sv -formal ic_ram_exempt.v
+m_io:      read_verilog -sv -formal ic_io_timeout.v
+hierarchy -top interconnect_top
+proc
+flatten
+prep -top interconnect_top
+
+[files]
+../gen/ic_default.v
+../gen/ic_ram_exempt.v
+../gen/ic_io_timeout.v
+../props/interconnect_props.vh
