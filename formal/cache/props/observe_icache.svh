@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 // observe_icache.svh -- formal/cache/run.sh inserts this file, as one include line, before the
 // final endmodule of its copy of rtl/cache/icache.sv (never into the source itself). It gives the
-// properties the I-cache's state in fixed forms: the two states by name (sv2v replaces the
-// enumeration names by numbers), the valid bits as a vector with bit k for set k (whether the
-// design keeps them packed or unpacked), the beat counter and the refill line zero-extended.
+// properties the I-cache's state in fixed forms: the two states by name (the RTL's named
+// constants, which the converted model shows only as numbers), the valid bits as a vector with
+// bit k for set k (whether the design keeps them packed or unpacked), the beat counter and the
+// refill line zero-extended.
     wire f_obs_lookup = state == LOOKUP;
     wire f_obs_refill = state == REFILL;
     wire [BYTES/LINE_BYTES-1:0] f_obs_valid;

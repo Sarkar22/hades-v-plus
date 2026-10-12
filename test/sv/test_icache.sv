@@ -69,6 +69,9 @@
 //   +compare=0            the bench's own checks (the comparison, the memory checks, the bounds,
 //                         the identities) report nothing, so that only the assertions inside the
 //                         cache and the arbiter can stop the run; it ends with COMPARE OFF
+//   +compare=bounds       as +compare=0, but the answer bounds are still checked (so that a fault
+//                         which breaks a bound, and which the comparison would see first, is
+//                         shown by the bound's own message); it ends with COMPARE OFF as well
 //   +negative=<case>      inject one fault in configuration icache512-line16-ram; an assertion of
 //                         the design must stop the run, otherwise the bench fails 32 cycles
 //                         later. Cases: fetch-write (the fetch bus presents we = 1),
@@ -337,6 +340,7 @@ module icache_bench_env #(
     longint unsigned seg_cycles;     // cycles per memory profile
     longint unsigned total_cycles;
     bit              compare_on;
+    bit              bounds_on;      // the answer bounds are checked (also with +compare=bounds)
     string           negative;
     bit              inject_here;
     int unsigned     seed;
@@ -371,13 +375,18 @@ module icache_bench_env #(
         seed       = 1;
         n          = 1000000;
         compare_on = 1;
+        bounds_on  = 1;
         negative   = "";
         selected   = 1;
         void'($value$plusargs("seed=%d", seed));
         if ($value$plusargs("cycles=%d", n) && n < 100)
             $fatal(1, "ICACHE BENCH: +cycles=%0d: give at least 100", n);
         seg_cycles = n;
-        if ($test$plusargs("compare=0")) compare_on = 0;
+        if ($test$plusargs("compare=0")) begin
+            compare_on = 0;
+            bounds_on  = 0;
+        end
+        if ($test$plusargs("compare=bounds")) compare_on = 0;
         if ($value$plusargs("negative=%s", text)) begin
             if (text != "fetch-write" && text != "request-change" && text != "ack-err" &&
                 text != "refill-err" && text != "spontaneous-answer")
@@ -877,7 +886,7 @@ module icache_bench_env #(
     // The step at the end of every cycle
     // ---------------------------------------------------------------------------------------
     always @(posedge clk) begin : step
-        bit        checking, reset_now, next_rst, d_req, f_req, d_done, new_seg;
+        bit        checking, bchecking, reset_now, next_rst, d_req, f_req, d_done, new_seg;
         bit        fill_now, snoop_now, inval_now, scenario_fetch, scenario_data;
         bit [31:0] next_f_adr, a, sd_adr, sd_dat;
         bit  [3:0] sd_sel;
@@ -891,6 +900,7 @@ module icache_bench_env #(
         snoop_now = o_snoop;
         inval_now = x_ev[5];
         checking  = compare_on && !(inject_here && injected) && !done;
+        bchecking = bounds_on && !(inject_here && injected) && !done;
 
         if (!selected) begin
             done <= 1;
@@ -906,6 +916,7 @@ module icache_bench_env #(
                 injected = 1;
                 inject_cycle = cycle;
                 checking = 0;
+                bchecking = 0;
                 inj_ack_err <= 0; inj_refill_err <= 0; inj_spontaneous <= 0;
                 $display("ICACHE BENCH: configuration %s: negative case %s injected in cycle %0d",
                          NAME, negative, cycle);
@@ -968,7 +979,7 @@ module icache_bench_env #(
                         if (longint'(b_data) > max_data_wait[profile]) max_data_wait[profile] = b_data;
                         b_data = 0;
                     end
-                    else if (b_data >= cost_r + cost_d && checking)
+                    else if (b_data >= cost_r + cost_d && bchecking)
                         fail($sformatf("data request 0x%08x not answered within %0d cycles (R %0d + D %0d)",
                                        data_bus.adr, cost_r + cost_d, cost_r, cost_d));
                 end
@@ -983,7 +994,7 @@ module icache_bench_env #(
                         if (b_grant == K_OLDER * cost_d) cv[CV_GRANT_AT_BOUND]++;
                         b_grant_on = 0;
                     end
-                    else if (b_grant >= K_OLDER * cost_d && checking)
+                    else if (b_grant >= K_OLDER * cost_d && bchecking)
                         fail($sformatf("refill of line 0x%08x not granted within %0d cycles (%0d older transfers of D %0d)",
                                        32'(model.line) << O, K_OLDER * cost_d, K_OLDER, cost_d));
                 end
@@ -998,7 +1009,7 @@ module icache_bench_env #(
                         if (longint'(b_last) > max_refill[profile]) max_refill[profile] = b_last;
                         refill_granted = 0;
                     end
-                    else if (b_last >= cost_r && checking)
+                    else if (b_last >= cost_r && bchecking)
                         fail($sformatf("refill of line 0x%08x: last beat not answered within R = %0d cycles of its grant",
                                        32'(model.line) << O, cost_r));
                 end
@@ -1546,7 +1557,7 @@ module test_icache;
         bit     all_done, compare_on, cover_on, short_any;
         longint total;
         int     configs;
-        compare_on = !$test$plusargs("compare=0");
+        compare_on = !$test$plusargs("compare=0") && !$test$plusargs("compare=bounds");
         cover_on   = !$test$plusargs("cover=0");
         do begin
             @(posedge clk);
@@ -1580,7 +1591,7 @@ module test_icache;
         end
         if (!compare_on) begin
             $display("ICACHE BENCH: COMPARE OFF (%0d configurations, %0d cycles)", configs, total);
-            $fatal(1, "the I-cache bench ran with +compare=0: no verdict");
+            $fatal(1, "the I-cache bench ran with +compare=0 or +compare=bounds: no verdict");
         end
         if (short_any && cover_on) begin
             $display("ICACHE BENCH: FAIL (coverage targets not met, see the configuration lines)");

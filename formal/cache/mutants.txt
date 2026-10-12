@@ -7,10 +7,10 @@
 # exactly once in the file) | replacement | description
 #
 # In both texts \n stands for a newline, \t for a tab and \| for |. A row whose original text is
-# empty is not defined yet: run.sh reports its controls as NOT-DEFINED, which fails the run. The
-# texts of the cache mutants are written against rtl/cache/*.sv as committed (the same changes
-# that the mutation campaign applies); run.sh --mutant-cmd can take them from that campaign
-# instead of from this table.
+# empty takes its change from the repository's mutation campaign: run.sh applies the patch of
+# test/memsys/mutants.py under the same name (mutants.py apply), so that each mutant is written in
+# one place only; a row that gives a text uses that text instead. run.sh --mutant-cmd takes every
+# mutant from a command instead of from this table.
 #
 # ---- the I-cache ----
 no-snoop | line_data store_fetch | rtl/cache/icache.sv | | | the snoop never invalidates

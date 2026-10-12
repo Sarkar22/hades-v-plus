@@ -492,6 +492,10 @@ def coverage_judge(job, rc, out, d):
     below 80% of its cycle limit."""
     verdict, notes = programs_judge(job, rc, out, d)
     large = job.cache == "i8k"
+    try:
+        limit = json.load(open(os.path.join(d, "results.json")))["timeout"]
+    except (OSError, ValueError, KeyError):
+        limit = None
     mins = {
         "irqchain": dict(i_done=header_minimum("irqchain", r"i_done is at least.*?=\s*(\d+)"),
                          i_abandoned=header_minimum("irqchain", r"i_abandoned at least (\d+)")),
@@ -513,10 +517,19 @@ def coverage_judge(job, rc, out, d):
                 notes.append(f"{prog}: {k}={st.get(k)} below the header's {v}")
             else:
                 notes.append(f"{prog}: {k}={st.get(k)} (at least {v}; recorded)")
-        lim = re.search(r"cycle limit (\d+)", log)
+        # the cycle limit of the run: programs.py passes it as +timeout (results.json), so the
+        # simulator prints no limit line of its own
+        lim = limit
+        if lim is None:
+            m = re.search(r"cycle limit (\d+)", log)
+            lim = int(m.group(1)) if m else None
         r = RETIRED.search(log)
-        if lim and r and int(r.group(1)) >= 0.8 * int(lim.group(1)):
-            notes.append(f"{prog}: {r.group(1)} cycles, 80% or more of the limit {lim.group(1)}")
+        if lim is None:
+            notes.append(f"{prog}: no cycle limit found")
+        elif r and int(r.group(1)) >= 0.8 * lim:
+            notes.append(f"{prog}: {r.group(1)} cycles, 80% or more of the limit {lim}")
+        elif r:
+            notes.append(f"{prog}: {r.group(1)} cycles, {100 * int(r.group(1)) / lim:.1f}% of the limit {lim} (recorded)")
     words = re.search(r"^RAM_WORDS (.*)$", read(os.path.join(d, "dut", "memsys-irqchain", "sim.log")), re.M)
     if words:
         vals = [int(v, 16) for v in re.findall(r"=(?:0x)?([0-9a-fA-F]+)", words.group(1))]
@@ -545,8 +558,11 @@ PHASES = {
     "RAM load wait":    lambda b: (b & 0x1C) == 0x0C,
     "I/O wait":         lambda b: (b & 0x0C) == 0x04,
 }
+# The phase of a RESET line. With a cache a RAM access that waits for its answer is either still
+# waiting for the memory port ("RAM load waiting") or granted it ("granted (RAM load)"); both count.
 RESET_TEXT = {"refill beat": r"I-cache refill beat", "refill waiting": r"refill waiting for the port",
-              "RAM store wait": r"data side RAM store waiting", "RAM load wait": r"data side RAM load waiting",
+              "RAM store wait": r"data side (RAM store waiting|granted \(RAM store\))",
+              "RAM load wait": r"data side (RAM load waiting|granted \(RAM load\))",
               "I/O wait": r"data side I/O access waiting"}
 
 
@@ -917,7 +933,11 @@ def helper_cpi(a, vars_):
     goal_vars = vars_ + ["TICK=10000", f"BPRED={a.bpred}"] + (["TIMEOUT=10000000"] if a.app == "full" else [])
     r, _, _, _ = frtos_direct(a.app, goal_vars, ["+retired_every=100000"], a.dir)
     for l in r.stdout.splitlines():
-        if l.startswith(("RETIRED", "CACHE_STATS", "FRTOS-RESULT", "Simulation timeout", "SCOREBOARD")):
+        # (a RETIRED_AT line can follow the program's UART output on the same line)
+        m = re.search(r"RETIRED_AT instructions=\d+ cycles=\d+", l)
+        if m:
+            print(m.group(0))
+        elif l.startswith(("RETIRED", "CACHE_STATS", "FRTOS-RESULT", "Simulation timeout", "SCOREBOARD")):
             print(l)
     return 0 if "SCOREBOARD: PASS" in r.stdout and not re.search(r"%(Fatal|Error)", r.stdout) else 1
 

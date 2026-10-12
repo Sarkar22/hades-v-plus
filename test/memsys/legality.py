@@ -33,10 +33,10 @@ Groups (each case passes or fails on its own; the last line is 'LEGALITY: PASS (
                  and a non-zero exit; +compare=0 ends with 'ICACHE BENCH: COMPARE OFF' and a non-zero
                  exit
 
-Messages are matched by regular expressions (MESSAGE below): a check passes when its run stops with
-a matching line. The expressions follow the rules of the cache documentation (each message names
-the option or parameter, its value and the rule); they are pinned to the RTL's exact wording when
-the cache is integrated.
+Messages are matched by regular expressions: a check passes when its run stops with a matching
+line. The expressions follow the rules of the cache documentation (each message names the option or
+parameter, its value and the rule); those of the bench's negative cases name the assertion of the
+RTL that must stop the run, in its own wording.
 """
 import argparse
 import concurrent.futures as cf
@@ -206,8 +206,9 @@ for desc, p, msg in (
          r"WINDOW_WORDS"),
         ("WINDOW_WORDS 0", dict(bytes=512, line=16, start="32'h10000", words="32'h0"), r"WINDOW_WORDS"),
         ("window beyond 2**30 words", dict(bytes=512, line=16, start="32'h3FFF_FF00", words="32'h200"),
-         r"WINDOW"),
-        ("tag width below 1 bit", dict(bytes=1 << 31, line=64, start="32'h0", words="32'h40"), r"T\b|tag|BYTES")):
+         r"WINDOW")):
+    # (The check that the tag has at least one bit has no negative case: BYTES is an int unsigned,
+    # so its largest power of two is 2**31, which leaves 32 - 31 = 1 tag bit.)
     case("build-checks", f"icache: {desc}", verilated(WRAP_ICACHE.format(**p), msg, ICACHE_FILES))
 case("build-checks", "icache: legal parameters elaborate",
      lambda tmp: (lambda r: (not r[0] and "elaborated" in r[1], r[1]))(
@@ -454,8 +455,11 @@ case("simulators", "sim/top.sv: every memory-wrapper reference in its branch", w
 
 
 # ---- the I-cache bench's negative cases
-BENCH_CASES = {"fetch-write": r"we|write|sel", "request-change": r"chang|request", "ack-err": r"ack.*err|err.*ack",
-               "refill-err": r"err", "spontaneous-answer": r"without.*(grant|request)|grant|answer"}
+BENCH_CASES = {"fetch-write": r"icache: the fetch port presents we=1",
+               "request-change": r"mem_arbiter: the granted data request .* changed before its answer",
+               "ack-err": r"(mem_arbiter|icache): ack and err together",
+               "refill-err": r"icache: the memory answered err to the refill",
+               "spontaneous-answer": r"mem_arbiter: the memory answered at cycle \d+ .*no side is granted"}
 
 
 def bench_case(name, message):
