@@ -39,10 +39,12 @@ SV_DIR = $(TEST_DIR)/sv
 ################################################################################
 
 # Simulation-only options that change what a simulator is built from. They apply to
-# every simulator a flow builds (test/asm/*, test/c/*, test/sv/*, the FreeRTOS targets
-# including freertos-stress, lint-loops). The standard configuration has none of them;
-# any other one builds into a directory of its own, <build directory>/cfg-<name>, so the
-# standard simulators and their results stay untouched. Give them on the command line:
+# every simulator a flow builds (test/asm/*, test/c/*, test/memsys/*, the FreeRTOS targets
+# including freertos-stress, lint-loops). The module benches (test/sv/*) are built in the
+# configuration's directory too, but none contains the memory system, so they do not change.
+# The standard configuration has none of them; any other one builds into a directory of its
+# own, <build directory>/cfg-<name>, so the standard simulators and their results stay
+# untouched. Give them on the command line:
 #     make test/asm/ops MEM_LAT=2          make freertos APP=stress MEM_LAT=1:8
 #     make sim-config MEM_LAT=1:8          (prints the configuration and its directory)
 # Scripts that build their own simulators through make (test/freertos/campaign.py,
@@ -72,7 +74,8 @@ SV_DIR = $(TEST_DIR)/sv
 # sim/top.sv and sim/slow_memory.sv (+mem_lat=..., +noscoreboard, ...) override them.
 # A simulator with a slow memory also prints, at the end of every run, the instructions
 # HaDes-V+ retired and the cycles per instruction (RETIRED line; +noretired: not).
-# test/memsys/programs.py runs the assembly and C programs on both CPUs in a configuration.
+# test/memsys/programs.py runs all assembly, C and memory-system programs on both CPUs in a
+# configuration.
 # Each option below adds its part to the configuration's name, its Verilator defines and
 # its description (SIM_CFG_NAME, SIM_CFG_DEFS, SIM_CFG_TEXT); a new option is one more
 # such block and one more name in SIM_CFG_VARS.
@@ -195,7 +198,7 @@ $(foreach v,$(SIM_CFG_VARS),$(if $($(v)),$(eval export HADES_$(v) := $($(v)))))
 # (checked here, before anything below creates a build directory).
 ifneq ($(SIM_CFG_NAME),)
 ifneq ($(filter synthesis,$(MAKECMDGOALS)),)
-$(error The simulator configuration $(SIM_CFG_NAME) is for simulation only; synthesis always builds the standard design: run it without $(strip $(foreach v,$(SIM_CFG_VARS),$(if $($(v)),$(v)=$($(v))))))
+$(error The simulator configuration $(SIM_CFG_NAME) is for simulation only; synthesis always builds the standard design: run it without $(strip $(foreach v,$(SIM_CFG_VARS),$(if $($(v)),$(if $(filter $(v),$(SIM_CFG_ENV)),HADES_)$(v)=$($(v))))))
 endif
 endif
 
@@ -362,10 +365,11 @@ help:
 	@echo "  e.g. make test/asm/ops MEM_LAT=2    make freertos APP=stress MEM_LAT=1:8    make freertos-stress MEM_LAT=2"
 	@echo "  sim-config        Print the configuration, its build directory and the environment for scripts"
 	@echo "  lint-loops        List the combinational loops of the configuration (Verilator, no UNOPTFLAT waiver)"
-	@echo "  SIM_ARGS='<opts>' Run-time options for the simulator of test/asm/* and test/c/* (+scoreboard,"
-	@echo "                    +bushash, +retired, +mem_lat=<n>, ... see sim/top.sv and sim/slow_memory.sv;"
-	@echo "                    with a slow memory the default +timeout is 100000 times 1 + the longest wait)"
-	@echo "  python3 test/memsys/programs.py run [options]   all assembly and C programs, both CPUs"
+	@echo "  SIM_ARGS='<opts>' Run-time options for the simulator of test/asm/*, test/c/*, test/memsys/*"
+	@echo "                    (+scoreboard, +bushash, +retired, +mem_lat=<n>, ... see sim/top.sv and"
+	@echo "                    sim/slow_memory.sv; with a slow memory the default +timeout is 100000"
+	@echo "                    times 1 + the longest wait)"
+	@echo "  python3 test/memsys/programs.py run [options]   all assembly, C and memory-system programs, both CPUs"
 	@echo "  make test/memsys/<name>     an assembly program of the memory-system checks (test/memsys/*.s)"
 	@echo ""
 	@echo "Build directory: $(BUILD_DIR)  (relocate with BUILD_DIR=/abs/path or HADES_BUILD_DIR)"
@@ -403,7 +407,8 @@ bootloader: $(BUILD_DIR)/$(C_DIR)/bootloader/init.mem $(BUILD_DIR)/$(C_DIR)/boot
 #                                  Simulation                                  #
 ################################################################################
 
-# Run-time options for the simulator of the assembly and C tests (command line only), e.g.
+# Run-time options for the simulator of the assembly, C and memory-system tests (command line
+# only), e.g.
 #     make test/asm/ops SIM_ARGS='+scoreboard +bushash'
 SIM_ARGS := $(if $(filter command line,$(origin SIM_ARGS)),$(SIM_ARGS))
 

@@ -5,9 +5,9 @@
 // rtl/mcu.sv puts one in front of each port of wishbone_ram (port A: the fetch bus, port B:
 // slave 0 of the data-bus interconnect) when the simulator is verilated with
 // +define+HADES_SLOW_MEM, as `make MEM_LAT=...` does (see `make help`). It turns the
-// single-cycle RAM into a memory with a latency, so that the CPU's bus ports, and later
-// caches, can be tested against a slow memory. The standard simulators and synthesis do
-// not contain it (Vivado does not read sim/).
+// single-cycle RAM into a memory with a latency, so that the CPU's bus ports, and any
+// caches between them and the RAM, can be tested against a slow memory. The standard
+// simulators and synthesis do not contain it (Vivado does not read sim/).
 //
 // What it does:
 //   - Each transfer (cyc && stb) is held back from the RAM for its latency L: for L cycles

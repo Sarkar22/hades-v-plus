@@ -203,7 +203,8 @@ module top;
     // before the next one arrives (the shell's queue holds 64). A slow memory
     // (sim/slow_memory.sv) makes the program up to 1 + its longest wait times slower, and a
     // long line would overflow the queue; so with a slow memory the pauses are that many
-    // times longer. +console_pace=<n> sets the factor (1: the pace of the standard simulator).
+    // times longer. +console_pace=<n> sets the factor (1 to 32767; 1: the pace of the standard
+    // simulator).
     int         con_pace;                  // the pauses are con_pace times longer
 
     typedef enum bit [1:0] { CON_IDLE, CON_FRAME, CON_DRAIN } con_state_t;
@@ -239,8 +240,12 @@ module top;
         con_pace = 1 + int'(mcu.fetch_memory_delay.rd_max);
         if (1 + int'(mcu.data_memory_delay.rd_max) > con_pace) con_pace = 1 + int'(mcu.data_memory_delay.rd_max);
         if (1 + int'(mcu.data_memory_delay.wr_max) > con_pace) con_pace = 1 + int'(mcu.data_memory_delay.wr_max);
+        if (1 + int'(mcu.fetch_memory_delay.beat_lat) > con_pace) con_pace = 1 + int'(mcu.fetch_memory_delay.beat_lat);
+        if (1 + int'(mcu.data_memory_delay.beat_lat) > con_pace) con_pace = 1 + int'(mcu.data_memory_delay.beat_lat);
 `endif
-        if ($value$plusargs("console_pace=%d", con_pace) && con_pace < 1) $fatal(1, "+console_pace=%0d: give 1 or more", con_pace);
+        // CON_MAX_WAIT * con_pace must fit in an int
+        if ($value$plusargs("console_pace=%d", con_pace) && (con_pace < 1 || con_pace > 32767))
+            $fatal(1, "+console_pace=%0d: give 1 to 32767", con_pace);
     end
 
     always @(posedge clk) begin
@@ -553,7 +558,10 @@ module top;
 `endif
 `endif
     bit              rt_en;
-    longint unsigned rt_cycles, rt_instructions;
+    longint unsigned rt_cycles;
+`ifndef USE_REF_CPU
+    longint unsigned rt_instructions;
+`endif
 
     initial begin
         rt_en = `HADES_RETIRED;
