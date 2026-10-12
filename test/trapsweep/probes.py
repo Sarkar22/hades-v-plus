@@ -612,9 +612,36 @@ def crypto_probes():
           ['a0', 'a1'], kmax=40),
     ]
 
-# Families that sweep.py runs only when named (sweep.py run --fam ext, --fam crypto): they are not part
-# of 'all' or of 'sweep.py list', whose output the trapsweep record stores.
-OPT_FAMS = {'ext': ext_probes, 'crypto': crypto_probes}
+def window_probes():
+    """Fetches outside the RAM window [0x40000, 0x48000), for a simulator with an instruction
+    cache (docs/CACHES.md): every one must end in a fetch fault, also when its target aliases a
+    cached line. The cache compares the full tag of the presented address, so a target that
+    shares the index, the word and the low tag bits of a valid line must still miss and get err
+    alone; a tag compare cut down to the bits that the RAM window needs would answer it with ack
+    and err together.
+      - byte 0xC0000 has index 0 in a 512-byte and in an 8 KiB cache, the set of the reset line
+        at 0x40000 (an alias only while the reset line is cached);
+      - byte 0x3FFFC is the word just below the window;
+      - the alias probe jumps to its own jalr plus 0x80000: only byte-address bit 19 (word-address
+        bit 17) differs, so the target aliases the jalr's own line, which is valid when the
+        target is presented.
+    The first and the third probe start a 16-byte line (.align 4), so that their jalr is word 1
+    of its line: the two words that Fetch presents between the jalr and its target (the jalr
+    resolves in Execute) are words 2 and 3 of the same line, and the target is looked up while
+    that line is valid and no refill of another line is running."""
+    return [
+        dict(name="jalr to 0xC0000 (fetch fault; same set as the reset line)",
+             probe="    .align 4\n    li   a4, 0xC0000\n    jalr ra, 0(a4)\n    li   a1, 0x77", dump=['a1']),
+        dict(name="jalr to 0x3FFFC (fetch fault; the word below the RAM)",
+             probe="    li   a4, 0x3FFFC\n    jalr ra, 0(a4)\n    li   a1, 0x77", dump=['a1']),
+        dict(name="jalr to its own address + 0x80000 (fetch fault; alias of its own line)",
+             probe="    .align 4\n    auipc a4, 0x80\n    jalr ra, 4(a4)\n    li   a1, 0x77", dump=['a1']),
+    ]
+
+# Families that sweep.py runs only when named (sweep.py run --fam ext, --fam crypto, --fam window):
+# they are not part of 'all' or of 'sweep.py list', whose output the trapsweep record stores.
+# 'window' runs on both CPUs (it is not in DUT_ONLY).
+OPT_FAMS = {'ext': ext_probes, 'crypto': crypto_probes, 'window': window_probes}
 
 FAMS = {'ctl': ctl_probes, 'race': race_probes, 'csr': csr_probes, 'exc': exc_probes, 'exc_mie0': lambda: exc_probes('mie0'), 'exc_mie0mpie0': lambda: exc_probes('mie0mpie0'),
         'exc_mpie0': lambda: exc_probes('mpie0'), 'nested': nested_probes, 'flow': flow_probes, 'bus': bus_probes,
@@ -627,8 +654,9 @@ DUT_ONLY = {'m', 'pre', 'bp', 'ext', 'crypto'}
 
 if __name__ == '__main__':
     # probes.py <family> [ext|timer|both] [ids-file]: print one program with every probe of a family
+    # (also of an optional family)
     fam = sys.argv[1]; src = sys.argv[2] if len(sys.argv) > 2 else 'ext'
-    probes = [(i + 1, p) for i, p in enumerate(FAMS[fam]())]
+    probes = [(i + 1, p) for i, p in enumerate({**FAMS, **OPT_FAMS}[fam]())]
     sys.stdout.write(build(probes, src=src))
     if len(sys.argv) > 3:
         with open(sys.argv[3], 'w') as f:

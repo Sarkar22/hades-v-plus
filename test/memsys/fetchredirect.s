@@ -33,6 +33,23 @@
 # | computed with an independent instruction-set model, not by the CPU. The reports are the      |
 # | same at every latency.                                                                       |
 # |                                                                                              |
+# | EVICTION STEPS, for a simulator with an instruction cache (docs/CACHES.md): before every     |
+# | pass of case 2 and before cases 3 and 4, in both modes, the program calls evict_fr, a block  |
+# | placed exactly 8 KiB (0x2000 bytes) after the tested code fr_tested..fr_tested_end (cases 2  |
+# | to 4). 8 KiB is a multiple of 512 bytes, so line k of the block has the index of tested line |
+# | k in a 512-byte and in an 8 KiB direct-mapped cache: after each step every tested line       |
+# | misses again, and the taken branches and jumps of the cases leave refills behind them. The   |
+# | block runs one jal per two lines (evict_block below); without a cache it costs about 70      |
+# | cycles per step.                                                                             |
+# |                                                                                              |
+# | Expected with a cache, from the assembled program (TESTED_LINES = 55 lines of 16 bytes, 12   |
+# | eviction steps): every tested line that retires an instruction between two steps misses once |
+# | after the first of them, so CACHE_STATS i_done is at least 294 (the sum over the steps of    |
+# | the tested lines that retire before the next step, counted on the standard build); and every |
+# | step refills the block's odd lines whose tested line ran since the previous step on the      |
+# | wrong path, each one abandoned at its last beat, so i_abandoned is at least 166 (at least 4  |
+# | per case). Both hold with 16-byte lines in a 512-byte and in an 8 KiB cache.                 |
+# |                                                                                              |
 # | Register allocation:                                                                         |
 # |     x5  (t0):   reserved for macro use                                                       |
 # |     x6  (t1):   1 (the value a failed check writes)                                          |
@@ -40,7 +57,7 @@
 # |     x28 (t3):   test peripheral address                                                      |
 # |     s1: checksum            s2: running sum of the updates     s3: wrong-path words          |
 # |     s4: branch-predictor mode   s5: pattern   s6: passes   s7, s8: loop counters             |
-# |     t4, a0: scratch         ra: return address                                               |
+# |     t4, a0: scratch         ra: return address (also of the eviction steps)                  |
 # |                                                                                              |
 # ------------------------------------------------------------------------------------------------
 
@@ -76,6 +93,34 @@
 
 .option norelax
 
+# The lines of the tested code (fr_tested..fr_tested_end, below)
+.equ FR_TESTED_LINES, 55
+
+# Eviction step: evict_block <lines> fills <lines> 16-byte lines, for code placed exactly 8 KiB
+# before it (see the header). It is entered with 'jal ra, <block> + 12' and returns to ra. Every
+# even line k holds three nops and, at word 3, a jal to word 3 of line k + 2 (the last one returns
+# with jalr): one instruction runs per two lines. The jal resolves in Execute, so Fetch presents
+# word 0 of line k + 1 on the wrong path before the target, and a cache refills that line too (a
+# started refill always completes). The other words are nops that never run.
+.macro evict_block lines:req
+    .set evict_k, 0
+    .rept (\lines + 1) / 2
+    nop
+    nop
+    nop
+    .if evict_k + 2 < \lines
+    jal  zero, . + 32
+    .else
+    jalr zero, 0(ra)
+    .endif
+    nop
+    nop
+    nop
+    nop
+    .set evict_k, evict_k + 2
+    .endr
+.endm
+
 # Expected checksums (s1 at the end of each case)
 .equ EXP_ZIGZAG,  0x004AB4A9
 .equ EXP_PATTERN, 0x005FC57F
@@ -106,13 +151,17 @@ test_mode:
     csrw 0x32A, s4                 # MHPMEVENT10: branch-predictor mode
 
 # -----------------------------------------------
-# Case 2: 24 blocks in a scrambled order, four passes.
+# Case 2: 24 blocks in a scrambled order, four passes. The tested code (cases 2 to 4) starts at a
+# line boundary.
+.balign 16
+fr_tested:
 test_zigzag:
     addi t2, zero, 2
     addi s1, zero, 0
     addi s2, zero, 0
     addi s8, zero, 4
 zz_pass:
+    jal  ra, evict_fr + 12         # eviction step before every pass
     addi s2, s2, 1951
     add  s1, s1, s2
     jal  zero, zz_1                # into the first block
@@ -264,6 +313,7 @@ zz_end:
 # -----------------------------------------------
 # Case 3: a loop whose branch follows the bits of a pattern (taken on a 1).
 test_pattern:
+    jal  ra, evict_fr + 12         # eviction step before the case
     addi t2, zero, 3
     addi s1, zero, 0
     addi s2, zero, 0
@@ -304,6 +354,7 @@ sub_back:
 # -----------------------------------------------
 # Case 4: calls forward and backward through jal and jalr, three times.
 test_calls:
+    jal  ra, evict_fr + 12         # eviction step before the case
     addi t2, zero, 4
     addi s1, zero, 0
     addi s2, zero, 0
@@ -341,6 +392,8 @@ sub_fwd2:
     add  s1, s1, s2
     jalr zero, 0(ra)
     addi s3, s3, 2029
+.org fr_tested + 16 * FR_TESTED_LINES   # (an error if the tested code outgrows its lines)
+fr_tested_end:
 
 test_next_mode:
     addi s6, s6, 256               # passes (the target of the jump above)
@@ -359,3 +412,8 @@ test_finish:
     csrwi 0x32A, 0
     halt
     fail
+
+# The eviction block, exactly 8 KiB after the tested code
+.org fr_tested + 0x2000
+evict_fr:
+    evict_block FR_TESTED_LINES
