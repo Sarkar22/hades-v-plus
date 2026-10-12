@@ -30,6 +30,12 @@ make formal-ext      # the EXT unit alone (under a minute)
 `FORMAL RESULT: PASS` or `FORMAL RESULT: FAIL ...`. `make` exits with status 0 only
 for `PASS`. The tools are listed in [Tools](#tools).
 
+**The instruction cache.** The proofs of the simulation-only instruction cache, its
+memory arbiter and the interconnect's timeout exemption are in
+[cache/](cache/README.md). They run with `make formal-cache` (output in
+`$(BUILD_DIR)/formal-cache`, last line `FORMAL CACHE RESULT: PASS` or `FAIL ...`) and use
+the same tools; `make formal`, `make formal-full` and `make formal-ext` do not run them.
+
 Contents:
 
 1. [What is proven](#1-what-is-proven): [the M unit](#the-m-unit), [the EXT unit](#the-ext-unit-zbb-zbs-zicond-zbkb-zbkx-zknh)

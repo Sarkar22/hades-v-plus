@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: MIT
+# Covers of the I-cache and the arbiter together (harness/cache_top.sv): every cover statement of
+# props/cache_props.vh must be reached, in each configuration, and with the CPU-like data side.
+[tasks]
+cover_tiny         tiny
+cover_cpu_tiny     tiny_cpu
+cover_second       second
+cover_cpu_second   second_cpu
+
+[options]
+mode cover
+tiny: depth 40
+tiny_cpu: depth 40
+second: depth 30
+second_cpu: depth 30
+
+[engines]
+smtbmc bitwuzla
+
+[script]
+verilog_defaults -add -DCOVERS -DFH_ICACHE -DFH_ARBITER -DFH_FULL
+tiny:       read_verilog -sv -formal cache_tiny.v
+tiny_cpu:   read_verilog -sv -formal cache_tiny_cpu.v
+second:     read_verilog -sv -formal cache_second.v
+second_cpu: read_verilog -sv -formal cache_second_cpu.v
+hierarchy -top cache_top
+proc
+flatten
+memory -nomap
+memory_map
+opt_clean
+prep -top cache_top
+
+[files]
+../gen/cache_tiny.v
+../gen/cache_tiny_cpu.v
+../gen/cache_second.v
+../gen/cache_second_cpu.v
+../gen/observe_ram.vh
+../props/cache_props.vh

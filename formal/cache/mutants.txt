@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: MIT
+# The negative controls of formal/cache: one source change each, under the public name of the
+# repository's cache mutation campaign, with the properties that must FAIL on it (run.sh runs each
+# of them where it was proved: same configuration, step, depth, engine and harness).
+#
+# name | properties that must fail | file (repository path) | exact original text (must occur
+# exactly once in the file) | replacement | description
+#
+# In both texts \n stands for a newline, \t for a tab and \| for |. A row whose original text is
+# empty is not defined yet: run.sh reports its controls as NOT-DEFINED, which fails the run. The
+# texts of the cache mutants are written against rtl/cache/*.sv as committed (the same changes
+# that the mutation campaign applies); run.sh --mutant-cmd can take them from that campaign
+# instead of from this table.
+#
+# ---- the I-cache ----
+no-snoop | line_data store_fetch | rtl/cache/icache.sv | | | the snoop never invalidates
+no-second-lookup | fetch_data | rtl/cache/icache.sv | | | after the last beat, the refilled word for the latched address is acknowledged in the next cycle, whatever is presented
+latched-lookup | fetch_data | rtl/cache/icache.sv | | | in the second-lookup cycle the hit is computed for the latched address
+ignore-valid | fetch_data | rtl/cache/icache.sv | | | the hit ignores the valid bit
+reset-keeps-valid | reset_state | rtl/cache/icache.sv | | | a reset leaves the valid bits set
+no-window-check | window refill_window | rtl/cache/icache.sv | | | no err; out-of-window addresses are looked up and refilled
+snoop-wrong-index | store_fetch | rtl/cache/icache.sv | | | the snoop's index bits are shifted by one
+refill-word-off-by-one | fetch_data line_data | rtl/cache/icache.sv | | | refill beat k is written to word k+1
+ack-in-refill | fetch_data | rtl/cache/icache.sv | | | ack also in REFILL (the hit is not gated by the state)
+narrow-tag | window ack_err | rtl/cache/icache.sv | | | the tag compare uses only the tag bits below the window's top
+ack-without-request | answer_req | rtl/cache/icache.sv | | | the hit is not gated by cyc and stb
+refill-follows-cpu-adr | refill_window refill_stable | rtl/cache/icache.sv | | | the refill beat address takes its line from the presented address instead of the refill line
+data-dependent-hit | data_indep | rtl/cache/icache.sv | | | a lookup whose cached word has a zero lowest byte is treated as a miss
+snoop-full-words-only | store_fetch | rtl/mcu.sv | | | the snoop acts only on stores with sel 1111 (the I-cache has no sel input, so this is the snoop connection of rtl/mcu.sv's cached branch, which the harness uses)
+snoop-late | fetch_data | rtl/cache/icache.sv | | | the snoop invalidates one cycle after the store's acknowledge
+second-snoop-lost | store_fetch | rtl/cache/icache.sv | | | of two stores acknowledged in consecutive cycles, the second is not snooped
+reset-keeps-state | reset_state | rtl/cache/icache.sv | | | a reset clears the valid bits but not the state and the beat counter
+refill-never-ends | bound | rtl/cache/icache.sv | | | after the last beat the I-cache stays in REFILL and refills the line again
+#
+# ---- the arbiter ----
+grant-free-between-beats | line_data refill_no_write grant_kept | rtl/cache/mem_arbiter.sv | | | the port is free after every beat of a refill
+answer-to-any-side | answer_req grant_route | rtl/cache/mem_arbiter.sv | | | the memory's answer (ack, err, read data) goes to every slave side whose cyc is 1, regardless of the grant and of stb
+store-sel-forced | store_once | rtl/cache/mem_arbiter.sv | | | sel is not passed through on data writes (forced to 1111)
+grant-never-released | bound | rtl/cache/mem_arbiter.sv | | | after a refill block the owner stays IREFILL until the I-cache requests again
+write-replay | store_once | rtl/cache/mem_arbiter.sv | | | an answered data write is presented to the memory once more in the next cycle
+i-side-starved | bound_cpu | rtl/cache/mem_arbiter.sv | | | a refill is granted only in a cycle that follows a cycle in which the port was idle
+irefill-answer-by-owner | answer_req grant_route | rtl/cache/mem_arbiter.sv | | | the memory's answer also goes to the I-side when the owner is IREFILL (irefill.ack = (gi \|\| owner == IREFILL) && mem.ack, err and read data likewise)
+#
+# ---- the interconnect and its mask ----
+interconnect-default-exempt | ic_default | lib/wishbone/wishbone_interconnect.sv | TIMEOUT_EXEMPT = '0 | TIMEOUT_EXEMPT = '1 | the default of TIMEOUT_EXEMPT is all ones
+ram-not-exempt | ic_ram_exempt | rtl/mcu.sv | .TIMEOUT_EXEMPT(9'b0_0000_0001) | .TIMEOUT_EXEMPT(9'b0_0000_0000) | bit 0 of the mask is not set in the cached branch
+all-exempt | ic_io_timeout | rtl/mcu.sv | .TIMEOUT_EXEMPT(9'b0_0000_0001) | .TIMEOUT_EXEMPT(9'b1_1111_1111) | the mask is all ones (the I/O slaves lose their timeout)

@@ -1,0 +1,73 @@
+# SPDX-License-Identifier: MIT
+# Bounded proofs of the I-cache and the arbiter together (harness/cache_top.sv), one task per
+# property and configuration: <property>_tiny (depth 40) and, for the properties that the second
+# configuration also proves, <property>_second (depth 30). bound_cpu uses the model with the
+# CPU-like data side. formal/cache/run.sh runs these tasks and derives the fallback ladder's
+# variants from them (another engine, another depth, the narrower memory), see README.md.
+[tasks]
+fetch_data_tiny        fetch_data      tiny
+line_data_tiny         line_data       tiny
+window_tiny            window          tiny
+ack_err_tiny           ack_err         tiny
+answer_req_tiny        answer_req      tiny
+grant_route_tiny       grant_route     tiny
+refill_no_write_tiny   refill_no_write tiny
+grant_kept_tiny        grant_kept      tiny
+bound_tiny             bound           tiny
+bound_cpu_tiny         bound_cpu       tiny_cpu
+reset_state_tiny       reset_state     tiny
+store_fetch_tiny       store_fetch     tiny
+refill_window_tiny     refill_window   tiny
+refill_stable_tiny     refill_stable   tiny
+store_once_tiny        store_once      tiny
+fetch_data_second      fetch_data      second
+line_data_second       line_data       second
+window_second          window          second
+reset_state_second     reset_state     second
+store_fetch_second     store_fetch     second
+refill_window_second   refill_window   second
+refill_stable_second   refill_stable   second
+
+[options]
+mode bmc
+tiny: depth 40
+tiny_cpu: depth 40
+second: depth 30
+
+[engines]
+smtbmc bitwuzla
+
+[script]
+fetch_data:      verilog_defaults -add -DCHECK_FETCH_DATA
+line_data:       verilog_defaults -add -DCHECK_LINE_DATA
+window:          verilog_defaults -add -DCHECK_WINDOW
+ack_err:         verilog_defaults -add -DCHECK_ACK_ERR
+answer_req:      verilog_defaults -add -DCHECK_ANSWER_REQ
+grant_route:     verilog_defaults -add -DCHECK_GRANT_ROUTE
+refill_no_write: verilog_defaults -add -DCHECK_REFILL_NO_WRITE
+grant_kept:      verilog_defaults -add -DCHECK_GRANT_KEPT
+bound:           verilog_defaults -add -DCHECK_BOUND
+bound_cpu:       verilog_defaults -add -DCHECK_BOUND_CPU
+reset_state:     verilog_defaults -add -DCHECK_RESET_STATE
+store_fetch:     verilog_defaults -add -DCHECK_STORE_FETCH
+refill_window:   verilog_defaults -add -DCHECK_REFILL_WINDOW
+refill_stable:   verilog_defaults -add -DCHECK_REFILL_STABLE
+store_once:      verilog_defaults -add -DCHECK_STORE_ONCE
+verilog_defaults -add -DFH_ICACHE -DFH_ARBITER -DFH_FULL
+tiny:     read_verilog -sv -formal cache_tiny.v
+tiny_cpu: read_verilog -sv -formal cache_tiny_cpu.v
+second:   read_verilog -sv -formal cache_second.v
+hierarchy -top cache_top
+proc
+flatten
+memory -nomap
+memory_map
+opt_clean
+prep -top cache_top
+
+[files]
+../gen/cache_tiny.v
+../gen/cache_tiny_cpu.v
+../gen/cache_second.v
+../gen/observe_ram.vh
+../props/cache_props.vh
