@@ -385,8 +385,9 @@ freertos-check-rebuild:
 # "hades> "), +console_upload=<file>, +console_upload_dir=<dir> and +console_app_dir=<dir> (the
 # file sent when the program asks for one, the directory of relative file names, and that of
 # the apps the program asks for by name: the app loader, test/freertos/loader/SPEC.md), and
-# +console_pace=<n> (n times longer pauses between typed characters; with a slow memory,
-# MEM_LAT=..., the default is 1 + its longest wait). See docs/FREERTOS.md, section 9.
+# +console_pace=<n> (n times longer pauses between typed characters, 1 to 32767; with a slow
+# memory, MEM_LAT=..., the default is 1 + its longest wait; through make: APP_CONSOLE_ARGS=
+# +console_pace=<n>). See docs/FREERTOS.md, section 9.
 FRTOS_CONSOLE_CPP   = $(SIM_DIR)/console.cpp
 frtos_con_model_dir = $(BUILD_DIR)/frtos-model/$(1)-$(FRTOS_RAM_KB)k-console
 frtos_con_sim       = $(BUILD_ABS)/frtos-model/$(1)-$(FRTOS_RAM_KB)k-console/top

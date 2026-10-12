@@ -459,8 +459,13 @@ make freertos-shell
 The console types each character only after a pause, so that the program has taken the
 previous one out of its receive queue. With a slow memory (`MEM_LAT=...`, see
 [test/memsys/README.md](../test/memsys/README.md)) the program runs slower, and the pauses
-are 1 + the memory's longest wait times longer. The simulator's run option
-`+console_pace=<n>` sets that factor (1 or more; 1 is the pace of the standard simulator).
+are 1 + the memory's longest read, write or burst-beat wait times longer. The simulator's
+run option `+console_pace=<n>` sets that factor (1 to 32767; 1 is the pace of the standard
+simulator). Through make, give it as `APP_CONSOLE_ARGS=+console_pace=<n>`, for example
+`make freertos-shell MEM_LAT=2 APP_CONSOLE_ARGS=+console_pace=8`; the loader's own
+`APP_CONSOLE_ARGS` (`+console_upload_dir=...` and `+console_app_dir=...`, in
+`test/freertos/loader/app.mk`) are replaced by such a command-line value, so repeat them
+when you set the pace for `APP=loader`.
 
 ## 10. Load and run programs on the shell
 

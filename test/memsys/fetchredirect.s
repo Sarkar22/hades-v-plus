@@ -19,10 +19,12 @@
 # | passes; their wrong-path words also add to s3.                                               |
 # |                                                                                              |
 # | Case 2: 24 blocks visited in an order unlike their order in memory: 12 forward and 12        |
-# |         backward transfers, three each through beq, bne, blt, bge, bltu, bgeu, jal and       |
-# |         jalr, eight of them behind a branch that is never taken; four passes. With the       |
-# |         predictor off every taken branch is mispredicted; in mode 3 most are predicted,      |
-# |         and the never-taken branches are mispredicted.                                       |
+# |         backward transfers, three each through beq, bne, blt, bge, bltu, bgeu, jal and jalr, |
+# |         eight of them behind a branch that is never taken; four passes. With the predictor   |
+# |         off every taken branch is mispredicted; in mode 3 the counters, which learn in every |
+# |         mode and were trained in mode 0, predict every conditional branch of the blocks      |
+# |         correctly, so the taken ones change the fetch address in Fetch; jal and jalr are not |
+# |         predicted and still redirect from Execute.                                           |
 # | Case 3: a loop whose branch follows a 32-bit pattern, with different updates on the taken    |
 # |         and the not-taken path: the predictor (mode 3) is wrong in both directions.          |
 # | Case 4: calls forward and backward, through jal and jalr, and their returns.                 |
