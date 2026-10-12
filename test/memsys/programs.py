@@ -31,6 +31,20 @@ run: builds the simulators (make frtos-model FRTOS_CPU=dut|ref FRTOS_RAM_KB=32 w
      "expected" (it differs only as listed) or "DIFFERS". The golden CPU's runs are judged
      the same way but only recorded: it is a frozen model with known deviations
      (docs/VERIFICATION.md).
+     With an instruction cache (ICACHE=<bytes>, docs/CACHES.md) the reference is not the
+     same simulator at latency 0, which still has the cache: the standard (cache-free)
+     simulators are built as well, and every run is judged against the same program on the
+     same CPU in the standard simulator, run with +scoreboard (in <out>/standard). A cache
+     makes instruction fetch wait, and wait by different amounts, at every latency, so the
+     timing classes of TIMING below are set directly: "waits", FETCH_WAITS and VARIABLE hold,
+     FIXED does not, and every rule of WAIT_STATES applies except those marked uncached-only.
+     The warm variants of test/memsys (warm_*.s, written by mkwarm.py) carry the rules of their
+     originals, marked uncached-only, so that their looped timing windows are judged strictly
+     with a cache; in a warm_zkt_<k>.s part only the windows that the part does not loop keep a
+     rule (the line '# mkwarm: unlooped window reports: ...' of the file). A cached run's
+     default cycle limit is 100000 times 1 + max(R, D), with R the cycles of the longest
+     refill and D those of the longest data transfer of the one memory port (the reference
+     runs keep 100000).
      A run is also counted as bad when its scoreboard reports a mismatch, its simulator
      stops with an error, or its simulator returns a non-zero status (that run or its
      latency-0 run; a simulator exits with 0 after any verdict, passing or failing, and
@@ -74,7 +88,8 @@ TIMEOUT = 100000            # sim/top.sv's default cycle limit, as for make test
 # program's behaviour (Verilator's report: "- sim/top.sv:<line>: Verilog $finish",
 # "- S i m u l a t i o n   R e p o r t ...", "- Verilator: ..."); compare checks the bus
 # hashes separately
-CONFIG_LINE = re.compile(r"^(SLOW MEMORY |SCOREBOARD|BUSHASH |RETIRED |- \S+:\d+: Verilog |- S i m u l a t i o n |- Verilator: )")
+CONFIG_LINE = re.compile(r"^(SLOW MEMORY |SCOREBOARD|BUSHASH |RETIRED |CACHE |CACHE_STATS |RESET |IRQLAT |RAM_WORDS |"
+                         r"RETIRED_AT |- \S+:\d+: Verilog |- S i m u l a t i o n |- Verilator: )")
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 REPORT = re.compile(r"Test (pass|fail)!")
 VERDICT = re.compile(r"\s*(All tests passed|Some test\(s\) failed|Inital test failed)")
@@ -157,6 +172,9 @@ def cycle_exact(name, line, report):
 #                numbers may differ (cycle counts)
 #   when         TIMING above (default ALWAYS)
 #   cpu          only for the runs of this CPU ("dut" or "golden")
+#   uncached_only  not with an instruction cache (the warm variants' copies of their originals'
+#                rules: with a cache their looped windows are exact again)
+#   cached_only  only with an instruction cache
 #   why          the reason
 # zbb.s, zbkb.s, zbkx.s, zbs.s, zicond.s and zknh.s each end their timing tests with the same
 # test_cycle_exact block (cycle_exact above): a chain of 16 dependent instructions of the
@@ -243,9 +261,70 @@ WAIT_STATES = {
 }
 
 
-def latency_profile(defs, sim_args):
-    """The wait states of both RAM ports: the defaults compiled in (the Verilator defines of the
-    configuration), overridden as sim/slow_memory.sv does by the run options in sim_args."""
+# The warm variants of test/memsys (written by mkwarm.py) and the program each one is made from
+WARM = re.compile(r"^memsys/warm_(.+?)(_\d+)?$")
+WARM_UNLOOPED = re.compile(r"^# mkwarm: unlooped window reports: (.*)$", re.M)
+
+
+def warm_rules(program):
+    """The rules of a warm variant: its original's rules, marked uncached-only, and, with a cache,
+    may_fail for the reports of the windows that the file does not loop (a warm_zkt_<k>.s part):
+    those windows run once, from a cold cache, as in the original."""
+    m = WARM.match(program)
+    orig = f"asm/{m.group(1)}"
+    rules = [dict(r, uncached_only=True) for r in WAIT_STATES.get(orig, [])]
+    with open(os.path.join(REPO, "test", program + ".s")) as f:
+        u = WARM_UNLOOPED.search(f.read())
+    unlooped = []
+    for part in (u.group(1).strip().split(",") if u and u.group(1).strip() != "none" else []):
+        lo, _, hi = part.partition("-")
+        unlooped += list(range(int(lo), int(hi or lo) + 1))
+    if unlooped:
+        rules.append(dict(
+            may_fail=unlooped, cached_only=True,
+            why=f"{program}.s loops only some of {orig}.s's timing windows (mkwarm.py); the reports of "
+                f"the others ({u.group(1).strip()}) come from windows that run once, from a cold cache, and "
+                f"keep the original's timing rule"))
+    return rules
+
+
+def rule_table(program):
+    return warm_rules(program) if WARM.match(program) else WAIT_STATES.get(program, [])
+
+
+def cache_profile(defs, sim_args):
+    """With an instruction cache (+define+HADES_ICACHE_BYTES): the one memory port's latencies
+    (the same defines and run options as the slow memory's), the line size, the cycles of the
+    longest refill (R) and data transfer (D), and the default cycle limit 100000 * (1 + max(R, D)).
+    The timing classes are set directly: a cache makes fetch wait, and wait by different amounts,
+    at every latency (TIMING above). None without a cache."""
+    m = re.search(r"\+define\+HADES_ICACHE_BYTES=(\d+)", defs)
+    if not m:
+        return None
+    size = int(m.group(1))
+    lm = re.search(r"\+define\+HADES_CACHE_LINE_BYTES=(\d+)", defs)
+    line = int(lm.group(1)) if lm else 16
+    rdr, wrr, beat, _ = latencies(defs, sim_args)
+    rd, wr = rdr[1], wrr[1]
+    n = line // 4
+    b = beat if beat >= 0 else rd
+    refill = (rd + 1) + (n - 1) * (b + 1)
+    data = max(rd, wr) + 1
+    limit = TIMEOUT * (1 + max(refill, data))
+
+    def text(r):
+        return f"{r[0]}" if r[0] == r[1] else f"{r[0]}..{r[1]}"
+    desc = (f"I-cache {size} bytes, {line}-byte lines; one memory port: reads {text(rdr)}, "
+            f"writes {text(wrr)} cycles, bursts "
+            f"{'off' if beat < 0 else 'beat ' + str(beat) + ' (refill blocks only)'}; longest refill {refill}, "
+            f"longest data transfer {data} cycles")
+    return dict(bytes=size, line=line, refill=refill, data=data, limit=limit, text=desc)
+
+
+def latencies(defs, sim_args):
+    """The configured read and write latency ranges, the burst beat latency (-1: off) and the
+    MEM_ONLY port: the defaults compiled in (the Verilator defines of the configuration),
+    overridden as sim/slow_memory.sv does by the run options in sim_args."""
     def define(name, default):
         m = re.search(rf"\+define\+HADES_MEM_{name}=(-?\d+)", defs)
         return int(m.group(1)) if m else default
@@ -272,6 +351,13 @@ def latency_profile(defs, sim_args):
         beat = int(option("mem_beat_lat"))
     if option("mem_only") is not None:
         only = option("mem_only")
+    return rd, wr, beat, only
+
+
+def latency_profile(defs, sim_args):
+    """The wait states of both RAM ports: the defaults compiled in (the Verilator defines of the
+    configuration), overridden as sim/slow_memory.sv does by the run options in sim_args."""
+    rd, wr, beat, only = latencies(defs, sim_args)
     zero, off = (0, 0), -1
     fetch = dict(rd=rd if only != "data" else zero, beat=beat if only != "data" else off)
     data = dict(rd=rd if only != "fetch" else zero, wr=wr if only != "fetch" else zero,
@@ -304,14 +390,16 @@ def rules_for(program, cpu, profile):
         return {ALWAYS: profile["waits"], FETCH_WAITS: profile["fetch_waits"],
                 VARIABLE: profile["fetch_mode"] == VARIABLE,
                 FIXED: profile["fetch_mode"] == FIXED}[when]
-    return [r for r in WAIT_STATES.get(program, [])
-            if holds(r.get("when", ALWAYS)) and r.get("cpu", cpu) == cpu]
+    cached = bool(profile.get("cached"))
+    return [r for r in rule_table(program)
+            if holds(r.get("when", ALWAYS)) and r.get("cpu", cpu) == cpu
+            and not (cached and r.get("uncached_only")) and not (not cached and r.get("cached_only"))]
 
 
-def make(args, capture=False):
+def make(args, capture=False, env=None):
     cmd = ["make", "-s", "--no-print-directory", "-C", REPO] + args
     r = subprocess.run(cmd, stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
-                       stderr=subprocess.STDOUT, text=True)
+                       stderr=subprocess.STDOUT, text=True, env=env)
     if r.returncode:
         out = r.stdout or ""
         sys.exit(f"programs.py: '{' '.join(cmd)}' failed{':' + chr(10) + out[-3000:] if out else ''}")
@@ -389,19 +477,20 @@ def merge(rules):
     return m
 
 
-def judge(res, ref, rules):
-    """A run against the run of the same program on the same CPU at latency 0:
+def judge(res, ref, rules, at="at latency 0"):
+    """A run against the run of the same program on the same CPU at latency 0 (with a cache: in the
+    standard simulator, at="in the standard simulator"):
     -> ("same" | "expected" | "DIFFERS", [what differs])."""
     rule = merge(rules)
     what, expected = [], False
     if res["finished"] != ref["finished"]:
-        what.append("no verdict within the cycle limit, unlike at latency 0" if ref["finished"]
-                    else "a verdict, unlike at latency 0")
+        what.append(f"no verdict within the cycle limit, unlike {at}" if ref["finished"]
+                    else f"a verdict, unlike {at}")
     if res["reports"] != ref["reports"]:
         if reports_match(res["reports"], ref["reports"], rule):
             expected = True
         else:
-            what.append(f"reports {res['reports'] or '(none)'}, at latency 0 {ref['reports'] or '(none)'}")
+            what.append(f"reports {res['reports'] or '(none)'}, {at} {ref['reports'] or '(none)'}")
     a, b = ref["output"], res["output"]
     if a != b:
         def number(l):              # the cycle counts of a line that may differ, hidden
@@ -416,7 +505,7 @@ def judge(res, ref, rules):
             i = next(i for i in range(max(len(a), len(b)))
                      if i >= len(a) or i >= len(b) or number(a[i]) != number(b[i]))
             what.append(f"output line {i + 1}: {(b[i] if i < len(b) else '(end)')!r}, "
-                        f"at latency 0 {(a[i] if i < len(a) else '(end)')!r}")
+                        f"{at} {(a[i] if i < len(a) else '(end)')!r}")
     return ("DIFFERS" if what else "expected" if expected else "same"), what
 
 
@@ -449,7 +538,11 @@ def run(a, variables):
     slow = "+define+HADES_SLOW_MEM" in defs
     sim_args = a.sim_args.split()
     profile = latency_profile(defs, sim_args) if slow else None
-    timeout = a.timeout or TIMEOUT * (1 + (profile["longest"] if slow else 0))
+    cache = cache_profile(defs, sim_args) if slow else None
+    if cache:
+        # a cache makes fetch wait, and wait by different amounts, at every latency (TIMING above)
+        profile.update(cached=True, waits=True, fetch_waits=True, fetch_mode=VARIABLE, mode=VARIABLE)
+    timeout = a.timeout or (cache["limit"] if cache else TIMEOUT * (1 + (profile["longest"] if slow else 0)))
     judged = slow and not a.no_judge
     # the scoreboard: the configuration's default (make sim-config: "scoreboard on|off"), then
     # the run options (+scoreboard wins over +noscoreboard, as in sim/top.sv)
@@ -464,7 +557,12 @@ def run(a, variables):
     cpus = a.cpu.split(",")
     print(f"configuration {name}; simulators and programs in {bdir}; runs in {out}; cycle limit {timeout}",
           flush=True)
-    if slow:
+    if cache:
+        print(f"cache: {cache['text']}; default cycle limit 100000 times 1 + max({cache['refill']}, "
+              f"{cache['data']}) = {cache['limit']}; judged against the standard simulator (+scoreboard, "
+              f"cycle limit {TIMEOUT}); timing checks judged as: instruction fetch waits, by different "
+              f"amounts, at every latency", flush=True)
+    elif slow:
         kinds = {VARIABLE: "random latency, or a burst beat other than the read latency",
                  FIXED: "fixed latency"}
         print(f"latency profile: {profile['text']}; timing checks judged by the fetch port as: "
@@ -482,16 +580,37 @@ def run(a, variables):
     progs = [p for p in programs() if re.search(a.only or "", p)]
     print(f"building {len(progs)} programs ...", flush=True)
     make([os.path.join(bmake, "test", p, "init.mem") for p in progs] + variables)
+    std = {}
+    if cache and judged:
+        # the reference: the standard (cache-free) simulators and programs, built without any
+        # option (also none from the environment)
+        env = {k: v for k, v in os.environ.items() if not k.startswith("HADES_")}
+        scfg = make(["sim-config"], capture=True, env=env)
+        sbmake = re.search(r"build directory:\s+(\S+)", scfg).group(1)
+        std["dir"] = os.path.join(REPO, sbmake)
+        for cpu in cpus:
+            model = {"dut": "dut", "golden": "ref"}[cpu]
+            print(f"building the standard {cpu} simulator (the reference) ...", flush=True)
+            make(["frtos-model", f"FRTOS_CPU={model}", "FRTOS_RAM_KB=32"], env=env)
+            std[cpu] = os.path.join(std["dir"], "frtos-model", f"{model}-32k", "top")
+        make([os.path.join(sbmake, "test", p, "init.mem") for p in progs], env=env)
 
     # the runs at latency 0 against which the others are judged (first on the command line:
-    # a run option is taken from its first occurrence)
+    # a run option is taken from its first occurrence); with a cache, the runs in the standard
+    # simulator, with the scoreboard on and the standard cycle limit
     ref_args = ["+mem_lat=0", "+mem_rd_lat=0", "+mem_wr_lat=0", "+mem_beat_lat=0"]
 
     def one(cpu, prog, latency0):
-        d = os.path.join(out, *(["latency0"] if latency0 else []), cpu, prog.replace("/", "-"))
-        os.makedirs(d, exist_ok=True)
-        shutil.copy(os.path.join(bdir, "test", prog, "init.mem"), d)
-        cmd = [sims[cpu], "+nodump", f"+timeout={timeout}"] + (ref_args if latency0 else []) + sim_args
+        if latency0 and cache:
+            d = os.path.join(out, "standard", cpu, prog.replace("/", "-"))
+            os.makedirs(d, exist_ok=True)
+            shutil.copy(os.path.join(std["dir"], "test", prog, "init.mem"), d)
+            cmd = [std[cpu], "+nodump", f"+timeout={TIMEOUT}", "+scoreboard"]
+        else:
+            d = os.path.join(out, *(["latency0"] if latency0 else []), cpu, prog.replace("/", "-"))
+            os.makedirs(d, exist_ok=True)
+            shutil.copy(os.path.join(bdir, "test", prog, "init.mem"), d)
+            cmd = [sims[cpu], "+nodump", f"+timeout={timeout}"] + (ref_args if latency0 else []) + sim_args
         r = subprocess.run(cmd, cwd=d, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                            errors="replace")
         with open(os.path.join(d, "sim.log"), "w") as f:
@@ -511,20 +630,23 @@ def run(a, variables):
                 results.append(r)
     results.sort(key=lambda r: (r["cpu"], r["program"]))
     at_latency0 = not slow or profile["mode"] == "latency 0"      # the runs themselves
+    refkey, at = ("standard", "in the standard simulator") if cache else ("latency0", "at latency 0")
     for r in results:
         r["problems"] = problems(r, at_latency0, judged and scoreboard)
         if judged:
             ref = refs[(r["cpu"], r["program"])]
             rules = rules_for(r["program"], r["cpu"], profile)
-            r["judged"], r["differences"] = judge(r, ref, rules)
+            r["judged"], r["differences"] = judge(r, ref, rules, at)
             r["rules"] = [x["why"] for x in rules]
-            r["latency0"] = {k: ref[k] for k in ("dir", "verdict", "reports", "cycles", "scoreboard", "errors", "rc")}
-            r["problems"] += [f"latency 0: {x}" for x in problems(ref, True, judged and scoreboard)]
+            r[refkey] = {k: ref[k] for k in ("dir", "verdict", "reports", "cycles", "scoreboard", "errors", "rc")}
+            r["problems"] += [f"{'standard' if cache else 'latency 0'}: {x}"
+                              for x in problems(ref, True, judged and (scoreboard or bool(cache)))]
         else:
             r["judged"], r["differences"] = "-", []
     with open(os.path.join(out, "results.json"), "w") as f:
+        extra = dict(cache=cache) if cache else {}
         json.dump(dict(configuration=name, sim_args=a.sim_args, timeout=timeout, judged=judged,
-                       profile=profile, scoreboard=scoreboard, results=results), f, indent=1)
+                       profile=profile, scoreboard=scoreboard, **extra, results=results), f, indent=1)
 
     bad, differs = 0, 0
     pw = max([len("program")] + [len(r["program"]) for r in results])
@@ -532,23 +654,24 @@ def run(a, variables):
     for r in results:
         print(f"{r['cpu']:6} {r['program']:{pw}} {r['passes']:4} {r['fails']:4} {str(r['cycles']):>9}  "
               f"{r['scoreboard']:10} {r['judged']:8} {r['verdict']}")
-        for e in r["errors"] + (r["latency0"]["errors"] if judged else []):
+        for e in r["errors"] + (r[refkey]["errors"] if judged else []):
             print(f"{'':12}{e}")
         for w in r["differences"] + [p for p in r["problems"] if "scoreboard: " not in p]:
             print(f"{'':12}{w}")
-        if r["errors"] or r["problems"] or (judged and r["latency0"]["errors"]):
+        if r["errors"] or r["problems"] or (judged and r[refkey]["errors"]):
             bad += 1
         if r["cpu"] == "dut" and r["judged"] == "DIFFERS":
             differs += 1
     n_sb = sum(r["scoreboard"] == "PASS" for r in results)
     print(f"PROGRAMS: {len(results)} runs in configuration {name}: scoreboard PASS in {n_sb}, "
-          f"{bad} run(s) with a scoreboard mismatch, a simulator error or a wrong verdict at latency 0; "
-          f"results: {out}/results.json")
+          f"{bad} run(s) with a scoreboard mismatch, a simulator error or a wrong verdict "
+          f"{'in the standard simulator' if cache else 'at latency 0'}; results: {out}/results.json")
     if judged:
         for cpu in cpus:
             rs = [r for r in results if r["cpu"] == cpu]
             cnt = {j: [r["program"] for r in rs if r["judged"] == j] for j in ("same", "expected", "DIFFERS")}
-            print(f"JUDGED against latency 0: {cpu}{' (recorded, not judged)' if cpu != 'dut' else ''}: "
+            print(f"JUDGED against {'the standard simulator' if cache else 'latency 0'}: "
+                  f"{cpu}{' (recorded, not judged)' if cpu != 'dut' else ''}: "
                   f"{len(rs)} runs, {len(cnt['same'])} the same, {len(cnt['expected'])} with the differences "
                   f"listed for wait states{' (' + ', '.join(cnt['expected']) + ')' if cnt['expected'] else ''}, "
                   f"{len(cnt['DIFFERS'])} differ otherwise{' (' + ', '.join(cnt['DIFFERS']) + ')' if cnt['DIFFERS'] else ''}")
@@ -618,7 +741,8 @@ def main():
     r.add_argument("--only", default="", help="only the programs matching this regular expression")
     r.add_argument("--timeout", type=int, default=None,
                    help=f"cycle limit of a run (default {TIMEOUT}, as for make test/..., times 1 + the "
-                        f"longest wait of the configuration's slow memory)")
+                        f"longest wait of the configuration's slow memory; with an instruction cache times 1 + "
+                        f"the cycles of the longest refill or data transfer)")
     r.add_argument("--sim-args", default="", help="further run-time options for the simulator")
     r.add_argument("--no-judge", action="store_true", help="with a slow memory: do not run the programs at "
                                                           "latency 0 and do not judge the runs")

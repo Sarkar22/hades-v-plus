@@ -29,6 +29,22 @@
 # | the stores to these words show on its data port). The positions depend on the memory's       |
 # | timing, so the program does not check them. The reports are the same at every latency.       |
 # |                                                                                              |
+# | EVICTION STEP, for a simulator with an instruction cache (docs/CACHES.md): before every      |
+# | delay N the iteration calls evict_irq, a block placed exactly 8 KiB (0x2000 bytes) after the |
+# | tested code, irq_tested..irq_tested_end (the iteration from label 1 and irq_handler). 8 KiB  |
+# | is a multiple of 512 bytes, so line k of the block has the index of tested line k in a       |
+# | 512-byte and in an 8 KiB direct-mapped cache, and every tested line misses again in every    |
+# | iteration: the interrupt often arrives while Fetch waits for a refill, and the handler's     |
+# | first fetch misses as well. The block runs one jal per two lines (evict_block below);        |
+# | without a cache it costs about 30 cycles per delay.                                          |
+# |                                                                                              |
+# | Expected with a cache (from the assembled program): the tested code has TESTED_LINES = 16    |
+# | lines of 16 bytes, and every one of them retires an instruction in every iteration, so       |
+# | CACHE_STATS i_done is at least 2 * NMAX * TESTED_LINES = 6400 with 16-byte lines, in a       |
+# | 512-byte and in an 8 KiB cache alike, and the eviction block's wrong-path refills give       |
+# | i_abandoned at least 3200. Run with +ram_words=0x46000,0x46004 to read the recorded position |
+# | masks (RAM_WORDS line).                                                                      |
+# |                                                                                              |
 # | Register allocation:                                                                         |
 # |     x5  (t0):   reserved for macro use                                                       |
 # |     x6  (t1):   1 (the value a failed check writes)                                          |
@@ -39,7 +55,7 @@
 # |     s4, s5, s6: handler scratch           s7: interrupts taken       s8: interrupts armed    |
 # |     s9: handler errors                    s10: pad (the first nop)   s11: chain_values       |
 # |     a0: chain value                       a1, a2: chain operands     a3: position mask       |
-# |     a4: wait-loop counter                 t4: scratch                                        |
+# |     a4: wait-loop counter                 t4: scratch                ra: eviction return     |
 # |                                                                                              |
 # ------------------------------------------------------------------------------------------------
 
@@ -74,6 +90,34 @@
 .endm
 
 .option norelax
+
+# The lines of the tested code (irq_tested..irq_tested_end, below)
+.equ IRQ_TESTED_LINES, 16
+
+# Eviction step: evict_block <lines> fills <lines> 16-byte lines, for code placed exactly 8 KiB
+# before it (see the header). It is entered with 'jal ra, <block> + 12' and returns to ra. Every
+# even line k holds three nops and, at word 3, a jal to word 3 of line k + 2 (the last one returns
+# with jalr): one instruction runs per two lines. The jal resolves in Execute, so Fetch presents
+# word 0 of line k + 1 on the wrong path before the target, and a cache refills that line too (a
+# started refill always completes). The other words are nops that never run.
+.macro evict_block lines:req
+    .set evict_k, 0
+    .rept (\lines + 1) / 2
+    nop
+    nop
+    nop
+    .if evict_k + 2 < \lines
+    jal  zero, . + 32
+    .else
+    jalr zero, 0(ra)
+    .endif
+    nop
+    nop
+    nop
+    nop
+    .set evict_k, evict_k + 2
+    .endr
+.endm
 
 # Interrupt delays 1..NMAX (cycles of the test device)
 .equ NMAX, 200
@@ -133,7 +177,13 @@ test_sweep:
     addi s8, zero, 0
     addi s9, zero, 0
     addi a3, zero, 0
+    jal  zero, 1f
+
+# The tested code: the iteration and the handler, from a line boundary
+.balign 16
+irq_tested:
 1:
+    jal  ra, evict_irq + 12        # eviction step (an instruction cache misses every tested line)
     li32 a0, CHAIN_A0
     li32 a1, CHAIN_A1
     li32 a2, CHAIN_A2
@@ -169,29 +219,7 @@ chain:
     assert_value a0, CHAIN_FINAL
     addi s2, s2, 1
     bne  s2, s3, 1b
-    assert_equal s7, s8
-    assert_value s7, NMAX
-    assert_value s9, 0
-    sltu t4, zero, s1
-    slli t4, t4, 2
-    add  t4, t4, s0
-    sw   a3, 0(t4)                 # the position mask: word 0 (mode 0) or word 1 (mode 3)
-    addi s1, s1, 3
-    addi t4, zero, 6
-    bne  s1, t4, test_sweep
-
-# ------------------------------------------------------------------------------------------------
-# |                                          Test done!                                          |
-# ------------------------------------------------------------------------------------------------
-test_finish:
-    csrwi 0x32A, 0
-    slli t4, t1, 3
-    csrc mstatus, t4
-    addi t2, zero, 9
-    halt
-    fail
-4:
-    beq  zero, zero, 4b
+    jal  zero, sweep_done
 
 # External interrupt: disarm the test device, count, and check that the trap is the external
 # interrupt, that mepc lies in the chain, the nops before it or its wait loop, and that a0
@@ -218,6 +246,33 @@ irq_handler:
     addi s9, s9, 1
 6:
     mret
+.org irq_tested + 16 * IRQ_TESTED_LINES   # (an error if the tested code outgrows its lines)
+irq_tested_end:
+
+sweep_done:
+    assert_equal s7, s8
+    assert_value s7, NMAX
+    assert_value s9, 0
+    sltu t4, zero, s1
+    slli t4, t4, 2
+    add  t4, t4, s0
+    sw   a3, 0(t4)                 # the position mask: word 0 (mode 0) or word 1 (mode 3)
+    addi s1, s1, 3
+    addi t4, zero, 6
+    bne  s1, t4, test_sweep
+
+# ------------------------------------------------------------------------------------------------
+# |                                          Test done!                                          |
+# ------------------------------------------------------------------------------------------------
+test_finish:
+    csrwi 0x32A, 0
+    slli t4, t1, 3
+    csrc mstatus, t4
+    addi t2, zero, 9
+    halt
+    fail
+4:
+    beq  zero, zero, 4b
 
 unexpected_trap:
     fail
@@ -235,3 +290,8 @@ chain_values:
     .word 0xCEF0D4D1, 0xCEF0D4ED, 0xF35981CE, 0xF35989CD
     .word 0xFC47A4F1, 0x12D6884B, 0xED2977B4, 0x11922495
     .word 0x11922496, 0x11922496, 0x11922496
+
+# The eviction block, exactly 8 KiB after the tested code (below the buffer at 0x46000)
+.org irq_tested + 0x2000
+evict_irq:
+    evict_block IRQ_TESTED_LINES

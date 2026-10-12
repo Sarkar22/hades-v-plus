@@ -13,6 +13,7 @@
 #   python3 test/memsys/cachemodel.py stats <prepared dir>...
 #   python3 test/memsys/cachemodel.py run   <prepared dir>... [configuration options] [--out FILE]
 #   python3 test/memsys/cachemodel.py check [<prepared dir>...]
+#   python3 test/memsys/cachemodel.py rtlcheck <prepared dir> <sim.log>
 #
 # 1. RECORDING A TRACE
 # A simulator built with the Makefile option BUSTRACE=1 (+define+HADES_BUSTRACE) writes one
@@ -81,6 +82,15 @@
 # --wr-lat (default 1:4); a buffered line of k words is written like k words of a refill
 # (k accesses of W + 1 cycles per beat, or W + 1 + (k - 1) * beat cycles in a burst).
 # Draws come from a seeded generator (--seed).
+# I-cache-only mode (--dsize 0), the configuration of the simulators with an instruction cache
+# (ICACHE=<bytes>, docs/CACHES.md): there is no D-cache, so every RAM load is one read transfer on
+# the port (L + 1 cycles, L drawn from --rd-lat, never a burst, also with --mem burst), granted when
+# the port is free with the data side first; stores as above (W + 1 cycles, no write buffer). The
+# snoop is counted as the RTL counts it: a store whose line a miss in the same cycle evicts still
+# counts, since the line was valid at the store's acknowledge edge. The field port_load counts the
+# port cycles of loads; the D-cache's fields are reported as null. A refill that is running or
+# waiting when the trace ends is completed and counted in i_done, and i_end_completed (0 or 1) and
+# i_end_state say so.
 #
 # The replay: the trace is the core's cycle-by-cycle behaviour with the standard RAM. The cached
 # core executes the same cycles in order; a trace cycle completes only when the RAM access
@@ -114,6 +124,18 @@
 # left before the last beat, stall cycles by cause (fetch, load miss, store), port use,
 # write-buffer activity and snoop invalidations. MPKI = completed refills (I) or load misses
 # (D) per 1000 retired instructions.
+#
+# 5. A SIMULATOR RUN AGAINST THE MODEL (rtlcheck)
+# rtlcheck reads a run of a simulator with an instruction cache (its CACHE, SLOW MEMORY memory
+# port, CACHE_STATS and RETIRED lines; a log with a RESET line is refused), runs the model in the
+# same configuration in the I-cache-only mode on the trace of the same program recorded at the
+# standard memory, prints every field side by side and gives the verdict: exact are the started
+# refills (i_refills), the completed ones (i_done + i_inflight against the model's i_done, which
+# includes a refill completed at the end), snoop_inval, d_loads and d_stores, and the run's own
+# identities (with a fixed latency also the port cycles of refills and data transfers); the
+# cycles, the port waits, i_abandoned (against i_left) and the port use are reported. Exact
+# agreement needs fixed latencies (the simulator and the model draw random ones from different
+# generators) and a program whose retired instructions do not depend on timing.
 # ---------------------------------------------------------------------------------------------
 
 import argparse
@@ -367,8 +389,13 @@ def simulate(tr, cfg, stat_from=0, reference=False):
     iways, dways = cfg['iways'], cfg['dways']
     if iways not in (1, 2) or dways not in (1, 2):
         raise ValueError('1 or 2 ways')
+    # I-cache-only mode (--dsize 0): no D-cache; every RAM load is one read transfer on the
+    # port, as the uncached data side of the simulators with an instruction cache does
+    ionly = cfg['dbytes'] == 0
+    if ionly and cfg['wbuf'] != 'none':
+        raise ValueError('the I-cache-only mode (--dsize 0) has no write buffer: --wbuf none')
     isets = cfg['ibytes'] // line_bytes // iways
-    dsets = cfg['dbytes'] // line_bytes // dways
+    dsets = 1 if ionly else cfg['dbytes'] // line_bytes // dways
     if isets < 1 or dsets < 1:
         raise ValueError('cache smaller than one set')
     log2(isets); log2(dsets)
@@ -405,6 +432,10 @@ def simulate(tr, cfg, stat_from=0, reference=False):
              wait_i_for_port=0, wait_d_for_port=0,
              flushed_unanswered=0, hold_conflict=0,
              wb_accepts=0, wb_merges=0, wb_drains=0, wb_drain_words=0)
+    if ionly:
+        C['port_load'] = 0                     # port cycles of loads (I-cache-only mode)
+        C['i_end_completed'] = 0               # a refill running or waiting at the end was completed
+        C['i_end_state'] = 'none'
     fate = C['i_fate']
 
     def draw_read():
@@ -435,10 +466,12 @@ def simulate(tr, cfg, stat_from=0, reference=False):
     port_free = 0                      # the port is free from this cycle on
     i_state = 0                        # 0 lookup, 1 refill waits for the port, 2 refill running
     i_line = -1; i_slot = 0; i_done = 0; i_beats = None; i_cause = 0; i_start = 0
-    d_state = 0                        # 0 idle, 1 refill waits, 2 refill runs, 3 store waits, 4 store runs
+    d_state = 0                        # 0 idle, 1 refill waits, 2 refill runs, 3 store waits, 4 store runs,
+                                       # (I-cache-only mode) 5 load waits, 6 load runs
     d_line = -1; d_slot = 0; d_done = 0; d_ack = 0
     d_served = False                   # the RAM access of trace cycle p has been answered
-    st_issued = False                  # its store has been granted the port (or buffered)
+    st_issued = False                  # its store (I-cache-only mode: or load) has been granted the
+                                       # port (or buffered)
     dptr = 0                           # index of the RAM access of trace cycle p (tr.dcyc order)
     d_loads = 0                        # kept local: the fast path counts it
     isl = 0
@@ -463,7 +496,10 @@ def simulate(tr, cfg, stat_from=0, reference=False):
             if dk:
                 dl = DADR[dptr] >> lshift
                 di = dl & dmask
-                if dways == 1:
+                if ionly:
+                    dsl = di
+                    dhit = dk != 1                       # a load always uses the port
+                elif dways == 1:
                     dsl = di
                     dhit = DTAG[di] == dl
                 else:
@@ -485,7 +521,15 @@ def simulate(tr, cfg, stat_from=0, reference=False):
                         isl += 1
                         ihit = ITAG[isl] == al
             extra = -1               # cycles this trace cycle takes beyond one, if handled here
-            if ihit and dk == 2 and wbmode == 'none':
+            if ionly and ihit and dk == 1:
+                # I-cache-only mode, a load, the fetch hits: one read transfer, granted at once,
+                # answered in its (L+1)-th cycle
+                L = rlo if rlo == rhi else randint(rlo, rhi)
+                C['port_load'] += L + 1
+                C['st_load'] += L
+                d_loads += 1
+                extra = L
+            elif ihit and dk == 2 and wbmode == 'none':
                 # a store, the fetch hits: the port is granted at once, the core waits W
                 # cycles; the snoop acts at the acknowledge edge
                 W = wlo if wlo == whi else randint(wlo, whi)
@@ -560,7 +604,9 @@ def simulate(tr, cfg, stat_from=0, reference=False):
                         IUSE[isl] = 2
                     elif f & 1 and IUSE[isl] == 0:
                         IUSE[isl] = 1
-                if dk == 2:
+                if ionly and dk == 1:
+                    port_free = T + extra + 1
+                elif dk == 2:
                     port_free = T + extra + 1
                     ii2 = dl & imask
                     for sl in ((ii2,) if iways == 1 else (ii2 << 1, (ii2 << 1) + 1)):
@@ -610,7 +656,7 @@ def simulate(tr, cfg, stat_from=0, reference=False):
             if dways == 2:
                 DLRU[d_line & dmask] = (d_slot & 1) ^ 1
             d_state = 0; changed = True
-        elif d_state == 4 and T > d_ack:
+        elif (d_state == 4 or d_state == 6) and T > d_ack:
             d_state = 0; changed = True
         if wb_drain and T >= wb_end:
             wb_drain = False; wb_line = -1; wb_words = 0; changed = True
@@ -621,6 +667,7 @@ def simulate(tr, cfg, stat_from=0, reference=False):
             i_state = 0; changed = True
         # 3. the memory port: data side first; a grant is never taken away
         store_now = dk == 2 and not st_issued and not d_served
+        load_now = ionly and dk == 1 and not st_issued and not d_served
         if port_free <= T:
             if (wb_line >= 0 and not wb_drain
                     and (d_state == 1 or i_state == 1 or store_now and dl != wb_line)):
@@ -638,6 +685,10 @@ def simulate(tr, cfg, stat_from=0, reference=False):
                 W = wlo if wlo == whi else randint(wlo, whi)
                 d_ack = T + W; port_free = T + W + 1; d_state = 4; st_issued = True; changed = True
                 C['port_store'] += W + 1
+            elif d_state == 5 or (load_now and d_state == 0):
+                L = rlo if rlo == rhi else randint(rlo, rhi)
+                d_ack = T + L; port_free = T + L + 1; d_state = 6; st_issued = True; changed = True
+                C['port_load'] += L + 1
             elif i_state == 1:
                 if evict_at_grant and ITAG[i_slot] != -1:
                     fate[ICAUSE[i_slot]][IUSE[i_slot]] += 1
@@ -664,13 +715,20 @@ def simulate(tr, cfg, stat_from=0, reference=False):
                     C['wb_merges'] += 1
             elif d_state == 0:
                 d_state = 3; changed = True
+        if load_now and not st_issued and d_state == 0:
+            d_state = 5; changed = True
         if i_state == 1:
             C['wait_i_for_port'] += 1
-        if d_state == 1 or d_state == 3:
+        if d_state == 1 or d_state == 3 or d_state == 5:
             C['wait_d_for_port'] += 1
         # 4. the RAM access of this trace cycle
         snoop = -1
-        if dk == 1:
+        if dk == 1 and ionly:
+            if not d_served and d_state == 6 and T == d_ack:
+                d_served = True; changed = True
+                d_loads += 1
+            d_ok = d_served
+        elif dk == 1:
             if not d_served and d_state == 0:
                 di = dl & dmask
                 if dways == 1:
@@ -705,6 +763,13 @@ def simulate(tr, cfg, stat_from=0, reference=False):
             d_ok = d_served
         else:
             d_ok = True
+        # In the I-cache-only mode the snoop is counted as the RTL counts it: a store that hits a
+        # line which a miss in this same cycle evicts still counts (the line was valid at the edge)
+        snoop_pre = ()
+        if ionly and snoop >= 0:
+            ii = snoop & imask
+            snoop_pre = tuple(sl for sl in ((ii,) if iways == 1 else (ii << 1, (ii << 1) + 1))
+                              if ITAG[sl] == snoop)
         # 5. the fetch lookup of this cycle
         f_ans = False
         if i_state != 0 and abort and not (inwin and al == i_line):
@@ -782,7 +847,13 @@ def simulate(tr, cfg, stat_from=0, reference=False):
             else:
                 C['st_fetch'] += 1
         # a store's snoop acts at its acknowledge edge, after this cycle's lookup
-        if snoop >= 0:
+        if snoop_pre:
+            for sl in snoop_pre:
+                C['snoop_inval'] += 1
+                if ITAG[sl] == snoop:
+                    fate[ICAUSE[sl]][IUSE[sl]] += 1
+                    ITAG[sl] = -1
+        elif snoop >= 0 and not ionly:
             ii = snoop & imask
             for sl in ((ii,) if iways == 1 else (ii << 1, (ii << 1) + 1)):
                 if ITAG[sl] == snoop:
@@ -798,11 +869,12 @@ def simulate(tr, cfg, stat_from=0, reference=False):
                 t = i_done
             if d_state == 2 and d_done < t:
                 t = d_done
-            if d_state == 4 and d_ack < t:
+            if (d_state == 4 or d_state == 6) and d_ack < t:
                 t = d_ack
             if wb_drain and wb_end < t:
                 t = wb_end
-            if ((i_state == 1 or d_state == 1 or d_state == 3 or dk == 2 and not st_issued and wb_line >= 0)
+            if ((i_state == 1 or d_state == 1 or d_state == 3 or d_state == 5
+                 or dk == 2 and not st_issued and wb_line >= 0)
                     and port_free < t):
                 t = port_free
             if t != 1 << 62 and t > T:
@@ -816,10 +888,18 @@ def simulate(tr, cfg, stat_from=0, reference=False):
                     C['st_fetch'] += k
                 if i_state == 1:
                     C['wait_i_for_port'] += k
-                if d_state == 1 or d_state == 3:
+                if d_state == 1 or d_state == 3 or d_state == 5:
                     C['wait_d_for_port'] += k
                 T = t
     C['d_loads'] = d_loads
+    if ionly:
+        # The run of the simulator stops at an arbitrary point, often inside a refill; the
+        # model completes a refill that started before the end of the trace and says so
+        # (cachemodel.py rtlcheck compares it with i_done + i_inflight)
+        C['i_end_completed'] = 1 if i_state != 0 else 0
+        C['i_end_state'] = ('none', 'waiting for the port', 'running')[i_state]
+        if i_state != 0:
+            C['i_done'] += 1
     if snap is None:
         snap = json.loads(json.dumps(C)); snap_T = T; snap_loads = d_loads
     snap['d_loads'] = snap_loads
@@ -830,6 +910,8 @@ def simulate(tr, cfg, stat_from=0, reference=False):
     def diff(a, b):
         if isinstance(a, list):
             return [diff(x, y) for x, y in zip(a, b)]
+        if isinstance(a, str):
+            return a
         return a - b
     R = {k: diff(C[k], snap[k]) for k in C}
     R['cycles'] = T - snap_T
@@ -866,8 +948,14 @@ def summarize(tr, cfg, R, stat_from, wall):
     out['d_mpki'] = R['d_load_misses'] * k
     out['store_stall_share'] = R['st_store'] / R['cycles']
     out['stall_share'] = {x: R['st_' + x] / R['cycles'] for x in ('fetch', 'load', 'store')}
-    out['port_share'] = (R['port_irefill'] + R['port_drefill'] + R['port_store'] + R['port_abort_tail']) / R['cycles']
+    out['port_share'] = (R['port_irefill'] + R['port_drefill'] + R['port_store'] + R['port_abort_tail']
+                         + R.get('port_load', 0)) / R['cycles']
     out['raw'] = R
+    if cfg['dbytes'] == 0:
+        # I-cache-only mode: the D-cache's fields do not apply
+        out['d_mpki'] = None
+        out['raw'] = dict(R, **{f: None for f in ('d_load_misses', 'd_store_hits', 'port_drefill', 'wb_accepts',
+                                                   'wb_merges', 'wb_drains', 'wb_drain_words')})
     return out
 
 
@@ -909,7 +997,8 @@ def run_main(a):
             out.write(json.dumps(res) + '\n'); out.flush()
             if a.out:
                 print(f"{tr.name:14s} {cfg_label(cfg)}: CPI {res['cpi_base']:.3f} -> {res['cpi']:.3f}  "
-                      f"I-MPKI {res['i_mpki']:.2f}  D-MPKI {res['d_mpki']:.2f}  ({res['wall_s']} s)", flush=True)
+                      f"I-MPKI {res['i_mpki']:.2f}  D-MPKI "
+                      f"{'n/a' if res['d_mpki'] is None else format(res['d_mpki'], '.2f')}  ({res['wall_s']} s)", flush=True)
 
 
 def pairs(a):
@@ -1105,7 +1194,156 @@ def selftest():
         # the stores are taken at once; the port is busy with them until 27, so the load miss
         # at 19 is refilled 27..38 and taken at 39 -> 41 in all
         expect(f'ideal write buffer, {how}: cycles', R['cycles'], 41)
+    # I-cache-only mode (--dsize 0): a load is one read transfer on the port, never a burst
+    tr = Synthetic([(B + k, READY) for k in range(4)], data=[(1, B + 100, False)])
+    for mem in ('beat', 'burst'):
+        cfg = make_config(512, 0, 16, 1, mem=mem, rd_lat=(2, 2), wr_lat=(1, 1))
+        for how, R in both(tr, cfg):
+            # line 0: refill 1..12 (beat) or 1..6 (burst), taken at 13 or 7; the load at the next
+            # cycle is granted at once and answered in its third cycle (L = 2): +2 cycles
+            want = 4 + (12 if mem == 'beat' else 6) + 1 + 2
+            expect(f'I-cache only, a load, {mem}, {how}: cycles', R['cycles'], want)
+            expect('  port cycles of loads, load stall cycles, loads', (R['port_load'], R['st_load'], R['d_loads']),
+                   (3, 2, 1))
+    # I-cache only: a store hits line 0 in the cycle in which a JUMP-cycle lookup of another line
+    # of the same set (512 bytes on) misses and evicts it; the snoop counts, as in the RTL
+    fetch = [(B, READY), (B + 1, READY), (B + 128, JUMP), (B, READY)]
+    tr = Synthetic(fetch, data=[(2, B + 1, True)])
+    cfg = make_config(512, 0, 16, 1, mem='beat', rd_lat=(2, 2), wr_lat=(0, 0))
+    for how, R in both(tr, cfg):
+        # line 0 at 13, cycle 1 at 14, the store (W = 0) and the miss at 15; the JUMP-cycle refill
+        # runs 16..27, then line 0 misses again: 29..40, taken at 41 -> 42 cycles
+        expect(f'I-cache only, a store and a miss in one set in one cycle, {how}: cycles', R['cycles'], 42)
+        expect('  snoop invalidations (counted as the RTL counts them)', R['snoop_inval'], 1)
+        expect('  refills started, completed', (R['i_refills'], R['i_done']), ([2, 0, 1, 0, 0], 3))
+    expect('the same with a D-cache: snoop invalidations (counted after the lookup)',
+           simulate(tr, make_config(512, 512, 16, 1, mem='beat', rd_lat=(2, 2), wr_lat=(0, 0)))['snoop_inval'], 0)
+    # I-cache only: the trace ends with a JUMP-cycle lookup that misses; the model completes
+    # that refill and says so
+    tr = Synthetic([(B + k, READY) for k in range(4)] + [(B + 4, JUMP)])
+    cfg = make_config(512, 0, 16, 1, mem='beat', rd_lat=(2, 2), wr_lat=(1, 1))
+    for how, R in both(tr, cfg):
+        expect(f'I-cache only, a refill at the end, {how}: started, completed, completed at the end',
+               (R['i_refills'], R['i_done'], R['i_end_completed'], R['i_end_state']),
+               ([1, 0, 1, 0, 0], 2, 1, 'waiting for the port'))
     return ok
+
+
+# =============================================================================================
+# 5. rtlcheck: a simulator run with an instruction cache against the model
+# =============================================================================================
+
+RTL_KEYS = ('cycles', 'i_hits', 'i_refills', 'i_done', 'i_beats', 'i_abandoned', 'snoop_inval', 'i_refill_cycles',
+            'wait_i_for_port', 'wait_d_for_port', 'port_irefill', 'port_data', 'd_loads', 'd_stores', 'i_inflight',
+            'i_inflight_beats', 'i_inflight_port', 'd_inflight', 'd_inflight_port')
+
+
+def parse_rtl_log(path):
+    """The configuration and the statistics of a cached run: the CACHE line (size, line), the
+    'SLOW MEMORY memory port' line (latencies, bursts), CACHE_STATS and RETIRED. A log with a RESET
+    line (a mid-run reset) is refused: its statistics restart at the reset, RETIRED does not."""
+    import re
+    text = open(path, errors='replace').read()
+    for l in text.splitlines():
+        if l.startswith('RESET '):
+            raise SystemExit(f'RTLCHECK: REFUSED: {path} has a RESET line (a mid-run reset): {l.strip()}')
+    def rng(t):
+        m = re.fullmatch(r'(\d+)(?:(?:\.\.|:|-)(\d+))?', t.strip())
+        if not m:
+            raise SystemExit(f'RTLCHECK: cannot read the latency {t!r}')
+        return int(m.group(1)), int(m.group(2) or m.group(1))
+    m = re.search(r'^CACHE I-cache (\d+) bytes, (\d+)-byte lines', text, re.M)
+    if not m:
+        raise SystemExit(f'RTLCHECK: {path} has no CACHE line (not a simulator with an instruction cache)')
+    ibytes, line = int(m.group(1)), int(m.group(2))
+    m = re.search(r'^SLOW MEMORY memory port: read latency (\S+), write latency (\S+), burst beats (\S+)', text, re.M)
+    if not m:
+        raise SystemExit(f'RTLCHECK: {path} has no "SLOW MEMORY memory port:" line')
+    rd, wr = rng(m.group(1)), rng(m.group(2))
+    beat = -1 if m.group(3).startswith('off') else int(re.match(r'\d+', m.group(3)).group(0))
+    m = re.search(r'^CACHE_STATS (.*)$', text, re.M)
+    if not m:
+        raise SystemExit(f'RTLCHECK: {path} has no CACHE_STATS line')
+    stats = {k: int(v) for k, v in re.findall(r'(\w+)=(\d+)', m.group(1))}
+    missing = [k for k in RTL_KEYS if k not in stats]
+    if missing:
+        raise SystemExit(f'RTLCHECK: the CACHE_STATS line lacks {missing}')
+    m = re.search(r'^RETIRED cycles=(\d+) instructions=(\d+)', text, re.M)
+    retired = (int(m.group(1)), int(m.group(2))) if m else None
+    return dict(ibytes=ibytes, line=line, rd=rd, wr=wr, beat=beat, stats=stats, retired=retired)
+
+
+def rtlcheck_main(a):
+    """The rule for the end of a run: the RTL's started refills equal the model's, and the RTL's
+    completed refills plus the one in flight equal the model's completed refills (the model
+    completes a refill that started before the end of the trace)."""
+    r = parse_rtl_log(a.log)
+    st = r['stats']
+    lw = r['line'] // 4
+    burst = r['beat'] >= 0
+    cfg = make_config(r['ibytes'], 0, r['line'], 1, mem='burst' if burst else 'beat', rd_lat=r['rd'],
+                      wr_lat=r['wr'], beat_cycles=(r['beat'] + 1) if burst else 1, seed=a.seed)
+    fixed = r['rd'][0] == r['rd'][1] and r['wr'][0] == r['wr'][1]
+    tr = Trace(a.trace)
+    t0 = time.time()
+    M = simulate(tr, cfg)
+    wall = time.time() - t0
+    model_cmd = (f"--isize {r['ibytes']} --dsize 0 --line {r['line']} --mem {'burst' if burst else 'beat'}"
+                 + (f" --beat-cycles {r['beat'] + 1}" if burst else '')
+                 + f" --rd-lat {r['rd'][0]}:{r['rd'][1]} --wr-lat {r['wr'][0]}:{r['wr'][1]}")
+    print(f'RTLCHECK {a.log}')
+    print(f'  against the trace {tr.name} ({tr.n} cycles, {tr.instructions()} instructions), model {model_cmd} '
+          f'({wall:.1f} s)')
+    rows = []          # (field, rtl, model, gating?)
+    exact = []
+
+    def row(name, rtl, model, gate):
+        rows.append((name, rtl, model, gate))
+        if gate:
+            exact.append(rtl == model)
+    row('refills started (i_refills / model)', st['i_refills'], sum(M['i_refills']), True)
+    row('refills completed (i_done + i_inflight / model)', st['i_done'] + st['i_inflight'], M['i_done'], True)
+    row('snoop_inval', st['snoop_inval'], M['snoop_inval'], True)
+    row('d_loads', st['d_loads'], M['d_loads'], True)
+    row('d_stores', st['d_stores'], M['d_stores'], True)
+    # the RTL's own identities (4.12 of the cache documentation), which hold in every run
+    row('i_refills = i_done + i_inflight', st['i_refills'], st['i_done'] + st['i_inflight'], True)
+    row(f'i_beats = {lw} * i_done + i_inflight_beats', st['i_beats'], lw * st['i_done'] + st['i_inflight_beats'], True)
+    row('i_refill_cycles = wait_i_for_port + port_irefill', st['i_refill_cycles'],
+        st['wait_i_for_port'] + st['port_irefill'], True)
+    if r['retired']:
+        row('cycles = RETIRED cycles', st['cycles'], r['retired'][0], True)
+    if fixed:
+        rd, wr = r['rd'][0], r['wr'][0]
+        refill = (rd + 1) + (lw - 1) * ((r['beat'] if burst else rd) + 1)
+        row(f'port_irefill = {refill} * i_done + i_inflight_port', st['port_irefill'],
+            refill * st['i_done'] + st['i_inflight_port'], True)
+        row(f'port_data = {rd + 1} * d_loads + {wr + 1} * d_stores + d_inflight_port', st['port_data'],
+            (rd + 1) * st['d_loads'] + (wr + 1) * st['d_stores'] + st['d_inflight_port'], True)
+    # reported, not judged: they depend on the model's approximation that the whole core waits
+    row('cycles (model: the cycles of the trace replay)', st['cycles'], M['cycles'], False)
+    row('wait_i_for_port', st['wait_i_for_port'], M['wait_i_for_port'], False)
+    row('wait_d_for_port', st['wait_d_for_port'], M['wait_d_for_port'], False)
+    row('i_abandoned (model: i_left)', st['i_abandoned'], M['i_left'], False)
+    row('port_irefill', st['port_irefill'], M['port_irefill'], False)
+    row('port_data (model: port_store + port_load)', st['port_data'], M['port_store'] + M['port_load'], False)
+    if r['retired']:
+        row('instructions (RETIRED / trace)', r['retired'][1], tr.instructions(), False)
+    print(f"  model: a refill was {'running or waiting' if M['i_end_completed'] else 'not running'} at the end of "
+          f"the trace{' and was completed' if M['i_end_completed'] else ''} ({M['i_end_state']}); RTL: "
+          f"i_inflight={st['i_inflight']} d_inflight={st['d_inflight']}")
+    w = max(len(x[0]) for x in rows)
+    print(f"  {'field':{w}} {'rtl':>10} {'model':>10}  verdict")
+    for name, rv, mv, gate in rows:
+        verdict = ('equal' if rv == mv else 'DIFFERENT') if gate else 'reported'
+        print(f'  {name:{w}} {rv:>10} {mv:>10}  {verdict}')
+    if not fixed:
+        print('  (random latencies: the simulator and the model draw them from different generators, so the '
+              'model fields are informative only)')
+    ok = all(exact)
+    note = '' if fixed else ' (random latencies: informative only)'
+    print(f"RTLCHECK: {'AGREE' if ok else 'DIFFERENT'}{note}")
+    return 0 if ok or not fixed else 1
 
 
 def check_main(a):
@@ -1125,7 +1363,12 @@ def check_main(a):
                     make_config(8192, 4096, 16, 1, mem='burst', wbuf='line'),
                     make_config(16384, 8192, 32, 2, mem='beat', abort=True, wait_flushed=True),
                     make_config(8192, 4096, 32, 1, mem='burst', rd_lat=(2, 2), wr_lat=(1, 1), abort=True,
-                                evict='grant', wbuf='line')):
+                                evict='grant', wbuf='line'),
+                    # the I-cache-only mode
+                    make_config(512, 0, 16, 1, mem='beat', rd_lat=(2, 2), wr_lat=(2, 2)),
+                    make_config(8192, 0, 16, 1, mem='burst', rd_lat=(2, 2), wr_lat=(2, 2)),
+                    make_config(512, 0, 16, 1, mem='burst', rd_lat=(1, 8), wr_lat=(1, 8)),
+                    make_config(2048, 0, 32, 2, mem='beat', rd_lat=(0, 3), wr_lat=(0, 2), abort=True)):
             t0 = time.time(); Rr = simulate(tr, cfg, stat_from, reference=True); t1 = time.time()
             Rf = simulate(tr, cfg, stat_from, reference=False); t2 = time.time()
             same = Rr == Rf
@@ -1175,6 +1418,10 @@ def main():
             p.add_argument('--seed', type=int, default=1)
             p.add_argument('--reference', action='store_true', help='plain per-cycle replay')
             p.add_argument('--out')
+    p = sub.add_parser('rtlcheck', help='compare a simulator run with an instruction cache with the model')
+    p.add_argument('trace', help='the prepared trace of the same program, recorded at the standard memory')
+    p.add_argument('log', help="the cached run's output (sim.log)")
+    p.add_argument('--seed', type=int, default=1)
     a = ap.parse_args()
     if a.cmd == 'prep':
         m = prep(a.trace, a.outdir, a.ram_kb, a.name)
@@ -1185,6 +1432,8 @@ def main():
         run_main(a)
     elif a.cmd == 'check':
         return check_main(a)
+    elif a.cmd == 'rtlcheck':
+        return rtlcheck_main(a)
     return 0
 
 

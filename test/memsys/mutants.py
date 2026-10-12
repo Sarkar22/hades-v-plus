@@ -1,0 +1,727 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+"""mutants.py -- the mutation campaign of the memory system with an instruction cache.
+
+Every mutant is a source patch, applied to a temporary copy of the tree (never to this checkout),
+with its own build directory. The check that must catch it runs in that copy and the mutant is
+reported as CAUGHT or MISSED:
+
+    python3 test/memsys/mutants.py list                  every mutant: class, file, primary check
+    python3 test/memsys/mutants.py anchors [<name>...]   do the patches find their text in this tree?
+    python3 test/memsys/mutants.py show <name>           the diff that a mutant applies
+    python3 test/memsys/mutants.py run [<name>...|all] [--jobs N] [--out DIR] [--map] [--keep]
+
+ANCHORS. A patch is a list of (file, regular expression, replacement, expected number of matches);
+a patch whose expression does not match exactly that often is not applied, and the mutant is
+reported as 'ANCHOR MISSING' (never as CAUGHT or MISSED). The patches of the test programs, of
+sim/slow_memory.sv's fetch and data instances and of the scoreboard in sim/top.sv are written
+against the code as it is; the patches of the cache's RTL (rtl/cache/icache.sv,
+rtl/cache/mem_arbiter.sv, the cached branch of rtl/mcu.sv, the TIMEOUT_EXEMPT parameter of
+lib/wishbone/wishbone_interconnect.sv, PORT "memory" of sim/slow_memory.sv and the new monitors of
+sim/top.sv) are written against the interfaces and the fixed names of the cache documentation
+(icache: req, inwin, hit, state, beat, refill_line, valid, LOOKUP/REFILL, mem_cont, the snoop and
+event ports; mem_arbiter: d_req, i_req, free, gd, gi, owner, NONE/DATA/IREFILL, the ports data,
+irefill, mem). 'anchors' shows which of them match the tree; a mutant whose description below and
+whose patch disagree with the code is fixed in this file, never by changing the design.
+
+CHECKS. The primary check of each mutant is one of:
+    bench          the I-cache bench (make test/sv/test_icache): caught when it does not end with
+                   'ICACHE BENCH: PASS' and exit status 0
+    bench-assert   the bench with +compare=0 (only the assertions inside the RTL can stop it):
+                   caught when the named assertion's message appears
+    bench-message  the bench as it is: caught when the named message of its own checks appears
+    programs       test/memsys/programs.py run in a configuration: caught when a HaDes-V+ run
+                   differs otherwise, or any run is bad (scoreboard, simulator error, exit status)
+    blinded        the same with the scoreboard's comparison of fetched words disabled (a patch of
+                   sim/top.sv): caught when a HaDes-V+ program's own reports differ; every blinded
+                   run must still say 'SCOREBOARD: PASS', otherwise the run is not valid
+    assert         a system run that only the named check can stop: caught when its message appears
+    sweep          test/trapsweep/sweep.py run in a configuration: caught when a HaDes-V+ program is
+                   not ISS-consistent or a simulation stops with an error
+    formal         a property of make formal-cache (formal/cache/run.sh): caught when it fails
+    port-identity  the port cycles of refills and data transfers of a cached run at MEM_LAT=2
+                   MEM_BEAT_LAT=0 (port_irefill = 6 * i_done + i_inflight_port, port_data =
+                   3 * (d_loads + d_stores) + d_inflight_port): caught when one does not hold
+    resets         the mid-run reset runs (matrix.py, leg 'resets'): caught as the row says
+--map runs the negative controls of the run-time assertions (ASSERTION_MAP) as well; the bench's
+own negative cases (+negative=<case>) are run by legality.py.
+"""
+import argparse
+import concurrent.futures as cf
+import difflib
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
+sys.dont_write_bytecode = True
+
+ICACHE, ARB, MCU = "rtl/cache/icache.sv", "rtl/cache/mem_arbiter.sv", "rtl/mcu.sv"
+ICON, SLOW, TOP = "lib/wishbone/wishbone_interconnect.sv", "sim/slow_memory.sv", "sim/top.sv"
+IRQCHAIN = "test/memsys/irqchain.s"
+
+SMALL_LAT0, SMALL_LAT2, SMALL_BURST, SMALL_STRESS = ["ICACHE=512"], ["ICACHE=512", "MEM_LAT=2"], ["ICACHE=512", "MEM_LAT=1:8", "MEM_BEAT_LAT=0"], \
+    ["ICACHE=512", "MEM_LAT=1:64"]
+LARGE_LAT2 = ["ICACHE=8192", "MEM_LAT=2"]
+LAT2, LAT18 = ["MEM_LAT=2"], ["MEM_LAT=1:8"]
+
+
+def added_logic(f, decl, body=""):
+    """Patches that add a mutant's own signals to a module: their declarations right after the port
+    list (so that nothing uses them before they are declared) and their logic before endmodule."""
+    out = [(f, r"(?sm)\A(.*?^module\s+\w+.*?\);[ \t]*\n)", lambda m, d=decl: m.group(1) + d + "\n", 1)]
+    if body:
+        out.append((f, r"(?s)(.*)(\bendmodule\b)", lambda m, b=body: m.group(1) + b + "\n" + m.group(2), 1))
+    return out
+
+
+# The scoreboard's comparison of a fetched word with its copy, disabled (the blinded runs)
+BLIND = [(TOP, r"else if \(mcu\.fetch_bus\.dat_miso != sb_mem\[a - RAM_START\]\)",
+          "else if (1'b0 && mcu.fetch_bus.dat_miso != sb_mem[a - RAM_START])", 1)]
+
+
+def m(name, cls, what, patches, primary, also="", needs_anchor=True):
+    return dict(name=name, cls=cls, what=what, patches=patches, primary=primary, also=also, needs_anchor=needs_anchor)
+
+
+# ---- the fetch port's wrapper (sim/slow_memory.sv, PORT "fetch"), for the uncached configurations
+def abandoned_fetch(only_kth):
+    count = """
+    int unsigned mut_count, mut_k;
+    initial begin
+        mut_k = 1;
+        void'($value$plusargs("mut_k=%d", mut_k));
+    end""" if only_kth else ""
+    cond = "mut_count + 1 == mut_k" if only_kth else "1'b1"
+    inc = "\n                mut_count <= mut_count + 1;" if only_kth else ""
+    return [(SLOW, r"    assign memory\.adr      = master\.adr;\n", f"""    // (mutation) an abandoned fetch: the next answer carries the word of the old, held address
+    logic        mut_stale;
+    logic [31:0] mut_stale_adr;{count}
+    always @(posedge clk) begin
+        if (rst)
+            mut_stale <= 0;
+        else if (PORT == "fetch" && held && request && !same) begin{inc}
+            if ({cond}) begin
+                mut_stale     <= 1;
+                mut_stale_adr <= held_adr;
+            end
+        end
+        else if (pass)
+            mut_stale <= 0;
+    end
+    // (the substitution only for an address inside the RAM, so that err stays as it is)
+    assign memory.adr      = (PORT == "fetch" && mut_stale && master.adr - RAM_START < RAM_WORDS) ? mut_stale_adr
+                                                                                                 : master.adr;
+""", 1)]
+
+
+def word_store(entries):
+    bits = entries.bit_length() - 1
+    return [(SLOW, r"    assign master\.dat_miso = memory\.dat_miso;\n", f"""    // (mutation) a {entries}-entry direct-mapped store of fetched words, never told of stores
+    bit [31:0] mut_tag  [{entries}];
+    bit [31:0] mut_word [{entries}];
+    bit        mut_valid[{entries}];
+    wire [{bits - 1}:0] mut_i = master.adr[{bits - 1}:0];
+    wire        mut_hit = PORT == "fetch" && mut_valid[mut_i] && mut_tag[mut_i] == master.adr;
+    always @(posedge clk)
+        if (PORT == "fetch" && master.cyc && master.stb && memory.ack && !mut_hit) begin
+            mut_valid[mut_i] <= 1;
+            mut_tag[mut_i]   <= master.adr;
+            mut_word[mut_i]  <= memory.dat_miso;
+        end
+    assign master.dat_miso = mut_hit ? mut_word[mut_i] : memory.dat_miso;
+""", 1)]
+
+
+def handler_mepc(delta):
+    return [(IRQCHAIN, r"\n6:\n    mret\n", f"\n6:\n    csrr s4, mepc\n    addi s4, s4, {delta}\n    csrw mepc, s4\n    mret\n", 1)]
+
+
+SB_CORRUPT = [
+    (TOP, r"(\n    always @\(posedge clk\) begin\n        bit \[31:0\] a, w;\n)",
+     r"""
+    // (mutation) the scoreboard corrupts its saved copy of a waiting data request once (+mut_k)
+    int unsigned mut_waits, mut_k;
+    initial begin
+        mut_k = 1;
+        void'($value$plusargs("mut_k=%d", mut_k));
+    end
+\1""", 1),
+    (TOP, r"(\n            sb_wait_dat = mcu\.mem_bus\.dat_mosi;\n)",
+     r"""\1            if (sb_wait) begin
+                mut_waits++;
+                if (mut_waits == mut_k)
+                    sb_wait_adr = sb_wait_adr ^ 32'h1;
+            end
+""", 1)]
+
+# ------------------------------------------------------------------------------ the mutants
+MUTANTS = [
+    m("no-snoop", "coherence", "The snoop never invalidates.",
+      [(ICACHE, r"\bif\s*\(\s*snoop_store\b", "if (1'b0 && snoop_store", 1)],
+      dict(kind="blinded", config=SMALL_LAT2, only="memsys/icoherence$"),
+      "scoreboard fetch compare; bench; formal properties of the cached word and of the stores"),
+    m("no-second-lookup", "late ack",
+      "After the last beat, the refilled word for the latched address is acknowledged in the next cycle whatever "
+      "is presented (a registered ack of the refill's own word instead of a lookup of the presented address).",
+      [*added_logic(ICACHE, """    // (mutation) acknowledge the refilled word one cycle after the last beat
+    logic mut_after_fill;""", """    always_ff @(posedge clk) mut_after_fill <= !rst && ev_fill;"""),
+       (ICACHE, r"assign\s+cpu\.ack\s*=\s*([^;]+);", r"assign cpu.ack = (\1) || mut_after_fill;", 1)],
+      dict(kind="bench"), "scoreboard (fetchredirect.s); fetchredirect.s blinded; formal (the acknowledged word)"),
+    m("latched-lookup", "late ack", "In the second-lookup cycle the hit is computed for the latched address "
+      "(refill_line) instead of the presented one.",
+      [*added_logic(ICACHE, """    // (mutation) the first lookup after a refill compares the latched line
+    logic mut_second;""", """    always_ff @(posedge clk) mut_second <= !rst && ev_fill;"""),
+       (ICACHE, r"(assign\s+hit\s*=\s*)([^;]+);", r"\1mut_second ? (req && valid[refill_line[I-1:0]]) : (\2);", 1)],
+      dict(kind="bench"), "as no-second-lookup"),
+    m("ignore-valid", "valid", "The hit ignores the valid bit.",
+      [(ICACHE, r"(assign\s+hit\s*=[^;]*?)valid\[[^\]]+\]\s*&&\s*", r"\1", 1)],
+      dict(kind="bench"), "scoreboard at the small cache, latency 0 (random tags from the window); formal"),
+    m("reset-keeps-valid", "reset", "The reset leaves the valid bits as they are.",
+      [(ICACHE, r"valid\s*<=\s*'0\s*;", "valid <= valid;", 1)],
+      dict(kind="bench"), "formal (the state after a reset); not visible at system level"),
+    m("no-window-check", "window", "No err for fetches outside the window: they are looked up and refilled.",
+      [(ICACHE, r"(assign\s+inwin\s*=)[^;]*;", r"\1 1'b1;", 1)],
+      dict(kind="sweep", config=SMALL_LAT2, fam="window"),
+      "scoreboard (ack outside the RAM); bench; formal; the default ctl family's probe at 0x48000"),
+    m("grant-free-between-beats", "arbiter", "The port is free after every beat of a refill: in the cycle after an "
+      "answered beat the data side is granted if it requests.",
+      [*added_logic(ARB, """    // (mutation) the port is free after every answered refill beat
+    logic mut_beat_done;""", """    always_ff @(posedge clk) mut_beat_done <= !rst && gi && mem.ack;"""),
+       (ARB, r"(assign\s+free\s*=\s*)([^;]+);", r"\1(\2) || (owner == IREFILL && mut_beat_done && d_req);", 1),
+       (ARB, r"(assign\s+gi\s*=\s*)([^;]+);",
+        r"\1i_req && ((owner == IREFILL && !(mut_beat_done && d_req)) || (free && !d_req));", 1)],
+      dict(kind="bench"), "formal (cached word, no write during a refill, grants); the no-write-during-refill "
+      "assertion; bounded answer of a granted refill"),
+    m("answer-to-any-side", "arbiter", "The memory's answer (ack, err, dat_miso) goes to every slave side whose cyc "
+      "is 1, regardless of the grant and of stb.",
+      [(ARB, r"(assign\s+data\.ack\s*=\s*)gd\b", r"\1data.cyc", 1),
+       (ARB, r"(assign\s+data\.err\s*=\s*)gd\b", r"\1data.cyc", 1),
+       (ARB, r"(assign\s+data\.dat_miso\s*=\s*)gd\b", r"\1data.cyc", 1),
+       (ARB, r"(assign\s+irefill\.ack\s*=\s*)gi\b", r"\1irefill.cyc", 1),
+       (ARB, r"(assign\s+irefill\.err\s*=\s*)gi\b", r"\1irefill.cyc", 1),
+       (ARB, r"(assign\s+irefill\.dat_miso\s*=\s*)gi\b", r"\1irefill.cyc", 1)],
+      dict(kind="bench"), "scoreboard at the small cache, latency 0; formal; the arbiter's answer-only-with-request "
+      "assertion on its data port (bench with +compare=0)"),
+    m("snoop-wrong-index", "coherence", "The snoop's index bits are shifted by one.",
+      [(ICACHE, r"snoop_adr\[\s*O\s*\+\s*I\s*-\s*1\s*:\s*O\s*\]", "snoop_adr[O+I:O+1]", 1)],
+      dict(kind="blinded", config=SMALL_LAT2, only="memsys/icoherence$"), "bench; formal (stores)"),
+    m("snoop-no-tag-compare", "performance", "Any valid line of the snooped set is invalidated (no tag compare).",
+      [(ICACHE, r"(snoop_store\s*&&\s*valid\[\w+\])\s*&&\s*[^;)]*?==\s*\w+", r"\1", 1)],
+      dict(kind="bench"), "not functional: no correctness check can see it"),
+    m("refill-word-off-by-one", "refill", "Refill beat k is written to word k+1 (the data array's address in REFILL).",
+      [(ICACHE, r"\{\s*(refill_line\[[^\]]*\])\s*,\s*beat\s*\}", r"{\1, beat + 1'b1}", 1)],
+      dict(kind="programs", config=SMALL_LAT0, only=""), "bench; formal"),
+    m("refill-first", "performance", "Priority inverted: the I-refill wins when both sides request.",
+      [(ARB, r"(assign\s+gd\s*=\s*)([^;]+);", r"\1d_req && (owner == DATA || (free && !i_req));", 1),
+       (ARB, r"(assign\s+gi\s*=\s*)([^;]+);", r"\1i_req && (owner == IREFILL || free);", 1)],
+      dict(kind="bench"), "not functional"),
+    m("ram-not-exempt", "exemption", "TIMEOUT_EXEMPT bit 0 is not set in the cached branch of rtl/mcu.sv.",
+      [(MCU, r"\.TIMEOUT_EXEMPT\(9'b0_0000_0001\)", ".TIMEOUT_EXEMPT(9'b0_0000_0000)", 1)],
+      dict(kind="assert", config=["ICACHE=512", "MEM_LAT=64"], only="memsys/(stores|irqchain)$",
+           message=r"interconnect timeout at cycle \d+ on a RAM access"),
+      "the formal proof with the mask of rtl/mcu.sv; the programs at the small cache under the stress profile"),
+    m("all-exempt", "exemption", "TIMEOUT_EXEMPT all ones: I/O loses its timeout.",
+      [(MCU, r"\.TIMEOUT_EXEMPT\(9'b0_0000_0001\)", ".TIMEOUT_EXEMPT(9'b1_1111_1111)", 1)],
+      dict(kind="formal", prop="interconnect-io-unchanged"), ""),
+    m("ack-in-refill", "refill", "ack also in REFILL: the hit is not gated by the state.",
+      [(ICACHE, r"(assign\s+cpu\.ack\s*=\s*)\(?\s*state\s*==\s*LOOKUP\s*\)?\s*&&\s*", r"\1", 1)],
+      dict(kind="programs", config=SMALL_LAT0, only=""), "bench; formal"),
+    m("store-sel-forced", "pass-through", "sel is not passed through on data writes (forced to 1111).",
+      [(ARB, r"(assign\s+mem\.sel\s*=[^;]*?)\bdata\.sel\b", r"\1(data.we ? 4'b1111 : data.sel)", 1)],
+      dict(kind="programs", config=SMALL_LAT0, only="memsys/stores$"), "bench; formal (exactly one write per store)"),
+    m("fill-event-every-beat", "events", "ev_fill on every beat.",
+      [(ICACHE, r"(assign\s+ev_fill\s*=)[^;]*;", r"\1 ev_beat;", 1)],
+      dict(kind="bench"), "the CACHE_STATS identity i_refills = i_done + i_inflight; cachemodel.py rtlcheck"),
+    m("cont-on-first-beat", "wrapper tag", "mem_cont also on beat 0 of a refill.",
+      [(ICACHE, r"(assign\s+mem_cont\s*=)[^;]*;", r"\1 (state == REFILL);", 1)],
+      dict(kind="assert", config=SMALL_BURST, only="", message=r"block_cont"),
+      "the port identity at MEM_BEAT_LAT=0 (port_irefill); bench"),
+    m("narrow-tag", "tags", "The tag compare uses only the tag bits that the RAM window needs (adr[16:O+I] with the "
+      "32 KiB window).",
+      [(ICACHE, r"(assign\s+hit\s*=[^;]*?)\b(\w+)\s*==\s*q\b",
+        r"\1\2[MUT_NARROW-1:0] == q[MUT_NARROW-1:0]", 1),
+       *added_logic(ICACHE, """    // (mutation) the tag bits below the top of the RAM window only
+    localparam int MUT_NARROW = $clog2(WINDOW_START + WINDOW_WORDS) - O - I;""", """""")],
+      dict(kind="sweep", config=SMALL_LAT2, fam="window"),
+      "the probe at 0xC0000 at the large cache; bench; formal; the I-cache's ack-and-err assertion"),
+    m("ack-without-request", "protocol", "The hit is not gated by req (cyc && stb).",
+      [(ICACHE, r"(assign\s+hit\s*=\s*)req\s*&&\s*", r"\1", 1)],
+      dict(kind="bench"), "formal; the I-cache's answer-only-with-request assertion"),
+    m("grant-never-released", "arbiter, deadlock", "After an I-refill block the owner stays IREFILL until the "
+      "I-cache requests again: no free port for the data side after a refill, and the owner kept when nothing is "
+      "granted.",
+      [(ARB, r"(assign\s+free\s*=\s*)([^;]+);", r"\1(owner == NONE);", 1),
+       (ARB, r"(else\s+)owner\s*<=\s*NONE\s*;", r"\1owner <= owner;", 1)],
+      dict(kind="bench"), "formal (bounded response); bounded-answer assertion (a); +timeout"),
+    m("refill-follows-cpu-adr", "refill", "The refill beat address takes its line from the presented address "
+      "instead of refill_line.",
+      [(ICACHE, r"(assign\s+mem\.adr\s*=\s*\{[^}]*?)\brefill_line\b", r"\1cpu.adr[29:O]", 1)],
+      dict(kind="bench"), "formal; scoreboard (fetchredirect.s)"),
+    m("data-dependent-hit", "data dependence", "A lookup whose cached word has a zero lowest byte is treated as a miss.",
+      [(ICACHE, r"(assign\s+hit\s*=\s*)([^;]+);", r"\1(\2) && cpu.dat_miso[7:0] != 8'h00;", 1)],
+      dict(kind="formal", prop="non-interference"), "bench"),
+    m("snoop-full-words-only", "coherence", "The snoop acts only on stores with sel = 1111.",
+      [(MCU, r"(\.snoop_store\s*\(\s*mem_bus_slaves\[0\]\.cyc[^)]*?mem_bus_slaves\[0\]\.ack)",
+        r"\1 && mem_bus_slaves[0].sel == 4'b1111", 1)],
+      dict(kind="blinded", config=SMALL_LAT2, only="memsys/icoherence$"), "bench; formal (stores)"),
+    m("snoop-late", "coherence", "The snoop invalidates one cycle after the store's acknowledge (snoop_store and "
+      "snoop_adr registered inside the I-cache).",
+      [(ICACHE, r"(input\s+(?:logic\s+)?(?:\[31:0\]\s*)?)snoop_store\b", r"\1snoop_store_in", 1),
+       (ICACHE, r"(input\s+(?:logic\s+)?\[31:0\]\s*)snoop_adr\b", r"\1snoop_adr_in", 1),
+       *added_logic(ICACHE, """    // (mutation) the snoop one cycle late
+    logic        snoop_store;
+    logic [31:0] snoop_adr;""", """    always_ff @(posedge clk) begin
+        snoop_store <= !rst && snoop_store_in;
+        snoop_adr   <= snoop_adr_in;
+    end""")],
+      dict(kind="programs", config=SMALL_LAT0, only="memsys/icoherence$"),
+      "bench; formal; the timing bench of the staleness window (sw+16 NEW)"),
+    m("second-snoop-lost", "coherence", "Of two stores acknowledged in consecutive cycles, the second is not snooped.",
+      [(ICACHE, r"\bif\s*\(\s*snoop_store\b", "if (snoop_store && !mut_prev_snoop", 1),
+       *added_logic(ICACHE, """    // (mutation) the second of two back-to-back snoops is lost
+    logic mut_prev_snoop;""", """    always_ff @(posedge clk) mut_prev_snoop <= !rst && snoop_store && !mut_prev_snoop;""")],
+      dict(kind="blinded", config=SMALL_LAT0, only="memsys/icoherence$"), "bench; formal (stores)"),
+    m("data-burst", "wrapper", "The wrapper ignores block_cont: the burst discount also applies to data transfers.",
+      [(SLOW, r"&&\s*block_cont\b", "", 1)],
+      dict(kind="port-identity", config=["ICACHE=512", "MEM_LAT=2", "MEM_BEAT_LAT=0"], only="memsys/stores$"),
+      "bench (system profile)"),
+    m("cont-low", "wrapper tag", "mem_cont stays 0 on beats 1 to LINE_WORDS - 1.",
+      [(ICACHE, r"(assign\s+mem_cont\s*=)[^;]*;", r"\1 1'b0;", 1)],
+      dict(kind="port-identity", config=["ICACHE=512", "MEM_LAT=2", "MEM_BEAT_LAT=0"], only="memsys/stores$"),
+      "bench (mem_cont compared)"),
+    m("reset-keeps-state", "reset", "The reset clears the valid bits but not state and beat.",
+      [(ICACHE, r"(\bif\s*\(\s*rst\s*\)\s*begin(?:(?!\bend\b).)*?)\bstate\s*<=\s*LOOKUP\s*;", r"\1", 1),
+       (ICACHE, r"(\bif\s*\(\s*rst\s*\)\s*begin(?:(?!\bend\b).)*?)\bbeat\s*<=\s*[^;]+;", r"\1", 1)],
+      dict(kind="bench"), "formal (the state after a reset); the reset runs"),
+    m("stats-not-restarted", "testbench", "The CACHE_STATS counters of sim/top.sv do not restart at a reset.",
+      [(TOP, r"(?s)(CACHE_STATS.*?\bif\s*\(\s*mcu\.rst\s*\)\s*begin)", r"\1 if (1'b0) begin", 1)],
+      dict(kind="resets", leg="resets", job="i512-lat2", message=r"CACHE_STATS identity: cycles="), ""),
+    m("event-feeds-back", "events", "ev_hit is used inside the I-cache: after a hit the next miss starts its refill "
+      "one cycle later.",
+      [*added_logic(ICACHE, """    // (mutation) an event read back inside the design
+    logic mut_hit_q;""", """    always_ff @(posedge clk) mut_hit_q <= !rst && ev_hit;"""),
+       (ICACHE, r"(assign\s+ev_miss\s*=\s*)([^;]+);", r"\1(\2) && !mut_hit_q;", 1),
+       (ICACHE, r"\bif\s*\(\s*req\s*&&\s*inwin\s*&&\s*!\s*hit\s*\)", "if (req && inwin && !hit && !mut_hit_q)", 1)],
+      dict(kind="bench"), "review (no event is read inside the design)"),
+    m("write-replay", "pass-through", "The arbiter presents an answered data write to the memory once more in the "
+      "next cycle.",
+      [*added_logic(ARB, """    // (mutation) an answered write is presented once more
+    logic        mut_replay;
+    logic [31:0] mut_adr, mut_dat;
+    logic  [3:0] mut_sel;""", """    always_ff @(posedge clk) begin
+        mut_replay <= !rst && gd && data.we && mem.ack;
+        mut_adr    <= data.adr;
+        mut_dat    <= data.dat_mosi;
+        mut_sel    <= data.sel;
+    end"""),
+       (ARB, r"(assign\s+mem\.cyc\s*=\s*)([^;]+);", r"\1mut_replay || (\2);", 1),
+       (ARB, r"(assign\s+mem\.stb\s*=\s*)([^;]+);", r"\1mut_replay || (\2);", 1),
+       (ARB, r"(assign\s+mem\.we\s*=\s*)([^;]+);", r"\1mut_replay || (\2);", 1),
+       (ARB, r"(assign\s+mem\.adr\s*=\s*)([^;]+);", r"\1mut_replay ? mut_adr : (\2);", 1),
+       (ARB, r"(assign\s+mem\.sel\s*=\s*)([^;]+);", r"\1mut_replay ? mut_sel : (\2);", 1),
+       (ARB, r"(assign\s+mem\.dat_mosi\s*=\s*)([^;]+);", r"\1mut_replay ? mut_dat : (\2);", 1)],
+      dict(kind="assert", config=SMALL_LAT0, only="memsys/stores$", message=r"answer|grant"),
+      "formal (exactly one write per store); bench"),
+    m("sb-wait-kept", "testbench", "The scoreboard keeps sb_wait across a reset (the behaviour before its reset "
+      "handling).",
+      [(TOP, r"\bif\s*\(\s*mcu\.rst\s*\)\s*sb_wait\s*=\s*(?:1'b)?0\s*;", "/* (mutation) sb_wait kept */", 1)],
+      dict(kind="resets", leg="resets", job="i512-lat2", message=r"changed before its answer"), "", needs_anchor=True),
+    m("sb-request-corrupted", "testbench", "The scoreboard corrupts its saved copy of a waiting data request once "
+      "(+mut_k, default the first waiting request).", SB_CORRUPT,
+      dict(kind="assert", config=SMALL_LAT2, only="memsys/stores$", message=r"SCOREBOARD: FAIL .*changed before its answer"),
+      "", needs_anchor=False),
+    m("refill-never-ends", "deadlock", "After the last beat the I-cache stays in REFILL and refills the line again.",
+      [(ICACHE, r"(?s)(\bif\s*\(\s*mem\.ack\s*\).*?)\bstate\s*<=\s*LOOKUP\s*;", r"\1state <= REFILL;", 1)],
+      dict(kind="assert", config=SMALL_LAT2, only="", message=r"fetch|bound|answer"),
+      "bench; formal (bounded response); +timeout"),
+    m("i-side-starved", "arbiter", "An I-refill is granted only in a cycle that follows a cycle in which the port "
+      "was idle.",
+      [*added_logic(ARB, """    // (mutation) an I-refill only after an idle port cycle
+    logic mut_idle_q;""", """    always_ff @(posedge clk) mut_idle_q <= rst || !(gd || gi);"""),
+       (ARB, r"(assign\s+gi\s*=\s*)([^;]+);", r"\1(\2) && (owner == IREFILL || mut_idle_q);", 1)],
+      dict(kind="bench"), "formal (bounded response)"),
+    m("interconnect-default-exempt", "exemption", "The default of TIMEOUT_EXEMPT is all ones.",
+      [(ICON, r"(TIMEOUT_EXEMPT\s*=\s*)'0", r"\1'1", 1)],
+      dict(kind="formal", prop="interconnect-default"), ""),
+    m("irefill-answer-by-owner", "arbiter", "The arbiter also routes the memory's answer to the I-side when owner == "
+      "IREFILL: irefill.ack = (gi || owner == IREFILL) && mem.ack, and err and dat_miso likewise. It differs from the "
+      "design only in the second-lookup cycle, in which the I-side owns the port without requesting.",
+      [(ARB, r"(assign\s+irefill\.ack\s*=\s*)gi\b", r"\1(gi || owner == IREFILL)", 1),
+       (ARB, r"(assign\s+irefill\.err\s*=\s*)gi\b", r"\1(gi || owner == IREFILL)", 1),
+       (ARB, r"(assign\s+irefill\.dat_miso\s*=\s*)gi\b", r"\1(gi || owner == IREFILL)", 1)],
+      dict(kind="assert", config=SMALL_LAT0, only="memsys/stores$", message=r"irefill",
+           evidence=r"wait_d_for_port=([1-9]\d*)"),
+      "bench (the I-side's ack compared every cycle); the same assertion in the bench with +compare=0; formal"),
+    # the mutants of the fetch port's wrapper and of irqchain.s, in the uncached configurations
+    m("abandoned-fetch-answer", "late ack", "When the presented fetch address changes while a read is held (an "
+      "abandoned fetch), the next answer carries the word of the old, held address; once per abandoned fetch.",
+      abandoned_fetch(False), dict(kind="blinded", config=LAT2, only="memsys/fetchredirect$", also_config=LAT18),
+      "scoreboard fetch compare", needs_anchor=False),
+    m("one-abandoned-fetch", "late ack", "As abandoned-fetch-answer, but only for the k-th abandoned fetch of the run "
+      "(+mut_k=k, default 1).",
+      abandoned_fetch(True), dict(kind="blinded", config=LAT2, only="memsys/fetchredirect$", also_config=LAT18),
+      "scoreboard fetch compare", needs_anchor=False),
+    m("fetch-word-cache-64", "coherence", "A 64-entry direct-mapped word store in the fetch wrapper, filled by fetches "
+      "and never told of stores: a fetch that hits it returns the stored word even if a store changed the RAM since.",
+      word_store(64), dict(kind="blinded", config=LAT2, only="memsys/icoherence$", also_config=LAT18),
+      "scoreboard fetch compare", needs_anchor=False),
+    m("fetch-word-cache-1024", "coherence", "As fetch-word-cache-64 with 1024 entries (4 KiB).",
+      word_store(1024), dict(kind="blinded", config=LAT2, only="memsys/icoherence$", also_config=LAT18),
+      "scoreboard fetch compare", needs_anchor=False),
+    m("handler-mepc-plus4", "interrupts", "irqchain.s's handler adds 4 to mepc before mret (read, add, write back "
+      "through a handler scratch register).",
+      handler_mepc(4), dict(kind="blinded", config=LAT2, only="memsys/irqchain$", also_config=SMALL_LAT2), "",
+      needs_anchor=False),
+    m("handler-mepc-minus4", "interrupts", "As handler-mepc-plus4 with -4.",
+      handler_mepc(-4), dict(kind="blinded", config=LAT2, only="memsys/irqchain$", also_config=SMALL_LAT2), "",
+      needs_anchor=False),
+]
+# further checks of the directed tests with the fetch compare blinded, beyond the primary ones
+EXTRA_BLINDED = {
+    "no-second-lookup": dict(config=SMALL_LAT2, only="memsys/fetchredirect$"),
+    "latched-lookup": dict(config=SMALL_LAT2, only="memsys/fetchredirect$"),
+}
+
+# Negative controls of the run-time assertions: the control, and the run in which only that check
+# can stop it. For an assertion inside icache or mem_arbiter: the bench with +compare=0; the bench's
+# own negative cases are run by legality.py.
+ASSERTION_MAP = [
+    ("the fetch port has we = 0 and sel = 1111", "bench case fetch-write", None),
+    ("a data request stays the same until answered (scoreboard)", "sb-request-corrupted", None),
+    ("a data request stays the same until answered (mem_arbiter)", "bench case request-change", None),
+    ("ack and err never together (icache)", "narrow-tag", dict(kind="bench-assert", message=r"ack.*err|err.*ack")),
+    ("ack and err never together (mem_arbiter)", "bench case ack-err", None),
+    ("ack or err only with cyc && stb (icache cpu port)", "ack-without-request",
+     dict(kind="bench-assert", message=r"without.*(cyc|request)")),
+    ("ack or err only with cyc && stb (mem_arbiter data port)", "answer-to-any-side",
+     dict(kind="bench-assert", message=r"data.*without.*(cyc|request)")),
+    ("ack or err only with cyc && stb (mem_arbiter irefill port)", "irefill-answer-by-owner", None),
+    ("the memory never answers err to the I-cache", "bench case refill-err", None),
+    ("no memory write while an I-refill block holds the port", "grant-free-between-beats",
+     dict(kind="bench-assert", message=r"write.*refill|refill.*write")),
+    ("no memory answer in a cycle without a grant", "write-replay", None),
+    # the bounded-answer assertions are in sim/top.sv: system runs, except bound (b), which a CPU
+    # cannot be made to reach on purpose; its control runs in the bench's CPU-like data mode
+    ("bounded answer (a): a slave-0 data request", "grant-never-released",
+     dict(kind="assert", config=SMALL_LAT2, only="memsys/stores$", message=r"bound.*\(a\)|data request.*not answered")),
+    ("bounded answer (b): an I-refill is granted", "i-side-starved",
+     dict(kind="bench-message", message=r"bound.*\(b\)|refill.*not granted")),
+    ("bounded answer (c): a granted refill's last beat", "grant-free-between-beats",
+     dict(kind="assert", config=SMALL_LAT2, only="memsys/stores$", message=r"bound.*\(c\)|last beat")),
+    ("bounded answer (d): the fetch port gets ack or err", "refill-never-ends", None),
+    ("the interconnect timeout never fires while slave 0 is selected", "ram-not-exempt", None),
+    ("block_cont only for a read continuing the previous transfer", "cont-on-first-beat", None),
+    ("the scoreboard's reset handling", "sb-wait-kept", None),
+]
+
+
+# ------------------------------------------------------------------------------ applying patches
+def find(name):
+    for mu in MUTANTS:
+        if mu["name"] == name:
+            return mu
+    sys.exit(f"mutants.py: no mutant {name}; see: mutants.py list")
+
+
+def apply(root, patches):
+    """Apply patches in the tree at root -> list of problems (an anchor that does not match)."""
+    problems = []
+    for f, rx, rep, count in patches:
+        path = os.path.join(root, f)
+        if not os.path.exists(path):
+            problems.append(f"{f}: no such file")
+            continue
+        text = open(path).read()
+        n = len(re.findall(rx, text, flags=re.S if "(?s)" not in rx else 0))
+        if n != count:
+            problems.append(f"{f}: /{rx[:70]}/ matches {n} time(s), not {count}")
+            continue
+        new = re.sub(rx, rep, text, count=count, flags=re.S if "(?s)" not in rx else 0)
+        with open(path, "w") as fh:
+            fh.write(new)
+    return problems
+
+
+def copy_tree(dst):
+    """The working tree without its build directories and git data."""
+    shutil.copytree(REPO, dst, ignore=shutil.ignore_patterns("build", ".git", "__pycache__"), symlinks=True)
+
+
+# ------------------------------------------------------------------------------ checks
+def sh(cmd, cwd, timeout=None):
+    r = subprocess.run(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace",
+                       env={k: v for k, v in os.environ.items() if not k.startswith("HADES_")}, timeout=timeout)
+    return r.returncode, r.stdout
+
+
+def programs_run(root, config, only, sim_args="", cpu="dut"):
+    out = os.path.join(root, "build", "mutant-programs")
+    cmd = [sys.executable, os.path.join(root, "test", "memsys", "programs.py"), "run"] + config + \
+        ["--cpu", cpu, "--jobs", "4", "--out", out] + (["--only", only] if only else []) + \
+        (["--sim-args", sim_args] if sim_args else [])
+    rc, text = sh(cmd, root)
+    try:
+        res = json.load(open(os.path.join(out, "results.json")))
+    except (OSError, ValueError):
+        res = None
+    return rc, text, res, out
+
+
+def check(root, spec, mu):
+    """-> (caught, evidence)."""
+    kind = spec["kind"]
+    if kind == "bench":
+        rc, text = sh(["make", "-s", "--no-print-directory", "test/sv/test_icache"], root)
+        ok = rc == 0 and "ICACHE BENCH: PASS" in text
+        line = next((l for l in text.splitlines() if "ICACHE BENCH" in l or "%Fatal" in l or "MISMATCH" in l.upper()),
+                    text.strip().splitlines()[-1] if text.strip() else "(no output)")
+        return (not ok), line[:200]
+    if kind == "bench-message":
+        rc, text = sh(["make", "-s", "--no-print-directory", "test/sv/test_icache"], root)
+        hit = next((l for l in text.splitlines() if re.search(spec["message"], l)), None)
+        return hit is not None, (hit or "the message did not appear")[:200]
+    if kind == "bench-assert":
+        # build the bench through make, then run it with +compare=0 (the bench's make rule takes no
+        # run options)
+        top = os.path.join(root, "build", "test", "sv", "test_icache", "top")
+        rc, text = sh(["make", "-s", "--no-print-directory", top], root)
+        if rc:
+            return None, f"the bench does not build: {text.strip()[-160:]}"
+        rc, text = sh([top, "+compare=0"], os.path.dirname(top))
+        hit = next((l for l in text.splitlines() if re.search(spec["message"], l) and "%" in l), None)
+        return hit is not None, (hit or "the assertion's message did not appear")[:200]
+    if kind in ("programs", "blinded", "assert", "port-identity"):
+        if kind == "blinded" and "1'b0 && mcu.fetch_bus.dat_miso" not in open(os.path.join(root, TOP)).read():
+            probs = apply(root, BLIND)
+            if probs:
+                return None, "the blinding patch: " + "; ".join(probs)
+        rc, text, res, out = programs_run(root, spec["config"], spec.get("only", ""))
+        if res is None:
+            return True, f"programs.py did not finish (exit {rc}): {text.strip()[-160:]}"
+        runs = [r for r in res["results"] if r["cpu"] == "dut"]
+        if kind == "programs":
+            bad = [r for r in runs if r["judged"] == "DIFFERS" or r["problems"] or r["errors"]]
+            return bool(bad), "; ".join(f"{r['program']}: {(r['differences'] + r['problems'] + r['errors'])[:1]}"
+                                        for r in bad[:3]) or "every run the same or expected"
+        if kind == "blinded":
+            invalid = [r["program"] for r in runs if r["scoreboard"] != "PASS"]
+            if invalid:
+                return None, f"blinded run(s) without SCOREBOARD: PASS (not valid): {invalid}"
+            # the program's own checks: its reports against the run at latency 0 (which can be wrong in
+            # the same way: a mutant of the memory path acts at every latency), and its verdict against
+            # the verdict it gives on the standard memory
+            sys.path.insert(0, os.path.join(root, "test", "memsys"))
+            import programs
+            sys.path.pop(0)
+            bad = []
+            for r in runs:
+                want = programs.verdict_at_latency0(r["program"])[0]
+                why = r["differences"][:1] if r["judged"] == "DIFFERS" else []
+                if not r["verdict"].startswith(want):
+                    why.append(f"verdict '{r['verdict']}', on the standard memory '{want}'")
+                if why:
+                    bad.append(f"{r['program']}: {why}")
+            return bool(bad), "; ".join(bad[:3]) or "the programs' own reports and verdicts unchanged"
+        logs = [open(os.path.join(out, r["dir"], "sim.log"), errors="replace").read() for r in runs]
+        if kind == "assert":
+            hit = next((l for t in logs for l in t.splitlines() if re.search(spec["message"], l) and "%" in l), None)
+            ev = ""
+            if spec.get("evidence"):
+                ev = "; evidence " + ", ".join(sorted({x for t in logs for x in re.findall(spec["evidence"], t)})[:3])
+            return hit is not None, (hit or "the check's message did not appear")[:200] + ev
+        # port-identity
+        sys.path.insert(0, HERE)
+        import matrix
+        sys.path.pop(0)
+        bad = []
+        for t in logs:
+            st = matrix.stats_of(t)
+            if not st:
+                continue
+            if st["port_irefill"] != 6 * st["i_done"] + st["i_inflight_port"]:
+                bad.append(f"port_irefill {st['port_irefill']} != 6 * {st['i_done']} + {st['i_inflight_port']}")
+            if st["port_data"] != 3 * (st["d_loads"] + st["d_stores"]) + st["d_inflight_port"]:
+                bad.append(f"port_data {st['port_data']} != 3 * ({st['d_loads']} + {st['d_stores']}) + "
+                           f"{st['d_inflight_port']}")
+        return bool(bad), "; ".join(bad[:2]) or "the port identities hold"
+    if kind == "sweep":
+        cfg_rc, cfg = sh(["make", "-s", "--no-print-directory", "sim-config"] + spec["config"], root)
+        env_line = re.search(r"\n\s+(HADES_BUILD_DIR=\S+(?: HADES_\w+=\S+)*)\s*$", cfg)
+        env = {k: v for k, v in os.environ.items() if not k.startswith("HADES_")}
+        for kv in (env_line.group(1).split() if env_line else []):
+            k, v = kv.split("=", 1)
+            env[k] = v
+        r = subprocess.run([sys.executable, os.path.join(root, "test", "trapsweep", "sweep.py"), "run", "--fam",
+                            spec["fam"], "--targets", "dut", "--jobs", "4", "--out",
+                            os.path.join(root, "build", "mutant-sweep")], cwd=root, env=env,
+                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace")
+        m_ = re.search(r"^DUT: (\d+)/(\d+) programs ISS-consistent", r.stdout, re.M)
+        caught = not m_ or m_.group(1) != m_.group(2) or r.returncode != 0
+        return caught, (m_.group(0) if m_ else r.stdout.strip()[-160:])
+    if kind == "formal":
+        rc, text = sh(["sh", os.path.join(root, "formal", "cache", "run.sh"), "--only", spec["prop"]], root)
+        hit = re.search(rf"^.*{re.escape(spec['prop'])}.*FAIL.*$", text, re.M)
+        return hit is not None, (hit.group(0) if hit else f"no failure of {spec['prop']} (exit {rc})")[:200]
+    if kind == "resets":
+        rc, text = sh([sys.executable, os.path.join(root, "test", "memsys", "matrix.py"), "run", spec["leg"], "--only",
+                       spec["job"], "--out", os.path.join(root, "build", "mutant-matrix")], root)
+        hit = re.search(spec["message"], text)
+        return hit is not None, (hit.group(0) if hit else "the reset runs did not show it")[:200]
+    return None, f"unknown check {kind}"
+
+
+def run_one(mu, out, keep, with_map, primary_only=False):
+    d = tempfile.mkdtemp(prefix=f"mutant-{mu['name']}-")
+    root = os.path.join(d, "tree")
+    res = dict(name=mu["name"], cls=mu["cls"])
+    try:
+        copy_tree(root)
+        probs = apply(root, mu["patches"])
+        if probs:
+            res.update(verdict="ANCHOR MISSING", evidence="; ".join(probs))
+            return res
+        caught, ev = check(root, mu["primary"], mu)
+        res.update(verdict="CAUGHT" if caught else ("MISSED" if caught is not None else "INVALID"), evidence=ev)
+        extra = mu["primary"].get("also_config")
+        if extra and not primary_only:
+            spec = dict(mu["primary"], config=extra)
+            shutil.rmtree(os.path.join(root, "build", "mutant-programs"), ignore_errors=True)
+            c2, ev2 = check(root, spec, mu)
+            res["also_config"] = dict(config=extra, verdict="CAUGHT" if c2 else ("MISSED" if c2 is not None
+                                                                                   else "INVALID"), evidence=ev2)
+        if with_map:
+            for assertion, control, spec in ASSERTION_MAP:
+                if control == mu["name"] and spec:
+                    c3, ev3 = check(root, spec, mu)
+                    res.setdefault("map", []).append(dict(assertion=assertion, shown=bool(c3), evidence=ev3))
+        return res
+    finally:
+        if keep:
+            res["tree"] = root
+        else:
+            shutil.rmtree(d, ignore_errors=True)
+
+
+# ------------------------------------------------------------------------------ commands
+def cmd_list(a):
+    for mu in MUTANTS:
+        p = mu["primary"]
+        where = " ".join(p.get("config", [])) or ""
+        what = p["kind"] + (f" ({where}" + (f", {p['only']}" if p.get("only") else "") + ")" if where else "") + \
+            (f" {p.get('fam', '')}{p.get('prop', '')}" if p["kind"] in ("sweep", "formal") else "")
+        files = sorted({f for f, *_ in mu["patches"]})
+        print(f"{mu['name']:28s} {mu['cls']:18s} {', '.join(files):45s} {what}")
+        if a.verbose:
+            print(f"    {mu['what']}")
+            if mu["also"]:
+                print(f"    also: {mu['also']}")
+    print(f"{len(MUTANTS)} mutants")
+    print("negative controls of the run-time assertions:")
+    for assertion, control, spec in ASSERTION_MAP:
+        print(f"    {assertion:62s} {control}" + (f"  [{spec['kind']}]" if spec else ""))
+    return 0
+
+
+def cmd_anchors(a):
+    names = a.names or [mu["name"] for mu in MUTANTS]
+    bad = 0
+    for n in names:
+        mu = find(n)
+        d = tempfile.mkdtemp(prefix="mutant-anchor-")
+        try:
+            for f in {f for f, *_ in mu["patches"]}:
+                src = os.path.join(REPO, f)
+                if os.path.exists(src):
+                    os.makedirs(os.path.dirname(os.path.join(d, f)), exist_ok=True)
+                    shutil.copy(src, os.path.join(d, f))
+            probs = apply(d, mu["patches"])
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+        bad += bool(probs)
+        print(f"{'ok     ' if not probs else 'MISSING'} {n}" + "".join(f"\n        {p}" for p in probs))
+    d = tempfile.mkdtemp(prefix="mutant-anchor-")
+    try:
+        os.makedirs(os.path.join(d, "sim"))
+        shutil.copy(os.path.join(REPO, TOP), os.path.join(d, TOP))
+        probs = apply(d, BLIND)
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+    print(f"{'ok     ' if not probs else 'MISSING'} (the blinding of the fetch compare)" + "".join(f"\n        {p}" for p in probs))
+    print(f"ANCHORS: {len(names) - bad} of {len(names)} mutants apply to this tree")
+    return 0 if not bad and not probs else 1
+
+
+def cmd_show(a):
+    mu = find(a.name)
+    d = tempfile.mkdtemp(prefix="mutant-show-")
+    try:
+        for f in {f for f, *_ in mu["patches"]}:
+            if os.path.exists(os.path.join(REPO, f)):
+                os.makedirs(os.path.dirname(os.path.join(d, f)), exist_ok=True)
+                shutil.copy(os.path.join(REPO, f), os.path.join(d, f))
+        probs = apply(d, mu["patches"])
+        for f in sorted({f for f, *_ in mu["patches"]}):
+            if os.path.exists(os.path.join(d, f)):
+                old = open(os.path.join(REPO, f)).read().splitlines(True)
+                new = open(os.path.join(d, f)).read().splitlines(True)
+                sys.stdout.writelines(difflib.unified_diff(old, new, f"a/{f}", f"b/{f}"))
+        for p in probs:
+            print(f"ANCHOR MISSING: {p}")
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+    print(f"{mu['name']}: {mu['what']}")
+    return 0
+
+
+def cmd_run(a):
+    names = [mu["name"] for mu in MUTANTS] if not a.names or a.names == ["all"] else a.names
+    mus = [find(n) for n in names]
+    os.makedirs(a.out, exist_ok=True)
+    results = []
+    with cf.ThreadPoolExecutor(max_workers=a.jobs) as ex:
+        for res in ex.map(lambda mu: run_one(mu, a.out, a.keep, a.map, a.primary_only), mus):
+            results.append(res)
+            extra = res.get("also_config")
+            print(f"{res['verdict']:14s} {res['name']}: {res['evidence']}" +
+                  (f"\n{'':14s}   also {' '.join(extra['config'])}: {extra['verdict']}: {extra['evidence']}"
+                   if extra else "") +
+                  "".join(f"\n{'':14s}   assertion '{x['assertion']}': {'shown' if x['shown'] else 'NOT shown'}: "
+                          f"{x['evidence']}" for x in res.get("map", [])), flush=True)
+    with open(os.path.join(a.out, "mutants.json"), "w") as f:
+        json.dump(results, f, indent=1)
+    caught = sum(r["verdict"] == "CAUGHT" for r in results)
+    print(f"MUTANTS: {caught} of {len(results)} CAUGHT; "
+          + ", ".join(f"{v} {sum(r['verdict'] == v for r in results)}"
+                      for v in ("MISSED", "INVALID", "ANCHOR MISSING") if any(r["verdict"] == v for r in results))
+          + f"; {a.out}/mutants.json")
+    return 0 if caught == len(results) else 1
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    p = sub.add_parser("list")
+    p.add_argument("-v", "--verbose", action="store_true")
+    p = sub.add_parser("anchors")
+    p.add_argument("names", nargs="*")
+    p = sub.add_parser("show")
+    p.add_argument("name")
+    p = sub.add_parser("run")
+    p.add_argument("names", nargs="*")
+    p.add_argument("--jobs", type=int, default=2)
+    p.add_argument("--out", default=os.path.join(REPO, "build", "mutants"))
+    p.add_argument("--map", action="store_true", help="also the negative controls of the run-time assertions")
+    p.add_argument("--keep", action="store_true", help="keep the temporary trees")
+    p.add_argument("--primary-only", action="store_true", help="only the primary check's configuration")
+    a = ap.parse_args()
+    return {"list": cmd_list, "anchors": cmd_anchors, "show": cmd_show, "run": cmd_run}[a.cmd](a)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
