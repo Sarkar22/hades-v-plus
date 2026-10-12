@@ -43,9 +43,13 @@ module mem_arbiter (
     output logic              ev_port_load,   // a load answered on the memory port
     output logic              ev_port_store   // a store answered on the memory port
 );
-    typedef enum logic [1:0] { NONE, DATA, IREFILL } owner_t;
+    // Who holds the port across cycles, as named constants (sim/top.sv and the formal harness
+    // compare with them)
+    localparam logic [1:0] NONE    = 2'd0;
+    localparam logic [1:0] DATA    = 2'd1;
+    localparam logic [1:0] IREFILL = 2'd2;
 
-    owner_t owner;                  // the side that holds the port across cycles
+    logic [1:0] owner;
 
     logic d_req, i_req, free, gd, gi;
 

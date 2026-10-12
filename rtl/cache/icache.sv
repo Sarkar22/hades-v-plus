@@ -87,9 +87,11 @@ module icache #(
     // |                                          State                                           |
     // --------------------------------------------------------------------------------------------
 
-    typedef enum logic { LOOKUP, REFILL } state_t;
+    // The two states, as named constants (sim/top.sv and the formal harness compare with them)
+    localparam logic LOOKUP = 1'b0;
+    localparam logic REFILL = 1'b1;
 
-    state_t          state;
+    logic            state;
     logic    [O-1:0] beat;          // the refill beat requested, 0 .. LINE_WORDS - 1
     logic   [29-O:0] refill_line;   // word address bits [29:O] of the line being refilled
     logic [SETS-1:0] valid;         // one flip-flop per line
