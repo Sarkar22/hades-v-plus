@@ -42,6 +42,8 @@
 # The simulator configurations of the Makefile (MEM_LAT=..., SCOREBOARD=1, ...; make help)
 # apply to every target here: the simulators and the outputs then go to the configuration's
 # own build directory, and the run's label names the configuration (cfg=<name>).
+# With a slow memory (MEM_LAT=..., or an I-cache, ICACHE=...) the tick and the default cycle
+# limit grow with the memory's latency (the automatic tick, below), unless TICK= is given.
 #
 # Back end (used by the front end, campaign.py and check_rebuild.sh):
 #   make test/freertos/<app> [FRTOS_MARCH=rv32im] [FRTOS_OPT=-Os] [FRTOS_TICK=3000] ...
@@ -99,6 +101,24 @@ FRTOS_APP     ?= minimal
 FRTOS_MARCH   ?= rv32i
 FRTOS_OPT     ?= -O2
 FRTOS_HEAP    ?= 4
+# The automatic tick of a slow memory: with wait states (MEM_LAT=... or ICACHE=..., see the
+# Makefile) the tasks run slower against a tick that is counted in clock cycles, and programs
+# that check their own progress in real time (stress, mzba, full) fail. So in those
+# configurations, unless TICK= or FRTOS_TICK= is given, the tick is 10000 * F cycles with
+# F = 1 + ceil(the larger of the mean read latency and the mean write latency) (the means of
+# the configured ranges), plus 1 with a cache (a miss costs a whole refill, and wrong-path
+# refills cost whole lines), and the programs get -DFRTOS_SLOW_SCALE=F (mzba multiplies its
+# interrupt intervals by it). For example F = 3 (tick 30000) at MEM_LAT=2, F = 4 with ICACHE=512
+# as well. test/freertos/campaign.py passes FRTOS_TICK itself, so its ticks stay unscaled.
+FRTOS_SLOW_SCALE :=
+ifneq ($(filter +define+HADES_SLOW_MEM,$(SIM_CFG_DEFS)),)
+ifeq ($(origin FRTOS_TICK),undefined)
+FRTOS_SLOW_SCALE := $(shell r=$$(( ($(word 1,$(SIM_MEM_RD)) + $(word 2,$(SIM_MEM_RD)) + 1) / 2 )); \
+                            w=$$(( ($(word 1,$(SIM_MEM_WR)) + $(word 2,$(SIM_MEM_WR)) + 1) / 2 )); \
+                            echo $$(( 1 + (r > w ? r : w) + $(if $(SIM_ICACHE),1,0) )))
+FRTOS_TICK       := $(shell echo $$(( 10000 * $(FRTOS_SLOW_SCALE) )))
+endif
+endif
 FRTOS_TICK    ?= 10000
 FRTOS_PREEMPT ?= 1
 FRTOS_SLICE   ?= 1
@@ -154,6 +174,18 @@ endif
 endif
 
 FRTOS_RAM_KB  ?= $(APP_RAM_KB)
+# With a slow memory a program runs about FRTOS_TICK / 10000 times as many cycles as at the
+# standard tick, so the default cycle limit of a program whose APP_TIMEOUT is a fixed number is
+# multiplied by ceil(FRTOS_TICK / 10000), with the automatic tick and with TICK= alike; an
+# APP_TIMEOUT that is computed from FRTOS_TICK (full's) is used as it is. TIMEOUT= or
+# FRTOS_TIMEOUT= sets the limit.
+ifeq ($(origin FRTOS_TIMEOUT),undefined)
+ifneq ($(and $(filter +define+HADES_SLOW_MEM,$(SIM_CFG_DEFS)),$(FRTOS_APP_GOALS)),)
+ifeq ($(shell grep -s '^APP_TIMEOUT.*FRTOS_TICK' $(FRTOS_DIR)/$(FRTOS_APP)/app.mk),)
+FRTOS_TIMEOUT := $(shell echo $$(( $(APP_TIMEOUT) * (($(FRTOS_TICK) + 9999) / 10000) )))
+endif
+endif
+endif
 FRTOS_TIMEOUT ?= $(APP_TIMEOUT)
 # The RAM size the program is linked for (__hades_ram_size): the simulated RAM, unless the
 # program's app.mk says otherwise (APP_LINK_KB).
@@ -169,7 +201,7 @@ FRTOS_INCLUDES += $(APP_INCLUDES)
 endif
 FRTOS_KNOBS    = -DFRTOS_TICK_CYCLES=$(FRTOS_TICK) -DFRTOS_PREEMPT=$(FRTOS_PREEMPT) \
                  -DFRTOS_SLICE=$(FRTOS_SLICE) -DFRTOS_HEAP=$(FRTOS_HEAP) -DFRTOS_RAM_KB=$(FRTOS_RAM_KB) -DFRTOS_BPRED=$(FRTOS_BPRED) \
-                 $(APP_DEFS) $(FRTOS_DEFS)
+                 $(APP_DEFS) $(FRTOS_DEFS)$(if $(FRTOS_SLOW_SCALE), -DFRTOS_SLOW_SCALE=$(FRTOS_SLOW_SCALE))
 FRTOS_CFLAGS_COMMON = -mabi=ilp32 $(FRTOS_OPT) -g -ffunction-sections -fdata-sections \
                  -Wall -Wno-unused-function $(FRTOS_INCLUDES) $(FRTOS_KNOBS) -MMD -MP
 FRTOS_CFLAGS     = -march=$(FRTOS_MARCH) $(FRTOS_CFLAGS_COMMON)
