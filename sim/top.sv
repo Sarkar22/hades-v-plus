@@ -1038,9 +1038,15 @@ module top;
                 else begin
                     bound_refill_granted = 1;
                     bound_fill_wait++;
-                    if (!mcu.cache_ev_i_fill && bound_fill_wait >= r)
+                    if (mcu.cache_ev_i_fill) begin              // the refill ends in this cycle
+                        bound_grant_wait     = 0;
+                        bound_fill_wait      = 0;
+                        bound_refill_granted = 0;
+                    end
+                    else if (bound_fill_wait >= r) begin
                         $fatal(1, "bounded answer (c): the granted I-refill of address 0x%08x has not ended for %0d cycles (R = %0d), at cycle %0d",
                                mcu.icache_mem.adr << 2, bound_fill_wait, r, trace_cycle);
+                    end
                 end
             end
             else begin
