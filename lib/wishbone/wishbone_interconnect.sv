@@ -6,12 +6,19 @@
  */
 
 
+// TIMEOUT_EXEMPT (default all zeros): bit k exempts slaves[k] (the slave that select[k]
+// selects) from the bus timeout below. While an exempt slave is selected the timeout counter
+// does not count, so an access to it is never ended with err however long it waits. With
+// the default every slave keeps the timeout and the module behaves exactly as without the
+// parameter. rtl/mcu.sv sets bit 0, the RAM, only in the simulators with caches, where a
+// RAM access may wait behind a cache refill on the shared memory port.
 
 module wishbone_interconnect #(
     parameter int NUM_SLAVES,
     //parameter int MAX_PIPELINE_DEPTH = 1,
     parameter bit [32*NUM_SLAVES-1:0] SLAVE_ADDRESS,
-    parameter bit [32*NUM_SLAVES-1:0] SLAVE_SIZE
+    parameter bit [32*NUM_SLAVES-1:0] SLAVE_SIZE,
+    parameter bit [NUM_SLAVES-1:0] TIMEOUT_EXEMPT = '0
 ) (
     input logic clk,
     input logic rst,
@@ -64,7 +71,7 @@ module wishbone_interconnect #(
         end
         else begin
             if (ack || err)                                   begin count <= 0;         end
-            else if (master.cyc && master.stb && count < 255) begin count <= count + 1; end
+            else if (master.cyc && master.stb && count < 255 && (select & TIMEOUT_EXEMPT) == '0) begin count <= count + 1; end
             else                                              begin count <= 0;         end
         end
     end
