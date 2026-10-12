@@ -17,13 +17,18 @@
 #endif
 
 /* Mean interval (cycles) of the random external interrupt. Short on purpose:
- * most interrupts should land inside a divide. */
+ * most interrupts should land inside a divide. With a slow memory the build scales
+ * it by FRTOS_SLOW_SCALE (test/freertos/freertos.mk: the automatic tick), so that
+ * interrupts keep about the same rate per instruction; the default 1 leaves it. */
+#ifndef FRTOS_SLOW_SCALE
+#define FRTOS_SLOW_SCALE               1
+#endif
 #ifndef MZBA_IRQ_MEAN
 #if defined( __riscv_mul ) && defined( __OPTIMIZE__ )
-#define MZBA_IRQ_MEAN                  2500
+#define MZBA_IRQ_MEAN                  ( 2500 * FRTOS_SLOW_SCALE )
 #elif defined( __riscv_mul ) || defined( __OPTIMIZE__ )
-#define MZBA_IRQ_MEAN                  6000   /* ISR divides in software, or -O0 */
+#define MZBA_IRQ_MEAN                  ( 6000 * FRTOS_SLOW_SCALE )   /* ISR divides in software, or -O0 */
 #else
-#define MZBA_IRQ_MEAN                  15000
+#define MZBA_IRQ_MEAN                  ( 15000 * FRTOS_SLOW_SCALE )
 #endif
 #endif

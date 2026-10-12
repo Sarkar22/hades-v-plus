@@ -65,6 +65,15 @@ SV_DIR = $(TEST_DIR)/sv
 #   MEM_ONLY=fetch|data         the waits above apply to that RAM port only; the other one
 #                               behaves as the standard RAM (default: both ports)
 #   MEM_SEED=<n>                seed of the latency generator (default 1)
+#   ICACHE=<bytes>              an instruction cache of <bytes> bytes (a power of two of at
+#                               least two lines; 0: none), direct-mapped, and one memory port
+#                               that the cache's refills share with the data side, through
+#                               one slow memory (MEM_LAT=... etc. give its latencies, default
+#                               0; MEM_ONLY is refused). The RAM is then exempt from the
+#                               interconnect's timeout, so the 254-cycle limit below does not
+#                               apply. rtl/cache/, docs/CACHES.md
+#   LINE=8|16|32|64             the cache's line size in bytes (default 16; only with ICACHE)
+#                               (DCACHE is refused: there is no data cache yet)
 #   SCOREBOARD=0|1              the shadow-memory scoreboard of sim/top.sv (default: on
 #                               with a slow memory, off otherwise)
 #   BUSHASH=0|1                 print a hash of both CPU buses at the end of every run
@@ -79,7 +88,7 @@ SV_DIR = $(TEST_DIR)/sv
 # Each option below adds its part to the configuration's name, its Verilator defines and
 # its description (SIM_CFG_NAME, SIM_CFG_DEFS, SIM_CFG_TEXT); a new option is one more
 # such block and one more name in SIM_CFG_VARS.
-SIM_CFG_VARS = MEM_LAT MEM_WR_LAT MEM_BEAT_LAT MEM_ONLY MEM_SEED SCOREBOARD BUSHASH BUSTRACE
+SIM_CFG_VARS = MEM_LAT MEM_WR_LAT MEM_BEAT_LAT MEM_ONLY MEM_SEED ICACHE LINE SCOREBOARD BUSHASH BUSTRACE
 $(foreach v,$(SIM_CFG_VARS),$(if $(filter command line,$(origin $(v))),,$(eval $(v) := $(HADES_$(v)))))
 # the options that come from the environment
 SIM_CFG_ENV := $(strip $(foreach v,$(SIM_CFG_VARS),$(if $(filter command line,$(origin $(v))),,$(if $($(v)),$(v)))))
@@ -94,12 +103,32 @@ sim_cfg_lat_error = $(error $(1)='$($(1))' is not a latency: give <n> or <min>:<
 SIM_MEM_DATA_MAX = 254
 sim_cfg_data_error = $(error $(1)='$($(1))': the data port waits at most $(SIM_MEM_DATA_MAX) cycles (the interconnect ends a data access after 255 cycles without an answer, lib/wishbone/wishbone_interconnect.sv); longer waits are possible on the fetch port alone, with MEM_ONLY=fetch)
 
+# The I-cache: SIM_ICACHE is its size (empty: no cache), SIM_LINE its line size
+ifneq ($(or $(filter command line,$(origin DCACHE)),$(HADES_DCACHE)),)
+$(error DCACHE='$(or $(DCACHE),$(HADES_DCACHE))': there is no data cache yet; the simulators with caches have an I-cache only (ICACHE=<bytes>, see docs/CACHES.md))
+endif
+SIM_ICACHE := $(filter-out 0,$(strip $(ICACHE)))
+SIM_LINE   := $(or $(strip $(LINE)),16)
+ifneq ($(SIM_ICACHE),)
+ifneq ($(words $(SIM_LINE)) $(filter 8 16 32 64,$(SIM_LINE)),1 $(SIM_LINE))
+$(error LINE='$(LINE)': the I-cache's line size is 8, 16, 32 or 64 bytes)
+endif
+ifeq ($(shell echo '$(ICACHE)' | awk '/^[1-9][0-9]*$$/ { n = $$1 + 0; while (n > 1 && n % 2 == 0) n /= 2; if (n == 1 && $$1 + 0 >= 2 * $(SIM_LINE)) print "ok" }'),)
+$(error ICACHE='$(ICACHE)': give the I-cache's size in bytes, a decimal number without sign or leading zeros that is a power of two of at least two lines ($(shell echo $$(( 2 * $(SIM_LINE) ))) bytes with $(SIM_LINE)-byte lines), or 0 for none)
+endif
+ifneq ($(MEM_ONLY),)
+$(error MEM_ONLY='$(MEM_ONLY)' and ICACHE='$(ICACHE)': with a cache there is one memory port, shared by the fetches and the data side; leave MEM_ONLY out)
+endif
+else ifneq ($(LINE),)
+$(error LINE='$(LINE)' needs an I-cache: give ICACHE=<bytes> as well (LINE sets its line size))
+endif
+
 # SIM_CFG_NAME: the configuration's name (empty: standard), SIM_CFG_DEFS: its Verilator
 # defines, SIM_CFG_TEXT: its description
 SIM_CFG_NAME :=
 SIM_CFG_DEFS :=
 SIM_CFG_TEXT :=
-ifneq ($(strip $(MEM_LAT)$(MEM_WR_LAT)$(MEM_BEAT_LAT)$(MEM_ONLY)$(MEM_SEED)),)
+ifneq ($(strip $(MEM_LAT)$(MEM_WR_LAT)$(MEM_BEAT_LAT)$(MEM_ONLY)$(MEM_SEED)$(SIM_ICACHE)),)
 SIM_MEM_RD   := $(call sim_cfg_range,$(or $(MEM_LAT),0))
 SIM_MEM_WR   := $(call sim_cfg_range,$(or $(MEM_WR_LAT),$(MEM_LAT),0))
 SIM_MEM_BEAT := $(if $(MEM_BEAT_LAT),$(call sim_cfg_range,$(MEM_BEAT_LAT)))
@@ -119,6 +148,8 @@ ifeq ($(filter fetch data,$(MEM_ONLY)),)
 $(error MEM_ONLY='$(MEM_ONLY)': give fetch or data)
 endif
 endif
+# (the data port's limit; with a cache the RAM is exempt from the interconnect's timeout)
+ifeq ($(SIM_ICACHE),)
 ifneq ($(MEM_ONLY),fetch)
 ifeq ($(shell [ $(word 2,$(SIM_MEM_RD)) -le $(SIM_MEM_DATA_MAX) ] && echo ok),)
 $(call sim_cfg_data_error,MEM_LAT)
@@ -128,6 +159,7 @@ $(call sim_cfg_data_error,$(if $(MEM_WR_LAT),MEM_WR_LAT,MEM_LAT))
 endif
 ifeq ($(shell [ $(or $(word 1,$(SIM_MEM_BEAT)),0) -le $(SIM_MEM_DATA_MAX) ] && echo ok),)
 $(call sim_cfg_data_error,MEM_BEAT_LAT)
+endif
 endif
 endif
 SIM_CFG_NAME += mem$(call sim_cfg_rname,$(SIM_MEM_RD))
@@ -150,6 +182,11 @@ SIM_CFG_DEFS += +define+HADES_SLOW_MEM \
                 $(if $(MEM_ONLY),+define+HADES_MEM_ONLY_$(if $(filter fetch,$(MEM_ONLY)),FETCH,DATA))
 SIM_CFG_TEXT += slow memory$(if $(MEM_ONLY), on the $(MEM_ONLY) port only): reads wait $(call sim_cfg_rtext,$(SIM_MEM_RD)) and writes $(call sim_cfg_rtext,$(SIM_MEM_WR)) cycles,
 SIM_CFG_TEXT += $(if $(SIM_MEM_BEAT),a further beat of a burst waits $(word 1,$(SIM_MEM_BEAT)),bursts off), seed $(SIM_MEM_SEED);
+ifneq ($(SIM_ICACHE),)
+SIM_CFG_NAME += i$(if $(filter ok,$(shell [ $(SIM_ICACHE) -lt 1024 ] && echo ok)),$(SIM_ICACHE),$(shell echo $$(( $(SIM_ICACHE) / 1024 )))k) l$(SIM_LINE)
+SIM_CFG_DEFS += +define+HADES_ICACHE_BYTES=$(SIM_ICACHE) +define+HADES_CACHE_LINE_BYTES=$(SIM_LINE) -y $(RTL_DIR)/cache
+SIM_CFG_TEXT += I-cache $(SIM_ICACHE) bytes, $(SIM_LINE)-byte lines; one memory port shared with the data side; RAM exempt from the interconnect timeout;
+endif
 SIM_SCOREBOARD_DEFAULT := 1
 else
 SIM_SCOREBOARD_DEFAULT := 0
@@ -332,6 +369,8 @@ help:
 	@echo "  formal            Re-run the M (divider/multiplier) and EXT (Zbb/Zbs/Zicond/Zbkb/Zbkx/Zknh) proofs (a few minutes) [FORMAL_PAR=4]"
 	@echo "  formal-full       Also H6 by bitwuzla, second solvers and the mutation campaigns (~45 min)"
 	@echo "  formal-ext        Only the EXT proof (about a minute)"
+	@echo "  formal-cache      The proofs of the I-cache and its memory-port arbiter, and of the interconnect's"
+	@echo "                    timeout exemption (simulation-only caches; guide: formal/cache/README.md)"
 	@echo ""
 	@echo "Benchmarks (guide: test/bench/README.md; recorded results: results/):"
 	@echo "  bench-zba         Zba: two C programs for rv32i and rv32i_zba, compared [OPT=-O2]"
@@ -358,17 +397,27 @@ help:
 	@echo "  MEM_BEAT_LAT=<n>            burst mode: wait states of a further beat to the next word (default off)"
 	@echo "  MEM_ONLY=fetch|data         wait states on that RAM port only (default: both)"
 	@echo "  MEM_SEED=<n>                seed of the latency generator (default 1)"
+	@echo "  ICACHE=<bytes>              an I-cache of <bytes> bytes (a power of two of at least two lines;"
+	@echo "                              0: none) and one memory port shared by its refills and the data"
+	@echo "                              side, with the latencies above (default 0; no MEM_ONLY; the data"
+	@echo "                              side's 254-cycle limit does not apply); guide: docs/CACHES.md"
+	@echo "  LINE=8|16|32|64             the I-cache's line size in bytes (default 16; only with ICACHE)"
+	@echo "                              (DCACHE is refused: there is no data cache yet)"
 	@echo "  SCOREBOARD=0|1              shadow-memory scoreboard (default: 1 with a slow memory, else 0)"
 	@echo "  BUSHASH=0|1                 print a hash of both CPU buses at the end of every run (default 0)"
 	@echo "  BUSTRACE=0|1                write a per-cycle bus trace to bustrace.bin, HaDes-V+ only (default 0;"
 	@echo "                              for python3 test/memsys/cachemodel.py)"
 	@echo "  e.g. make test/asm/ops MEM_LAT=2    make freertos APP=stress MEM_LAT=1:8    make freertos-stress MEM_LAT=2"
+	@echo "       make test/memsys/stores ICACHE=512 MEM_LAT=2    make freertos APP=minimal ICACHE=8192 MEM_LAT=1:8"
 	@echo "  sim-config        Print the configuration, its build directory and the environment for scripts"
 	@echo "  lint-loops        List the combinational loops of the configuration (Verilator, no UNOPTFLAT waiver)"
 	@echo "  SIM_ARGS='<opts>' Run-time options for the simulator of test/asm/*, test/c/*, test/memsys/*"
 	@echo "                    (+scoreboard, +bushash, +retired, +mem_lat=<n>, ... see sim/top.sv and"
 	@echo "                    sim/slow_memory.sv; with a slow memory the default +timeout is 100000"
-	@echo "                    times 1 + the longest wait)"
+	@echo "                    times 1 + the longest wait; with an I-cache 100000 times 1 + the longest"
+	@echo "                    refill or data transfer of the memory port, max(R, D) cycles with"
+	@echo "                    R = (RD + 1) + (LINE/4 - 1) * (B + 1), D = max(RD, WR) + 1, RD and WR the"
+	@echo "                    longest read and write wait, B the beat wait in burst mode, else RD)"
 	@echo "  python3 test/memsys/programs.py run [options]   all assembly, C and memory-system programs, both CPUs"
 	@echo "  make test/memsys/<name>     an assembly program of the memory-system checks (test/memsys/*.s)"
 	@echo ""
@@ -584,6 +633,13 @@ $(BUILD_DIR)/$(SV_DIR)/%/top.mk: $(REF_SO_DEPS)
 	$(VERILATOR) $(VERILATOR_FLAGS) -f $(SV_DIR)/files.txt --trace-fst --trace-structs --timing --assert --main --exe --prefix top -Mdir $(BUILD_DIR)/$(SV_DIR)/$* --top-module $* $(SV_DIR)/$*.sv
 	@echo 'gtkwave $(BUILD_DIR)/$(SV_DIR)/$*/$*.fst $(SAVES_DIR)/$*.gtkw' > $(BUILD_DIR)/show.sh
 
+# The I-cache bench (test/sv/test_icache.sv) also finds the cache modules in rtl/cache, in every
+# configuration (the simulators find them there only in the configurations with caches)
+$(BUILD_DIR)/$(SV_DIR)/test_icache/top.mk: $(REF_SO_DEPS)
+	@ mkdir -p $(BUILD_DIR)/$(SV_DIR)/test_icache
+	$(VERILATOR) $(VERILATOR_FLAGS) -f $(SV_DIR)/files.txt -y $(RTL_DIR)/cache --trace-fst --trace-structs --timing --assert --main --exe --prefix top -Mdir $(BUILD_DIR)/$(SV_DIR)/test_icache --top-module test_icache $(SV_DIR)/test_icache.sv
+	@echo 'gtkwave $(BUILD_DIR)/$(SV_DIR)/test_icache/test_icache.fst $(SAVES_DIR)/test_icache.gtkw' > $(BUILD_DIR)/show.sh
+
 ################################################################################
 #                               FreeRTOS Programs                              #
 ################################################################################
@@ -625,7 +681,7 @@ check-results:
 ################################################################################
 
 # Formal proofs of rtl/execute_stage.sv: the M unit (divider + multiplier) and the
-# EXT unit (Zbb, Zbs, Zicond), see formal/README.md. Tools (SymbiYosys/Yosys, sv2v,
+# EXT unit (Zbb, Zbs, Zicond), see formal/README.md. (formal-cache: the caches, see below.) Tools (SymbiYosys/Yosys, sv2v,
 # bitwuzla, yices, z3) are found on PATH or through HADES_FORMAL_ENV. Everything is
 # written to $(BUILD_DIR)/formal ($(BUILD_DIR)/formal-ext for formal-ext).
 FORMAL_PAR ?= 4
@@ -639,6 +695,13 @@ formal-full:
 
 formal-ext:
 	bash formal/run.sh --mode ext --par $(FORMAL_PAR) --out $(BUILD_ABS)/formal-ext
+
+# Proofs of the simulation-only caches (rtl/cache/) and of the interconnect's timeout exemption,
+# see formal/cache/README.md; written to $(BUILD_DIR)/formal-cache, last line
+# FORMAL CACHE RESULT: PASS or FAIL ...
+.PHONY: formal-cache
+formal-cache:
+	bash formal/cache/run.sh --par $(FORMAL_PAR) --out $(BUILD_ABS)/formal-cache
 
 ################################################################################
 #                                   Waveform                                   #
