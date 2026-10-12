@@ -21,7 +21,9 @@
 #   --sim-cycles N     cycles of the ladder's random simulation (default 10000000)
 #   --accept-sim LIST  properties whose simulation-only result the maintainer has accepted
 #   --no-controls      skip the negative controls
-#   --mutants FILE     the table of the negative controls (default formal/cache/mutants.txt)
+#   --mutants FILE     the table of the negative controls (default formal/cache/mutants.txt); a
+#                      mutant whose row gives no text is applied by the repository's mutation
+#                      script, test/memsys/mutants.py apply (the same patch as its campaign)
 #   --mutant-cmd CMD   instead of the table: "CMD <mutant> <dir>" writes a copy of the source tree
 #                      with that mutant applied into <dir>
 #   --base COMMIT      the commit whose wishbone_interconnect.sv the base copy must equal, with
@@ -310,6 +312,14 @@ if [ "$CONTROLS" = 1 ]; then
         elif [ "$defined" = defined ]; then
             python3 "$HERE/scripts/model.py" gen "$SRC" "$HERE" "$md/gen" --mutant "$m" --mutants "$MUTANTS" \
                 $models > "$md/gen.log" 2>&1 && touch "$md/gen/.done"
+        elif [ -f "$SRC/test/memsys/mutants.py" ]; then
+            # the patch of the mutation campaign, applied to a copy of the RTL
+            rm -rf "$md/tree"
+            if python3 "$SRC/test/memsys/mutants.py" apply --src "$SRC" --subset rtl,lib,defines "$m" "$md/tree" \
+                    > "$md/gen.log" 2>&1 &&
+               python3 "$HERE/scripts/model.py" gen "$md/tree" "$HERE" "$md/gen" $models >> "$md/gen.log" 2>&1; then
+                touch "$md/gen/.done"
+            fi
         else
             echo "model.py: mutant $m is not defined in $(basename "$MUTANTS")" > "$md/gen.log"
         fi

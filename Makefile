@@ -41,7 +41,9 @@ SV_DIR = $(TEST_DIR)/sv
 # Simulation-only options that change what a simulator is built from. They apply to
 # every simulator a flow builds (test/asm/*, test/c/*, test/memsys/*, the FreeRTOS targets
 # including freertos-stress, lint-loops). The module benches (test/sv/*) are built in the
-# configuration's directory too, but none contains the memory system, so they do not change.
+# configuration's directory too; none contains the memory system, so they do not change,
+# apart from the I-cache bench (test/sv/test_icache.sv), whose system configuration holds the
+# memory wrapper and takes the configuration's latencies as its defaults.
 # The standard configuration has none of them; any other one builds into a directory of its
 # own, <build directory>/cfg-<name>, so the standard simulators and their results stay
 # untouched. Give them on the command line:
@@ -371,6 +373,7 @@ help:
 	@echo "  formal-ext        Only the EXT proof (about a minute)"
 	@echo "  formal-cache      The proofs of the I-cache and its memory-port arbiter, and of the interconnect's"
 	@echo "                    timeout exemption (simulation-only caches; guide: formal/cache/README.md)"
+	@echo "                    [FORMAL_PAR=4, FORMAL_CACHE_ARGS='<options of formal/cache/run.sh>']"
 	@echo ""
 	@echo "Benchmarks (guide: test/bench/README.md; recorded results: results/):"
 	@echo "  bench-zba         Zba: two C programs for rv32i and rv32i_zba, compared [OPT=-O2]"
@@ -613,7 +616,7 @@ $(C_TEST_NAMES): $(C_DIR)/%: $(BUILD_DIR)/$(C_DIR)/%/init.mem $(BUILD_DIR)/$(C_D
 ################################################################################
 
 SV_TESTS = $(wildcard $(SV_DIR)/*.sv)
-SV_TEST_NAMES = $(patsubst $(SV_DIR)/%.sv, $(SV_DIR)/%, $(SV_TESTS))
+SV_TEST_NAMES = $(filter-out $(SV_DIR)/test_icache, $(patsubst $(SV_DIR)/%.sv, $(SV_DIR)/%, $(SV_TESTS)))
 
 # Include dependency files (if they exist)
 -include $(wildcard $(BUILD_DIR)/$(SV_DIR)/*/top__ver.d)
@@ -633,8 +636,20 @@ $(BUILD_DIR)/$(SV_DIR)/%/top.mk: $(REF_SO_DEPS)
 	$(VERILATOR) $(VERILATOR_FLAGS) -f $(SV_DIR)/files.txt --trace-fst --trace-structs --timing --assert --main --exe --prefix top -Mdir $(BUILD_DIR)/$(SV_DIR)/$* --top-module $* $(SV_DIR)/$*.sv
 	@echo 'gtkwave $(BUILD_DIR)/$(SV_DIR)/$*/$*.fst $(SAVES_DIR)/$*.gtkw' > $(BUILD_DIR)/show.sh
 
-# The I-cache bench (test/sv/test_icache.sv) also finds the cache modules in rtl/cache, in every
-# configuration (the simulators find them there only in the configurations with caches)
+# The I-cache bench (test/sv/test_icache.sv) has rules of its own: it also finds the cache
+# modules in rtl/cache, in every configuration (the simulators find them there only in the
+# configurations with caches), and it takes run-time options through SIM_ARGS, for example
+#     make test/sv/test_icache SIM_ARGS='+seed=2 +mem_seed=2'
+#     make test/sv/test_icache SIM_ARGS='+only=system-icache512-line16 +mem_lat=1:8 +mem_beat_lat=0'
+# (the options are listed at the head of test/sv/test_icache.sv)
+.PHONY: $(SV_DIR)/test_icache
+$(SV_DIR)/test_icache: $(BUILD_DIR)/$(SV_DIR)/test_icache/top
+	cd $(BUILD_DIR)/$(SV_DIR)/test_icache && $(BUILD_ABS)/$(SV_DIR)/test_icache/top$(if $(SIM_ARGS), $(SIM_ARGS))
+
+# (its model is split into many C++ files: at most four compilers at a time)
+$(BUILD_DIR)/$(SV_DIR)/test_icache/top: $(BUILD_DIR)/$(SV_DIR)/test_icache/top.mk
+	$(MAKE) -j4 -C $(BUILD_DIR)/$(SV_DIR)/test_icache -f top.mk
+
 $(BUILD_DIR)/$(SV_DIR)/test_icache/top.mk: $(REF_SO_DEPS)
 	@ mkdir -p $(BUILD_DIR)/$(SV_DIR)/test_icache
 	$(VERILATOR) $(VERILATOR_FLAGS) -f $(SV_DIR)/files.txt -y $(RTL_DIR)/cache --trace-fst --trace-structs --timing --assert --main --exe --prefix top -Mdir $(BUILD_DIR)/$(SV_DIR)/test_icache --top-module test_icache $(SV_DIR)/test_icache.sv
@@ -698,10 +713,13 @@ formal-ext:
 
 # Proofs of the simulation-only caches (rtl/cache/) and of the interconnect's timeout exemption,
 # see formal/cache/README.md; written to $(BUILD_DIR)/formal-cache, last line
-# FORMAL CACHE RESULT: PASS or FAIL ...
+# FORMAL CACHE RESULT: PASS or FAIL ... FORMAL_CACHE_ARGS passes further options of
+# formal/cache/run.sh, for example a short trial of two properties and the interconnect's
+# equivalence:
+#     make formal-cache FORMAL_CACHE_ARGS='--only fetch_data,grant_kept,ic_default --configs tiny --depth 10'
 .PHONY: formal-cache
 formal-cache:
-	bash formal/cache/run.sh --par $(FORMAL_PAR) --out $(BUILD_ABS)/formal-cache
+	bash formal/cache/run.sh --par $(FORMAL_PAR) --out $(BUILD_ABS)/formal-cache $(FORMAL_CACHE_ARGS)
 
 ################################################################################
 #                                   Waveform                                   #

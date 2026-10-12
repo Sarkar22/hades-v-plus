@@ -247,6 +247,7 @@ python3 test/memsys/matrix.py run programs --jobs 2      # one leg; 'all' or not
 python3 test/memsys/matrix.py summary
 python3 test/memsys/mutants.py list
 python3 test/memsys/mutants.py anchors                   # do the patches find their code?
+python3 test/memsys/mutants.py dryrun                    # apply each, check that it builds, discard it
 python3 test/memsys/mutants.py run all --jobs 2 --map
 python3 test/memsys/legality.py run
 ```
@@ -271,8 +272,13 @@ program set in a configuration (the directed tests with the scoreboard's fetch c
 their own checks deciding), the trap sweep, a formal property, a port-cycle identity or the
 reset runs; it prints `CAUGHT` or `MISSED`. Every patch names the code it changes by a regular
 expression that must match exactly as often as stated; `anchors` lists the ones that do not
-match the tree (a mutant whose patch does not apply is `ANCHOR MISSING`, never `CAUGHT`). `--map`
-also shows each run-time assertion firing on its negative control.
+match the tree (a mutant whose patch does not apply is `ANCHOR MISSING`, never `CAUGHT`);
+`dryrun` applies every patch in a temporary copy, checks that the copy still builds (Verilator
+elaborates the simulator of the mutant's configuration, and the I-cache bench for a patch of the
+cache; a patched program is assembled) and deletes the copy. `--map` also shows each run-time
+assertion firing on its negative control. `apply <name> <dir>` writes a copy of the tree with one
+mutant applied: the negative controls of `make formal-cache` take their mutants from it, so each
+mutant is written in one place.
 
 `legality.py` checks the refusals of the make options (`ICACHE`, `LINE`, `MEM_ONLY` with a
 cache, `DCACHE`, synthesis with any configuration, checked with `make -n`), the configuration

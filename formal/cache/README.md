@@ -137,9 +137,12 @@ address, and says so.
 
 **Internal names.** sv2v converts a module with interface ports by inlining it into the module
 that instantiates it, so `icache` and `mem_arbiter` become named blocks of the harness, and their
-internal names are visible there as `icache.<name>` and `mem_arbiter.<name>`. sv2v replaces
-enumeration names by numbers, so `scripts/model.py` inserts one include line before the final
-`endmodule` of its copies of `icache.sv` and `mem_arbiter.sv`, before the conversion:
+internal names are visible there as `icache.<name>` and `mem_arbiter.<name>`. The state and the
+owner are values of named constants of the RTL (`LOOKUP` and `REFILL`; `NONE`, `DATA` and
+`IREFILL`: constants rather than enumerations, because Verilator cannot follow a hierarchical
+reference to an enumeration value), which the converted model shows only as numbers, so
+`scripts/model.py` inserts one include line before the final `endmodule` of its copies of
+`icache.sv` and `mem_arbiter.sv`, before the conversion:
 `props/observe_icache.svh` gives the state by name (`f_obs_lookup`, `f_obs_refill`), the valid
 bits as a vector with bit k for set k (`f_obs_valid`, whether the design keeps them packed or
 unpacked), and `beat` and `refill_line` zero-extended (`f_obs_beat`, `f_obs_refill_line`);
@@ -280,15 +283,17 @@ under the names of the repository's cache mutation campaign:
 | `ic_ram_exempt` | `ram-not-exempt` |
 | `ic_io_timeout` | `all-exempt` |
 
-A row of `mutants.txt` gives the file, an exact text that must occur exactly once in it, and its
-replacement; several rows with one name make one mutant. `scripts/model.py` applies the change to
-its copy of the sources (never to the tree) and builds the mutated models in
-`<out>/work/mut/<name>`. A control is shown when the check FAILS; a control that passes, or whose
-text is not defined or no longer occurs exactly once, fails the run. `snoop-full-words-only`
+Each mutant is written once, as a patch of the repository's mutation campaign
+(`test/memsys/mutants.py`, whose `apply` command writes a copy of the RTL with one mutant
+applied); the rows of `mutants.txt` name the properties that each one must make fail and leave the
+text empty, and `run.sh` builds the mutated models from such a copy in `<out>/work/mut/<name>`
+(never in the tree). A row may instead give the file, an exact text that must occur exactly once
+in it, and its replacement (several rows with one name make one mutant); `scripts/model.py` then
+applies that change to its own copy of the sources. A control is shown when the check FAILS; a
+control that passes, or whose change does not apply, fails the run. `snoop-full-words-only`
 changes the snoop connection of `rtl/mcu.sv` (the I-cache has no `sel` input), which the harness
-uses. With `--mutant-cmd CMD`, `run.sh` instead runs `CMD <name> <dir>` to obtain a copy of the
-tree with the mutant applied, so that one definition of each mutant can serve both this flow and
-the mutation campaign.
+uses. With `--mutant-cmd CMD`, `run.sh` runs `CMD <name> <dir>` for every mutant to obtain a copy
+of the tree with the mutant applied.
 
 ---------------------------------------------------------------------------------------------
 
@@ -327,6 +332,9 @@ table of the run on the committed RTL.
 export HADES_FORMAL_ENV=~/formal-tools/env.sh     # if the tools are not on PATH
 make formal-cache                                 # everything
 make formal-cache FORMAL_PAR=2                    # fewer parallel solver processes (default 4)
+make formal-cache FORMAL_CACHE_ARGS='--only fetch_data,grant_kept,ic_default --configs tiny --depth 10'
+                                                  # further options of run.sh, here a short trial with
+                                                  # the negative controls of those three checks
 bash formal/cache/run.sh --out /tmp/fc --par 4    # the same without make
 bash formal/cache/run.sh --only fetch_data,grant_kept,ic_default --configs tiny --depth 10 --no-controls
                                                   # a quick first run: two properties at depth 10, and the
@@ -363,8 +371,8 @@ PATH=<out>/bin:$PATH SBY=yowasp-sby bash formal/scripts/run_task.sh <out>/work c
 
 **If a proof fails after an RTL change**, the run directory holds the counterexample
 (`engine_0/trace.vcd`). The properties read only the internal names listed in section 2 and the
-ports; a renamed state, beat counter, refill line, valid vector, owner or array instance, an
-enumeration value renamed, or a `cache_ram` without a single memory array stops the model
+ports; a renamed state, beat counter, refill line, valid vector, owner or array instance, a
+renamed state or owner constant, or a `cache_ram` without a single memory array stops the model
 generation with a message.
 
 ---------------------------------------------------------------------------------------------
