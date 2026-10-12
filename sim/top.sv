@@ -205,6 +205,9 @@ module top;
     // long line would overflow the queue; so with a slow memory the pauses are that many
     // times longer. +console_pace=<n> sets the factor (1 to 32767; 1: the pace of the standard
     // simulator).
+    // With caches (+define+HADES_ICACHE_BYTES) the default factor is 2 + the longest read,
+    // write or (in burst mode) beat wait of the one memory port: one more than without
+    // caches, since a miss costs a whole refill.
     int         con_pace;                  // the pauses are con_pace times longer
 
     typedef enum bit [1:0] { CON_IDLE, CON_FRAME, CON_DRAIN } con_state_t;
@@ -235,7 +238,12 @@ module top;
         void'($value$plusargs("console_prompt=%s", prompt));
         console_init(mode, script_file, pty_link, log_file, prompt);
         con_pace = 1;
-`ifdef HADES_SLOW_MEM
+`ifdef HADES_ICACHE_BYTES
+        @(posedge clk);                    // the memory wrapper has read its options by now
+        con_pace = 2 + int'(mcu.memory_delay.rd_max);
+        if (2 + int'(mcu.memory_delay.wr_max) > con_pace) con_pace = 2 + int'(mcu.memory_delay.wr_max);
+        if (2 + mcu.memory_delay.beat_lat > con_pace) con_pace = 2 + mcu.memory_delay.beat_lat;
+`elsif HADES_SLOW_MEM
         @(posedge clk);                    // the slow memories have read their options by now
         con_pace = 1 + int'(mcu.fetch_memory_delay.rd_max);
         if (1 + int'(mcu.data_memory_delay.rd_max) > con_pace) con_pace = 1 + int'(mcu.data_memory_delay.rd_max);
@@ -332,7 +340,18 @@ module top;
     //                       at the end (+noretired: do not); see below
     // Simulators with a slow memory (+define+HADES_SLOW_MEM) also take the latency
     // options of sim/slow_memory.sv (+mem_lat, +mem_rd_lat, +mem_wr_lat, +mem_beat_lat,
-    // +mem_seed), and scale the default of +timeout (see the end of the module).
+    // +mem_seed), and scale the default of +timeout (see the end of the module), and these
+    // (see their blocks below):
+    //   +reset_at=<cycle>[,<cycle>...]   resets in the middle of the run (RESET lines)
+    //   +cache_phase_log=<file>          one byte per cycle: what the memory system is doing
+    //   +ram_words=<byte address>[,...]  print these RAM words at the end (RAM_WORDS line)
+    //   +retired_every=<n>               a RETIRED_AT line every n retired instructions
+    // Simulators with caches (+define+HADES_ICACHE_BYTES: the slow memory and an I-cache) also
+    // check that every request is answered within its bound, and take
+    //   +cache_stats                     print the cache's event counts at the end (CACHE_STATS
+    //                                    line; +nocache_stats: do not; on by default)
+    // Every simulator of HaDes-V+ takes
+    //   +irq_latency                     measure the latency of every interrupt (IRQLAT line)
 
     // The scoreboard and the bus hash below keep their own state with blocking assignments.
     /* verilator lint_off BLKSEQ */
@@ -459,6 +478,10 @@ module top;
                 end
             end
         end
+        // A reset drops the waiting request (the CPU presents none in the next cycle). The copy
+        // of the memory stays: the RAM keeps its contents across a reset.
+        if (mcu.rst)
+            sb_wait = 0;
     end
 
     final begin
@@ -656,6 +679,515 @@ module top;
 `endif
 
 `ifdef HADES_SLOW_MEM
+    // ---- Resets in the middle of a run (+reset_at=<cycle>[,<cycle>...]) ----
+    // For each listed cycle c (the testbench's cycle count, as TRACE lines give it) the centre
+    // button, the reset button, is held for exactly cycle c. Its two synchronizer stages and the
+    // rst flip-flop of rtl/mcu.sv make rst high for exactly cycle c + 3. A run with +reset_at
+    // is identical to the run without it up to then, so a reset wanted in cycle t is given as
+    // +reset_at=<t - 3>; +cache_phase_log below shows what happens in every cycle. The cycles
+    // must be strictly ascending and at least 2 apart (each gives its own one-cycle reset). In
+    // the cycle in which rst is high one line is printed:
+    //   RESET at cycle <n> (+reset_at=<c>): I-cache <phase>, data side <phase>
+    // I-cache: idle | refill waiting for the port | refill beat <b> of <n> (b counted from 0;
+    // idle without caches). Data side: idle | RAM load waiting | RAM store waiting | I/O access
+    // waiting | granted (RAM load) | granted (RAM store): a request that has had no answer yet,
+    // and with caches whether the arbiter grants it the memory port in that cycle ("RAM ...
+    // waiting" then means waiting for the port). The memory checks above run across the reset:
+    // the scoreboard keeps its copy of the memory and drops a waiting request. RETIRED and
+    // BUSHASH keep counting from time 0; CACHE_STATS restarts at every reset.
+    longint unsigned reset_at[$];          // the listed cycles
+    int              reset_next;           // the next one to drive
+    longint unsigned reset_due[$];         // driven, its reset still to come
+
+    initial begin
+        string text;
+        longint unsigned c;
+        int digits;
+        bit ok;
+        if ($value$plusargs("reset_at=%s", text)) begin
+            c = 0;
+            digits = 0;
+            ok = text.len() > 0;
+            for (int i = 0; i <= text.len() && ok; i++) begin
+                if (i == text.len() || text.getc(i) == ",") begin
+                    ok = digits > 0 && c > 0 &&
+                         (reset_at.size() == 0 || c >= reset_at[reset_at.size() - 1] + 2);
+                    reset_at.push_back(c);
+                    c = 0;
+                    digits = 0;
+                end
+                else if (text.getc(i) >= "0" && text.getc(i) <= "9" && digits < 18) begin
+                    c = c * 10 + longint'(text.getc(i)) - 64'd48;   // a decimal digit
+                    digits++;
+                end
+                else begin
+                    ok = 0;
+                end
+            end
+            if (!ok)
+                $fatal(1, "+reset_at=%s: give cycles (decimal, at least 1) in strictly ascending order, at least 2 apart, separated by commas, e.g. +reset_at=1000,1002",
+                       text);
+        end
+    end
+
+    function automatic string reset_icache_phase();
+`ifdef HADES_ICACHE_BYTES
+        if (mcu.icache.state != mcu.icache.REFILL)
+            return "idle";
+        else if (!mcu.mem_arbiter.gi)
+            return "refill waiting for the port";
+        else
+            return $sformatf("refill beat %0d of %0d", mcu.icache.beat, mcu.icache.LINE_WORDS);
+`else
+        return "idle";
+`endif
+    endfunction
+
+    function automatic string reset_data_phase();
+        string kind;
+        if (!(mcu.mem_bus.cyc && mcu.mem_bus.stb) || mcu.mem_bus.ack || mcu.mem_bus.err)
+            return "idle";
+        if (!mcu.peripheral_bus_interconnect.select[0])
+            return "I/O access waiting";
+        kind = mcu.mem_bus.we ? "RAM store" : "RAM load";
+`ifdef HADES_ICACHE_BYTES
+        if (mcu.mem_arbiter.gd)
+            return $sformatf("granted (%s)", kind);
+`endif
+        return $sformatf("%s waiting", kind);
+    endfunction
+
+    bit reset_seen_run;                    // a cycle without reset has passed
+
+    always @(posedge clk) begin
+        if (reset_next < reset_at.size() && trace_cycle + 1 == reset_at[reset_next]) begin
+            buttons_async[0] <= 1'b1;      // high in cycle trace_cycle + 1
+            reset_due.push_back(reset_at[reset_next]);
+            reset_next <= reset_next + 1;
+        end
+        else begin
+            buttons_async[0] <= 1'b0;
+        end
+        if (!mcu.rst)
+            reset_seen_run <= 1'b1;
+        else if (reset_seen_run && reset_due.size() > 0)
+            $display("RESET at cycle %0d (+reset_at=%0d): I-cache %s, data side %s",
+                     trace_cycle, reset_due.pop_front(), reset_icache_phase(), reset_data_phase());
+    end
+
+    // ---- Phase log (+cache_phase_log=<file>) ----
+    // One byte per cycle, from the first clock edge on (byte n belongs to cycle n), for placing
+    // the resets above: bit 0 the I-cache is granted the memory port, bit 1 an I-refill waits for
+    // the port, bit 2 a data request on the CPU's data bus has had no answer yet in this cycle
+    // (cyc && stb && !ack && !err), bit 3 it is a RAM access (interconnect slave 0), bit 4 it is
+    // a write, bit 5 the data side is granted the memory port, bit 6 rst, bit 7 0. Bits 0, 1 and
+    // 5 are 0 without caches.
+    int    phase_fd;                       // 2-state: 0 unless the file is open
+
+    initial begin
+        string phase_file;
+        if ($value$plusargs("cache_phase_log=%s", phase_file)) begin
+            phase_fd = $fopen(phase_file, "wb");
+            if (phase_fd == 0)
+                $fatal(1, "+cache_phase_log=%s: cannot open the file", phase_file);
+        end
+    end
+
+    always @(posedge clk) begin
+        bit [7:0] b;
+        if (phase_fd != 0) begin
+            b = 8'h00;
+            b[2] = mcu.mem_bus.cyc && mcu.mem_bus.stb && !mcu.mem_bus.ack && !mcu.mem_bus.err;
+            b[3] = b[2] && mcu.peripheral_bus_interconnect.select[0];
+            b[4] = b[2] && mcu.mem_bus.we;
+            b[6] = mcu.rst;
+`ifdef HADES_ICACHE_BYTES
+            b[0] = mcu.mem_arbiter.gi;
+            b[1] = mcu.mem_arbiter.i_req && !mcu.mem_arbiter.gi;
+            b[5] = mcu.mem_arbiter.gd;
+`endif
+            $fwrite(phase_fd, "%c", b);
+        end
+    end
+
+    final if (phase_fd != 0) $fclose(phase_fd);
+
+    // ---- RAM words at the end (+ram_words=<byte address>[,<byte address>...]) ----
+    // One line at the end of the run: RAM_WORDS <address>=<value> ... (addresses and values in
+    // hexadecimal), for the words at these byte addresses: word-aligned, inside the RAM, given
+    // in hexadecimal (0x...) or decimal.
+    bit [31:0] ram_words[$];
+
+    // "0x<hex digits>" or "<decimal digits>" -> v; 0 if t is neither or does not fit 32 bits
+    function automatic bit ram_words_number(string t, output bit [31:0] v);
+        longint value;
+        int     base, first, digit;
+        v = 0;
+        value = 0;
+        base  = (t.len() > 2 && t.getc(0) == "0" && (t.getc(1) == "x" || t.getc(1) == "X")) ? 16 : 10;
+        first = (base == 16) ? 2 : 0;
+        if (t.len() <= first || t.len() - first > 10)
+            return 0;
+        for (int i = first; i < t.len(); i++) begin
+            if (t.getc(i) >= "0" && t.getc(i) <= "9")                    digit = int'(t.getc(i)) - 48;
+            else if (base == 16 && t.getc(i) >= "a" && t.getc(i) <= "f") digit = int'(t.getc(i)) - 87;
+            else if (base == 16 && t.getc(i) >= "A" && t.getc(i) <= "F") digit = int'(t.getc(i)) - 55;
+            else return 0;
+            value = value * longint'(base) + longint'(digit);
+        end
+        if (value > 64'hFFFF_FFFF)
+            return 0;
+        v = 32'(value);
+        return 1;
+    endfunction
+
+    initial begin
+        string text, item;
+        bit [31:0] a;
+        int first;
+        if ($value$plusargs("ram_words=%s", text)) begin
+            first = 0;
+            for (int i = 0; i <= text.len(); i++) begin
+                if (i == text.len() || text.getc(i) == ",") begin
+                    item = (i > first) ? text.substr(first, i - 1) : "";
+                    if (!ram_words_number(item, a) || a[1:0] != 2'b00 || !sb_in_ram(a >> 2))
+                        $fatal(1, "+ram_words=%s: '%s' is not the byte address of a RAM word (word-aligned, 0x%08x-0x%08x; hexadecimal 0x... or decimal)",
+                               text, item, RAM_START << 2, ((RAM_START + RAM_WORDS) << 2) - 4);
+                    ram_words.push_back(a);
+                    first = i + 1;
+                end
+            end
+        end
+    end
+
+    final begin
+        string line;
+        if (ram_words.size() > 0) begin
+            line = "RAM_WORDS";
+            foreach (ram_words[i])
+                line = {line, $sformatf(" 0x%08x=0x%08x", ram_words[i], mcu.ram.memory[(ram_words[i] >> 2) - RAM_START])};
+            $display("%s", line);
+        end
+    end
+
+    // ---- Retired instructions, every n of them (+retired_every=<n>, HaDes-V+ only) ----
+    // A line RETIRED_AT instructions=<i> cycles=<c> each time the count of the RETIRED line
+    // reaches another multiple of n: the instructions and cycles that RETIRED would print if the
+    // run ended there (counted the same way, also with +noretired).
+    longint unsigned retired_every;
+`ifndef USE_REF_CPU
+    longint unsigned ra_cycles, ra_instructions;
+`endif
+
+    initial begin
+        if ($value$plusargs("retired_every=%d", retired_every) && retired_every == 0)
+            $fatal(1, "+retired_every: give a number of instructions above 0");
+`ifdef USE_REF_CPU
+        if (retired_every > 0)
+            $display("RETIRED_AT n/a: +retired_every counts the instructions of HaDes-V+; the golden CPU's counters cannot be read");
+`endif
+    end
+
+`ifndef USE_REF_CPU
+    always @(posedge clk) begin
+        if (retired_every > 0 && !mcu.rst) begin
+            ra_cycles <= ra_cycles + 1;
+            if (mcu.cpu.i_writeback.is_valid && !mcu.cpu.i_writeback.stale_replay) begin
+                ra_instructions <= ra_instructions + 1;
+                if ((ra_instructions + 1) % retired_every == 0)
+                    $display("RETIRED_AT instructions=%0d cycles=%0d", ra_instructions + 1, ra_cycles + 1);
+            end
+        end
+    end
+`endif
+`endif
+
+    // ---- Interrupt latency (+irq_latency, HaDes-V+ only) ----
+    // For every interrupt the CPU takes: the cycles from the first cycle in which an interrupt is
+    // pending and enabled in Writeback (rtl/writeback_stage.sv: ext_int_pending or
+    // timer_int_pending) to the first cycle after the interrupt's jump cycle (int_jump_fire, or
+    // the immediate jump of an instruction that enables a pending interrupt) in which the fetch
+    // bus answers with ack: latency = (that cycle) - (the first pending cycle). (An answer in
+    // the jump cycle itself belongs to the old address.) A pending interrupt that disappears
+    // without being taken is not counted. At the end: IRQLAT interrupts=<n> max=<cycles>
+    // mean=<cycles>, the observed figures of this run. Reads signals inside cpu.sv, so it exists
+    // for HaDes-V+ only.
+    bit irq_en;
+    initial irq_en = $test$plusargs("irq_latency");
+`ifdef USE_REF_CPU
+    final if (irq_en)
+        $display("IRQLAT interrupts=n/a max=n/a mean=n/a (the golden CPU's signals cannot be read)");
+`else
+    longint unsigned irq_count, irq_max, irq_sum, irq_start;
+    int              irq_phase;            // 0 nothing pending, 1 pending, 2 taken: waiting for ack
+
+    /* verilator lint_off BLKSEQ */
+    always @(posedge clk) begin
+        bit pending, jump;
+        if (irq_en) begin
+            if (mcu.rst) begin
+                irq_phase = 0;
+            end
+            else begin
+                pending = mcu.cpu.i_writeback.ext_int_pending || mcu.cpu.i_writeback.timer_int_pending;
+                jump    = mcu.cpu.i_writeback.int_jump_fire ||
+                          (mcu.cpu.i_writeback.is_interrupt_imm && !mcu.cpu.i_writeback.is_exception);
+                if (irq_phase == 2 && mcu.fetch_bus.ack) begin
+                    irq_count++;
+                    irq_sum += trace_cycle - irq_start;
+                    if (trace_cycle - irq_start > irq_max) irq_max = trace_cycle - irq_start;
+                    irq_phase = 0;
+                end
+                if (irq_phase == 0 && pending) begin
+                    irq_start = trace_cycle;
+                    irq_phase = 1;
+                end
+                if (irq_phase == 1) begin
+                    if (jump)
+                        irq_phase = 2;
+                    else if (!pending && !mcu.cpu.i_writeback.int_jump_reg)
+                        irq_phase = 0;             // gone without a trap
+                end
+            end
+        end
+    end
+    /* verilator lint_on BLKSEQ */
+
+    final if (irq_en)
+        $display("IRQLAT interrupts=%0d max=%0d mean=%0.2f", irq_count, irq_max,
+                 (irq_count == 0) ? 0.0 : real'(irq_sum) / real'(irq_count));
+`endif
+
+`ifdef HADES_ICACHE_BYTES
+    // ==== Simulators with caches (+define+HADES_ICACHE_BYTES) ====
+    // The memory system of rtl/mcu.sv: the I-cache (mcu.icache), the arbiter of the one memory
+    // port (mcu.mem_arbiter) and its wrapper (mcu.memory_delay, sim/slow_memory.sv).
+
+    // The longest time the memory port takes, from the wrapper's configured maxima (RD, WR and
+    // the beat latency B, which is RD unless burst mode is on): a granted I-refill of LINE_WORDS
+    // beats takes at most R = (RD + 1) + (LINE_WORDS - 1) * (B + 1) cycles, a granted data
+    // transfer at most D = max(RD, WR) + 1.
+    function automatic int cache_refill_cycles();
+        int rd, b;
+        rd = int'(mcu.memory_delay.rd_max);
+        b  = (mcu.memory_delay.beat_lat >= 0) ? mcu.memory_delay.beat_lat : rd;
+        return (rd + 1) + (int'(mcu.icache.LINE_WORDS) - 1) * (b + 1);
+    endfunction
+
+    function automatic int cache_transfer_cycles();
+        int rd, wr;
+        rd = int'(mcu.memory_delay.rd_max);
+        wr = int'(mcu.memory_delay.wr_max);
+        return ((rd > wr) ? rd : wr) + 1;
+    endfunction
+
+    // ---- Bounded answers (always checked with caches) ----
+    // RAM accesses are exempt from the interconnect's timeout here, so a lost answer would hang
+    // the CPU instead of faulting it. Each request must therefore be answered within a bound
+    // that a correct memory system meets, or the simulation stops. K_OLDER = 3: once a fetch
+    // misses, only the up to three older instructions in Fetch's, Decode's and Execute's output
+    // registers can still make a data request, so at most three data transfers hold the port
+    // from the miss cycle up to the refill's first grant (at most two of them beginning after
+    // the miss cycle). Counting: the first cycle of an interval is its cycle 1; a check fails
+    // when its event has not happened by the end of cycle N.
+    //   (a) a data request at the RAM's interconnect port is answered, counted from its first
+    //       cycle: N = R + D
+    //   (b) an I-refill is granted, from its first refill cycle: N = K_OLDER * D
+    //   (c) the last beat of a granted I-refill is answered, from its first granted cycle: N = R
+    //   (d) the fetch bus is answered (ack or err), from the first cycle without an answer:
+    //       N = 8 * (R + K_OLDER * D + 2) (at most three refills lie between two answers, each
+    //       with its miss cycle, its wait for the port, the refill and the second lookup;
+    //       8 instead of 3 leaves a margin, the check only has to catch a deadlock)
+    // No check runs in a cycle with rst = 1, and a reset abandons every open interval.
+    localparam int K_OLDER = 3;
+    int unsigned bound_data_wait, bound_grant_wait, bound_fill_wait, bound_fetch_wait;
+    bit          bound_refill_granted;     // the current refill has had its first grant
+
+    /* verilator lint_off BLKSEQ */
+    always @(posedge clk) begin
+        int r, d;
+        if (mcu.rst) begin
+            bound_data_wait      = 0;
+            bound_grant_wait     = 0;
+            bound_fill_wait      = 0;
+            bound_fetch_wait     = 0;
+            bound_refill_granted = 0;
+        end
+        else begin
+            r = cache_refill_cycles();
+            d = cache_transfer_cycles();
+            // (a)
+            if (mcu.mem_bus_slaves[0].cyc && mcu.mem_bus_slaves[0].stb &&
+                !mcu.mem_bus_slaves[0].ack && !mcu.mem_bus_slaves[0].err) begin
+                bound_data_wait++;
+                if (bound_data_wait >= r + d)
+                    $fatal(1, "bounded answer (a): the data request at address 0x%08x (we=%0d) has had no answer for %0d cycles (R + D = %0d + %0d), at cycle %0d",
+                           mcu.mem_bus_slaves[0].adr << 2, mcu.mem_bus_slaves[0].we, bound_data_wait, r, d, trace_cycle);
+            end
+            else begin
+                bound_data_wait = 0;
+            end
+            // (b), (c)
+            if (mcu.icache.state == mcu.icache.REFILL) begin
+                if (!bound_refill_granted && !mcu.mem_arbiter.gi) begin
+                    bound_grant_wait++;
+                    if (bound_grant_wait >= K_OLDER * d)
+                        $fatal(1, "bounded answer (b): the I-refill of address 0x%08x has not been granted for %0d cycles (K_OLDER * D = %0d * %0d), at cycle %0d",
+                               mcu.icache_mem.adr << 2, bound_grant_wait, K_OLDER, d, trace_cycle);
+                end
+                else begin
+                    bound_refill_granted = 1;
+                    bound_fill_wait++;
+                    if (!mcu.cache_ev_i_fill && bound_fill_wait >= r)
+                        $fatal(1, "bounded answer (c): the granted I-refill of address 0x%08x has not ended for %0d cycles (R = %0d), at cycle %0d",
+                               mcu.icache_mem.adr << 2, bound_fill_wait, r, trace_cycle);
+                end
+            end
+            else begin
+                bound_grant_wait     = 0;
+                bound_fill_wait      = 0;
+                bound_refill_granted = 0;
+            end
+            // (d)
+            if (mcu.fetch_bus.cyc && mcu.fetch_bus.stb && !mcu.fetch_bus.ack && !mcu.fetch_bus.err) begin
+                bound_fetch_wait++;
+                if (bound_fetch_wait >= 8 * (r + K_OLDER * d + 2))
+                    $fatal(1, "bounded answer (d): the fetch bus has had no answer for %0d cycles (8 * (R + K_OLDER * D + 2) with R = %0d, D = %0d), address 0x%08x, at cycle %0d",
+                           bound_fetch_wait, r, d, mcu.fetch_bus.adr << 2, trace_cycle);
+            end
+            else begin
+                bound_fetch_wait = 0;
+            end
+        end
+    end
+    /* verilator lint_on BLKSEQ */
+
+    // ---- Cache statistics (+cache_stats, on by default; +nocache_stats: off) ----
+    // Counts the event signals of rtl/mcu.sv (cache_ev_*: each is 1 exactly in the cycles in
+    // which its event happens) and prints at the end of the run one line,
+    //   CACHE_STATS cycles=<n> i_hits=<n> i_refills=<n> i_done=<n> i_beats=<n> i_abandoned=<n>
+    //   snoop_inval=<n> i_refill_cycles=<n> wait_i_for_port=<n> wait_d_for_port=<n>
+    //   port_irefill=<n> port_data=<n> d_loads=<n> d_stores=<n> i_inflight=<0|1>
+    //   i_inflight_beats=<n> i_inflight_port=<n> d_inflight=<0|1> d_inflight_port=<n>
+    // (one line). Every counter restarts at every reset; cycles counts the cycles with rst = 0
+    // since the last reset. Fields: i_hits fetches answered from the cache (lookups repeated in
+    // stalls and answers thrown away on jumps count too), i_refills refills started (misses),
+    // i_done refills completed, i_beats refill beats, i_abandoned refills completed while the CPU
+    // presented no address of the line, snoop_inval lines invalidated by stores,
+    // i_refill_cycles cycles in a refill, wait_i_for_port and wait_d_for_port cycles in which a
+    // refill or a data request waited for the port held by the other side, port_irefill and
+    // port_data cycles of the port used by refills and data transfers, d_loads and d_stores RAM
+    // loads and stores answered. The state at the end, after the last counted edge: i_inflight
+    // 1 if a refill is in progress, with the beats answered and the port cycles it has had so
+    // far; d_inflight 1 if a data transfer holds the port, with its port cycles so far.
+    // In a run without a reset in its middle: i_refills = i_done + i_inflight, i_refill_cycles =
+    // wait_i_for_port + port_irefill, i_beats = LINE_WORDS * i_done + i_inflight_beats; i_hits,
+    // d_loads and d_stores equal the fetches, loads and stores of the SCOREBOARD line, and
+    // cycles the cycles of the RETIRED line.
+    bit              cs_en;
+    longint unsigned cs_cycles, cs_i_hits, cs_i_refills, cs_i_done, cs_i_beats, cs_i_abandoned,
+                     cs_snoop_inval, cs_i_refill_cycles, cs_wait_i, cs_wait_d, cs_port_irefill,
+                     cs_port_data, cs_d_loads, cs_d_stores;
+    longint unsigned cs_cur_i_beats, cs_cur_i_port, cs_cur_d_port;   // of the refill and the
+                                                                      // transfer in progress
+
+    initial begin
+        cs_en = 1;
+        if ($test$plusargs("nocache_stats")) cs_en = 0;
+        if ($test$plusargs("cache_stats"))   cs_en = 1;
+    end
+
+    /* verilator lint_off BLKSEQ */
+    always @(posedge clk) begin
+        if (mcu.rst) begin
+            cs_cycles          = 0;
+            cs_i_hits          = 0;
+            cs_i_refills       = 0;
+            cs_i_done          = 0;
+            cs_i_beats         = 0;
+            cs_i_abandoned     = 0;
+            cs_snoop_inval     = 0;
+            cs_i_refill_cycles = 0;
+            cs_wait_i          = 0;
+            cs_wait_d          = 0;
+            cs_port_irefill    = 0;
+            cs_port_data       = 0;
+            cs_d_loads         = 0;
+            cs_d_stores        = 0;
+            cs_cur_i_beats     = 0;
+            cs_cur_i_port      = 0;
+            cs_cur_d_port      = 0;
+        end
+        else begin
+            cs_cycles++;
+            cs_i_hits          += 64'(mcu.cache_ev_i_hit);
+            cs_i_refills       += 64'(mcu.cache_ev_i_miss);
+            cs_i_done          += 64'(mcu.cache_ev_i_fill);
+            cs_i_beats         += 64'(mcu.cache_ev_i_beat);
+            cs_i_abandoned     += 64'(mcu.cache_ev_i_abandoned);
+            cs_snoop_inval     += 64'(mcu.cache_ev_i_snoop_inval);
+            cs_i_refill_cycles += 64'(mcu.cache_ev_i_refill);
+            cs_wait_i          += 64'(mcu.cache_ev_wait_i);
+            cs_wait_d          += 64'(mcu.cache_ev_wait_d);
+            cs_port_irefill    += 64'(mcu.cache_ev_grant_i);
+            cs_port_data       += 64'(mcu.cache_ev_grant_d);
+            cs_d_loads         += 64'(mcu.cache_ev_port_load);
+            cs_d_stores        += 64'(mcu.cache_ev_port_store);
+            if (mcu.cache_ev_i_miss) begin             // a refill starts at the end of this cycle
+                cs_cur_i_beats = 0;
+                cs_cur_i_port  = 0;
+            end
+            else begin
+                cs_cur_i_beats += 64'(mcu.cache_ev_i_beat);
+                cs_cur_i_port  += 64'(mcu.cache_ev_grant_i);
+            end
+            if (mcu.cache_ev_grant_d)                  // a transfer's first granted cycle restarts it
+                cs_cur_d_port = ((mcu.mem_arbiter.owner == mcu.mem_arbiter.DATA) ? cs_cur_d_port : 0) + 1;
+        end
+    end
+    /* verilator lint_on BLKSEQ */
+
+    final begin
+        bit    i_inflight, d_inflight;
+        string line;
+        if (cs_en) begin
+            i_inflight = mcu.icache.state == mcu.icache.REFILL;
+            d_inflight = mcu.mem_arbiter.owner == mcu.mem_arbiter.DATA;
+            line = $sformatf("CACHE_STATS cycles=%0d i_hits=%0d i_refills=%0d i_done=%0d i_beats=%0d i_abandoned=%0d",
+                             cs_cycles, cs_i_hits, cs_i_refills, cs_i_done, cs_i_beats, cs_i_abandoned);
+            line = {line, $sformatf(" snoop_inval=%0d i_refill_cycles=%0d wait_i_for_port=%0d wait_d_for_port=%0d",
+                                    cs_snoop_inval, cs_i_refill_cycles, cs_wait_i, cs_wait_d)};
+            line = {line, $sformatf(" port_irefill=%0d port_data=%0d d_loads=%0d d_stores=%0d",
+                                    cs_port_irefill, cs_port_data, cs_d_loads, cs_d_stores)};
+            line = {line, $sformatf(" i_inflight=%0d i_inflight_beats=%0d i_inflight_port=%0d d_inflight=%0d d_inflight_port=%0d",
+                                    i_inflight, i_inflight ? cs_cur_i_beats : 64'd0, i_inflight ? cs_cur_i_port : 64'd0,
+                                    d_inflight, d_inflight ? cs_cur_d_port : 64'd0)};
+            $display("%s", line);
+        end
+    end
+`endif
+
+`ifdef HADES_ICACHE_BYTES
+    // ---- Cycle limit with caches ----
+    // A program on cached memory slows down by its misses, each of which costs a whole refill,
+    // not one wait. So without +timeout the default limit (100000 cycles) is multiplied by 1 +
+    // the longest refill or data transfer of the memory port, max(R, D) cycles (see the bounded
+    // answers above); that is never less than the factor without caches.
+    // test/memsys/programs.py uses the same rule for its runs. An explicit +timeout=<cycles> is
+    // used as given. The loop at the top of the module compares its count with timeout_cycles
+    // in every cycle, so the new limit takes effect.
+    initial begin
+        int longest;
+        if (!$test$plusargs("timeout=")) begin
+            @(posedge clk);                // the memory wrapper has read its options by now
+            longest = cache_refill_cycles();
+            if (cache_transfer_cycles() > longest) longest = cache_transfer_cycles();
+            timeout_cycles = timeout_cycles * (64'd1 + 64'(longest));
+            $display("SLOW MEMORY cycle limit %0d: 100000 times 1 + the longest refill or data transfer (%0d cycles); +timeout=<cycles> sets it",
+                     timeout_cycles, longest);
+        end
+    end
+`elsif HADES_SLOW_MEM
     // ---- Cycle limit with a slow memory ----
     // Wait states make a program up to 1 + the longest wait times slower, so without +timeout
     // the default limit (100000 cycles) is multiplied by 1 + the longest read, write or beat
