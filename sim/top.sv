@@ -346,8 +346,9 @@ module top;
     //   +cache_phase_log=<file>          one byte per cycle: what the memory system is doing
     //   +ram_words=<byte address>[,...]  print these RAM words at the end (RAM_WORDS line)
     //   +retired_every=<n>               a RETIRED_AT line every n retired instructions
-    // Simulators with caches (+define+HADES_ICACHE_BYTES: the slow memory and an I-cache) also
-    // check that every request is answered within its bound, and take
+    // Simulators with caches (+define+HADES_ICACHE_BYTES: the slow memory and an I-cache, and with
+    // +define+HADES_DCACHE_BYTES a D-cache too) also check that every request is answered within
+    // its bound, and take
     //   +cache_stats                     print the cache's event counts at the end (CACHE_STATS
     //                                    line; +nocache_stats: do not; on by default)
     //   +cache_stats_marks               also a CACHE_STATS_MARK line at every report of the
@@ -694,7 +695,10 @@ module top;
     // idle without caches). Data side: idle | RAM load waiting | RAM store waiting | I/O access
     // waiting | granted (RAM load) | granted (RAM store): a request that has had no answer yet,
     // and with caches whether the arbiter grants it the memory port in that cycle ("RAM ...
-    // waiting" then means waiting for the port). The memory checks above run across the reset:
+    // waiting" then means waiting for the port). With a D-cache a RAM load is not sent to the
+    // port itself: "RAM load waiting" is then its miss cycle, and while the D-cache refills the
+    // load's line the data side reads RAM load: refill waiting for the port | RAM load: refill
+    // beat <b> of <n> (b counted from 0). The memory checks above run across the reset:
     // the scoreboard keeps its copy of the memory and drops a waiting request. RETIRED and
     // BUSHASH keep counting from time 0; CACHE_STATS restarts at every reset.
     longint unsigned reset_at[$];          // the listed cycles
@@ -753,6 +757,11 @@ module top;
             return "I/O access waiting";
         kind = mcu.mem_bus.we ? "RAM store" : "RAM load";
 `ifdef HADES_ICACHE_BYTES
+`ifdef HADES_DCACHE_BYTES
+        if (!mcu.mem_bus.we && mcu.dcache.state == mcu.dcache.REFILL)
+            return mcu.mem_arbiter.gd ? $sformatf("RAM load: refill beat %0d of %0d", mcu.dcache.beat, mcu.dcache.LINE_WORDS)
+                                      : "RAM load: refill waiting for the port";
+`endif
         if (mcu.mem_arbiter.gd)
             return $sformatf("granted (%s)", kind);
 `endif
@@ -782,8 +791,9 @@ module top;
     // the resets above: bit 0 the I-cache is granted the memory port, bit 1 an I-refill waits for
     // the port, bit 2 a data request on the CPU's data bus has had no answer yet in this cycle
     // (cyc && stb && !ack && !err), bit 3 it is a RAM access (interconnect slave 0), bit 4 it is
-    // a write, bit 5 the data side is granted the memory port, bit 6 rst, bit 7 0. Bits 0, 1 and
-    // 5 are 0 without caches.
+    // a write, bit 5 the data side is granted the memory port (with a D-cache: a store or a
+    // D-refill beat), bit 6 rst, bit 7 the D-cache is in REFILL (0 without a D-cache). Bits 0, 1
+    // and 5 are 0 without caches.
     int    phase_fd;                       // 2-state: 0 unless the file is open
 
     initial begin
@@ -807,6 +817,9 @@ module top;
             b[0] = mcu.mem_arbiter.gi;
             b[1] = mcu.mem_arbiter.i_req && !mcu.mem_arbiter.gi;
             b[5] = mcu.mem_arbiter.gd;
+`ifdef HADES_DCACHE_BYTES
+            b[7] = mcu.dcache.state == mcu.dcache.REFILL;
+`endif
 `endif
             $fwrite(phase_fd, "%c", b);
         end
@@ -963,7 +976,9 @@ module top;
 `ifdef HADES_ICACHE_BYTES
     // ==== Simulators with caches (+define+HADES_ICACHE_BYTES) ====
     // The memory system of rtl/mcu.sv: the I-cache (mcu.icache), the arbiter of the one memory
-    // port (mcu.mem_arbiter) and its wrapper (mcu.memory_delay, sim/slow_memory.sv).
+    // port (mcu.mem_arbiter) and its wrapper (mcu.memory_delay, sim/slow_memory.sv); with
+    // +define+HADES_DCACHE_BYTES also the D-cache (mcu.dcache) as the RAM's port of the
+    // interconnect, whose refills and stores are the arbiter's data side.
 
     // The longest time the memory port takes, from the wrapper's configured maxima (RD, WR and
     // the beat latency B, which is RD unless burst mode is on): a granted I-refill of LINE_WORDS
@@ -1001,30 +1016,70 @@ module top;
     //       with its miss cycle, its wait for the port, the refill and the second lookup;
     //       8 instead of 3 leaves a margin, the check only has to catch a deadlock)
     // No check runs in a cycle with rst = 1, and a reset abandons every open interval.
+    // With a D-cache (+define+HADES_DCACHE_BYTES) a load hit does not use the port, a load miss
+    // holds it for a D-refill of R cycles (the same line size), a store for at most WR + 1 cycles
+    // (WR the longest write wait), and the bounds are, with the same counting:
+    //   (a) N = R + max(R + 1, WR): a load that misses in its first cycle, behind an I-refill
+    //       granted in that cycle (R cycles), then its D-refill (R), then its second lookup; a
+    //       store behind an I-refill granted earlier, granted in cycle R, answered by R + WR
+    //   (b) N_b = max(K_OLDER * (WR + 1), R + 1): K_OLDER stores, or a load that misses in the
+    //       I-miss cycle itself (neither cache requests in it; the D-refill wins the port in the
+    //       next cycle and its second lookup frees it in cycle R + 1); a load that misses later
+    //       frees the port in its own miss cycle
+    //   (c) N = R, unchanged
+    //   (d) N = 8 * (R + N_b + 2)
+    //   (e) a D-refill is granted, from its first refill cycle: N = R (the rest of an I-refill
+    //       granted in the D-miss cycle)
+    //   (f) the last beat of a granted D-refill is answered, from its first granted cycle: N = R
     localparam int K_OLDER = 3;
     int unsigned bound_data_wait, bound_grant_wait, bound_fill_wait, bound_fetch_wait;
     bit          bound_refill_granted;     // the current refill has had its first grant
+`ifdef HADES_DCACHE_BYTES
+    int unsigned bound_dgrant_wait, bound_dfill_wait;
+    bit          bound_drefill_granted;    // the current D-refill has had its first grant
+`endif
 
     /* verilator lint_off BLKSEQ */
     always @(posedge clk) begin
+`ifdef HADES_DCACHE_BYTES
+        int r, wr, na, nb;
+`else
         int r, d;
+`endif
         if (mcu.rst) begin
             bound_data_wait      = 0;
             bound_grant_wait     = 0;
             bound_fill_wait      = 0;
             bound_fetch_wait     = 0;
             bound_refill_granted = 0;
+`ifdef HADES_DCACHE_BYTES
+            bound_dgrant_wait     = 0;
+            bound_dfill_wait      = 0;
+            bound_drefill_granted = 0;
+`endif
         end
         else begin
             r = cache_refill_cycles();
+`ifdef HADES_DCACHE_BYTES
+            wr = int'(mcu.memory_delay.wr_max);
+            na = r + ((r + 1 > wr) ? r + 1 : wr);
+            nb = (K_OLDER * (wr + 1) > r + 1) ? K_OLDER * (wr + 1) : r + 1;
+`else
             d = cache_transfer_cycles();
+`endif
             // (a)
             if (mcu.mem_bus_slaves[0].cyc && mcu.mem_bus_slaves[0].stb &&
                 !mcu.mem_bus_slaves[0].ack && !mcu.mem_bus_slaves[0].err) begin
                 bound_data_wait++;
+`ifdef HADES_DCACHE_BYTES
+                if (bound_data_wait >= na)
+                    $fatal(1, "bounded answer (a): the data request at address 0x%08x (we=%0d) has had no answer for %0d cycles (R + max(R + 1, WR) = %0d with R = %0d, WR = %0d), at cycle %0d",
+                           mcu.mem_bus_slaves[0].adr << 2, mcu.mem_bus_slaves[0].we, bound_data_wait, na, r, wr, trace_cycle);
+`else
                 if (bound_data_wait >= r + d)
                     $fatal(1, "bounded answer (a): the data request at address 0x%08x (we=%0d) has had no answer for %0d cycles (R + D = %0d + %0d), at cycle %0d",
                            mcu.mem_bus_slaves[0].adr << 2, mcu.mem_bus_slaves[0].we, bound_data_wait, r, d, trace_cycle);
+`endif
             end
             else begin
                 bound_data_wait = 0;
@@ -1033,9 +1088,15 @@ module top;
             if (mcu.icache.state == mcu.icache.REFILL) begin
                 if (!bound_refill_granted && !mcu.mem_arbiter.gi) begin
                     bound_grant_wait++;
+`ifdef HADES_DCACHE_BYTES
+                    if (bound_grant_wait >= nb)
+                        $fatal(1, "bounded answer (b): the I-refill of address 0x%08x has not been granted for %0d cycles (max(K_OLDER * (WR + 1), R + 1) = %0d with K_OLDER = %0d, WR = %0d, R = %0d), at cycle %0d",
+                               mcu.icache_mem.adr << 2, bound_grant_wait, nb, K_OLDER, wr, r, trace_cycle);
+`else
                     if (bound_grant_wait >= K_OLDER * d)
                         $fatal(1, "bounded answer (b): the I-refill of address 0x%08x has not been granted for %0d cycles (K_OLDER * D = %0d * %0d), at cycle %0d",
                                mcu.icache_mem.adr << 2, bound_grant_wait, K_OLDER, d, trace_cycle);
+`endif
                 end
                 else begin
                     bound_refill_granted = 1;
@@ -1059,13 +1120,48 @@ module top;
             // (d)
             if (mcu.fetch_bus.cyc && mcu.fetch_bus.stb && !mcu.fetch_bus.ack && !mcu.fetch_bus.err) begin
                 bound_fetch_wait++;
+`ifdef HADES_DCACHE_BYTES
+                if (bound_fetch_wait >= 8 * (r + nb + 2))
+                    $fatal(1, "bounded answer (d): the fetch bus has had no answer for %0d cycles (8 * (R + N_b + 2) with R = %0d, N_b = %0d), address 0x%08x, at cycle %0d",
+                           bound_fetch_wait, r, nb, mcu.fetch_bus.adr << 2, trace_cycle);
+`else
                 if (bound_fetch_wait >= 8 * (r + K_OLDER * d + 2))
                     $fatal(1, "bounded answer (d): the fetch bus has had no answer for %0d cycles (8 * (R + K_OLDER * D + 2) with R = %0d, D = %0d), address 0x%08x, at cycle %0d",
                            bound_fetch_wait, r, d, mcu.fetch_bus.adr << 2, trace_cycle);
+`endif
             end
             else begin
                 bound_fetch_wait = 0;
             end
+`ifdef HADES_DCACHE_BYTES
+            // (e), (f)
+            if (mcu.dcache.state == mcu.dcache.REFILL) begin
+                if (!bound_drefill_granted && !mcu.mem_arbiter.gd) begin
+                    bound_dgrant_wait++;
+                    if (bound_dgrant_wait >= r)
+                        $fatal(1, "bounded answer (e): the D-refill of address 0x%08x has not been granted for %0d cycles (R = %0d), at cycle %0d",
+                               mcu.dcache_mem.adr << 2, bound_dgrant_wait, r, trace_cycle);
+                end
+                else begin
+                    bound_drefill_granted = 1;
+                    bound_dfill_wait++;
+                    if (mcu.cache_ev_d_fill) begin              // the D-refill ends in this cycle
+                        bound_dgrant_wait     = 0;
+                        bound_dfill_wait      = 0;
+                        bound_drefill_granted = 0;
+                    end
+                    else if (bound_dfill_wait >= r) begin
+                        $fatal(1, "bounded answer (f): the granted D-refill of address 0x%08x has not ended for %0d cycles (R = %0d), at cycle %0d",
+                               mcu.dcache_mem.adr << 2, bound_dfill_wait, r, trace_cycle);
+                    end
+                end
+            end
+            else begin
+                bound_dgrant_wait     = 0;
+                bound_dfill_wait      = 0;
+                bound_drefill_granted = 0;
+            end
+`endif
         end
     end
     /* verilator lint_on BLKSEQ */
@@ -1092,6 +1188,21 @@ module top;
     // wait_i_for_port + port_irefill, i_beats = LINE_WORDS * i_done + i_inflight_beats; i_hits,
     // d_loads and d_stores equal the fetches, loads and stores of the SCOREBOARD line, and
     // cycles the cycles of the RETIRED line.
+    // With a D-cache (+define+HADES_DCACHE_BYTES) the line goes on with
+    //   dc_lookup_hits=<n> dc_load_misses=<n> dc_done=<n> dc_beats=<n> dc_store_hits=<n>
+    //   dc_store_misses=<n> dc_store_wait=<n> dc_refill_cycles=<n> dc_inflight=<0|1>
+    //   dc_inflight_beats=<n> dc_inflight_port=<n>
+    // dc_lookup_hits loads answered from the D-cache (a missed load once more, at its second
+    // lookup; the load hits are dc_lookup_hits - dc_load_misses), dc_load_misses D-refills
+    // started, dc_done D-refills completed, dc_beats D-refill beats, dc_store_hits and
+    // dc_store_misses stores completed whose line was or was not present, dc_store_wait cycles in
+    // which a store waited for its answer, dc_refill_cycles cycles in a D-refill; dc_inflight 1 if
+    // a D-refill is in progress at the end, with its beats answered and its port cycles so far.
+    // d_loads then counts the D-refill beats on the port, and d_inflight, d_inflight_port describe
+    // a store in flight only. In a run without a reset in its middle: dc_load_misses = dc_done +
+    // dc_inflight, dc_beats = LINE_WORDS * dc_done + dc_inflight_beats, d_loads = dc_beats,
+    // dc_lookup_hits equals the loads of the SCOREBOARD line, dc_store_hits + dc_store_misses =
+    // d_stores its stores.
     bit              cs_en, cs_marks;
     longint unsigned cs_mark_n;               // reports so far (+cache_stats_marks)
     longint unsigned cs_cycles, cs_i_hits, cs_i_refills, cs_i_done, cs_i_beats, cs_i_abandoned,
@@ -1099,6 +1210,11 @@ module top;
                      cs_port_data, cs_d_loads, cs_d_stores;
     longint unsigned cs_cur_i_beats, cs_cur_i_port, cs_cur_d_port;   // of the refill and the
                                                                       // transfer in progress
+`ifdef HADES_DCACHE_BYTES
+    longint unsigned cs_dc_lookup_hits, cs_dc_load_misses, cs_dc_done, cs_dc_beats, cs_dc_store_hits,
+                     cs_dc_store_misses, cs_dc_store_wait, cs_dc_refill_cycles;
+    longint unsigned cs_cur_dc_beats, cs_cur_dc_port;                 // of the D-refill in progress
+`endif
 
     initial begin
         cs_en = 1;
@@ -1127,6 +1243,18 @@ module top;
             cs_cur_i_beats     = 0;
             cs_cur_i_port      = 0;
             cs_cur_d_port      = 0;
+`ifdef HADES_DCACHE_BYTES
+            cs_dc_lookup_hits   = 0;
+            cs_dc_load_misses   = 0;
+            cs_dc_done          = 0;
+            cs_dc_beats         = 0;
+            cs_dc_store_hits    = 0;
+            cs_dc_store_misses  = 0;
+            cs_dc_store_wait    = 0;
+            cs_dc_refill_cycles = 0;
+            cs_cur_dc_beats     = 0;
+            cs_cur_dc_port      = 0;
+`endif
         end
         else begin
             cs_cycles++;
@@ -1153,6 +1281,24 @@ module top;
             end
             if (mcu.cache_ev_grant_d)                  // a transfer's first granted cycle restarts it
                 cs_cur_d_port = ((mcu.mem_arbiter.owner == mcu.mem_arbiter.DATA) ? cs_cur_d_port : 0) + 1;
+`ifdef HADES_DCACHE_BYTES
+            cs_dc_lookup_hits   += 64'(mcu.cache_ev_d_lookup_hit);
+            cs_dc_load_misses   += 64'(mcu.cache_ev_d_load_miss);
+            cs_dc_done          += 64'(mcu.cache_ev_d_fill);
+            cs_dc_beats         += 64'(mcu.cache_ev_d_beat);
+            cs_dc_store_hits    += 64'(mcu.cache_ev_d_store_hit);
+            cs_dc_store_misses  += 64'(mcu.cache_ev_d_store_miss);
+            cs_dc_store_wait    += 64'(mcu.cache_ev_d_store_wait);
+            cs_dc_refill_cycles += 64'(mcu.cache_ev_d_refill);
+            if (mcu.cache_ev_d_load_miss) begin        // a D-refill starts at the end of this cycle
+                cs_cur_dc_beats = 0;
+                cs_cur_dc_port  = 0;
+            end
+            else begin
+                cs_cur_dc_beats += 64'(mcu.cache_ev_d_beat);
+                cs_cur_dc_port  += 64'(mcu.cache_ev_grant_d);
+            end
+`endif
             // +cache_stats_marks: the counts so far at every report of the program (a write of 0
             // or 1 to the test register, which the testbench prints as "Test pass!" or "Test
             // fail!"), to attribute counts to the parts of a test between its reports
@@ -1167,10 +1313,17 @@ module top;
 
     final begin
         bit    i_inflight, d_inflight;
+`ifdef HADES_DCACHE_BYTES
+        bit    dc_inflight;
+`endif
         string line;
         if (cs_en) begin
             i_inflight = mcu.icache.state == mcu.icache.REFILL;
+`ifdef HADES_DCACHE_BYTES
+            d_inflight = mcu.mem_arbiter.owner == mcu.mem_arbiter.DATA && mcu.dcache_mem.we;   // a store only
+`else
             d_inflight = mcu.mem_arbiter.owner == mcu.mem_arbiter.DATA;
+`endif
             line = $sformatf("CACHE_STATS cycles=%0d i_hits=%0d i_refills=%0d i_done=%0d i_beats=%0d i_abandoned=%0d",
                              cs_cycles, cs_i_hits, cs_i_refills, cs_i_done, cs_i_beats, cs_i_abandoned);
             line = {line, $sformatf(" snoop_inval=%0d i_refill_cycles=%0d wait_i_for_port=%0d wait_d_for_port=%0d",
@@ -1180,9 +1333,35 @@ module top;
             line = {line, $sformatf(" i_inflight=%0d i_inflight_beats=%0d i_inflight_port=%0d d_inflight=%0d d_inflight_port=%0d",
                                     i_inflight, i_inflight ? cs_cur_i_beats : 64'd0, i_inflight ? cs_cur_i_port : 64'd0,
                                     d_inflight, d_inflight ? cs_cur_d_port : 64'd0)};
+`ifdef HADES_DCACHE_BYTES
+            dc_inflight = mcu.dcache.state == mcu.dcache.REFILL;
+            line = {line, $sformatf(" dc_lookup_hits=%0d dc_load_misses=%0d dc_done=%0d dc_beats=%0d dc_store_hits=%0d dc_store_misses=%0d",
+                                    cs_dc_lookup_hits, cs_dc_load_misses, cs_dc_done, cs_dc_beats, cs_dc_store_hits, cs_dc_store_misses)};
+            line = {line, $sformatf(" dc_store_wait=%0d dc_refill_cycles=%0d dc_inflight=%0d dc_inflight_beats=%0d dc_inflight_port=%0d",
+                                    cs_dc_store_wait, cs_dc_refill_cycles, dc_inflight,
+                                    dc_inflight ? cs_cur_dc_beats : 64'd0, dc_inflight ? cs_cur_dc_port : 64'd0)};
+`endif
             $display("%s", line);
         end
     end
+
+`ifdef HADES_DCACHE_BYTES
+    // ---- The D-cache's events in the counters' vector (always checked with a D-cache) ----
+    // Bit 12 + k of mcu.hpm_ext must be the k-th event of the D-cache, in the order of
+    // defines/hpm.sv (EXT_DC_LOOKUP_HIT = 12 to EXT_DC_REFILL = 19). The counter unit and +hpm_check
+    // read the same vector, so only this comparison with the event signals sees a wrong bit order.
+    // Not checked in cycles with rst = 1.
+    always @(posedge clk) begin
+        if (!mcu.rst && mcu.hpm_ext[19:12] !== {mcu.cache_ev_d_refill, mcu.cache_ev_d_store_wait,
+                                                mcu.cache_ev_d_store_miss, mcu.cache_ev_d_store_hit,
+                                                mcu.cache_ev_d_fill, mcu.cache_ev_d_beat,
+                                                mcu.cache_ev_d_load_miss, mcu.cache_ev_d_lookup_hit})
+            $fatal(1, "hpm_ext wiring: bits 19:12 are %08b at cycle %0d, the D-cache's events (refill, store_wait, store_miss, store_hit, fill, beat, load_miss, lookup_hit) %08b",
+                   mcu.hpm_ext[19:12], trace_cycle,
+                   {mcu.cache_ev_d_refill, mcu.cache_ev_d_store_wait, mcu.cache_ev_d_store_miss, mcu.cache_ev_d_store_hit,
+                    mcu.cache_ev_d_fill, mcu.cache_ev_d_beat, mcu.cache_ev_d_load_miss, mcu.cache_ev_d_lookup_hit});
+    end
+`endif
 `endif
 
 `ifdef HADES_ICACHE_BYTES
@@ -1291,7 +1470,9 @@ module top;
 
     // ---- the codes of this build ----
     function automatic bit hm_cache_code(int c);
-`ifdef HADES_ICACHE_BYTES
+`ifdef HADES_DCACHE_BYTES
+        return (c >= 128 && c <= 147) || c == 160 || c == 161;
+`elsif HADES_ICACHE_BYTES
         return (c >= 128 && c <= 139) || c == 160 || c == 161;
 `else
         return 0;
@@ -1326,7 +1507,10 @@ module top;
             42: return "MEMWAIT_STORE";   43: return "MEMWAIT_IO";      44: return "REDIRECT_BRANCH";
             45: return "REDIRECT_JUMP";   46: return "REDIRECT_WB";     47: return "FETCH_DELIVER";
             48: return "FETCH_DISCARD";   49: return "IO_ACCESS";       160: return "IC_HIT_USED";
-            161: return "IC_MISS_JUMP";   default: return $sformatf("CODE%0d", c);
+            161: return "IC_MISS_JUMP";   140: return "DC_LOOKUP_HIT";  141: return "DC_LOAD_MISS";
+            142: return "DC_BEAT";        143: return "DC_FILL";        144: return "DC_STORE_HIT";
+            145: return "DC_STORE_MISS";  146: return "DC_STORE_WAIT";  147: return "DC_REFILL_CYCLE";
+            default: return $sformatf("CODE%0d", c);
         endcase
     endfunction
 
@@ -1545,8 +1729,8 @@ module top;
             hm_ev[48] = ack && sd != pipeline_status::READY;
             io_start  = mcu.mem_bus.cyc && !mcu.cpu.mem_bus_pending && !in_ram;
             hm_ev[49] = io_start;
-            // the memory system (hpm_ext): bit k is code 128 + k
-            for (int k = 0; k < 12; k++) hm_ev[128 + k] = hm_cache_code(128 + k) && ext[k];
+            // the memory system (hpm_ext): bit k is code 128 + k (bits 12-19 only with a D-cache)
+            for (int k = 0; k < 20; k++) hm_ev[128 + k] = hm_cache_code(128 + k) && ext[k];
             hm_ev[160] = hm_cache_code(160) && ext[0] && sd == pipeline_status::READY;
             hm_ev[161] = hm_cache_code(161) && ext[1] && sd == pipeline_status::JUMP;
 
