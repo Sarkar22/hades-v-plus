@@ -490,6 +490,17 @@ module top;
     final begin
         if (sb_en) begin
             int unsigned bad;
+            bit   [31:0] a, w;
+            // A store that is acknowledged in the half cycle in which the run ends has been written to the
+            // RAM (which writes on the inverted clock), but the copy follows an acknowledge at the next rising
+            // edge, which never comes: the copy takes the store here
+            a = mcu.mem_bus.adr;
+            if (!mcu.rst && mcu.mem_bus.cyc && mcu.mem_bus.stb && mcu.mem_bus.ack && mcu.mem_bus.we && sb_in_ram(a)) begin
+                w = sb_mem[a - RAM_START];
+                for (int lane = 0; lane < 4; lane++)
+                    if (mcu.mem_bus.sel[lane]) w[8*lane +: 8] = mcu.mem_bus.dat_mosi[8*lane +: 8];
+                sb_mem[a - RAM_START] = w;
+            end
             bad = 0;
             for (int unsigned i = 0; i < RAM_WORDS; i++) begin
                 if (mcu.ram.memory[i] != sb_mem[i]) begin
