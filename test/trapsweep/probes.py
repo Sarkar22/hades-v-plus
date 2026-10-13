@@ -728,7 +728,7 @@ def hpm_probes():
                 restore="    csrw minstreth, zero"))
     ps.append(P("csrrs/csrrc minstreth", "    li   a0, 0x30\n    csrw minstreth, a0", "    csrrs a1, minstreth, a0\n    csrrci a2, minstreth, 0x10\n    csrr a3, minstreth", dump=('a1', 'a2', 'a3'),
                 restore="    csrw minstreth, zero"))
-    ps.append(P("csrrs/csrrc minstret", "    li   a0, 0x30\n    csrw minstret, a0", "    csrrs a1, minstret, a0\n    csrrci a2, minstret, 0x10\n    csrr a3, minstret", dump=('a1', 'a2', 'a3')))
+    ps.append(P("csrrs/csrrc minstret", "    li   a0, 0x30\n    csrw minstret, a0\n    li   a4, 0x100", "    csrrs a1, minstret, a4\n    csrrci a2, minstret, 0x10\n    csrr a3, minstret", dump=('a1', 'a2', 'a3')))
     for tag, v1, gap in (("writer sees 0xFFFFFFFF", "0xFFFFFFFF", ""), ("carry just before the writer", "0xFFFFFFFF", "    nop\n"),
                          ("carry just after the writer", "0xFFFFFFFE", "")):
         for csr in ('minstret', 'minstreth'):

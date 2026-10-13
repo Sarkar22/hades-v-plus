@@ -44,8 +44,8 @@
 // followed by reads of what it changed; one "focus" counter is read in many cycles; each phase
 // ends with a read of every address that holds state or a constant; and the directed sequences
 // read after every step. If the unit's counter array, selector array and inhibit register have
-// the names cnt, sel and inh (the names the specification's pseudo-code uses), `+define+HPM_PROBE` adds a
-// compare of all of them in every cycle (see the macros HPM_PROBE_* below).
+// the names cnt, sel and inhibit (rtl/hpm.sv), that compare of all of them in every cycle is on; the macros
+// HPM_PROBE_* below name them, and `+define+HPM_NOPROBE` turns it off.
 //
 // Stimulus, from a seeded generator: random CSR reads and writes at every address in 0x300-0x33F,
 // 0xB00-0xB1F and 0xB80-0xB9F and, rarely, anywhere in the 12-bit space; random event vectors
@@ -294,8 +294,8 @@ endpackage
 // unit's module name (macro HPM_UNIT), port names and widths: if they differ, change them here.
 //   ev[c] is the condition of event code c as it arrives at the port of its class; the bench
 //   drives the whole vector to every port, so bits that no selector can pick carry garbage.
-//   ev_a: class A, bit c = code c (21-31 never act). ev_b1: class B1, code-indexed. ev_b2_s1:
-//   class B2 pipeline events (already one cycle late), code-indexed. trap_raw: bit k = code 21 + k.
+//   ev_a: class A, bit c = code c (21-31 never act). The class B1 events and the B2 pipeline events
+//   (both already one cycle late) go in one struct, code-indexed. trap_raw: bit k = code 21 + k.
 // The unit's module name; give +define+HPM_UNIT=<name> if it differs.
 `ifndef HPM_UNIT
     `define HPM_UNIT hpm
@@ -317,12 +317,21 @@ module hpm_dut_wrap #(
     output logic          inh_ir,
     output logic [3:0]    inh_bp
 );
+    // The unit takes its late events as one struct (hpm_pkg::late_t), every field indexed by event
+    // code; ev_a covers codes 1 to 20, trap_raw codes 21 to 26.
+    hpm_pkg::late_t late;
+    always_comb begin
+        late.comb = ev[161:160];
+        late.ext  = ev[159:128];
+        late.b1   = ev[49:47];
+        late.b2   = ev[46:32];
+    end
+
     `HPM_UNIT #(.N(N), .W(W)) u (
         .clk(clk), .rst(rst),
-        .ev_a(ev[31:1]),
-        .ev_b1(ev),
-        .ev_b2_s1(ev),
+        .ev_a(ev[20:1]),
         .trap_raw(ev[26:21]),
+        .late(late),
         .csr_addr(addr), .csr_we(we), .csr_wdata(wdata),
         .hpm_ext_present(present),
         .rdata(rdata),
@@ -346,16 +355,21 @@ module hpm_unit_check #(
 );
     import hpm_bench_pkg::*;
 
+`ifndef HPM_NOPROBE
+    `ifndef HPM_PROBE
+        `define HPM_PROBE
+    `endif
+`endif
 `ifdef HPM_PROBE
-    // Optional: direct comparison of the unit's registers (the names the specification's pseudo-code uses).
+    // Direct comparison of the unit's registers (counter i is the unit's counter i + 3).
     `ifndef HPM_PROBE_CNT
-        `define HPM_PROBE_CNT(i) dut.u.cnt[i]
+        `define HPM_PROBE_CNT(i) dut.u.cnt[(i) + 3]
     `endif
     `ifndef HPM_PROBE_SEL
-        `define HPM_PROBE_SEL(i) dut.u.sel[i]
+        `define HPM_PROBE_SEL(i) dut.u.sel[(i) + 3]
     `endif
     `ifndef HPM_PROBE_INH
-        `define HPM_PROBE_INH dut.u.inh
+        `define HPM_PROBE_INH dut.u.inhibit
     `endif
 `endif
 
