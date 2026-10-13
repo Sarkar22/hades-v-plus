@@ -216,6 +216,9 @@ void shell_probe_cpu( void )
         xShellCpu.ucZbkb = PROBE( ".insn r 0x33, 4, 4, %0, %0, %0" );    /* pack       */
         xShellCpu.ucZbkx = PROBE( ".insn r 0x33, 4, 0x14, %0, %0, %0" ); /* xperm8     */
         xShellCpu.ucZknh = PROBE( ".insn i 0x13, 1, %0, %0, 0x100" );    /* sha256sum0 */
+        #if HPM_PERF
+            xShellCpu.ucHpm = PROBE( "csrr %0, 0x323" );                       /* mhpmevent3 */
+        #endif
     #endif
 }
 
@@ -707,6 +710,9 @@ static const CLI_Command_Definition_t axCommands[] =
     { "load",     "load [name]        Receive an app (Intel HEX) into the app slot\r\n", loader_cmd_load, -1 },
     { "run",      "run [args...]      Run the loaded app (Ctrl-C stops it)\r\n", loader_cmd_run, -1 },
     { "app",      "app                The loaded app: name, size, entry, CRC32\r\n", loader_cmd_app, 0 },
+    #if HPM_PERF
+    { "perf",     "perf [...]         Performance counters (perf preset|add|list|clear|start|stop|run)\r\n", perf_command, -1 },
+    #endif
 #endif
     { "halt",     "halt               Stop (ends the simulation)\r\n", prvHalt, 0 },
     { "exit",     "exit               The same as halt\r\n", prvHalt, 0 },

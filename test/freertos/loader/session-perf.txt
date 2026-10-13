@@ -1,0 +1,61 @@
+# session-perf.txt -- the scripted session of the shell command perf (the loader built with HPM_PERF=1):
+#
+#   make freertos-shell-test APP=loader HPM_PERF=1 FRTOS_SCRIPT=test/freertos/loader/session-perf.txt
+#
+# The format is that of session.txt. The counters exist on HaDes-V+ and not on the golden CPU, which prints
+# "perf: no performance counters on this CPU" for every perf command (#?dut / #?golden lines).
+#
+# 1. perf is in the help list; without a preset nothing is selected.
+help
+#? ^perf \[\.\.\.\]\s+Performance counters
+perf
+#?golden ^perf: no performance counters on this CPU$
+#?dut ^window:\s+0 cycles, 0 instructions, IPC 0\.000 \(since 'perf clear'; stopped\)$
+#?dut ^counter\s+event\s+count\s+per 1000 instr$
+# 2. The events of the standard build: 1-26 and 32-49, none of the memory system.
+perf list
+#?golden ^perf: no performance counters on this CPU$
+#?dut ^events this build counts
+#?dut ^  1\s+CYCLE$
+#?dut ^  2\s+INSTRET$
+#?dut ^  26\s+INT_EXT$
+#?dut ^  49\s+IO_ACCESS$
+#!dut ^  128\s
+#!dut ^  160\s
+# 3. The cycle breakdown: the six classes add up to the cycles counted; a plain memory never makes fetch wait.
+perf preset cpi
+#?dut ^preset cpi: 7 events, cleared and running$
+tasks
+perf
+#?dut ^3\s+FETCH_WAIT\s+0\s+0\.00$
+#?dut ^4\s+FRONT_OK\s+\d+
+#?dut ^9\s+REDIRECT_ANY\s+\d+
+#?dut ^of the \d+ cycles counted: FETCH_WAIT 0\.0% FRONT_OK \d+\.\d% HAZARD \d+\.\d% MSTALL_ANY \d+\.\d% MEMWAIT_ANY \d+\.\d% REDIRECT_ANY \d+\.\d%
+#?dut ^CPI:\s+\d+\.\d\d
+# 4. All counters are in use; a cache event does not exist here.
+perf add LOAD
+#?dut ^perf: all 7 counters are in use
+perf stop
+#?dut ^counters stopped
+perf preset icache
+#?dut ^perf: preset icache needs IC_HIT_USED \(160\), which is not in this build$
+# 5. The instruction mix of a calculation.
+perf preset mix
+mul 12345 6789
+perf
+#?dut ^3\s+LOAD\s+\d+
+#?dut ^4\s+STORE\s+\d+
+#?dut ^7\s+CSR\s+\d+
+perf clear
+perf stop
+perf
+#?dut ^window:\s+\d+ cycles, \d+ instructions, IPC \d.\d{3} \(since 'perf clear'; stopped\)$
+# 6. A loaded app, counted from its start to its end.
+load hello
+#?golden ^loaded hello:
+#?dut ^loaded hello:
+perf run
+#?golden ^perf: no performance counters on this CPU$
+#?dut ^Hello, HaDes-V\+!$
+#?dut ^app: hello exited with code \d+ after \d+ cycles$
+#?dut ^window:\s+\d+ cycles, \d+ instructions, IPC \d\.\d{3} \(since 'perf clear'; stopped\)$
