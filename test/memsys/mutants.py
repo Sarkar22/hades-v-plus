@@ -53,8 +53,8 @@ CHECKS. The primary check of each mutant is one of:
                    run must still say 'SCOREBOARD: PASS', otherwise the run is not valid. For the data
                    cache the comparison of loaded words is disabled instead ('blind': ['load']), and,
                    for a mutant that never writes the RAM (store-hit-skips-memory), the scoreboard's two
-                   comparisons of the RAM with its copy as well (['load', 'store']): they would stop the
-                   run before the program has judged anything
+                   comparisons of the RAM with its copy and its fetch compare as well (['fetch', 'load',
+                   'store']): they would stop the run before the program has judged anything
     identities     a system run of programs, caught when a CACHE_STATS identity of matrix.py does not hold
     assert         a system run that only the named check can stop: caught when its message appears
     sweep          test/trapsweep/sweep.py run in a configuration: caught when a HaDes-V+ program is
@@ -465,15 +465,15 @@ MUTANTS = [
 # data cache are the fixed ones: state, beat, refill_line, valid, present, st_accept, tag_ram and the
 # four byte lanes lane[0..3], each with a data_ram; the rest follows the instruction cache's style):
 #   assign present = valid[cpu_index] && tag_a_rdata == cpu_tag;
+#   assign load_hit = state == LOOKUP && req && !cpu.we && present;   (load_miss: the same with !present)
 #   assign st_accept = state == LOOKUP && req && cpu.we && mem.ack;
-#   assign cpu.ack = (state == LOOKUP) && ((req && !cpu.we && present) || st_accept);
+#   assign cpu.ack = load_hit || st_accept;
 #   the write enable of lane k: ... st_accept && present && cpu.sel[k] ...
 #   the tag array: .a_we(fill && !rst) and .a_wdata(refill_tag)
-#   assign miss = state == LOOKUP && req && !cpu.we && !present;
-#   assign mem.cyc/stb = (state == REFILL) || (state == LOOKUP && req && cpu.we);
-#   assign mem.adr = state == REFILL ? {2'b00, refill_line, beat} : cpu.adr;
+#   assign mem.cyc/stb = state == REFILL || store_req;   (store_req = state == LOOKUP && req && cpu.we)
+#   assign mem.adr = state == REFILL ? {2'b00, refill_line, beat} : store_req ? cpu.adr : 32'h0;
 #   assign mem_cont = state == REFILL && beat != '0;
-#   assign ev_lookup_hit = !rst && ...; assign ev_store_hit = !rst && st_accept && present; ...
+#   assign ev_lookup_hit = !rst && cpu.ack && !cpu.we; assign ev_store_hit = !rst && st_accept && present; ...
 #   the reset branch: state <= LOOKUP; beat <= '0; valid <= '0;
 LANE_WE = r"(st_accept\s*&&\s*present\s*&&\s*)cpu\.sel\[(\w+)\]"
 D_MUTANTS = [
@@ -489,7 +489,7 @@ D_MUTANTS = [
         else begin
             if (st_accept && !present)
                 mut_av[cpu_index] <= 1'b1;
-            if (miss)
+            if (load_miss)
                 mut_av[cpu_index] <= 1'b0;
         end
     end"""),
@@ -504,7 +504,7 @@ D_MUTANTS = [
        (DCACHE, r"(assign\s+mem\.cyc\s*=\s*)([^;]+);", r"\1(\2) && !(state == LOOKUP && req && cpu.we && present);", 1),
        (DCACHE, r"(assign\s+mem\.stb\s*=\s*)([^;]+);", r"\1(\2) && !(state == LOOKUP && req && cpu.we && present);", 1)],
       dict(kind="formal", prop="store_mem"),
-      "the scoreboard's comparison of the RAM with its copy; dcache.s with the load compare and the RAM comparisons blinded "
+      "the scoreboard's comparison of the RAM with its copy; dcache.s with the scoreboard's compares blinded "
       "(store, evict, reload)", d=True),
     m("ignore-valid-data", "valid", "The D hit ignores valid.",
       [(DCACHE, r"(assign\s+present\s*=\s*)valid\[[^\]]+\]\s*&&\s*", r"\1", 1)],
@@ -521,13 +521,13 @@ D_MUTANTS = [
       [(DCACHE, LANE_WE, r"\1 1'b1", 1)],
       dict(kind="blinded", blind=["load"], config=VD_LAT0, only="memsys/dcache$"), "scoreboard; bench", d=True),
     m("data-ack-in-refill", "refill", "The D load hit is not gated by LOOKUP.",
-      [(DCACHE, r"(assign\s+cpu\.ack\s*=\s*)\(?\s*state\s*==\s*LOOKUP\s*\)?\s*&&\s*", r"\1", 1)],
-      dict(kind="dbench", args=["+mode=free"]), "formal dack_req (invisible with a CPU: the held load's line is invalid)",
+      [(DCACHE, r"(assign\s+load_hit\s*=\s*)state\s*==\s*LOOKUP\s*&&\s*", r"\1", 1)],
+      dict(kind="dbench"), "formal dack_req (invisible with a CPU: the held load's line is invalid)",
       d=True),
     m("data-refill-follows-cpu-adr", "refill", "The D-refill beat address takes its line from the presented address "
       "instead of refill_line.",
       [(DCACHE, r"(\{\s*2'b00\s*,\s*)refill_line\b", r"\1cpu.adr[29:O]", 1)],
-      dict(kind="dbench", args=["+mode=free"]), "formal dwindow and drefill_stable", d=True),
+      dict(kind="dbench"), "formal dwindow and drefill_stable", d=True),
     m("data-refill-gap", "refill", "The D-cache drops its request for a cycle after each answered beat of a refill.",
       [*added_logic(DCACHE, """    // (mutation) no request in the cycle after an answered refill beat
     logic mut_gap;""", """    always_ff @(posedge clk) mut_gap <= !rst && state == REFILL && mem.ack && beat != LAST_BEAT;"""),
@@ -572,7 +572,10 @@ D_MUTANTS = [
       dict(kind="dbench"), "formal dreset_state", d=True),
     m("data-dependent-store-hit", "data dependence", "A store whose lowest byte is zero does not write the line (it is "
       "treated as a miss).",
-      [(DCACHE, LANE_WE, r"\1cpu.dat_mosi[7:0] != 8'h00 && cpu.sel[\2]", 1)],
+      [(DCACHE, LANE_WE, r"\1cpu.dat_mosi[7:0] != 8'h00 && cpu.sel[\2]", 1),
+       (DCACHE, r"(assign\s+ev_store_hit\s*=\s*!rst\s*&&\s*st_accept\s*&&\s*)present\b", r"\1present && cpu.dat_mosi[7:0] != 8'h00", 1),
+       (DCACHE, r"(assign\s+ev_store_miss\s*=\s*!rst\s*&&\s*st_accept\s*&&\s*)!present\b",
+        r"\1(!present || cpu.dat_mosi[7:0] == 8'h00)", 1)],
       dict(kind="formal", prop="ddata_indep"), "bench", d=True),
     m("data-reset-keeps-valid", "reset", "The reset leaves the D valid bits as they are.",
       [(DCACHE, r"valid\s*<=\s*'0\s*;", "valid <= valid;", 1)],
@@ -602,8 +605,8 @@ D_MUTANTS = [
       "line is refilled (the valid bit stays set). Only performance shows it.",
       [*added_logic(DCACHE, """    // (mutation) the lookup after a fill hits, any other lookup of a load misses
     logic mut_second;""", """    always_ff @(posedge clk) mut_second <= !rst && ev_fill;"""),
-       (DCACHE, r"(assign\s+miss\s*=\s*)([^;]+);", r"\1state == LOOKUP && req && !cpu.we && (!present || !mut_second);", 1),
-       (DCACHE, r"(assign\s+cpu\.ack\s*=\s*)([^;]+);", r"\1(\2) && !(req && !cpu.we && !mut_second);", 1)],
+       (DCACHE, r"(assign\s+load_miss\s*=\s*)([^;]+);", r"\1state == LOOKUP && req && !cpu.we && (!present || !mut_second);", 1),
+       (DCACHE, r"(assign\s+load_hit\s*=\s*)([^;]+);", r"\1(\2) && mut_second;", 1)],
       dict(kind="dbench"), "dc_load_misses and dc_lookup_hits of the model agreement; hpmdcache.s and hpmcache.s (the "
       "warm loop: DC_LOAD_MISS = 0)", d=True),
     m("data-present-mask-hole", "events", "The counter block's hpm_ext_present[19:12] has bit 15 clear: DC_FILL is absent.",
@@ -617,6 +620,14 @@ MUTANTS += D_MUTANTS
 EXTRA_BLINDED = {
     "no-second-lookup": dict(config=SMALL_LAT2, only="memsys/fetchredirect$", answers=True),
     "latched-lookup": dict(config=SMALL_LAT2, only="memsys/fetchredirect$", answers=True),
+    # dcache.s with the load compare blinded must catch the four faults that the scoreboard would show first (the
+    # fourth, store-writes-all-lanes, has it as its primary check). The mutant that never writes the RAM is seen first
+    # by the scoreboard's other comparisons (the two of the RAM with its copy, and the fetch of the patched code line
+    # that dcache.s runs after fence.i), which stop the run before the program has judged anything: they are blinded
+    # as well, and the program's own reload check decides
+    "drop-lane-enable": dict(config=VD_LAT0, only="memsys/dcache$", blind=["load"]),
+    "valid-on-store-miss": dict(config=VD_LAT0, only="memsys/dcache$", blind=["load"]),
+    "store-hit-skips-memory": dict(config=VD_LAT0, only="memsys/dcache$", blind=["fetch", "load", "store"]),
 }
 
 # Negative controls of the run-time assertions: the control, and the run in which only that check
@@ -655,8 +666,8 @@ ASSERTION_MAP = [
     ("the interconnect timeout never fires while slave 0 is selected", "ram-not-exempt", None),
     ("block_cont only for a read continuing the previous transfer", "cont-on-first-beat", None),
     ("the scoreboard's reset handling", "sb-wait-kept", None),
-    # with a data cache (the bench of both caches takes the same options; +mode=cpu is its CPU-like data mode,
-    # in which bound (b) is checked)
+    # with a data cache (the bench of both caches takes the same options; it runs its CPU-like data mode, in which
+    # bound (b) is checked, and its free mode in every configuration)
     ("ack and err never together, an answer only with cyc && stb (dcache)", "forward-memory-ack",
      dict(kind="dbench-assert", message=r"dcache: an answer without cyc && stb")),
     ("ack and err never together (dcache), bench case", "D bench case ack-err", None),
@@ -670,14 +681,14 @@ ASSERTION_MAP = [
     ("bounded answer (a) with a D-cache: a slave-0 request", "grant-never-released",
      dict(kind="assert", config=VD_LAT2, only="memsys/stores$", message=r"bounded answer \(a\)")),
     ("bounded answer (b) with a D-cache: an I-refill is granted", "i-side-starved",
-     dict(kind="dbench-message", args=["+compare=bounds", "+cover=0", "+cycles=100000", "+mode=cpu"],
+     dict(kind="dbench-message", args=["+compare=bounds", "+cover=0", "+cycles=100000"],
           message=r"refill of line .* not granted within")),
     ("bounded answer (e): a D-refill is granted", "refill-first",
      dict(kind="dbench-message", args=["+compare=bounds", "+cover=0", "+cycles=100000"],
-          message=r"D-refill of line .* not granted within")),
+          message=r"data refill of line .* not granted within")),
     ("bounded answer (f): a granted D-refill's last beat", "data-refill-gap",
      dict(kind="dbench-message", args=["+compare=bounds", "+cover=0", "+cycles=100000", "+seed=1"],
-          message=r"D-refill .* last beat not answered within R")),
+          message=r"data refill of line .* last beat not answered within R")),
     ("the wiring of bits 12 to 19 of the memory-system vector", "data-event-bits-swapped",
      dict(kind="assert", config=VD_LAT2, only="memsys/hpmdcache$", message=r"hpm_ext|wiring")),
     ("the present mask of the data-cache events (hpm.s, case 3)", "data-present-mask-hole", None),
@@ -926,14 +937,14 @@ def run_one(mu, out, keep, with_map, primary_only=False):
                                                                                    else "INVALID"), evidence=ev2)
         blind = EXTRA_BLINDED.get(mu["name"])
         if blind and not primary_only:
-            # the directed test with the fetch compare blinded (6.5 item 6): required in addition to the primary check
+            # the directed test with the scoreboard blinded: required in addition to the primary check
             shutil.rmtree(os.path.join(root, "build", "mutant-programs"), ignore_errors=True)
             c4, ev4 = check(root, dict(blind, kind="blinded"), mu)
             res["blinded"] = dict(config=blind["config"], only=blind["only"],
                                   verdict="CAUGHT" if c4 else ("MISSED" if c4 is not None else "INVALID"), evidence=ev4)
             if res["verdict"] == "CAUGHT" and res["blinded"]["verdict"] != "CAUGHT":
                 res["verdict"] = res["blinded"]["verdict"]
-                res["evidence"] += f"; with the fetch compare blinded: {res['blinded']['verdict']}: {ev4}"
+                res["evidence"] += f"; with the scoreboard blinded: {res['blinded']['verdict']}: {ev4}"
         if with_map:
             for assertion, control, spec in ASSERTION_MAP:
                 if control == mu["name"] and spec:

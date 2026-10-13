@@ -965,7 +965,7 @@ def hpm_preset_judge(job, rc, out, d):
     return ("PASS" if not notes else "FAIL"), notes
 
 
-# ---- T20: the instruction-cache-only configurations on this tree and on an earlier revision
+# ---- regression: the instruction-cache-only configurations on this tree and on an earlier revision
 def regression_judge(job, rc, out, d):
     notes = []
     m = re.search(r"^PROGRAMS COMPARE: (\S+)\s+(\d+) runs, (\d+) differ; equal bus hashes: (\d+)(.*)$", out, re.M)
@@ -1318,7 +1318,7 @@ def legs():
     for name, jobs in base_legs("i512-d512", "i8k-d4k", True).items():
         L["d-" + name] = jobs
     SMALL, LARGE = "i512-d512", "i8k-d4k"
-    # T19: the counter programs and the data-cache programs, with the header minima of the latter
+    # the counter programs and the data-cache programs, with the header minima of the latter
     hpm_only = "asm/hpm$|memsys/(hpmcache|hpmwait|hpmdcache)$"
     d_hpm = [programs_job("d-hpm", SMALL, p, only=hpm_only, cpus="dut") for p in ("lat0", "lat2", "rand1", "burst", "stress")] + \
             [programs_job("d-hpm", LARGE, p, only=hpm_only, cpus="dut") for p in ("lat2", "dram")]
@@ -1326,7 +1326,7 @@ def legs():
                            name=f"dcache-{cname(c, p)}")
               for c, ps in ((SMALL, ("lat0", "lat2", "rand1", "burst", "stress")), (LARGE, ("lat2", "dram"))) for p in ps]
     L["d-hpm"] = d_hpm
-    # T21: the counter presets H and I with both caches (HPM_CHECK ok and HPM_CACHE_COMPARE ok in the logs)
+    # the counter presets H and I with both caches (HPM_CHECK ok and HPM_CACHE_COMPARE ok in the logs)
     L["d-hpm-freertos"] = [freertos_job("d-hpm-freertos", "minimal", SMALL, "lat2", extra=[f"HPM_PRESET={x}"],
                                         name=f"minimal-{cname(SMALL, 'lat2')}-preset{x}")
                            for x in ("H", "I")] + \
@@ -1341,7 +1341,10 @@ def legs():
                                                                                  (LARGE, ("lat2",))) for p in ps] + \
                        [sweep_job("d-coherence", c, p, fam="ctl") for c, p in ((SMALL, "lat0"), (SMALL, "lat2"), (SMALL, "rand1"),
                                                                               (LARGE, "lat2"))]
-    # T20: the instruction-cache-only configurations against an earlier revision (REGRESSION_BASE=<revision>)
+    for j in L["d-coherence"]:
+        if j.cmd.__qualname__.startswith("sweep_job"):          # the sweep's jobs share the programs' configuration names
+            j.name = f"ctl-{j.name}"
+    # regression: the instruction-cache-only configurations against an earlier revision (REGRESSION_BASE=<revision>)
     L["i-only-regression"] = [regression_job("i512", "lat0"), regression_job("i512", "lat2"), regression_job("i8k", "lat2")]
     # 6.8: the store stall of the data cache without a write buffer, and what the model says a buffer would save
     L["d-cpi"], L["d-cpi-wr"] = cpi_d_jobs()
@@ -1349,6 +1352,9 @@ def legs():
         for j in jobs:
             j.leg = name
             j.id = f"{name}/{j.name}"
+    ids = [j.id for jobs in L.values() for j in jobs]
+    dup = sorted({i for i in ids if ids.count(i) > 1})
+    assert not dup, f"matrix.py: job names used twice: {', '.join(dup)}"
     return L
 
 
