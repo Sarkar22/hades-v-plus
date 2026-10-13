@@ -98,10 +98,10 @@
 .equ P3, 0x0A1B2C3D
 .equ SV, 0x9ABCDEF1
 # The second line of case 4 holds other patterns
-.equ Q0, 0x31415926
-.equ Q1, 0xA7B6C5D4
-.equ Q2, 0x0F1E2D3C
-.equ Q3, 0xB1A29384
+.equ DCW0, 0x31415926
+.equ DCW1, 0xA7B6C5D4
+.equ DCW2, 0x0F1E2D3C
+.equ DCW3, 0xB1A29384
 
 # ------------------------------------------------------------------------------------------------
 # One case: a store of kind \st (sb, sh or sw) at byte offset \off of word \w of a line, nbytes
@@ -202,10 +202,10 @@ test_pair:
     li32 s2, PAIR_A
     jal  ra, init_line             # A: P0..P3 (RAM only)
     li32 s2, PAIR_B
-    li32 t4, Q0
+    li32 t4, DCW0
     sw   t4, 0(s2)
-    li32 t4, Q1
-    sw   t4, 4(s2)                 # B: Q0, Q1 (RAM only)
+    li32 t4, DCW1
+    sw   t4, 4(s2)                 # B: DCW0, DCW1 (RAM only)
     li32 s0, PAIR_A
     li32 s2, PAIR_B
     lw   t4, 0(s0)                 # load A0: a miss, A is filled
@@ -219,13 +219,13 @@ test_pair:
     lw   t4, 0(s2)                 # load B0: a miss, evicts A; the RAM holds the stored word
     assert_value t4, 0x13572468
     lw   t4, 4(s2)
-    assert_value t4, Q1
+    assert_value t4, DCW1
     li32 t5, 0x2468ACE0
     sw   t5, 8(s0)                 # store A2: A is absent and B holds the set: a store miss
     lw   t4, 0(s2)                 # B0: a hit, untouched
     assert_value t4, 0x13572468
     lw   t4, 4(s2)
-    assert_value t4, Q1
+    assert_value t4, DCW1
     lw   t4, 8(s0)                 # load A2: a miss, evicts B
     assert_value t4, 0x2468ACE0
     lw   t4, 0(s0)
