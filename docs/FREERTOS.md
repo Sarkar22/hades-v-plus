@@ -1,4 +1,4 @@
-[HaDes-V+](../README.md) · [Docs](README.md) · [Building](BUILDING.md) · **FreeRTOS** · [Shell](SHELL.md) · [Apps](APPS.md) · [Architecture](ARCHITECTURE.md) · [Extensions](EXTENSIONS.md) · [Verification](VERIFICATION.md)
+[HaDes-V+](../README.md) · [Docs](README.md) · [Building](BUILDING.md) · **FreeRTOS** · [Shell](SHELL.md) · [Apps](APPS.md) · [Architecture](ARCHITECTURE.md) · [Extensions](EXTENSIONS.md) · [Verification](VERIFICATION.md) · [Caches](CACHES.md)
 
 # Running FreeRTOS on HaDes-V+
 
@@ -459,7 +459,9 @@ make freertos-shell
 The console types each character only after a pause, so that the program has taken the
 previous one out of its receive queue. With a slow memory (`MEM_LAT=...`, see
 [test/memsys/README.md](../test/memsys/README.md)) the program runs slower, and the pauses
-are 1 + the memory's longest read, write or burst-beat wait times longer. The simulator's
+are 1 + the memory's longest read, write or burst-beat wait times longer; with an
+instruction cache (`ICACHE=...`, [CACHES.md](CACHES.md)) they are 2 + the longest wait of
+the one memory port, one more because a miss costs a whole refill. The simulator's
 run option `+console_pace=<n>` sets that factor (1 to 32767; 1 is the pace of the standard
 simulator). Through make, give it as `APP_CONSOLE_ARGS=+console_pace=<n>`, for example
 `make freertos-shell MEM_LAT=2 APP_CONSOLE_ARGS=+console_pace=8`; the loader's own
@@ -493,9 +495,9 @@ environment, so an unrelated variable such as `CPU` cannot change a run.)
 | `CPU` | `dut`, `golden` (`dut`) | The core to simulate. |
 | `MARCH` | `rv32i`, `rv32im`, `rv32im_zba`, `rv32im_zba_zbb_zbs` (`rv32i`) | Instruction set the program is compiled for. Only `rv32i` runs on the golden CPU. With Zbs, GCC 12.2 cannot compile the `brk` program (an internal compiler error); build it for `rv32im_zba_zbb`. |
 | `OPT` | `-O0`, `-O2`, `-Os` (`-O2`; `-Os` for the shell) | Compiler optimisation. |
-| `TICK` | clock cycles (`10000`) | Length of an RTOS tick. 50000 is 1 kHz at the board's 50 MHz. |
+| `TICK` | clock cycles (`10000`; with a slow memory or an instruction cache, `10000 * F`, see below) | Length of an RTOS tick. 50000 is 1 kHz at the board's 50 MHz. |
 | `SEED` | hexadecimal, 0 to ffff (`0`) | Run seed (it drives the board's 16 switches, which the programs read). |
-| `TIMEOUT` | clock cycles (per program, e.g. 50000000) | Cycle limit before `HANG`. An interactive shell session has none unless it is given. |
+| `TIMEOUT` | clock cycles (per program, e.g. 50000000; with a slow memory multiplied by `ceil(TICK / 10000)`) | Cycle limit before `HANG`. An interactive shell session has none unless it is given. |
 | `BPRED` | `0` to `3` (`0`) | Branch-predictor mode set at start-up: 0 off, 1 always taken, 2 backward taken, 3 bimodal. |
 | `PREEMPT` | `0`, `1` (`1`) | `configUSE_PREEMPTION`. |
 | `SLICE` | `0`, `1` (`1`) | `configUSE_TIME_SLICING`. |
@@ -507,6 +509,34 @@ environment, so an unrelated variable such as `CPU` cannot change a run.)
 | `SCRIPT` | a file (`test/freertos/<app>/session.txt`) | `freertos-shell-test` and `freertos-shell-compare`: the command script to type. |
 | `UPLOAD` | an app: `<name>`, `<march>/<name>` or a `.hex` file | `freertos-shell APP=loader`: the file sent whenever `load` without a name asks for one; `freertos-send`: the file to send ([APPS.md](APPS.md)). |
 | `VERBOSE` | `1` | Show the compiler output instead of writing it to `build.log`. |
+
+### Slow memory and cached configurations
+
+The simulator options of [test/memsys/README.md](../test/memsys/README.md#simulator-configurations)
+(`MEM_LAT=...` and the others) and the instruction cache of [CACHES.md](CACHES.md) (`ICACHE=<bytes>`,
+`LINE=<bytes>`) apply to every target above; the caches exist only in the simulators, and the
+standard build and the Basys 3 bitstream have none. The programs count their tick in clock cycles,
+so a slower memory makes the tasks slower against it, and programs that check their own progress
+in real time (`stress`, `mzba`, `full`, `brk`) would fail for want of margin. In every
+configuration with a slow memory, with or without a cache, `freertos.mk` therefore sets:
+
+- **The tick**, unless `TICK=` (or `FRTOS_TICK=`) is given: `10000 * F` cycles, with
+  `F = 1 + ceil(m)`, `m` the larger of the mean read latency and the mean write latency (the means
+  of the configured `[min, max]` ranges), plus 1 with an instruction cache. For example `F = 3`
+  (tick 30000) at `MEM_LAT=2`, and `F = 4` with `ICACHE=512` as well. The build label shows the
+  tick used (`tick=30000`). The default FreeRTOS images of the slow-memory configurations without
+  a cache change with it: `make freertos APP=stress MEM_LAT=2` builds with `TICK=30000`. An
+  explicit `TICK=` overrides the rule, and the stress campaign of section 6 passes its own tick,
+  so it stays unscaled.
+- **`FRTOS_SLOW_SCALE`**, with the automatic tick only, passed to the compiler as `-DFRTOS_SLOW_SCALE=F`: `mzba` multiplies its
+  three mean interrupt intervals (`MZBA_IRQ_MEAN`) by it, and `brk` multiplies its external
+  interrupt intervals and its sleep period, so that interrupts and wake-ups arrive at about the
+  same rate per instruction as in the standard build. An explicit `DEFS=-DMZBA_IRQ_MEAN=...`
+  overrides the interval of `mzba`. Without a slow memory the factor is 1 and the standard images
+  are byte for byte the same.
+- **The cycle limit**: the default `TIMEOUT` of a program whose limit is a fixed number (`minimal`,
+  `stress`, `mzba`, `brk`, `shell`, `loader`, `template`) is multiplied by `ceil(TICK / 10000)`;
+  the limit of `full` already follows the tick and is used as computed. `TIMEOUT=` overrides.
 
 For `make freertos-stress`: `SEEDS` (2), `JOBS` (4) and `SET` (`validate`). `campaign.py`
 itself takes further options, among them `--suite`, `--compare` and `--record` (section 6;

@@ -1,7 +1,8 @@
 # Formal verification of the instruction cache
 
 This directory holds the formal proofs of the simulation-only instruction cache and its memory
-system:
+system. The caches exist only in the simulators; the standard build and the Basys 3 bitstream
+have no cache, and nothing here is part of `make formal`. The proofs cover:
 
 - **the I-cache**, `rtl/cache/icache.sv` with its array wrapper `rtl/cache/cache_ram.sv`;
 - **the memory arbiter**, `rtl/cache/mem_arbiter.sv`, which shares the single memory port
@@ -314,8 +315,8 @@ is in the run directory.
 
 `run.sh` writes, in `SUMMARY.txt`, an "Outcome table" in the form below: for each property and
 configuration the step of the fallback ladder at which it was proved, with the depth, the engine
-and the harness; the covers; the negative controls; the k-induction attempt. This section holds the
-table of the run on the committed RTL.
+and the harness; the covers; the negative controls; the k-induction attempt. No run is recorded
+here or under `results/` yet, so this section gives only the form of the table.
 
 | Check | Configuration | Outcome |
 |---|---|---|

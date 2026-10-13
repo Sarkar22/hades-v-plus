@@ -1306,7 +1306,7 @@ def rtlcheck_main(a):
     row('snoop_inval', st['snoop_inval'], M['snoop_inval'], True)
     row('d_loads', st['d_loads'], M['d_loads'], True)
     row('d_stores', st['d_stores'], M['d_stores'], True)
-    # the RTL's own identities (4.12 of the cache documentation), which hold in every run
+    # the RTL's own identities (docs/CACHES.md, CACHE_STATS), which hold in every run
     row('i_refills = i_done + i_inflight', st['i_refills'], st['i_done'] + st['i_inflight'], True)
     row(f'i_beats = {lw} * i_done + i_inflight_beats', st['i_beats'], lw * st['i_done'] + st['i_inflight_beats'], True)
     row('i_refill_cycles = wait_i_for_port + port_irefill', st['i_refill_cycles'],

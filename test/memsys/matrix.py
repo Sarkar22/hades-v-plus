@@ -672,7 +672,7 @@ def resets_job(leg, cache, profile, progs=("memsys/stores", "memsys/fetchredirec
                needs_cache=cached)
 
 
-# ---- model agreement (6.7 of the cache documentation's verification plan)
+# ---- model agreement (cachemodel.py rtlcheck; docs/CACHES.md)
 # icoherence is left out: it stores to a line in the cycle that the line misses, and the cache model
 # orders that store after the refill, while the arbiter serves the data side first (its refill then
 # loads the stored words). The model approximates the core as waiting during a miss, so it cannot

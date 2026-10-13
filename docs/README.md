@@ -1,4 +1,4 @@
-[HaDes-V+](../README.md) · **Docs** · [Building](BUILDING.md) · [FreeRTOS](FREERTOS.md) · [Shell](SHELL.md) · [Apps](APPS.md) · [Architecture](ARCHITECTURE.md) · [Extensions](EXTENSIONS.md) · [Verification](VERIFICATION.md)
+[HaDes-V+](../README.md) · **Docs** · [Building](BUILDING.md) · [FreeRTOS](FREERTOS.md) · [Shell](SHELL.md) · [Apps](APPS.md) · [Architecture](ARCHITECTURE.md) · [Extensions](EXTENSIONS.md) · [Verification](VERIFICATION.md) · [Caches](CACHES.md)
 
 # Documentation
 
@@ -51,6 +51,7 @@ make help                            # the main targets and their settings
 |---|---|
 | [docs/ARCHITECTURE.md](ARCHITECTURE.md) | The core: instruction set, pipeline, hazards; memory map, Wishbone fabric, peripherals, clocks; software runtime; the reference-library flow and the upstream course material |
 | [docs/EXTENSIONS.md](EXTENSIONS.md) | M, Zba, Zicntr, Zifencei, the branch predictor, Zbb and Zbs (with Zba the B extension), Zicond, Zbkb, Zbkx and Zknh, and the claims of Zihintpause, Zihintntl, Zmmul and Zkt: design, verification, implementation notes; at the top, an overview of what HaDes-V+ adds and of its fixes to the upstream design |
+| [docs/CACHES.md](CACHES.md) | The instruction cache that exists only in the simulators: the design, its coherence with stores, the shared memory port, building and running a cached simulator, the events and the statistics line, how it is checked, what is not built, and the rules for later use; the standard build and the Basys 3 bitstream have no cache |
 | [test/freertos/loader/SPEC.md](../test/freertos/loader/SPEC.md) | The specification of the app loader: image format, load protocol, console pacing, run semantics, test plan |
 | [test/freertos/README.md](../test/freertos/README.md) | The FreeRTOS programs and the differential campaign in depth |
 | [third_party/freertos/README.md](../third_party/freertos/README.md) | Provenance and licence of the vendored FreeRTOS sources |
@@ -61,7 +62,8 @@ make help                            # the main targets and their settings
 |---|---|
 | [docs/VERIFICATION.md](VERIFICATION.md) | Approach, every self-checking suite with its result, test hierarchy, trap sweep, FreeRTOS campaigns, formal proofs, mutation testing, known divergences; at the top, the results at a glance |
 | [results/README.md](../results/README.md) | The records of the figures quoted in the documentation, and how to re-run them |
-| [formal/README.md](../formal/README.md) | The formal proofs of the multiply/divide unit and of the Zbb, Zbs, Zicond, Zbkb, Zbkx and Zknh unit in full |
+| [formal/README.md](../formal/README.md) | The formal proofs of the multiply/divide unit and of the Zbb, Zbs, Zicond, Zbkb, Zbkx and Zknh unit in full; [formal/cache/README.md](../formal/cache/README.md) holds those of the simulation-only caches |
+| [test/memsys/README.md](../test/memsys/README.md) | The memory-system checks: a slow RAM, the scoreboard, the programs under wait states, the instruction cache's matrix, mutants and warm-cache variants, and the trace-driven cache model |
 | [test/trapsweep/README.md](../test/trapsweep/README.md) | The interrupt-offset sweeps and the independent ISA model |
 | [test/bench/README.md](../test/bench/README.md) | The measurement programs behind the Zba, Zbb, SHA-256, M-unit and `FENCE.I` figures |
 | [test/ext/README.md](../test/ext/README.md) | The reference models of Zbb, Zbs, Zicond, Zbkb, Zbkx and Zknh and the check of the RTL against them (`make ext-check`, `make ext-exhaustive`) |
