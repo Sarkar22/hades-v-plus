@@ -226,7 +226,8 @@ module mcu #(
     // front of port A of the RAM through one slow-memory wrapper (sim/slow_memory.sv, which
     // gives the latencies of make MEM_LAT=...). Port B of the RAM is idle. The CPU-side buses
     // fetch_bus and mem_bus are unchanged. Synthesis never defines HADES_ICACHE_BYTES, and it
-    // does not read rtl/cache/.
+    // does not read rtl/cache/. With +define+HADES_DCACHE_BYTES (below) slave 0 is a data cache, and
+    // the arbiter's data side is that cache's memory port (its refills and its store writes).
 `ifdef HADES_CACHE_LINE_BYTES
     localparam int unsigned ICACHE_LINE_BYTES = `HADES_CACHE_LINE_BYTES;
 `else

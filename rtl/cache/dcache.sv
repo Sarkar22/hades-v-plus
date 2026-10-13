@@ -88,7 +88,7 @@ module dcache #(
     // --------------------------------------------------------------------------------------------
 
     // The states, as named constants (sim/top.sv and the formal harness compare with them). The
-    // register has room for one more state (2'd2, 2'd3 are not used and not decoded).
+    // register has room for two more states (2'd2 and 2'd3 are not used and not decoded).
     localparam logic [1:0] LOOKUP = 2'd0;
     localparam logic [1:0] REFILL = 2'd1;
 
