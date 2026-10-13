@@ -94,16 +94,24 @@ static uint32_t ulIsrSeed, ulIrqProfile;
  * tick) and burn at most BRK_BUDGET cycles per burst. */
 #ifdef __OPTIMIZE__
     #define BRK_KNEE      6000u
-    #define BRK_PERIOD    ( 30000u * BRK_SCALE )
+    #define BRK_PERIOD    ( 30000u * BRK_IRQ_SCALE )
 #else
     #define BRK_KNEE      7500u
-    #define BRK_PERIOD    ( 75000u * BRK_SCALE )
+    #define BRK_PERIOD    ( 75000u * BRK_IRQ_SCALE )
 #endif
 #define BRK_SCALE         ( ( FRTOS_TICK_CYCLES >= BRK_KNEE ) ? 1u : \
                             ( BRK_KNEE + FRTOS_TICK_CYCLES - 1u ) / FRTOS_TICK_CYCLES )
 #define BRK_SLEEP         ( ( BRK_PERIOD + FRTOS_TICK_CYCLES - 1u ) / FRTOS_TICK_CYCLES )
 #define BRK_BUDGET        ( ( uint32_t ) FRTOS_TICK_CYCLES * BRK_SLEEP / 40u + 200u )
 #define BRK_UART_PERIOD   ( 150000u * BRK_SCALE )
+/* A slow memory makes everything the program does cost as many more cycles as it is slower:
+ * every wake-up of a task, every external interrupt (the ISR and the stream and message buffer
+ * tasks it wakes). The sleeps of the periodic tasks and the intervals of the external interrupts
+ * are therefore multiplied by FRTOS_SLOW_SCALE (freertos.mk: the automatic tick, 1 in the
+ * standard build), as mzba does with its interrupt means, so that the load stays about what it
+ * is in the standard build. A larger tick alone cannot do this: it only thins the tick
+ * interrupts. */
+#define BRK_IRQ_SCALE     ( BRK_SCALE * FRTOS_SLOW_SCALE )
 static inline int prvBudgetLeft( uint32_t ulT0 )
 {
     return ( hal_mtime() - ulT0 ) < BRK_BUDGET;
@@ -166,13 +174,13 @@ static uint32_t prvNextDelay( void )
                 ulStorms++;
             }
 
-            return IRQ_CALM_FLOOR * BRK_SCALE + ( ( r >> 12 ) % ( 2u * IRQ_CALM_FLOOR * BRK_SCALE ) );
+            return IRQ_CALM_FLOOR * BRK_IRQ_SCALE + ( ( r >> 12 ) % ( 2u * IRQ_CALM_FLOOR * BRK_IRQ_SCALE ) );
 
         case 2: /* dense, uniform */
             return ulIrqMin + ( r % ulIrqSpan );
 
         default: /* close to a multiple of the tick period: beats slowly against it */
-            return ( ( FRTOS_TICK_CYCLES * ( 1u + IRQ_CALM_FLOOR * BRK_SCALE / FRTOS_TICK_CYCLES ) ) - 37u ) + ( r % 75u );
+            return ( ( FRTOS_TICK_CYCLES * ( 1u + IRQ_CALM_FLOOR * BRK_IRQ_SCALE / FRTOS_TICK_CYCLES ) ) - 37u ) + ( r % 75u );
     }
 }
 
@@ -1555,7 +1563,7 @@ int main( void )
     ulIsrSeed = seed ^ 0xC0FFEEu;
     ulIrqProfile = ( seed >> 8 ) % 4u;
     ulIrqMin = 40u;
-    ulIrqSpan = 4u * IRQ_CALM_FLOOR * BRK_SCALE;
+    ulIrqSpan = 4u * IRQ_CALM_FLOOR * BRK_IRQ_SCALE;
 
     xSb = xStreamBufferCreate( SB_SIZE, 1 );
     xSbIn = xStreamBufferCreate( SBIN_SIZE, 1 );

@@ -17,6 +17,12 @@
 #define INCLUDE_vTaskPrioritySet                1
 #define INCLUDE_xSemaphoreGetMutexHolder        1
 
+/* The factor of the automatic tick of a slow memory (test/freertos/freertos.mk), 1 otherwise;
+ * brk multiplies its external-interrupt intervals by it (main.c). */
+#ifndef FRTOS_SLOW_SCALE
+#define FRTOS_SLOW_SCALE                        1
+#endif
+
 /* Run length: FRTOS_NCHECKS check periods of FRTOS_CHECK_TICKS ticks each. */
 #ifndef FRTOS_NCHECKS
 #define FRTOS_NCHECKS                           8
