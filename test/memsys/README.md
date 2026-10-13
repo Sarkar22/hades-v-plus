@@ -2,11 +2,11 @@
 
 Simulation tools for the memory system: a RAM that answers late, an oracle that checks every
 answer of the RAM, and a trace-driven model of L1 caches. They test the memory system and
-size caches between the CPU and the RAM, and they check the instruction cache that the
-simulators can be built with ([docs/CACHES.md](../../docs/CACHES.md)). The design and synthesis
-do not change, and the standard simulators behave as before: every option below builds its own
-simulators, in `build/cfg-<name>`. The caches exist only in the simulators; the standard build
-and the Basys 3 bitstream have none.
+size caches between the CPU and the RAM, and they check the instruction cache and the data cache
+that the simulators can be built with ([docs/CACHES.md](../../docs/CACHES.md)). The design and
+synthesis do not change, and the standard simulators behave as before: every option below builds
+its own simulators, in `build/cfg-<name>`. The caches exist only in the simulators; the standard
+build and the Basys 3 bitstream have none.
 
 | Piece | Where | What it does |
 |---|---|---|
@@ -19,6 +19,9 @@ and the Basys 3 bitstream have none.
 | [irqchain.s](irqchain.s) | here | An interrupt armed 1 to 200 cycles ahead of a chain of 16 instructions, each of which changes `a0`, so that it lands before every chain instruction, also while Fetch waits: every instruction must retire exactly once, and the handler checks `mcause`, `mepc` and `a0` at every interrupt. Before every delay an eviction step makes the tested code miss again in an instruction cache. |
 | [irqlat.s](irqlat.s) | here | Six interrupts in straight-line code, for the validation of `+irq_latency`: the latencies are derived by hand in its header and checked by `matrix.py`. |
 | [fetchredirect.s](fetchredirect.s) | here | Abandoned fetches: taken branches and jumps forward and backward, predicted and mispredicted, whose targets each make a distinct, order-dependent checksum update and whose wrong-path words count in a register of their own, so that a word delivered for the wrong address shows also without the scoreboard. An eviction step before every pass and case makes the tested code miss again in an instruction cache. |
+| [dcache.s](dcache.s) | here | Data accesses for a data cache: `sb`, `sh` and `sw` at every offset into absent lines (a store miss writes the RAM and allocates nothing) and into present lines (a store hit writes the selected lanes), each word read back with `lw`, `lbu`, `lb`, `lhu` and `lh` at every lane, from the line and again after an eviction by a line 4 KiB away; two lines 4 KiB apart with loads and stores alternated; a store to a code line, `fence.i` and a run. Its checks do not depend on the timing, and its header gives the data-cache counts to expect. |
+| [dcoherence.s](dcoherence.s) | here | Code and data caches together: a block of code is read as data, patched by `sw`, `sh` and `sb` (store hits, store misses on an evicted line, and an eviction between the patch and `fence.i`), run after `fence.i`, and read back as data; a data word in the line of code. |
+| [hpmdcache.s](hpmdcache.s) | here | The data-cache events of the performance counters (codes 140 to 147) and the port events they imply, in windows of cold and warm loads, stores to present and absent lines, and a load that meets an instruction-cache refill; the identities between the counters (`DC_REFILL_CYCLE = PORT_WAIT_D + PORT_GRANT_D`, `MEMWAIT_LOAD = DC_LOAD_MISS + DC_REFILL_CYCLE`, `DC_STORE_WAIT = MEMWAIT_STORE`) hold at any latency, the cycle counts are compared with a latency that the program finds to be fixed. Without a data cache its checks pass without looking. |
 | [icoherence.s](icoherence.s) | here | Instruction-stream coherence: a block is run, patched with `sw`, `sh` and `sb` within one 16-byte line and across two, and run again after `fence.i`; the words right behind a `fence.i` are stored to before it. Both also with the block evicted from an instruction cache before every patch; stores with a cached line's index and another tag; a data store into a line of code; blocks one cache size apart; a store to the next line just before its first fetch; eight stores in consecutive instructions to eight cached lines. |
 | `warm_*.s`, [mkwarm.py](mkwarm.py) | here | Warm-cache variants of the programs that time their own instructions with `mcycle`: each timing window runs twice, and only its second pass, from a warm instruction cache, is checked. Written by mkwarm.py from `test/asm`; do not edit them. |
 | Bus trace, [cachemodel.py](cachemodel.py) | `HADES_BUSTRACE` in [sim/top.sv](../../sim/top.sv); here | A per-cycle trace of the core's buses and a model that replays it through split L1 caches in front of a slow memory; an I-cache-only mode and a comparison of a cached simulator run with the model (`rtlcheck`). |
@@ -34,9 +37,10 @@ Options of any make target that builds a simulator (`make help` lists them):
 | `MEM_WR_LAT=...` | wait states of every RAM write (default: `MEM_LAT`) |
 | `MEM_BEAT_LAT=<n>` | burst timing: a further transfer to the next word while `cyc` stays high waits n cycles; on the data port an access to another slave (I/O) ends the burst |
 | `MEM_ONLY=fetch\|data` | the wait states apply to that RAM port only; the other one behaves as the standard RAM (refused with `ICACHE`: the cached configuration has one memory port) |
-| `MEM_SEED=<n>` | seed of the latency generator (default 1); each port has its own sequence; with `ICACHE` it also seeds the random initial contents of the cache's arrays |
+| `MEM_SEED=<n>` | seed of the latency generator (default 1); each port has its own sequence; with `ICACHE` it also seeds the random initial contents of the caches' arrays |
 | `ICACHE=<bytes>` | an instruction cache of that size (a decimal power of two of at least two lines; 0 or unset: none), direct-mapped, and one memory port that its refills share with the data side, with the latencies above (latency 0 if none is given). The RAM is then exempt from the interconnect timeout, so the 254-cycle limit below does not apply |
-| `LINE=8\|16\|32\|64` | the cache's line size in bytes (default 16); only with a non-zero `ICACHE` |
+| `DCACHE=<bytes>` | a data cache of that size as well (the same rule; 0 or unset: none; only with a non-zero `ICACHE`): direct-mapped, write-through, no write-allocate, no write buffer, with the line size of the instruction cache; its refills and its stores use the one memory port |
+| `LINE=8\|16\|32\|64` | the caches' line size in bytes (default 16); only with a non-zero `ICACHE` |
 | `SCOREBOARD=0\|1` | the scoreboard (default: on with a slow memory, off otherwise) |
 | `BUSHASH=0\|1` | the bus hash |
 | `BUSTRACE=0\|1` | the bus trace (HaDes-V+ only) |
@@ -46,6 +50,7 @@ make test/asm/ops MEM_LAT=2
 make test/memsys/stores MEM_LAT=1:8 MEM_SEED=3
 make freertos APP=minimal MEM_LAT=2
 make test/memsys/stores ICACHE=512 MEM_LAT=2          # with an instruction cache
+make test/memsys/dcache ICACHE=512 DCACHE=512 MEM_LAT=2   # with an instruction cache and a data cache
 make freertos APP=minimal ICACHE=8192 MEM_LAT=1:8
 make sim-config MEM_LAT=1:8          # name, build directory and environment of a configuration
 make lint-loops MEM_LAT=2            # combinational loops, without the UNOPTFLAT waiver
@@ -64,17 +69,21 @@ longest read, write or beat wait of the two ports, and prints the limit in a `SL
 limit` line; at `MEM_LAT=1:8` it is 900000 cycles. `SIM_ARGS=+timeout=<cycles>` sets the limit
 of a single run. `programs.py` scales its limit the same way.
 
-With an instruction cache the default limit is 100000 times 1 + max(R, D), with R the
+With an instruction cache (and with a data cache as well, which changes nothing here) the
+default limit is 100000 times 1 + max(R, D), with R the
 cycles of the longest refill and D those of the longest data transfer of the one memory port
 (`R = (RD + 1) + (words per line - 1) * (B + 1)` and `D = max(RD, WR) + 1`, with RD and WR the
 longest read and write wait and B the beat wait in burst mode, else RD), and the limit is
 printed in the same `SLOW MEMORY cycle limit` line; `make help` states the rule.
 
-The configuration of a cached simulator has the parts `i<size>` and `l<line>` after the memory
-parts of its name (`mem2-i512-l16` for `ICACHE=512 MEM_LAT=2`; `mem1_8-seed2-i8k-l32` for
-`ICACHE=8192 LINE=32 MEM_LAT=1:8 MEM_SEED=2`), and prints a `CACHE` line and a `SLOW MEMORY
-memory port` line at time 0 ([docs/CACHES.md](../../docs/CACHES.md#what-the-simulator-prints)).
-`DCACHE` is refused (there is no data cache), and so is `make synthesis` with any of these options.
+The configuration of a cached simulator has the parts `i<size>`, `d<size>` (only with a data cache)
+and `l<line>` after the memory parts of its name (`mem2-i512-l16` for `ICACHE=512 MEM_LAT=2`;
+`mem2-i512-d512-l16` with `DCACHE=512` as well; `mem1_8-seed2-i8k-l32` for `ICACHE=8192 LINE=32
+MEM_LAT=1:8 MEM_SEED=2`), and prints a `CACHE` line for each cache and a `SLOW MEMORY memory port`
+line at time 0 ([docs/CACHES.md](../../docs/CACHES.md#what-the-simulator-prints)). A non-zero `DCACHE`
+without an `ICACHE` is refused (a data cache needs an instruction cache, on the command line and
+through `HADES_DCACHE` and `HADES_ICACHE` in the environment), and so is `make synthesis` with any
+of these options; `DCACHE=0` is no data cache.
 
 The data port waits at most 254 cycles (without a cache): the interconnect ends a data access
 that has had no answer for 255 cycles with `err` ([wishbone_interconnect.sv](../../lib/wishbone/wishbone_interconnect.sv)).
@@ -148,7 +157,7 @@ whose source differs, or one that a revision lacks, is listed as left out, and t
 says so): a program that a change deliberately extended is expected to run differently, and
 says nothing about whether the simulators behave as before.
 
-### With an instruction cache
+### With an instruction cache, and with both caches
 
 ```bash
 python3 test/memsys/programs.py run ICACHE=512 MEM_LAT=2
@@ -167,7 +176,21 @@ strictly. The default cycle limit of a cached run is 100000 times 1 + max(R, D),
 cycles of the longest refill and D those of the longest data transfer of the one memory port (at
 `MEM_LAT=2` with 16-byte lines: R = 12, D = 3, 1300000 cycles); the reference runs keep 100000.
 The lines `CACHE`, `CACHE_STATS`, `CACHE_STATS_MARK`, `RESET`, `IRQLAT`, `RAM_WORDS` and `RETIRED_AT` are
-configuration lines, which neither the judging nor `compare` reads as program output.
+configuration lines, which neither the judging nor `compare` reads as program output. A data cache
+(`DCACHE=<bytes>`) changes none of this: the runs are judged as with an instruction cache alone, against
+the same standard simulator, and the programs that time their own loads and stores are excused by the
+rules of the cached profile (`CACHE D-cache` is a configuration line).
+
+```bash
+python3 test/memsys/programs.py run ICACHE=512 DCACHE=512 MEM_LAT=2
+python3 test/memsys/programs.py compare --same-sources <revision A> <revision B> \\
+    --reports-only asm/hpm --reports-only memsys/hpmcache --stats <run dir A> <run dir B>
+```
+
+`--reports-only` compares the named programs by their reports and verdict alone (for programs whose
+fetched words a change altered on purpose, so that their bus hashes differ), and `--stats` requires the
+same `CACHE_STATS` line in both runs of every other program: two trees give the same instruction-cache
+configuration when every line is byte for byte equal.
 
 ## Warm-Cache Timing Variants
 
@@ -198,7 +221,7 @@ reports whose windows it does not loop; with a cache they keep their original's 
 without the reference window is refused, and runs every warm file and its original on the
 standard HaDes-V+ simulator: the reports and the verdict must be the same.
 
-## Directed Tests With an Instruction Cache
+## Directed Tests With Caches
 
 `irqchain.s`, `fetchredirect.s` and `icoherence.s` give the same reports on the standard build
 and at every latency, with or without a cache. For a cache they make their tested code miss:
@@ -217,6 +240,17 @@ first word never follows the last word of the line before directly when every li
 `matrix.py` lists them with their reasons and runs the program in a 16 KiB cache, where the
 eviction block evicts nothing and every position but bit 0 is reached. The abandoned
 refills of `fetchredirect.s` per case come from `+cache_stats_marks`.
+
+`dcache.s`, `dcoherence.s` and `hpmdcache.s` give the same reports on the standard build, at every latency and with
+every cache configuration (`hpmdcache.s` and the data-cache part of `hpmcache.s` pass without looking where
+there is no data cache). `dcache.s` is the program that finds a data cache which loses a store, writes the wrong
+lanes or lines, or keeps a line the RAM no longer matches, also when the scoreboard's comparison of loaded
+words is switched off (mutants.py runs it that way); its header gives the data-cache counts that a run must
+reach (taken from the program's bus trace through the model of cachemodel.py and through a second, independent
+model). `hpmcache.s` makes each of its port checks in the form of its configuration: with a data cache the load
+at the head of its windows hits the data cache, so the port counts of that load are 0 and `DC_LOAD_MISS` is 0 and
+`DC_LOOKUP_HIT` 1 (a second pass over the same windows, as the seven counters are all taken); the port events of
+data-cache refills are checked in `hpmdcache.s`.
 
 [irqlat.s](irqlat.s) validates `+irq_latency`: it takes six interrupts in straight-line code
 and its header derives the latency by hand, `L + 2 + d` cycles with `L` the wait states of a
@@ -270,7 +304,9 @@ replays the trace through direct-mapped or 2-way caches: an I-cache and a write-
 no-write-allocate D-cache behind one memory port, with the I-cache snooping stores, optional
 abort-on-redirect and an optional write buffer, under a per-beat or a burst memory latency,
 and reports cycles per instruction, misses per 1000 instructions and the stall shares.
-`check` runs hand-computed cases; given prepared traces, it also replays each of them, or the
+`check` runs hand-computed cases (with a data cache as well: load misses and hits in one line, a store hit and
+a store miss that allocates nothing, two lines one cache size apart in a 512-byte and in a 4 KiB data cache, the
+RTL's counts of the model); given prepared traces, it also replays each of them, or the
 cycles from `--w0` (default 0) up to `--w1` (the first 2 million in the example), through
 twelve cache configurations (four of them I-cache-only) with the fast replay and with the plain
 per-cycle replay that specifies it, and requires equal results (`CHECK: PASS`). The header of
@@ -291,7 +327,16 @@ python3 test/memsys/cachemodel.py rtlcheck /abs/stores-prepared /abs/stores.log
 `rtlcheck` compares a cached run with the model on the trace of the same program recorded at
 the standard memory: it reads the run's `CACHE`, `SLOW MEMORY memory port`, `CACHE_STATS` and
 `RETIRED` lines (a log with a `RESET` line is refused), runs the model in the same
-configuration and prints every field side by side. Exact (the verdict `RTLCHECK: AGREE`): the
+configuration and prints every field side by side. With a data cache (a `CACHE D-cache` line and the `dc_`
+fields) the model has one as well, and the fields correspond as follows: `dc_lookup_hits` to `d_loads` (every
+load answered from the arrays, a missed load once more at its second lookup; the load hits proper are
+`dc_lookup_hits - dc_load_misses`), `dc_load_misses` to `d_load_misses`, `dc_store_hits` to `d_store_hits`,
+`dc_store_hits + dc_store_misses` to `d_stores`, `dc_store_wait` to `st_store`. These counts are exact, with the
+run's identities (`dc_load_misses = dc_done + dc_inflight`, `dc_beats = words * dc_done + dc_inflight_beats`,
+`d_loads = dc_beats`) and, at a fixed latency, `port_data = refill * dc_done + (write latency + 1) * d_stores +
+dc_inflight_port + d_inflight_port`; the cycles, the waits for the port, `dc_store_wait` and the port use are
+reported. The model counts a snoop, and completes a refill that runs when the trace ends, as the RTL does when
+`rtlcheck` asks (`cfg['rtl']`); its other results do not change. Exact (the verdict `RTLCHECK: AGREE`): the
 started refills, the completed refills plus the one in flight against the model's completed
 refills, `snoop_inval`, `d_loads`, `d_stores`, and the run's own identities, with a fixed
 latency also the port cycles of refills and data transfers. The cycles, the port waits,
@@ -299,17 +344,21 @@ latency also the port cycles of refills and data transfers. The cycles, the port
 model's approximation that the whole core waits during a miss. Use programs whose retired
 instructions do not depend on timing (no interrupts, no polling).
 
-## Verification of the Instruction Cache
+## Verification of the Caches
 
-Besides the tools below, the cache is checked by the bench [test/sv/test_icache.sv](../sv/test_icache.sv)
+Besides the tools below, the caches are checked by the bench [test/sv/test_icache.sv](../sv/test_icache.sv)
 (`make test/sv/test_icache`, options through `SIM_ARGS`; the cache and the arbiter against a
-reference model, every output and event in every cycle) and by the proofs of
-[formal/cache/](../../formal/cache/README.md) (`make formal-cache`); both are described in
+reference model, every output and event in every cycle), by the bench
+[test/sv/test_dcache.sv](../sv/test_dcache.sv) (`make test/sv/test_dcache`: both caches and the arbiter against
+a reference of their own) and by the proofs of [formal/cache/](../../formal/cache/README.md)
+(`make formal-cache`); all are described in
 [docs/CACHES.md](../../docs/CACHES.md#verification-and-how-to-re-run-it).
 
 ```bash
 python3 test/memsys/matrix.py list                       # legs, jobs, estimated cycles
 python3 test/memsys/matrix.py run programs --jobs 2      # one leg; 'all' or nothing: every leg
+python3 test/memsys/matrix.py run d-programs d-hpm       # the legs with both caches begin with d-
+REGRESSION_BASE=<revision> python3 test/memsys/matrix.py run i-only-regression
 python3 test/memsys/matrix.py summary
 python3 test/memsys/mutants.py list
 python3 test/memsys/mutants.py anchors                   # do the patches find their code?
@@ -319,7 +368,8 @@ python3 test/memsys/legality.py run
 ```
 
 `matrix.py` runs the matrix of the cached configurations (a 512-byte and an 8 KiB cache, other
-line sizes in one leg) against the latency profiles `lat0`, `lat2`, `rand1` to `rand3` (1 to 8
+line sizes in one leg; the legs `d-<name>` run the same suites with a data cache as well, 512 bytes next
+to 512 and 8 KiB next to 4 KiB) against the latency profiles `lat0`, `lat2`, `rand1` to `rand3` (1 to 8
 cycles, three seeds), `burst`, `stress` (1 to 64 cycles, beyond the interconnect timeout without
 the RAM's exemption) and `dram` (measurements only): the programs, the module benches, the
 timing benches (`bench-mcost` and `bench-fencei-window` judged by its own rules with a cache),
@@ -329,7 +379,19 @@ resets placed from a `+cache_phase_log` run, the model agreement (`cachemodel.py
 three programs at both cache sizes, the burst rule, the check that each program's retired
 instructions do not depend on the timing, and the informative comparison of the I-miss rate of
 `minimal` with the model's), the CPI rows, the validation of `+irq_latency` (`irqlat.s`) and the
-maximum interrupt latency of FreeRTOS `stress`.
+maximum interrupt latency of FreeRTOS `stress`. The legs with both caches add: `d-hpm` (the counter
+programs `hpm`, `hpmcache`, `hpmwait` and `hpmdcache`, and `dcache` and `dcoherence` with the data-cache counts of
+their headers), `d-hpm-freertos` (FreeRTOS `minimal` and `stress` with the counter presets H and I: the monitor
+must print `HPM_CHECK ok` and `HPM_CACHE_COMPARE ok`), `d-coherence` (the coherence programs, the trap sweep's `ctl`
+family), resets in the D-cache's refill beats, its refills waiting for the port and its store waits (placed from
+the phase log: bit 7 is 'the D-cache is refilling', bit 5 'the data side holds the port'), the model agreement
+including `dcache.s`, and `d-cpi` and `d-cpi-wr`: the CPI rows with the data cache, its store-stall share (`dc_store_wait`
+over all cycles and per instruction) next to the model's, and what the model says a one-line and an ideal write
+buffer would save, at the write latencies 1:4 (with the uncached and the instruction-cache-only columns), 4:8 and 8:24
+(reads stay 8:24). `i-only-regression` runs `programs.py` with `+bushash` on this tree and on an earlier revision
+(`REGRESSION_BASE`, a shared clone is made in the job's directory) in the instruction-cache-only configurations and
+requires equal output, bus hashes and `CACHE_STATS` lines for the programs with the same sources, and equal reports
+for `asm/hpm` and `memsys/hpmcache`, whose fetched words changed on purpose.
 
 A CPI row is one job: the program in the cached configuration (8 KiB cache, DRAM-like memory)
 and in the uncached baseline at `TICK=10000`, the model on the trace of the same program at
@@ -346,7 +408,8 @@ configuration directory at once, and writes a summary table. A leg that needs a 
 to run in a tree whose Makefile does not know `ICACHE`.
 
 `mutants.py` applies each mutant of the memory system (a source patch, in a temporary copy of
-the tree, never in the checkout) and runs the check that must catch it: the I-cache bench, a
+the tree, never in the checkout) and runs the check that must catch it: the I-cache bench, the
+bench of both caches, a
 program set in a configuration (the directed tests with the scoreboard's fetch compare disabled,
 their own checks deciding), the trap sweep, a formal property, a port-cycle identity or the
 reset runs; it prints `CAUGHT` or `MISSED`. Two mutants (`no-second-lookup`, `latched-lookup`)
@@ -356,16 +419,21 @@ error), and the program must still end with `SCOREBOARD: PASS`. Every patch name
 expression that must match exactly as often as stated; `anchors` lists the ones that do not
 match the tree (a mutant whose patch does not apply is `ANCHOR MISSING`, never `CAUGHT`);
 `dryrun` applies every patch in a temporary copy, checks that the copy still builds (Verilator
-elaborates the simulator of the mutant's configuration, and the I-cache bench for a patch of the
-cache; a patched program is assembled) and deletes the copy. `--map` also shows each run-time
+elaborates the simulator of the mutant's configuration, and the bench of the cache that is patched;
+a patched program is assembled) and deletes the copy. The 24 mutants of the data cache (`drop-lane-enable`
+to `data-present-mask-hole`) are the second part of the list; one of them is checked by the programs with the
+scoreboard's comparison of loaded words disabled (`store-writes-all-lanes`, with `dcache.s`), and one with the
+comparisons of the RAM disabled as well (`store-hit-skips-memory`: the RAM is never written, so the scoreboard
+would stop the run before the program had judged anything). `--map` also shows each run-time
 assertion firing on its negative control. `apply <name> <dir>` writes a copy of the tree with one
 mutant applied: the negative controls of `make formal-cache` take their mutants from it, so each
 mutant is written in one place.
 
-`legality.py` checks the refusals of the make options (`ICACHE`, `LINE`, `MEM_ONLY` with a
-cache, `DCACHE`, synthesis with any configuration, checked with `make -n`), the configuration
-names and defines, negative builds of the cache's parameters through Verilator directly, the
-time-0 checks of the run options, `+reset_at`, the default cycle limit of every latency profile,
+`legality.py` checks the refusals of the make options (`ICACHE`, `DCACHE` and `LINE`, a data cache
+without an instruction cache also through the environment, `MEM_ONLY` with a cache, synthesis with
+any configuration, checked with `make -n`), the configuration names and defines, negative builds of
+the caches' parameters through Verilator directly (and a data cache without an instruction cache),
+the time-0 checks of the run options, `+reset_at`, the default cycle limit of every latency profile,
 the builds of the cached simulators (plain, console, FreeRTOS model; scoreboard and bus-hash
-options), the placement of every memory-wrapper reference in `sim/top.sv`, and the negative
-cases of the I-cache bench.
+options; with and without a data cache), the placement of every memory-wrapper and data-cache
+reference in `sim/top.sv`, and the negative cases of the two benches.

@@ -8,30 +8,38 @@
 Groups (each case passes or fails on its own; the last line is 'LEGALITY: PASS (<n> cases)' or
 'LEGALITY: FAIL (<k> of <n> cases failed)'):
 
-  make-options   the Makefile options ICACHE and LINE: legal values and their configuration names,
+  make-options   the Makefile options ICACHE, DCACHE and LINE: legal values and their configuration names,
                  defines and descriptions (make sim-config), the environment for scripts
-                 (HADES_ICACHE, HADES_LINE), and every refusal: LINE without a non-zero ICACHE,
-                 illegal ICACHE or LINE values (also 00512, +512, 512.0), MEM_ONLY with ICACHE,
-                 DCACHE with any value; the 254-cycle data limit only without a cache; synthesis
-                 refused with any configuration (make -n: nothing is run)
+                 (HADES_ICACHE, HADES_DCACHE, HADES_LINE), and every refusal: LINE without a non-zero
+                 ICACHE, illegal ICACHE, DCACHE or LINE values (also 00512, +512, 512.0), a non-zero
+                 DCACHE without an ICACHE (unset, empty or 0; on the command line and through
+                 HADES_DCACHE/HADES_ICACHE in the environment), MEM_ONLY with a cache; DCACHE=0 and no
+                 DCACHE accepted; a plain DCACHE in the environment ignored; the 254-cycle data limit only
+                 without a cache; synthesis refused with any configuration (make -n: nothing is run)
   build-checks   negative builds that call Verilator directly with explicit parameters, where make
-                 refuses first: the elaboration checks of icache (BYTES, LINE_BYTES, the window) and
-                 cache_ram (WIDTH, DEPTH), and of the cached branch of rtl/mcu.sv (HADES_SLOW_MEM)
+                 refuses first: the elaboration checks of icache and dcache (BYTES, LINE_BYTES, the
+                 window) and cache_ram (WIDTH, DEPTH), and of the cached branch of rtl/mcu.sv
+                 (HADES_SLOW_MEM; HADES_DCACHE_BYTES without HADES_ICACHE_BYTES)
   run-options    the time-0 checks of a cached simulator: +mem_only refused on the one memory port,
                  +reset_at (syntax, strictly ascending, neighbours at least 2 cycles apart),
                  +retired_every > 0, +ram_words inside the RAM; no 254-cycle limit with a cache; the
-                 configuration lines (CACHE, SLOW MEMORY memory port)
+                 configuration lines (CACHE, SLOW MEMORY memory port; with a data cache also its CACHE
+                 line and the dc_ fields of CACHE_STATS)
   resets         +reset_at gives one RESET line per entry, in a cached and in an uncached
                  slow-memory simulator, on both CPUs; the delay from the requested cycle to the
                  reset cycle (the number printed in the RESET line) is reported
   cycle-limit    for every latency profile the printed default cycle limit of a cached run equals
                  100000 * (1 + max(R, D)) and programs.py's limit for the same run; +timeout sets it
-  simulators     the small and the large cache build for both CPUs as plain, console and FreeRTOS
-                 model simulators, with SCOREBOARD=0, SCOREBOARD=1 and BUSHASH=1; in sim/top.sv every
-                 reference to a memory wrapper lies in the branch of its configuration
+  simulators     the small and the large cache, alone and with a data cache (512 and 4096 bytes), build
+                 for both CPUs as plain, console and FreeRTOS model simulators, with SCOREBOARD=0,
+                 SCOREBOARD=1 and BUSHASH=1; in sim/top.sv every reference to a memory wrapper lies in
+                 the branch of its configuration and every reference to the data cache under
+                 `ifdef HADES_DCACHE_BYTES
   bench          the I-cache bench's negative cases (+negative=<case>) each stop with their message
                  and a non-zero exit; +compare=0 ends with 'ICACHE BENCH: COMPARE OFF' and a non-zero
-                 exit
+                 exit; the same for the memory-system bench of both caches (its cases d-request-change,
+                 d-refill-err, d-store-err, d-out-of-window, ack-err and spontaneous-answer, and
+                 'DCACHE BENCH: COMPARE OFF')
 
 Messages are matched by regular expressions: a check passes when its run stops with a matching
 line. The expressions follow the rules of the cache documentation (each message names the option or
@@ -60,8 +68,10 @@ def env():
     return {k: v for k, v in os.environ.items() if not k.startswith("HADES_")}
 
 
-def make(args, cwd=REPO):
-    r = subprocess.run(["make", "-s", "--no-print-directory", "-C", REPO] + args, cwd=cwd, env=env(),
+def make(args, cwd=REPO, extra_env=None):
+    e = env()
+    e.update(extra_env or {})
+    r = subprocess.run(["make", "-s", "--no-print-directory", "-C", REPO] + args, cwd=cwd, env=e,
                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace")
     return r.returncode, r.stdout
 
@@ -85,18 +95,18 @@ def case(group, name, fn, **kw):
     CASES.append(dict(group=group, name=name, fn=fn, kw=kw))
 
 
-def refused(vars_, message, goal="sim-config"):
+def refused(vars_, message, goal="sim-config", extra_env=None):
     def fn(tmp):
         args = (["-n", goal] if goal != "sim-config" else [goal]) + vars_
-        rc, out = make(args)
+        rc, out = make(args, extra_env=extra_env)
         ok = rc != 0 and re.search(message, out, re.I | re.S) is not None
         return ok, (f"exit {rc}: " + (out.strip().splitlines() or ["(no output)"])[-1])[:240]
     return fn
 
 
-def accepted(vars_, name=None, defines=(), text=(), environment=()):
+def accepted(vars_, name=None, defines=(), text=(), environment=(), extra_env=None, absent=()):
     def fn(tmp):
-        rc, out = make(["sim-config"] + vars_)
+        rc, out = make(["sim-config"] + vars_, extra_env=extra_env)
         problems = []
         if rc:
             problems.append(f"refused (exit {rc}): {out.strip()[-200:]}")
@@ -105,6 +115,7 @@ def accepted(vars_, name=None, defines=(), text=(), environment=()):
             if name and (not m or m.group(1) != name):
                 problems.append(f"name {m.group(1) if m else '?'}, expected {name}")
             problems += [f"no define {d}" for d in defines if d not in out]
+            problems += [f"unexpected {a}" for a in absent if a in out]
             problems += [f"no '{t}' in the description" for t in text if t not in out]
             problems += [f"no {e} in the environment line" for e in environment if e not in out]
         return not problems, "; ".join(problems) or (out.splitlines()[0][:200] if out else "")
@@ -129,6 +140,36 @@ for vars_, name, size, line in (
                   text=(f"I-cache {size} bytes, {line}-byte lines;", ICACHE_TEXT),
                   environment=(f"HADES_ICACHE={size}",)))
 case("make-options", "ICACHE=0 is no cache", accepted(["ICACHE=0"], "standard"))
+DCACHE_TEXT_FMT = "D-cache {size} bytes, write-through, no write-allocate;"
+for vars_, name, isize, dsize, line in (
+        (["ICACHE=512", "DCACHE=512"], "mem0-i512-d512-l16", 512, 512, 16),
+        (["ICACHE=512", "DCACHE=512", "MEM_LAT=2"], "mem2-i512-d512-l16", 512, 512, 16),
+        (["ICACHE=8192", "DCACHE=4096", "MEM_LAT=1:8", "MEM_SEED=2"], "mem1_8-seed2-i8k-d4k-l16", 8192, 4096, 16),
+        (["ICACHE=8192", "DCACHE=4096", "MEM_LAT=8:24", "MEM_WR_LAT=1:4", "MEM_BEAT_LAT=0"],
+         "mem8_24-wr1_4-beat0-i8k-d4k-l16", 8192, 4096, 16),
+        (["ICACHE=512", "DCACHE=512", "LINE=8"], "mem0-i512-d512-l8", 512, 512, 8),
+        (["ICACHE=512", "DCACHE=512", "LINE=32"], "mem0-i512-d512-l32", 512, 512, 32),
+        (["ICACHE=512", "DCACHE=512", "LINE=64"], "mem0-i512-d512-l64", 512, 512, 64),
+        (["ICACHE=512", "DCACHE=32"], "mem0-i512-d32-l16", 512, 32, 16),
+        (["ICACHE=512", "DCACHE=128", "LINE=64"], "mem0-i512-d128-l64", 512, 128, 64),
+        (["ICACHE=512", "DCACHE=512", "MEM_LAT=300"], "mem300-i512-d512-l16", 512, 512, 16)):
+    case("make-options", f"accepted: {' '.join(vars_)}",
+         accepted(vars_, name, defines=("+define+HADES_SLOW_MEM", f"+define+HADES_ICACHE_BYTES={isize}",
+                                        f"+define+HADES_DCACHE_BYTES={dsize}", f"+define+HADES_CACHE_LINE_BYTES={line}",
+                                        "-y rtl/cache"),
+                  text=(f"I-cache {isize} bytes, {line}-byte lines;", DCACHE_TEXT_FMT.format(size=dsize), ICACHE_TEXT),
+                  environment=(f"HADES_ICACHE={isize}", f"HADES_DCACHE={dsize}")))
+# DCACHE=0 and no DCACHE are the same, with or without an I-cache; the I-only names, defines and text are unchanged
+for vars_, name in ((["DCACHE=0"], "standard"), (["ICACHE=512", "DCACHE=0"], "mem0-i512-l16"),
+                    (["ICACHE=512", "DCACHE=0", "MEM_LAT=2"], "mem2-i512-l16"), (["ICACHE=0", "DCACHE=0"], "standard")):
+    case("make-options", f"accepted: {' '.join(vars_)}",
+         accepted(vars_, name, absent=("HADES_DCACHE_BYTES", "D-cache")))
+case("make-options", "a plain DCACHE in the environment is ignored, like every option",
+     accepted([], "standard", absent=("HADES_DCACHE_BYTES",), extra_env={"DCACHE": "512", "ICACHE": "512"}))
+case("make-options", "HADES_ICACHE and HADES_DCACHE in the environment give the configuration (with its build directory)",
+     accepted([], "mem0-i512-d512-l16", defines=("+define+HADES_DCACHE_BYTES=512", "+define+HADES_ICACHE_BYTES=512"),
+              extra_env={"HADES_ICACHE": "512", "HADES_DCACHE": "512",
+                         "HADES_BUILD_DIR": os.path.join(REPO, "build", "cfg-mem0-i512-d512-l16")}))
 for vars_, msg in (
         (["LINE=16"], r"LINE"), (["ICACHE=0", "LINE=16"], r"LINE"),
         (["ICACHE=00512"], r"ICACHE"), (["ICACHE=+512"], r"ICACHE"), (["ICACHE=512.0"], r"ICACHE"),
@@ -137,16 +178,41 @@ for vars_, msg in (
         (["ICACHE=512", "LINE=24"], r"LINE"), (["ICACHE=512", "LINE=4"], r"LINE"),
         (["ICACHE=512", "LINE=128"], r"LINE"), (["ICACHE=64", "LINE=64"], r"ICACHE.*(two lines|at least)"),
         (["ICACHE=512", "MEM_ONLY=fetch"], r"MEM_ONLY"), (["ICACHE=512", "MEM_ONLY=data"], r"MEM_ONLY"),
-        (["DCACHE=512"], r"DCACHE.*docs/CACHES\.md"), (["DCACHE=0"], r"DCACHE"),
-        (["ICACHE=512", "DCACHE=512"], r"DCACHE"),
+        (["ICACHE=512", "DCACHE=512", "MEM_ONLY=data"], r"MEM_ONLY"),
+        # a D-cache needs an I-cache, whatever the spelling of the missing one
+        (["DCACHE=512"], r"DCACHE.*I-cache"), (["ICACHE=0", "DCACHE=512"], r"DCACHE.*I-cache"),
+        (["ICACHE=", "DCACHE=512"], r"DCACHE.*I-cache"), (["DCACHE=4096", "MEM_LAT=2"], r"DCACHE.*I-cache"),
+        # illegal values
+        (["ICACHE=512", "DCACHE=00512"], r"DCACHE"), (["ICACHE=512", "DCACHE=+512"], r"DCACHE"),
+        (["ICACHE=512", "DCACHE=512.0"], r"DCACHE"), (["ICACHE=512", "DCACHE=24"], r"DCACHE.*power of two"),
+        (["ICACHE=512", "DCACHE=500"], r"DCACHE.*power of two"),
+        (["ICACHE=512", "DCACHE=16"], r"DCACHE.*(two lines|at least)"),
+        (["ICACHE=512", "DCACHE=32", "LINE=32"], r"DCACHE.*(two lines|at least)"),
+        (["ICACHE=512", "DCACHE=abc"], r"DCACHE"), (["ICACHE=512", "DCACHE=-512"], r"DCACHE"),
+        (["ICACHE=512", "DCACHE=1 2"], r"DCACHE"),
         (["MEM_LAT=300"], r"254")):
     case("make-options", f"refused: {' '.join(vars_)}", refused(vars_, msg))
-for vars_ in (["ICACHE=512"], ["ICACHE=8192", "MEM_LAT=2"], ["MEM_LAT=2"]):
+# through the environment (HADES_DCACHE / HADES_ICACHE are the spelling that scripts use)
+case("make-options", "refused: HADES_DCACHE=512 in the environment without an I-cache",
+     refused([], r"DCACHE.*I-cache", extra_env={"HADES_DCACHE": "512"}))
+case("make-options", "refused: HADES_DCACHE=512 and HADES_ICACHE=0 in the environment",
+     refused([], r"DCACHE.*I-cache", extra_env={"HADES_DCACHE": "512", "HADES_ICACHE": "0"}))
+case("make-options", "refused: HADES_DCACHE=512 with ICACHE=0 on the command line",
+     refused(["ICACHE=0"], r"DCACHE.*I-cache", extra_env={"HADES_DCACHE": "512"}))
+case("make-options", "refused: HADES_DCACHE=24 in the environment (illegal value)",
+     refused([], r"DCACHE.*power of two", extra_env={"HADES_ICACHE": "512", "HADES_DCACHE": "24"}))
+for vars_ in (["ICACHE=512"], ["ICACHE=8192", "MEM_LAT=2"], ["MEM_LAT=2"], ["ICACHE=512", "DCACHE=512"],
+              ["ICACHE=8192", "DCACHE=4096", "MEM_LAT=2"]):
     case("make-options", f"synthesis refused: {' '.join(vars_)}",
          refused(vars_, r"simulation only|synthesis", goal="synthesis"))
 case("make-options", "make help lists ICACHE, LINE, formal-cache and the cached cycle limit",
      lambda tmp: (lambda rc_out: (all(w in rc_out[1] for w in ("ICACHE", "LINE", "formal-cache", "100000")),
                                   "make help"))(make(["help"])))
+case("make-options", "make help and make sim-config show DCACHE (and the old refusal is gone)",
+     lambda tmp: (lambda h, c: ("DCACHE" in h[1] and "no data cache yet" not in h[1] and "DCACHE is refused" not in h[1] and
+                                "D-cache 512 bytes, write-through, no write-allocate;" in c[1],
+                                "make help / make sim-config ICACHE=512 DCACHE=512"))(
+         make(["help"]), make(["sim-config", "ICACHE=512", "DCACHE=512"])))
 
 
 # ---- negative builds with Verilator, where make refuses first
@@ -231,6 +297,27 @@ for desc, p, msg in (("WIDTH 0", dict(width=0, depth=4), r"WIDTH"), ("DEPTH 3", 
     case("build-checks", f"cache_ram: {desc}", verilated(WRAP_RAM.format(**p), msg, ("rtl/cache/cache_ram.sv",)))
 
 
+WRAP_DCACHE = """
+module legality_top;
+    logic clk = 0, rst = 1;
+    wishbone_interface cpu_bus();
+    wishbone_interface mem_bus();
+    logic mem_cont, ev_lookup_hit, ev_load_miss, ev_beat, ev_fill, ev_store_hit, ev_store_miss, ev_store_wait, ev_refill;
+    dcache #(.BYTES({bytes}), .LINE_BYTES({line}), .WINDOW_START({start}), .WINDOW_WORDS({words})) dut (
+        .clk(clk), .rst(rst), .cpu(cpu_bus.slave), .mem(mem_bus.master), .mem_cont(mem_cont),
+        .ev_lookup_hit(ev_lookup_hit), .ev_load_miss(ev_load_miss), .ev_beat(ev_beat), .ev_fill(ev_fill),
+        .ev_store_hit(ev_store_hit), .ev_store_miss(ev_store_miss), .ev_store_wait(ev_store_wait),
+        .ev_refill(ev_refill));
+    initial begin
+        #10;
+        $display("LEGALITY: ELABORATED");
+        $finish;
+    end
+    always #1 clk = ~clk;
+endmodule
+"""
+
+
 def mcu_without_slow_mem(tmp):
     """The cached branch of rtl/mcu.sv stops at time 0 if HADES_SLOW_MEM is not defined (make always
     defines both): the simulator built with HADES_ICACHE_BYTES alone."""
@@ -250,6 +337,48 @@ def mcu_without_slow_mem(tmp):
 
 
 case("build-checks", "rtl/mcu.sv: a cache without HADES_SLOW_MEM", mcu_without_slow_mem)
+
+DCACHE_FILES = ("rtl/cache/cache_ram.sv", "rtl/cache/dcache.sv")
+for desc, p, msg in (
+        ("BYTES not a power of two", dict(bytes=500, line=16, start="32'h10000", words="32'h2000"), r"BYTES"),
+        ("BYTES one line", dict(bytes=16, line=16, start="32'h10000", words="32'h2000"), r"BYTES"),
+        ("LINE_BYTES 12", dict(bytes=512, line=12, start="32'h10000", words="32'h2000"), r"LINE_BYTES"),
+        ("LINE_BYTES 128", dict(bytes=512, line=128, start="32'h10000", words="32'h2000"), r"LINE_BYTES"),
+        ("LINE_BYTES 4", dict(bytes=512, line=4, start="32'h10000", words="32'h2000"), r"LINE_BYTES"),
+        ("WINDOW_START not line-aligned", dict(bytes=512, line=16, start="32'h10001", words="32'h2000"),
+         r"WINDOW_START"),
+        ("WINDOW_WORDS not line-aligned", dict(bytes=512, line=16, start="32'h10000", words="32'h2002"),
+         r"WINDOW_WORDS"),
+        ("WINDOW_WORDS 0", dict(bytes=512, line=16, start="32'h10000", words="32'h0"), r"WINDOW_WORDS"),
+        ("window beyond 2**30 words", dict(bytes=512, line=16, start="32'h3FFF_FF00", words="32'h200"),
+         r"WINDOW")):
+    case("build-checks", f"dcache: {desc}", verilated(WRAP_DCACHE.format(**p), msg, DCACHE_FILES))
+case("build-checks", "dcache: legal parameters elaborate",
+     lambda tmp: (lambda r: (not r[0] and "elaborated" in r[1], r[1]))(
+         verilated(WRAP_DCACHE.format(bytes=512, line=16, start="32'h10000", words="32'h2000"), r"$^",
+                   DCACHE_FILES)(tmp)))
+
+
+def mcu_dcache_without_icache(tmp):
+    """A simulator built with HADES_DCACHE_BYTES and without HADES_ICACHE_BYTES (make refuses that
+    configuration first) stops at time 0: a D-cache needs an I-cache."""
+    d = tempfile.mkdtemp(dir=tmp)
+    r = subprocess.run(["verilator", "--binary", "--timing", "--assert", "-Wno-fatal", "-j", "2", "-f",
+                        os.path.join(REPO, "sim", "files.txt"), "-y", os.path.join(REPO, "rtl", "cache"),
+                        "+define+HADES_DCACHE_BYTES=512", "+define+HADES_CACHE_LINE_BYTES=16",
+                        "--top-module", "top", "-Mdir", os.path.join(d, "obj"), os.path.join(REPO, "sim", "top.sv")],
+                       cwd=REPO, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace")
+    out = r.stdout
+    if r.returncode == 0:
+        s_ = subprocess.run([os.path.join(d, "obj", "Vtop"), "+nodump", "+timeout=10"], cwd=d, stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, text=True, errors="replace")
+        out += s_.stdout
+    hit = next((l for l in out.splitlines() if re.search(r"HADES_DCACHE_BYTES|D-cache needs an I-cache", l) and
+                ("%" in l or "Fatal" in l)), None)
+    return hit is not None, (hit or out.strip()[-200:])[:240]
+
+
+case("build-checks", "rtl/mcu.sv: a D-cache without an I-cache (HADES_DCACHE_BYTES alone)", mcu_dcache_without_icache)
 
 
 # ---- a cached simulator's run-time options
@@ -318,6 +447,45 @@ def lines_present(tmp):
 
 case("run-options", "the configuration lines of a cached run", lines_present)
 
+VD_LAT2 = ["ICACHE=512", "DCACHE=512", "MEM_LAT=2"]
+
+
+def lines_present_d(tmp):
+    """The lines of a run with both caches: the I-cache's CACHE line as without a D-cache, the D-cache's
+    own, one memory port, the default cycle limit of the longest refill or data transfer, and the
+    CACHE_STATS line, whose fields begin as the I-cache-only line's do and end with the dc_ fields."""
+    rc, out = sim_run(VD_LAT2, [], tmp=tmp)
+    if rc is None:
+        return False, out
+    need = [r"^CACHE I-cache 512 bytes, 16-byte lines, 32 sets",
+            r"^CACHE D-cache 512 bytes, 16-byte lines, 32 sets, direct-mapped, write-through, no write-allocate; "
+            r"tag adr\[29:7\], index adr\[6:2\], word adr\[1:0\]; window 0x00040000-0x00047fff; "
+            r"random initial arrays, seed 1",
+            r"^SLOW MEMORY memory port: read latency 2, write latency 2, burst beats off \(cache refill blocks only\)",
+            r"^SLOW MEMORY cycle limit 1300000",
+            r"^CACHE_STATS cycles=\d+ .* d_inflight_port=\d+ dc_lookup_hits=\d+ dc_load_misses=\d+ dc_done=\d+ "
+            r"dc_beats=\d+ dc_store_hits=\d+ dc_store_misses=\d+ dc_store_wait=\d+ dc_refill_cycles=\d+ "
+            r"dc_inflight=[01] dc_inflight_beats=\d+ dc_inflight_port=\d+"]
+    missing = [n for n in need if not re.search(n, out, re.M)]
+    once = len(re.findall(r"^SLOW MEMORY memory port:", out, re.M)) == 1
+    return rc == 0 and not missing and once, "; ".join(missing) or ("ok" if once else "not exactly one memory port line")
+
+
+case("run-options", "the configuration lines of a run with both caches", lines_present_d)
+
+
+def i_only_stats_unchanged(tmp):
+    """The CACHE_STATS line of a run without a D-cache has no dc_ field (it is the I-cache-only line)."""
+    rc, out = sim_run(SMALL_LAT2, [], tmp=tmp)
+    if rc is None:
+        return False, out
+    m = re.search(r"^CACHE_STATS (.*)$", out, re.M)
+    ok = bool(m) and "dc_" not in m.group(1) and not re.search(r"^CACHE D-cache", out, re.M)
+    return ok, "no dc_ field, no D-cache line" if ok else (m.group(0)[:200] if m else "no CACHE_STATS line")
+
+
+case("run-options", "the CACHE_STATS line without a D-cache has no dc_ field", i_only_stats_unchanged)
+
 
 def no_254_limit(tmp):
     rc, out = sim_run(["ICACHE=512", "MEM_LAT=300"], [], tmp=tmp)
@@ -328,6 +496,17 @@ def no_254_limit(tmp):
 
 
 case("run-options", "no 254-cycle limit with a cache (MEM_LAT=300 runs)", no_254_limit)
+
+
+def no_254_limit_d(tmp):
+    rc, out = sim_run(["ICACHE=512", "DCACHE=512", "MEM_LAT=300"], [], tmp=tmp)
+    if rc is None:
+        return False, out
+    ok = rc == 0 and "SCOREBOARD: PASS" in out and not re.search(r"%(Fatal|Error)", out)
+    return ok, f"exit {rc}; " + ("SCOREBOARD: PASS" if "SCOREBOARD: PASS" in out else out.strip()[-160:])
+
+
+case("run-options", "no 254-cycle limit with both caches (MEM_LAT=300 runs)", no_254_limit_d)
 
 
 # ---- +reset_at
@@ -345,7 +524,7 @@ def reset_lines(vars_, cpu):
     return fn
 
 
-for vars_ in (SMALL_LAT2, ["MEM_LAT=2"]):
+for vars_ in (SMALL_LAT2, ["MEM_LAT=2"], ["ICACHE=512", "DCACHE=512", "MEM_LAT=2"]):
     for cpu in ("dut", "golden"):
         case("resets", f"+reset_at=400,800: {' '.join(vars_)}, {cpu}", reset_lines(vars_, cpu))
 
@@ -354,7 +533,14 @@ LIMITS = [(["ICACHE=512"], 500000), (["ICACHE=512", "MEM_LAT=2"], 1300000),
           (["ICACHE=512", "MEM_LAT=1:8", "MEM_SEED=1"], 3700000), (["ICACHE=512", "MEM_LAT=1:8", "MEM_SEED=2"], 3700000),
           (["ICACHE=512", "MEM_LAT=1:8", "MEM_SEED=3"], 3700000), (["ICACHE=512", "MEM_LAT=1:8", "MEM_BEAT_LAT=0"], 1300000),
           (["ICACHE=512", "MEM_LAT=1:64"], 26100000),
-          (["ICACHE=8192", "MEM_LAT=8:24", "MEM_WR_LAT=1:4", "MEM_BEAT_LAT=0"], 2900000)]
+          (["ICACHE=8192", "MEM_LAT=8:24", "MEM_WR_LAT=1:4", "MEM_BEAT_LAT=0"], 2900000),
+          # a D-cache changes none of them: its refills have the line size of the I-cache's, its stores are data transfers
+          (["ICACHE=512", "DCACHE=512"], 500000), (["ICACHE=512", "DCACHE=512", "MEM_LAT=2"], 1300000),
+          (["ICACHE=512", "DCACHE=512", "MEM_LAT=1:8", "MEM_SEED=1"], 3700000),
+          (["ICACHE=512", "DCACHE=512", "MEM_LAT=1:8", "MEM_BEAT_LAT=0"], 1300000),
+          (["ICACHE=512", "DCACHE=512", "MEM_LAT=1:64"], 26100000),
+          (["ICACHE=8192", "DCACHE=4096", "MEM_LAT=8:24", "MEM_WR_LAT=1:4", "MEM_BEAT_LAT=0"], 2900000),
+          (["ICACHE=8192", "DCACHE=4096", "MEM_LAT=8:24", "MEM_WR_LAT=8:24", "MEM_BEAT_LAT=0"], 2900000)]
 
 
 def limit_case(vars_, want):
@@ -411,13 +597,13 @@ def builds(vars_, cpu, kind):
     return fn
 
 
-for size in ("512", "8192"):
+for caches in (["ICACHE=512"], ["ICACHE=8192"], ["ICACHE=512", "DCACHE=512"], ["ICACHE=8192", "DCACHE=4096"]):
     for opt in (["SCOREBOARD=0"], ["SCOREBOARD=1"], ["BUSHASH=1"]):
         for cpu in ("dut", "golden"):
             for kind in ("plain", "freertos", "console"):
                 if kind == "plain" and cpu == "golden":
                     continue
-                case("simulators", f"ICACHE={size} {opt[0]}: {kind} {cpu}", builds([f"ICACHE={size}"] + opt, cpu, kind))
+                case("simulators", f"{' '.join(caches)} {opt[0]}: {kind} {cpu}", builds(caches + opt, cpu, kind))
 
 
 def wrapper_references(tmp):
@@ -472,25 +658,64 @@ def wrapper_elsif(line_no):
 case("simulators", "sim/top.sv: every memory-wrapper reference in its branch", wrapper_references)
 
 
-# ---- the I-cache bench's negative cases
+def dcache_references(tmp):
+    """Every reference of sim/top.sv to the data cache (mcu.dcache, mcu.dcache_mem, the cache_ev_d_ signals,
+    HADES_DCACHE_BYTES itself apart from the `ifdef lines) lies under `ifdef HADES_DCACHE_BYTES, and the
+    first 131 lines of sim/top.sv (the testbench of the standard build) name none."""
+    stack, bad, seen = [], [], 0
+    for n, l in enumerate(open(os.path.join(REPO, "sim", "top.sv")), start=1):
+        t = l.strip()
+        m = re.match(r"`(ifdef|ifndef|elsif|else|endif)\b\s*(\w*)", t)
+        if m:
+            k, name = m.groups()
+            if k in ("ifdef", "ifndef"):
+                stack.append((k, name))
+            elif k == "elsif":
+                stack[-1] = ("ifdef", name)
+            elif k == "else":
+                stack[-1] = ("else", stack[-1][1])
+            else:
+                stack.pop()
+            continue
+        code = l.split("//")[0]
+        if re.search(r"\bmcu\.(dcache|dcache_mem)\b|cache_ev_d_|HADES_DCACHE", code):
+            seen += 1
+            if ("ifdef", "HADES_DCACHE_BYTES") not in stack:
+                bad.append(f"line {n}: {t[:60]}")
+            if n <= 131:
+                bad.append(f"line {n} (within the first 131): {t[:60]}")
+    return not bad, "; ".join(bad[:4]) or f"{seen} references, each under `ifdef HADES_DCACHE_BYTES"
+
+
+case("simulators", "sim/top.sv: every data-cache reference under `ifdef HADES_DCACHE_BYTES", dcache_references)
+
+
+# ---- the benches' negative cases
 BENCH_CASES = {"fetch-write": r"icache: the fetch port presents we=1",
                "request-change": r"mem_arbiter: the granted data request .* changed before its answer",
                "ack-err": r"(mem_arbiter|icache): ack and err together",
                "refill-err": r"icache: the memory answered err to the refill",
                "spontaneous-answer": r"mem_arbiter: the memory answered at cycle \d+ .*no side is granted"}
+# the memory-system bench of both caches (test/sv/test_dcache.sv)
+DBENCH_CASES = {"d-request-change": r"(dcache|mem_arbiter): the (granted data|memory-side) request .* changed before its answer",
+                "d-refill-err": r"dcache: the memory answered err to the refill",
+                "d-store-err": r"dcache: the memory answered err to the store",
+                "d-out-of-window": r"dcache: .*(outside the window|out of the window)",
+                "ack-err": r"(mem_arbiter|dcache|icache): ack and err together",
+                "spontaneous-answer": r"mem_arbiter: the memory answered at cycle \d+ .*no side is granted"}
 
 
-def bench_case(name, message):
+def bench_case(name, message, bench="test_icache", tag="ICACHE BENCH"):
     def fn(tmp):
-        top = os.path.join(REPO, "build", "test", "sv", "test_icache", "top")
-        with build_lock(top):     # six cases share the one bench binary: one make at a time
+        top = os.path.join(REPO, "build", "test", "sv", bench, "top")
+        with build_lock(top):     # the cases share the one bench binary: one make at a time
             rc, out = make([os.path.relpath(top, REPO)])
         if rc:
             return False, f"the bench does not build: {out.strip()[-200:]}"
         r = subprocess.run([top, f"+negative={name}"] if name else [top, "+compare=0"], cwd=os.path.dirname(top),
                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace")
         if not name:
-            ok = r.returncode != 0 and "ICACHE BENCH: COMPARE OFF" in r.stdout and "ICACHE BENCH: PASS" not in r.stdout
+            ok = r.returncode != 0 and f"{tag}: COMPARE OFF" in r.stdout and f"{tag}: PASS" not in r.stdout
             return ok, f"exit {r.returncode}; " + ("COMPARE OFF" if "COMPARE OFF" in r.stdout else r.stdout.strip()[-160:])
         hit = next((l for l in r.stdout.splitlines() if re.search(message, l, re.I) and "%" in l), None)
         return r.returncode != 0 and hit is not None, (hit or f"exit {r.returncode}: {r.stdout.strip()[-160:]}")[:240]
@@ -500,6 +725,10 @@ def bench_case(name, message):
 for n, msg in BENCH_CASES.items():
     case("bench", f"+negative={n}", bench_case(n, msg))
 case("bench", "+compare=0 ends with COMPARE OFF", bench_case(None, None))
+for n, msg in DBENCH_CASES.items():
+    case("bench", f"memory-system bench: +negative={n}", bench_case(n, msg, "test_dcache", "DCACHE BENCH"))
+case("bench", "memory-system bench: +compare=0 ends with COMPARE OFF",
+     bench_case(None, None, "test_dcache", "DCACHE BENCH"))
 
 
 # ------------------------------------------------------------------------------ main

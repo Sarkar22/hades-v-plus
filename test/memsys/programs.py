@@ -14,6 +14,7 @@ e.g.
     python3 test/memsys/programs.py run MEM_LAT=0 BUSHASH=1
     python3 test/memsys/programs.py compare <run dir A> <run dir B>
     python3 test/memsys/programs.py compare --same-sources <revision A> <revision B> <run dir A> <run dir B>
+    python3 test/memsys/programs.py compare --same-sources <A> <B> --reports-only asm/hpm --stats <dir A> <dir B>
 
 run: builds the simulators (make frtos-model FRTOS_CPU=dut|ref FRTOS_RAM_KB=32 with the
      given options) and the programs, runs every program on every CPU (--jobs at a time,
@@ -45,7 +46,9 @@ run: builds the simulators (make frtos-model FRTOS_CPU=dut|ref FRTOS_RAM_KB=32 w
      rule (the line '# mkwarm: unlooped window reports: ...' of the file). A cached run's
      default cycle limit is 100000 times 1 + max(R, D), with R the cycles of the longest
      refill and D those of the longest data transfer of the one memory port (the reference
-     runs keep 100000).
+     runs keep 100000). A data cache as well (DCACHE=<bytes>, only with ICACHE) changes
+     nothing of this: the runs are judged as with an instruction cache alone, against the same
+     standard simulator, and the line "CACHE D-cache ..." is a configuration line.
      A run is also counted as bad when its scoreboard reports a mismatch, its simulator
      stops with an error, or its simulator returns a non-zero status (that run or its
      latency-0 run; a simulator exits with 0 after any verdict, passing or failing, and
@@ -82,6 +85,11 @@ compare: for every program and CPU in both run directories, the simulator output
      the verdict line says that the comparison is restricted. This is what asks whether the
      simulator configurations behave as before: a program that a change deliberately extended
      is expected to run differently and says nothing about the simulators.
+     --reports-only <program> (repeatable): these programs (asm/hpm, for example, whose fetched words a change
+     deliberately altered) are compared by their reports and their verdict only, not by their output
+     or bus hash, and are not left out by --same-sources.
+     --stats: also require, for every program compared in full, the same CACHE_STATS line in both
+     runs (the cached configurations are unchanged when the lines are byte for byte equal).
 """
 import argparse
 import concurrent.futures as cf
@@ -305,15 +313,18 @@ def rule_table(program):
 
 
 def cache_profile(defs, sim_args):
-    """With an instruction cache (+define+HADES_ICACHE_BYTES): the one memory port's latencies
-    (the same defines and run options as the slow memory's), the line size, the cycles of the
-    longest refill (R) and data transfer (D), and the default cycle limit 100000 * (1 + max(R, D)).
-    The timing classes are set directly: a cache makes fetch wait, and wait by different amounts,
-    at every latency (TIMING above). None without a cache."""
+    """With an instruction cache (+define+HADES_ICACHE_BYTES), and with a data cache as well
+    (+define+HADES_DCACHE_BYTES): the one memory port's latencies (the same defines and run options as
+    the slow memory's), the line size (shared by the two caches), the cycles of the longest refill (R) and
+    data transfer (D), and the default cycle limit 100000 * (1 + max(R, D)); a data cache changes none of
+    them (its refills are blocks of the same line size, its stores are data transfers). The timing
+    classes are set directly: a cache makes fetch wait, and wait by different amounts, at every latency
+    (TIMING above). None without a cache."""
     m = re.search(r"\+define\+HADES_ICACHE_BYTES=(\d+)", defs)
     if not m:
         return None
     size = int(m.group(1))
+    dm = re.search(r"\+define\+HADES_DCACHE_BYTES=(\d+)", defs)
     lm = re.search(r"\+define\+HADES_CACHE_LINE_BYTES=(\d+)", defs)
     line = int(lm.group(1)) if lm else 16
     rdr, wrr, beat, _ = latencies(defs, sim_args)
@@ -326,11 +337,15 @@ def cache_profile(defs, sim_args):
 
     def text(r):
         return f"{r[0]}" if r[0] == r[1] else f"{r[0]}..{r[1]}"
-    desc = (f"I-cache {size} bytes, {line}-byte lines; one memory port: reads {text(rdr)}, "
+    caches = f"I-cache {size} bytes, " + (f"D-cache {dm.group(1)} bytes (write-through, no write-allocate), " if dm else "")
+    desc = (f"{caches}{line}-byte lines; one memory port: reads {text(rdr)}, "
             f"writes {text(wrr)} cycles, bursts "
             f"{'off' if beat < 0 else 'beat ' + str(beat) + ' (refill blocks only)'}; longest refill {refill}, "
             f"longest data transfer {data} cycles")
-    return dict(bytes=size, line=line, refill=refill, data=data, limit=limit, text=desc)
+    res = dict(bytes=size, line=line, refill=refill, data=data, limit=limit, text=desc)
+    if dm:
+        res["dbytes"] = int(dm.group(1))
+    return res
 
 
 def latencies(defs, sim_args):
@@ -745,13 +760,20 @@ def same_source_programs(rev_a, rev_b):
     return same, left_out
 
 
+def cache_stats_line(d, r):
+    with open(os.path.join(d, r["dir"], "sim.log"), errors="replace") as f:
+        return next((l.strip() for l in f if l.startswith("CACHE_STATS ")), "")
+
+
 def compare(a):
     ra, A = outputs(a.dirs[0])
     rb, B = outputs(a.dirs[1])
     restricted = ""
+    only = set(a.reports_only)
     if a.same_sources:
         same, left_out = same_source_programs(*a.same_sources)
-        gone = sorted({k[1] for k in list(A) + list(B) if k[1] in left_out})
+        same |= only
+        gone = sorted({k[1] for k in list(A) + list(B) if k[1] in left_out and k[1] not in only})
         A = {k: v for k, v in A.items() if k[1] in same}
         B = {k: v for k, v in B.items() if k[1] in same}
         print(f"COMPARE restricted to the programs whose sources are identical in {a.same_sources[0]} and "
@@ -762,10 +784,16 @@ def compare(a):
         restricted = f" (restricted to the {len({k[1] for k in A} | {k[1] for k in B})} programs with identical " \
                      f"sources in {a.same_sources[0]} and {a.same_sources[1]}; {len(gone)} left out)"
     keys = sorted(set(A) | set(B))
-    diffs, hashes, one_sided = [], 0, 0
+    diffs, hashes, one_sided, stats = [], 0, 0, 0
     for k in keys:
         if k not in A or k not in B:
             diffs.append(f"{k[0]} {k[1]}: only in {'B' if k not in A else 'A'}")
+            continue
+        if k[1] in only:
+            # compared by the reports and the verdict alone
+            for what in ("reports", "verdict"):
+                if A[k][what] != B[k][what]:
+                    diffs.append(f"{k[0]} {k[1]}: {what} differ: {A[k][what]!r} / {B[k][what]!r}")
             continue
         oa, ob = program_output(a.dirs[0], A[k]), program_output(a.dirs[1], B[k])
         if oa != ob:
@@ -782,13 +810,20 @@ def compare(a):
                 diffs.append(f"{k[0]} {k[1]}: bus hashes differ: {ha} / {hb}")
         elif ha or hb:
             one_sided += 1
+        if a.stats:
+            sa, sb = cache_stats_line(a.dirs[0], A[k]), cache_stats_line(a.dirs[1], B[k])
+            if sa == sb:
+                stats += bool(sa)
+            else:
+                diffs.append(f"{k[0]} {k[1]}: CACHE_STATS differ: {sa!r} / {sb!r}")
     print(f"COMPARE {ra['configuration']} ({a.dirs[0]})")
     print(f"   with {rb['configuration']} ({a.dirs[1]})")
     for d in diffs:
         print(f"  {d}")
     print(f"PROGRAMS COMPARE: {'SAME' if not diffs else 'DIFFERENT'}  {len(keys)} runs, {len(diffs)} differ; "
           f"equal bus hashes: {hashes}" + (f"; a bus hash in one run only (not compared): {one_sided}" if one_sided else "") +
-          restricted)
+          (f"; equal CACHE_STATS lines: {stats}" if a.stats else "") +
+          (f"; compared by reports only: {', '.join(sorted(only))}" if only else "") + restricted)
     return 1 if diffs else 0
 
 
@@ -815,6 +850,11 @@ def main():
     c.add_argument("--same-sources", nargs=2, metavar=("REV_A", "REV_B"),
                    help="compare only the programs whose sources are identical in these two revisions of this "
                         "repository (A's runs are of REV_A, B's of REV_B)")
+    c.add_argument("--reports-only", action="append", default=[], metavar="PROGRAM",
+                   help="compare this program (for example asm/hpm; repeat the option for more) by its reports and verdict only, and "
+                        "do not leave them out of a --same-sources comparison")
+    c.add_argument("--stats", action="store_true",
+                   help="also require the same CACHE_STATS line in both runs of every program compared in full")
     a = ap.parse_args()
     if a.cmd == "run":
         bad = [v for v in a.variables if not re.match(r"^[A-Z_]+=", v)]
