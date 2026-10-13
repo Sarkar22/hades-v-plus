@@ -29,7 +29,7 @@
 # |   cache of 16-byte lines, where none of the code above stands, and are the only code that    |
 # |   runs between a warm-up pass and the pass that counts.                                       |
 # | EVICTION WINDOW: a warm-up pass, the counters cleared, the eviction block, then the pass.     |
-# | WARM WINDOW: the pass again.                                                                 |
+# | WARM WINDOW: a warm-up pass, the counters cleared, the pass again.                            |
 # |                                                                                              |
 # | Counters, set 1:  3 IC_MISS  4 IC_FILL  5 IC_BEAT  6 IC_HIT_USED  7 FETCH_DELIVER             |
 # |                   8 IC_ABANDON  9 IC_MISS_JUMP                                               |
@@ -422,9 +422,9 @@ tramp_evict:                      # s9 = the function, s8 = the eviction block +
     jr   s10
 tramp_warm:
     mv   s10, ra
+    jalr ra, 0(s9)                # a warm-up pass (the lines past the function's end may have been evicted)
     jal  ra, clr7
-    jalr ra, 0(s9)
-    jalr ra, 0(s9)
+    jalr ra, 0(s9)                # the pass that counts
     jr   s10
 tramp_end:
 

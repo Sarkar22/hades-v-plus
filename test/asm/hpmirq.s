@@ -27,8 +27,9 @@
 # |      counter 3 = counter 4 (probes 1 and 3 to 6)                                             |
 # |   B  INTERRUPT = the handler entries                                                         |
 # |   C  REPLAY = 0 where nothing is replayed (probes 0 to 3 and 5); in probes 4 and 6 REPLAY is |
-# |      at most the entries whose mepc is the probe, and equal to them on a memory that         |
-# |      answers in one cycle (a bubble in front of the probe also leaves mepc there)            |
+# |      at most the entries whose mepc is the probe at every delay (an interrupt decided at the |
+# |      instruction in front of the probe leaves mepc there too, and replays nothing), and, on  |
+# |      a memory that answers in one cycle, 1 over the whole sweep (the probe is J at one delay) |
 # |   D  REDIRECT_WB + p = EXCEPTION + INTERRUPT + MRET + FENCE_I - q - r, with p = 0 at the end |
 # |      of the window and q, r (an mret that takes an interrupt at once, a fence.i that retires |
 # |      as J) at most 1 here: the right side minus the left is 0, or 0 or 1 in probes 3, 5, 6   |
@@ -176,9 +177,7 @@ loop\id:
     .else
     sltu t4, s7, a3
     or   s9, s9, t4
-    sub  t4, a3, s7
-    and  t4, t4, s5
-    or   s9, s9, t4
+    add  s1, s1, a3               # (summed over the sweep)
     .endif
     add  t4, a4, a7               # D
     add  t4, t4, t5
@@ -206,6 +205,12 @@ loop\id:
     assert_value s10, 0
     .if \p2
     assert_value s1, 0
+    .endif
+    .if \rp
+    addi t0, s1, -1               # the probe is replayed at one delay of the sweep, once
+    snez t0, t0
+    and  t0, t0, s5
+    sw   t0, 0(t3)
     .endif
 .endm
 
@@ -314,6 +319,10 @@ handler:
     csrr gp, mepc
     bne  gp, s6, 1f
     addi s7, s7, 1
+    addi gp, zero, 6
+    bne  t2, gp, 1f               # probe 6: a replayed mret would return to itself
+    la   gp, pr6_target           # (mepc is its own address): go where it goes
+    csrw mepc, gp
 1:  sw   zero, 4(t3)
     .rept 6
     nop

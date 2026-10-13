@@ -29,7 +29,7 @@ tasks
 perf
 #?dut ^3\s+FETCH_WAIT\s+0\s+0\.00$
 #?dut ^4\s+FRONT_OK\s+\d+
-#?dut ^9\s+REDIRECT_ANY\s+\d+
+#?dut ^8\s+REDIRECT_ANY\s+\d+
 #?dut ^of the \d+ cycles counted: FETCH_WAIT 0\.0% FRONT_OK \d+\.\d% HAZARD \d+\.\d% MSTALL_ANY \d+\.\d% MEMWAIT_ANY \d+\.\d% REDIRECT_ANY \d+\.\d%
 #?dut ^CPI:\s+\d+\.\d\d
 # 4. All counters are in use; a cache event does not exist here.
@@ -45,7 +45,7 @@ mul 12345 6789
 perf
 #?dut ^3\s+LOAD\s+\d+
 #?dut ^4\s+STORE\s+\d+
-#?dut ^7\s+CSR\s+\d+
+#?dut ^9\s+CSR\s+\d+
 perf clear
 perf stop
 perf
