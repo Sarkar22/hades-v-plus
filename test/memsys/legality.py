@@ -608,7 +608,7 @@ for caches in (["ICACHE=512"], ["ICACHE=8192"], ["ICACHE=512", "DCACHE=512"], ["
 
 def wrapper_references(tmp):
     """Every line of sim/top.sv that names a memory wrapper instance lies in the branch of its
-    configuration: mcu.memory_delay under `ifdef HADES_ICACHE_BYTES, the two uncached instances (fetch and data) under the
+    configuration: mcu.memory_delay anywhere inside an `ifdef HADES_ICACHE_BYTES branch (a nested data-cache branch counts), the two uncached instances (fetch and data) under the
     `elsif HADES_SLOW_MEM that follows it."""
     stack, bad, seen = [], [], 0
     for n, l in enumerate(open(os.path.join(REPO, "sim", "top.sv")), start=1):
@@ -628,7 +628,7 @@ def wrapper_references(tmp):
         branch = stack[-1] if stack else None
         if re.search(r"\bmcu\.memory_delay\b", l):
             seen += 1
-            if branch != ("ifdef", "HADES_ICACHE_BYTES"):
+            if ("ifdef", "HADES_ICACHE_BYTES") not in stack:
                 bad.append(f"line {n}: mcu.memory_delay in {branch}")
         if re.search(r"\bmcu\.(fetch|data)_memory_delay\b", l):
             seen += 1
