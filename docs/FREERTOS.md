@@ -532,8 +532,9 @@ configuration with a slow memory, with or without a cache, `freertos.mk` therefo
   three mean interrupt intervals (`MZBA_IRQ_MEAN`) by it, and `brk` multiplies its external
   interrupt intervals and its sleep period, so that interrupts and wake-ups arrive at about the
   same rate per instruction as in the standard build. An explicit `DEFS=-DMZBA_IRQ_MEAN=...`
-  overrides the interval of `mzba`. Without a slow memory the factor is 1 and the standard images
-  are byte for byte the same.
+  overrides the interval of `mzba`. The interval a `mzba` build uses is shown in its build line and in
+  the label of each run (`irq_mean=18000`, for the rv32i build at `MEM_LAT=2`). Without a slow
+  memory the factor is 1 and the standard images are byte for byte the same.
 - **The cycle limit**: the default `TIMEOUT` of a program whose limit is a fixed number (`minimal`,
   `stress`, `mzba`, `brk`, `shell`, `loader`, `template`) is multiplied by `ceil(TICK / 10000)`;
   the limit of `full` already follows the tick and is used as computed. `TIMEOUT=` overrides.
