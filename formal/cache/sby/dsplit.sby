@@ -1,0 +1,86 @@
+# SPDX-License-Identifier: MIT
+# The decomposed harness of the fallback ladder for the properties of both caches: each
+# property's share on the D-cache alone (harness/dcache_top.sv, tasks dcache_<property>_<config>),
+# on the I-cache alone (harness/icache_top.sv, the shares of props/cache_props.vh, tasks
+# icache_<property>_<config>) and on the arbiter alone with both caches' masters
+# (harness/arbiter_id_top.sv, tasks arbid_<property>_<config>). A property passes this step when
+# each of its shares passes. dbound, dbound_cpu and ddata_indep have no decomposed harness.
+# Depths: those of the minimum-depth step, set by run.sh.
+[tasks]
+dcache_load_data_tiny             load_data           dc  dc_tiny         tiny
+dcache_dline_data_tiny            dline_data          dc  dc_tiny         tiny
+dcache_store_mem_tiny             store_mem           dc  dc_tiny         tiny
+dcache_dfill_kept_tiny            dfill_kept          dc  dc_tiny         tiny
+dcache_dack_req_tiny              dack_req            dc  dc_tiny_free    tiny
+dcache_dwindow_tiny               dwindow             dc  dc_tiny_free    tiny
+dcache_drefill_stable_tiny        drefill_stable      dc  dc_tiny_free    tiny
+dcache_dreset_state_tiny          dreset_state        dc  dc_tiny         tiny
+icache_id_fetch_data_tiny         id_fetch_data       ic  ic_tiny         tiny
+icache_id_store_fetch_tiny        id_store_fetch      ic  ic_tiny         tiny
+arbid_store_mem_tiny              store_mem           ar  ar_tiny         tiny
+arbid_id_refill_no_write_tiny     id_refill_no_write  ar  ar_tiny         tiny
+arbid_dfill_kept_tiny             dfill_kept          ar  ar_tiny         tiny
+dcache_store_mem_nowait           store_mem           dc  dc_nowait       tiny
+dcache_dreset_state_nowait        dreset_state        dc  dc_nowait       tiny
+arbid_store_mem_nowait            store_mem           ar  ar_nowait       tiny
+dcache_load_data_second           load_data           dc  dc_second       second
+dcache_dline_data_second          dline_data          dc  dc_second       second
+dcache_store_mem_second           store_mem           dc  dc_second       second
+dcache_dreset_state_second        dreset_state        dc  dc_second       second
+arbid_store_mem_second            store_mem           ar  ar_second       second
+
+[options]
+mode bmc
+tiny: depth 40
+second: depth 30
+
+[engines]
+smtbmc bitwuzla
+
+[script]
+load_data:          verilog_defaults -add -DCHECK_LOAD_DATA
+dline_data:         verilog_defaults -add -DCHECK_DLINE_DATA
+store_mem:          verilog_defaults -add -DCHECK_STORE_MEM
+dfill_kept:         verilog_defaults -add -DCHECK_DFILL_KEPT
+dack_req:           verilog_defaults -add -DCHECK_DACK_REQ
+dwindow:            verilog_defaults -add -DCHECK_DWINDOW
+drefill_stable:     verilog_defaults -add -DCHECK_DREFILL_STABLE
+dreset_state:       verilog_defaults -add -DCHECK_DRESET_STATE
+id_fetch_data:      verilog_defaults -add -DCHECK_FETCH_DATA
+id_store_fetch:     verilog_defaults -add -DCHECK_STORE_FETCH
+id_refill_no_write: verilog_defaults -add -DCHECK_ID_REFILL_NO_WRITE
+dc: verilog_defaults -add -DFH_DCACHE
+ic: verilog_defaults -add -DFH_ICACHE
+ar: verilog_defaults -add -DFH_ARBITER
+dc_tiny:      read_verilog -sv -formal dcache_tiny.v
+dc_tiny_free: read_verilog -sv -formal dcache_tiny_free.v
+dc_nowait:    read_verilog -sv -formal dcache_tiny_nowait.v
+dc_second:    read_verilog -sv -formal dcache_second.v
+ic_tiny:      read_verilog -sv -formal icache_tiny.v
+ar_tiny:      read_verilog -sv -formal arbid_tiny.v
+ar_nowait:    read_verilog -sv -formal arbid_tiny_nowait.v
+ar_second:    read_verilog -sv -formal arbid_second.v
+dc: hierarchy -top dcache_top
+ic: hierarchy -top icache_top
+ar: hierarchy -top arbiter_id_top
+proc
+flatten
+memory -nomap
+memory_map
+opt_clean
+dc: prep -top dcache_top
+ic: prep -top icache_top
+ar: prep -top arbiter_id_top
+
+[files]
+../gen/dcache_tiny.v
+../gen/dcache_tiny_free.v
+../gen/dcache_tiny_nowait.v
+../gen/dcache_second.v
+../gen/icache_tiny.v
+../gen/arbid_tiny.v
+../gen/arbid_tiny_nowait.v
+../gen/arbid_second.v
+../gen/observe_ram.vh
+../props/cache_props.vh
+../props/dcache_props.vh

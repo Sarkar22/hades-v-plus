@@ -13,8 +13,8 @@
 # mutant from a command instead of from this table.
 #
 # ---- the I-cache ----
-no-snoop | line_data store_fetch | rtl/cache/icache.sv | | | the snoop never invalidates
-no-second-lookup | fetch_data | rtl/cache/icache.sv | | | after the last beat, the refilled word for the latched address is acknowledged in the next cycle, whatever is presented
+no-snoop | line_data store_fetch id_fetch_data id_store_fetch | rtl/cache/icache.sv | | | the snoop never invalidates
+no-second-lookup | fetch_data id_fetch_data | rtl/cache/icache.sv | | | after the last beat, the refilled word for the latched address is acknowledged in the next cycle, whatever is presented
 latched-lookup | fetch_data | rtl/cache/icache.sv | | | in the second-lookup cycle the hit is computed for the latched address
 ignore-valid | fetch_data | rtl/cache/icache.sv | | | the hit ignores the valid bit
 reset-keeps-valid | reset_state | rtl/cache/icache.sv | | | a reset leaves the valid bits set
@@ -33,13 +33,33 @@ reset-keeps-state | reset_state | rtl/cache/icache.sv | | | a reset clears the v
 refill-never-ends | bound | rtl/cache/icache.sv | | | after the last beat the I-cache stays in REFILL and refills the line again
 #
 # ---- the arbiter ----
-grant-free-between-beats | line_data refill_no_write grant_kept | rtl/cache/mem_arbiter.sv | | | the port is free after every beat of a refill
+grant-free-between-beats | line_data refill_no_write grant_kept id_refill_no_write | rtl/cache/mem_arbiter.sv | | | the port is free after every beat of a refill
 answer-to-any-side | answer_req grant_route | rtl/cache/mem_arbiter.sv | | | the memory's answer (ack, err, read data) goes to every slave side whose cyc is 1, regardless of the grant and of stb
 store-sel-forced | store_once | rtl/cache/mem_arbiter.sv | | | sel is not passed through on data writes (forced to 1111)
 grant-never-released | bound | rtl/cache/mem_arbiter.sv | | | after a refill block the owner stays IREFILL until the I-cache requests again
 write-replay | store_once | rtl/cache/mem_arbiter.sv | | | an answered data write is presented to the memory once more in the next cycle
-i-side-starved | bound_cpu | rtl/cache/mem_arbiter.sv | | | a refill is granted only in a cycle that follows a cycle in which the port was idle
+i-side-starved | bound_cpu dbound_cpu | rtl/cache/mem_arbiter.sv | | | a refill is granted only in a cycle that follows a cycle in which the port was idle
 irefill-answer-by-owner | answer_req grant_route | rtl/cache/mem_arbiter.sv | | | the memory's answer also goes to the I-side when the owner is IREFILL (irefill.ack = (gi \|\| owner == IREFILL) && mem.ack, err and read data likewise)
+#
+# ---- the D-cache and the arbiter with D-refill blocks (the harness of both caches) ----
+drop-lane-enable | load_data dline_data | rtl/cache/dcache.sv | | | lane 2's write enable on store hits is never set
+valid-on-store-miss | load_data dline_data | rtl/cache/dcache.sv | | | a store miss writes the lanes and the tag and sets valid, without a refill
+store-hit-skips-memory | store_mem | rtl/cache/dcache.sv | | | a store hit is acknowledged at once and written into the lanes without a memory write
+ignore-valid-data | load_data | rtl/cache/dcache.sv | | | the D-cache's hit ignores the valid bit
+forward-memory-ack | load_data dack_req store_mem | rtl/cache/dcache.sv | | | every memory ack is passed to the presented request with the memory's read data: a refill beat answers the held load
+data-refill-word-off-by-one | load_data dline_data | rtl/cache/dcache.sv | | | D-refill beat k is written to word k+1
+store-writes-all-lanes | dline_data | rtl/cache/dcache.sv | | | a store hit writes all four lanes
+data-ack-in-refill | dack_req | rtl/cache/dcache.sv | | | the D-cache's load hit is not gated by LOOKUP
+data-refill-follows-cpu-adr | dwindow drefill_stable | rtl/cache/dcache.sv | | | the refill's line is taken from the presented address
+data-refill-gap | dfill_kept dbound | rtl/cache/dcache.sv | | | the D-cache drops its request for a cycle after each beat
+refill-beats-continuing-data | dfill_kept dbound | rtl/cache/mem_arbiter.sv | | | the arbiter grants an I-refill over a continuing data beat
+data-cont-on-first-beat | dfill_kept | rtl/cache/dcache.sv | | | the D-cache's mem_cont is also set on beat 0
+data-cont-ignored | dfill_kept | rtl/cache/mem_arbiter.sv | | | the arbiter's mem_cont ignores data_cont
+data-always-continues | arb_equiv | rtl/cache/mem_arbiter.sv | | | mem_cont = (gi && irefill_cont) \|\| gd
+data-reset-keeps-state | dreset_state | rtl/cache/dcache.sv | | | a reset clears the D valid bits but not the state and the beat counter
+data-reset-keeps-valid | dreset_state | rtl/cache/dcache.sv | | | a reset leaves the D valid bits as they are
+data-dependent-store-hit | ddata_indep | rtl/cache/dcache.sv | | | a store with a zero lowest byte is treated as a miss
+store-hit-ignores-tag | dline_data | rtl/cache/dcache.sv | | | a store writes its lanes whenever the set's valid bit is set, without the tag compare
 #
 # ---- the interconnect and its mask ----
 interconnect-default-exempt | ic_default | lib/wishbone/wishbone_interconnect.sv | TIMEOUT_EXEMPT = '0 | TIMEOUT_EXEMPT = '1 | the default of TIMEOUT_EXEMPT is all ones

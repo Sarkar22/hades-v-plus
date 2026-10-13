@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: MIT
+# Covers of the memory system with both caches (harness/memsys_top.sv): every cover statement of
+# props/dcache_props.vh must be reached. cover_id_tiny and cover_id_second: the general covers
+# (and, in the second configuration, a load miss behind an I-refill followed by a hit to the same
+# line); cover_id_cpu_*: with the CPU-like data side, the coincident misses that meet bound (b)
+# at R + 1 exactly, and K_OLDER stores that meet it where that term binds (tiny).
+[tasks]
+cover_id_tiny         tiny
+cover_id_second       second
+cover_id_cpu_tiny     tiny_cpu
+cover_id_cpu_nowait   nowait_cpu
+cover_id_cpu_second   second_cpu
+
+[options]
+mode cover
+tiny: depth 50
+tiny_cpu: depth 50
+nowait_cpu: depth 50
+second: depth 30
+second_cpu: depth 30
+
+[engines]
+smtbmc bitwuzla
+
+[script]
+verilog_defaults -add -DCOVERS -DFH_ICACHE -DFH_DCACHE -DFH_ARBITER -DFH_FULL
+tiny:       read_verilog -sv -formal memsys_tiny.v
+tiny_cpu:   read_verilog -sv -formal memsys_tiny_cpu.v
+nowait_cpu: read_verilog -sv -formal memsys_tiny_nowait_cpu.v
+second:     read_verilog -sv -formal memsys_second.v
+second_cpu: read_verilog -sv -formal memsys_second_cpu.v
+hierarchy -top memsys_top
+proc
+flatten
+memory -nomap
+memory_map
+opt_clean
+prep -top memsys_top
+
+[files]
+../gen/memsys_tiny.v
+../gen/memsys_tiny_cpu.v
+../gen/memsys_tiny_nowait_cpu.v
+../gen/memsys_second.v
+../gen/memsys_second_cpu.v
+../gen/observe_ram.vh
+../props/dcache_props.vh

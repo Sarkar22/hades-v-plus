@@ -12,6 +12,8 @@
 // - Reads return the tracked word at the tracked address and free values elsewhere.
 // - A write answered at the tracked address updates the tracked word by its sel lanes.
 // - err only outside the window, and never together with ack.
+// - With FCACHE_WRITE_NOWAIT (config.svh) a write is answered in its first cycle; reads keep their
+//   0 to F_MAX_WAIT wait cycles.
 // ---------------------------------------------------------------------------------------------
     wire         m_req = mbus.cyc && mbus.stb;
     logic        m_q_open;                  // the previous cycle presented an unanswered transfer
@@ -22,7 +24,11 @@
     wire         m_same = m_q_open && m_req && mbus.adr == m_q_adr && mbus.we == m_q_we &&
                           mbus.sel == m_q_sel && mbus.dat_mosi == m_q_dat;
     wire  [1:0]  m_wait = m_same ? m_q_wait + 2'd1 : 2'd0;   // wait cycles spent before this one
+`ifdef FCACHE_WRITE_NOWAIT
+    wire         m_ans  = m_req && !rst && (in_m_ans || mbus.we || m_wait == 2'(F_MAX_WAIT));
+`else
     wire         m_ans  = m_req && !rst && (in_m_ans || m_wait == 2'(F_MAX_WAIT));
+`endif
     assign mbus.err      = m_ans && !f_inwin(mbus.adr) && in_m_err;
     assign mbus.ack      = m_ans && !mbus.err;
     assign mbus.dat_miso = (!mbus.we && mbus.adr == f_adr) ? f_word : in_m_dat;

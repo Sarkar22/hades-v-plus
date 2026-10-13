@@ -2,11 +2,13 @@
 # SPDX-License-Identifier: MIT
 # ladder.sh <work_dir> <property> <config> <step_limit_s> <sim_cycles> [<depth>]
 #   The fallback ladder of one property in one configuration (formal/cache/README.md):
-#     1. the stated depth (tiny 40, second 30) with each engine in turn: smtbmc with bitwuzla,
-#        then Yices, then z3;
+#     1. the stated depth (the I-cache's properties: tiny 40, second 30; those of both caches:
+#        tiny and nowait 50, second 30) with each engine in turn: smtbmc with bitwuzla, then Yices,
+#        then z3;
 #     2. the property's minimum depth, with each engine in turn;
-#     3. the decomposed harness (the I-cache alone, the arbiter alone; sby/split.sby): every share
-#        of the property at the minimum depth, with each engine in turn;
+#     3. the decomposed harness (the I-cache alone, the arbiter alone; sby/split.sby; with both
+#        caches also the D-cache alone and the arbiter with both caches' masters, sby/dsplit.sby):
+#        every share of the property at the minimum depth, with each engine in turn;
 #     4. the narrower memory (0 or 1 wait cycles) at the minimum depth, with each engine in turn;
 #     5. no proof: a random simulation of the harness with the property's checks (scripts/sim.sh).
 #   Each step has <step_limit_s> seconds, a third for each engine. A counterexample ends the ladder
@@ -19,20 +21,19 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 W="$1"; P="$2"; C="$3"; LIMIT="$4"; SIMCYC="$5"; DOVR="${6:-}"
 START=$(date +%s)
 TO=$(( LIMIT / 3 ))
+source "$HERE/props.sh"
 
-case "$C" in tiny) STATED=40;; second) STATED=30;; *) echo "ladder.sh: unknown configuration $C"; exit 2;; esac
-case "$P" in
-    fetch_data|line_data|store_fetch) MIN=35;;
-    reset_state) MIN=18;;
-    *) MIN=20;;
-esac
+case "$C" in tiny|second|nowait) ;; *) echo "ladder.sh: unknown configuration $C"; exit 2;; esac
+STATED=$(stated_depth "$P" "$C")
+MIN=$(min_depth "$P")
 [ -n "$DOVR" ] && STATED="$DOVR"
 [ "$MIN" -gt "$STATED" ] && MIN="$STATED"
 # the base sby file and task of the full harness, and the shares of the decomposed harness
-if [ "$P" = data_indep ]; then BASE=pair; else BASE=cache; fi
+BASE=$(prop_sby "$P")
+SPLIT=$(prop_split "$P")
 TASK="${P}_${C}"
-SHARES=$(sed -n '/^\[tasks\]/,/^$/p' "$W/sby/split.sby" | awk -v t="_${P}_${C}" 'NF && $1 ~ t"$" {print $1}' |
-         grep -E "^(icache|arbiter)_${P}_${C}$")
+SHARES=$(sed -n '/^\[tasks\]/,/^$/p' "$W/sby/$SPLIT.sby" | awk -v t="_${P}_${C}" 'NF && $1 ~ t"$" {print $1}' |
+         grep -E "^(icache|arbiter|dcache|arbid)_${P}_${C}$")
 
 engine_line() {
     case "$1" in
@@ -48,11 +49,11 @@ derive() {
     [ "$4" = 1 ] && name="${name}_narrow"
     if [ ! -f "$W/sby/$name.sby" ]; then
         local tmp="$W/sby/.$name.$$"
-        sed -e "s/^\(tiny\|tiny_cpu\|second\|second_cpu\): depth [0-9]*$/\1: depth $2/" \
+        sed -e "s/^\([a-z_]*\): depth [0-9]*$/\1: depth $2/" \
             -e "s/^depth [0-9]*$/depth $2/" \
             -e "s/^smtbmc bitwuzla$/$(engine_line "$3")/" "$W/sby/$1.sby" > "$tmp"
         if [ "$4" = 1 ]; then
-            sed -i -e 's/\b\(cache\|pair\)_\(tiny\|second\)\(_cpu\)\{0,1\}\.v/\1_\2_narrow\3.v/g' "$tmp"
+            sed -i -e "$NARROW_SED" "$tmp"
         fi
         mv -f "$tmp" "$W/sby/$name.sby"
     fi
@@ -87,7 +88,7 @@ if [ -n "$SHARES" ]; then
     for sh in $SHARES; do
         got=""
         for e in bw yi z3; do
-            s=$(derive split "$MIN" "$e" 0)
+            s=$(derive "$SPLIT" "$MIN" "$e" 0)
             st=$(attempt "$s" "$sh")
             [ "$st" = PASS ] && { got=$e; break; }
             [ "$st" = FAIL ] && break

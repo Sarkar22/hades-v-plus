@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: MIT
+# The arbiter of the tree with data_cont = 0 against the base commit's arbiter
+# (harness/arbiter_equiv_top.sv): arb_equiv, unbounded by induction (mode prove); arb_equiv_bmc,
+# the fallback, a bounded check to depth 50; cover_arb_equiv, its cover.
+[tasks]
+arb_equiv         prove
+arb_equiv_bmc     bmc
+cover_arb_equiv   cover
+
+[options]
+prove: mode prove
+prove: depth 4
+bmc: mode bmc
+bmc: depth 50
+cover: mode cover
+cover: depth 20
+
+[engines]
+smtbmc bitwuzla
+
+[script]
+prove: verilog_defaults -add -DCHECK_ARB_EQUIV
+bmc:   verilog_defaults -add -DCHECK_ARB_EQUIV
+cover: verilog_defaults -add -DCOVERS
+read_verilog -sv -formal equiv.v
+hierarchy -top arbiter_equiv_top
+proc
+flatten
+opt_clean
+prep -top arbiter_equiv_top
+
+[files]
+../gen/equiv.v
+../props/equiv_props.vh
