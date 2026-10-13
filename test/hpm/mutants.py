@@ -43,7 +43,8 @@ it catches a mutant when it then fails:
     hpmcache     test/memsys/hpmcache.s with an instruction cache (ICACHE=512 MEM_LAT=2)
     check-<A..I> test programs in a simulator whose selectors reset to the preset <A..I> (make
                  HPM_PRESET=<letter>), with +hpm_check: caught when the model of sim/top.sv stops the run
-    gate         test/hpm/identities.py on the HPM lines (+hpm_stats) of a few programs
+    gate         test/hpm/identities.py on the HPM lines (+hpm_stats) of a few programs (the line holds the totals of
+                 the monitor's model, so it checks the testbench and the programs, not the events of rtl/hpm_events.sv)
     cache        the counters of the cache events against CACHE_STATS (HPM_PRESET=H and I with ICACHE=512)
     sweep        sweep.py run --fam hpm --targets dut: caught when a program is not ISS-consistent
 A program passes a check when its output has the line 'All tests passed! (# Errors: 1 = initial test)'.
@@ -160,9 +161,12 @@ MUTANTS = [
     m("exception-from-redirect", "EXCEPTION is counted from Writeback's JUMP instead of the trap entry.",
       [(WB, r"(hpm_trap\[hpm_pkg::EV_EXCEPTION\]\s*=\s*)exception_taken;", r"\g<1>(status_backwards_out == pipeline_status::JUMP);", 1)],
       ["gate", "hpm", "check-D"]),
+    # Only hpmwait can catch this one: it needs a fetch port that waits in a cycle in which the M unit holds
+    # Execute (Decode holds a bubble and tells Fetch READY), so the standard build cannot show it (check-A
+    # runs there), and the gate reads the totals of the monitor's own model, which the patch does not touch.
     m("fetch-wait-without-ready", "FETCH_WAIT without the condition that Execute is ready (the overlapping definition).",
       [(EVENTS, r"(fetch_wait\s*=\s*r_valid\s*&&\s*)r_e == READY\s*&&\s*", r"\g<1>", 1)],
-      ["gate", "check-A", "hpmwait"]),
+      ["hpmwait", "check-A", "gate"]),
     m("timer-external-swapped", "INT_TIMER and INT_EXT swap.",
       [(WB, r"(hpm_trap\[hpm_pkg::EV_INT_TIMER\]\s*=\s*interrupt_taken\s*&&\s*)!ext_int_pending", r"\g<1>ext_int_pending", 1),
        (WB, r"(hpm_trap\[hpm_pkg::EV_INT_EXT\]\s*=\s*interrupt_taken\s*&&\s*)ext_int_pending", r"\g<1>!ext_int_pending", 1)],
