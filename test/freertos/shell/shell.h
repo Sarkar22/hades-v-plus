@@ -22,6 +22,13 @@
 #define SHELL_LOADER            0
 #endif
 
+/* 1 in the loader configuration built with HPM_PERF=1 (make freertos-shell APP=loader HPM_PERF=1):
+ * adds the command perf (perf.c), the hardware performance counters. Off by default, so the
+ * default builds are the same with or without perf.c in the tree. */
+#ifndef HPM_PERF
+#define HPM_PERF                0
+#endif
+
 /* The prompt. The simulation's console bridge (sim/console.cpp) waits for it before it
  * types the next line of a script or of a paste; its +console_prompt= default is the
  * same string. */
@@ -153,6 +160,9 @@ typedef struct
         uint8_t ucZbkx; /* xperm8 executes */
         uint8_t ucZknh; /* sha256sum0 executes */
     #endif
+    #if SHELL_LOADER && HPM_PERF
+        uint8_t ucHpm;  /* mhpmevent3 is readable (perf.c then counts the counters by read-back) */
+    #endif
 } ShellCpu_t;
 extern ShellCpu_t xShellCpu;
 
@@ -221,6 +231,11 @@ int loader_exception( uint32_t ulCause, uint32_t ulPc );
 BaseType_t loader_cmd_load( char * pcOut, size_t xOutLen, const char * pcCommand );
 BaseType_t loader_cmd_run( char * pcOut, size_t xOutLen, const char * pcCommand );
 BaseType_t loader_cmd_app( char * pcOut, size_t xOutLen, const char * pcCommand );
+
+#if HPM_PERF
+/* The command perf (perf.c). */
+BaseType_t perf_command( char * pcOut, size_t xOutLen, const char * pcCommand );
+#endif
 
 #endif /* SHELL_LOADER */
 

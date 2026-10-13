@@ -15,6 +15,15 @@ APP_REF_SRCS     := $(FRTOS_DIR)/shell/swmodel.c
 APP_INCLUDES     := -I$(FREERTOS_PLUS_CLI) -I$(FRTOS_DIR)/shell -I$(FRTOS_DIR)/sdk
 APP_KERNEL_SRCS  := tasks.c queue.c list.c
 APP_DEFS         := -DSHELL_LOADER=1 -DSHELL_RX_BUFFER=128
+# HPM_PERF=1 adds the command perf (the hardware performance counters; test/freertos/shell/perf.c,
+# std/include/hpm.h, docs/SHELL.md). Off by default: without it the image is the one without perf.c.
+ifeq ($(HPM_PERF),1)
+APP_SRCS         += $(FRTOS_DIR)/shell/perf.c
+APP_INCLUDES     += -I$(STD_LIB_DIR)/include
+APP_DEFS         += -DHPM_PERF=1
+else ifneq ($(filter-out 0,$(HPM_PERF)),)
+$(error HPM_PERF='$(HPM_PERF)': give 1 to build the loader with the command perf, or leave it unset)
+endif
 # -Os unless OPT= is given, as for the shell; every level fits the shell's 128 KiB.
 ifeq ($(filter command line,$(origin OPT) $(origin FRTOS_OPT)),)
 FRTOS_OPT        := -Os

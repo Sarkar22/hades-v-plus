@@ -9,6 +9,9 @@
 ifeq ($(wildcard $(FREERTOS_PLUS_CLI)/FreeRTOS_CLI.c),)
 $(error FreeRTOS+CLI not found at $(FREERTOS_PLUS_CLI). It is part of the repository, in third_party/freertos/: if FREERTOS_HOME or FREERTOS_PLUS_CLI is set, unset it or point it to a complete checkout; if files are missing, restore them with 'git checkout -- third_party/freertos'. See docs/FREERTOS.md)
 endif
+ifneq ($(filter-out 0,$(HPM_PERF)),)
+$(error HPM_PERF applies to the loader's build only (the shell's own image has no room for perf): make freertos-shell APP=loader HPM_PERF=1)
+endif
 APP_SRCS        := $(APP_DIR)/main.c $(APP_DIR)/console.c $(APP_DIR)/commands.c $(APP_DIR)/format.c \
                    $(FREERTOS_PLUS_CLI)/FreeRTOS_CLI.c
 # The software model of M and Zba is always compiled for plain rv32i.
