@@ -48,7 +48,12 @@
 # | the tested lines that retire before the next step, counted on the standard build); and every |
 # | step refills the block's odd lines whose tested line ran since the previous step on the      |
 # | wrong path, each one abandoned at its last beat, so i_abandoned is at least 166 (at least 4  |
-# | per case). Both hold with 16-byte lines in a 512-byte and in an 8 KiB cache.                 |
+# | per case). Both hold with 16-byte lines in a 512-byte and in an 8 KiB cache. Measured per    |
+# | case (CACHE_STATS_MARK lines of +cache_stats_marks, at the reports of the program;           |
+# | matrix.py, leg directed-coverage, requires the per-case minimum): i_abandoned in the         |
+# | 512-byte cache at MEM_LAT=2, mode 0: case 2 135, case 3 29, case 4 27; mode 3: 111, 28, 26;  |
+# | in the 8 KiB cache, mode 0: 99, 18, 8; mode 3: 58, 17, 7 (case 2 has four passes, hence      |
+# | more).                                                                                       |
 # |                                                                                              |
 # | Register allocation:                                                                         |
 # |     x5  (t0):   reserved for macro use                                                       |

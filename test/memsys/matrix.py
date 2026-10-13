@@ -50,6 +50,7 @@ build the uncached configuration.
 """
 import argparse
 import concurrent.futures as cf
+import fcntl
 import hashlib
 import json
 import os
@@ -77,8 +78,11 @@ PROFILES = {
     "dram":   ["MEM_LAT=8:24", "MEM_WR_LAT=1:4", "MEM_BEAT_LAT=0"],
     # the uncached baseline of the CPI measurement: two ports, bursts off
     "dram-nobursts": ["MEM_LAT=8:24", "MEM_WR_LAT=1:4"],
+    # fixed latencies of the interrupt-latency validation (irqlat.s)
+    "lat1":   ["MEM_LAT=1"],
+    "lat5":   ["MEM_LAT=5"],
 }
-CACHES = {"i512": ["ICACHE=512"], "i8k": ["ICACHE=8192"], "standard": [],
+CACHES = {"i512": ["ICACHE=512"], "i8k": ["ICACHE=8192"], "i16k": ["ICACHE=16384"], "standard": [],
           "i512-line8": ["ICACHE=512", "LINE=8"], "i512-line32": ["ICACHE=512", "LINE=32"],
           "i512-line64": ["ICACHE=512", "LINE=64"]}
 # the automatic FreeRTOS tick factor F of each profile with a cache (test/freertos/freertos.mk)
@@ -481,13 +485,17 @@ def exit_judge(job, rc, out, d):
 
 
 def cpi_judge(job, rc, out, d):
-    """A CPI row: the helper's exit status and the logs as for any job, and the row's marks recorded
-    (a program's own check that ended the run early, and the second line run with the automatic tick)."""
+    """A CPI row: the helper's exit status and the logs as for any job (a column ended early by the program's own
+    check is not a failure of the tool: the row is marked and run again with the automatic tick), and the
+    lines of the row's table recorded."""
     verdict, notes = exit_judge(job, rc, out, d)
+    notes = [n for n in notes if not n.startswith("last line")]
     for l in out.splitlines():
-        if l.startswith(("CPI ROW", "FRTOS-RESULT: FAIL", "AUTO FRTOS-RESULT")):
-            notes.append(f"{l[:160]} (recorded)")
-    return verdict, notes
+        if l.startswith("CPI "):
+            notes.append(f"{l[:240]} (recorded)")
+    if not any(n.startswith("CPI ROW") for n in notes):
+        notes.append("no CPI ROW line")
+    return ("PASS" if verdict == "PASS" and not [n for n in notes if "recorded" not in n] else "FAIL"), notes
 
 
 # ---- the coverage of the directed tests (headers of the programs)
@@ -496,6 +504,102 @@ def header_minimum(prog, pattern):
     text = re.sub(r"\s*\|[ \t]*\n#[ \t]*\|\s*", " ", read(os.path.join(REPO, "test", "memsys", prog + ".s")))
     m = re.search(pattern, text, re.S)
     return int(m.group(1)) if m else None
+
+
+def irqchain_positions(job, d):
+    """The interrupt positions that irqchain.s recorded (+ram_words=0x46000,0x46004: the masks of mode 0 and
+    mode 3; bit b is an interrupt whose mepc is the word b after the first nop, 'pad', so bits 0-2 the nops,
+    3 + k the chain instruction k, 19-21 the wait loop). Every position must be reached in at least one mode,
+    except those that cannot be reached; each of those is listed with its reason, and a missing position
+    without a reason fails the job.
+
+    The reasons, derived from the assembled program and rtl/writeback_stage.sv (the program's header has them
+    in words): an interrupt is recognised in the cycle in which an instruction I is in Writeback, I retires,
+    and mepc is the address after the next instruction J if J is in Writeback in the next cycle (it retires
+    too), else the address after I.
+      - bit 0 (mepc = pad): J would be the arming store, so I would have to be in Writeback when the interrupt
+        is pending, which is at least two cycles after the store's bus access, by when I, ahead of the store,
+        has retired: unreachable at any latency.
+      - mepc = word 1 of a cache line: J would be word 0 of that line and I the last word of the line before,
+        retiring in consecutive cycles. The eviction step makes every tested line miss in every iteration, so
+        word 0 of a line reaches Writeback only after the line's refill, many cycles after the last word of the
+        line before: J is a bubble and mepc is word 0 instead. (Without a cache, with a slow memory,
+        these positions are reached: masks 0x3ffffe at MEM_LAT=2.)"""
+    words = re.search(r"^RAM_WORDS (.*)$", read(os.path.join(d, "dut", "memsys-irqchain", "sim.log")), re.M)
+    if not words:
+        return ["irqchain: no RAM_WORDS line"]
+    vals = [int(v, 16) for v in re.findall(r"=(?:0x)?([0-9a-fA-F]+)", words.group(1))]
+    union = 0
+    for v in vals:
+        union |= v
+    log = read(os.path.join(d, "dut", "memsys-irqchain", "sim.log"))
+    lm = LINE_BYTES.search(log)
+    line = int(lm.group(1)) if lm else 16
+    bdir, _ = build_dir(job.vars)
+    dis = read(os.path.join(bdir, "test", "memsys", "irqchain", "init.dis"))
+    pm = re.search(r"^([0-9a-f]+) <pad>:", dis, re.M)
+    if not pm:
+        return ["irqchain: cannot find 'pad' in the disassembly"]
+    pad = int(pm.group(1), 16)
+    why = {0: "bit 0: mepc = pad; J would be the arming store, I retires before the interrupt can be pending"}
+    for b in range(1, 22):
+        if (pad + 4 * b) % line == 4:
+            why[b] = (f"bit {b}: mepc = word 1 of the line at 0x{pad + 4 * b - 4:x}; every tested line misses after the "
+                      f"eviction step, so J (word 0) is a bubble behind the last word of the line before")
+    missing = [b for b in range(22) if not union >> b & 1]
+    unexplained = [b for b in missing if b not in why]
+    reached_anyway = [b for b in why if union >> b & 1]
+    notes = [f"irqchain positions: masks {[hex(v) for v in vals]}, union 0x{union:x}; {22 - len(missing)} of 22 "
+             f"reached; wait loop {'reached' if any(union >> b & 1 for b in (19, 20, 21)) else 'NOT reached'}"
+             + (f"; not reached and explained: {'; '.join(why[b] for b in missing if b in why)}" if missing else "")
+             + (f"; reached although the reason applies: {reached_anyway}" if reached_anyway else "")
+             + " (recorded)"]
+    if unexplained:
+        notes.append(f"irqchain positions without a reason: bits {unexplained}")
+    return notes
+
+
+def fetchredirect_cases(d, minimum):
+    """Abandoned refills of fetchredirect.s per case, from the CACHE_STATS_MARK lines (+cache_stats_marks): the
+    program reports twice at the end of each case (the checksum, the wrong-path counter): report 0 is the
+    initial fail, then cases 2, 3 and 4 in mode 0 (reports 1-6), then in mode 3 (7-12), then the end (13, 14).
+    A case's counts are those between the last report before it and its second report (its eviction step
+    comes first, so it belongs to the case)."""
+    log = read(os.path.join(d, "dut", "memsys-fetchredirect", "sim.log"))
+    marks = {int(m.group(1)): int(m.group(2)) for m in
+             re.finditer(r"CACHE_STATS_MARK report=(\d+) cycles=\d+ i_done=\d+ i_abandoned=(\d+)", log)}
+    if sorted(marks) != list(range(15)):
+        return [f"fetchredirect: {len(marks)} CACHE_STATS_MARK lines, expected 15 (run with +cache_stats_marks)"]
+    notes, rows = [], []
+    for mode, base in ((0, 0), (3, 6)):
+        for case, first in ((2, 0), (3, 2), (4, 4)):
+            lo, hi = base + first, base + first + 2
+            rows.append((mode, case, marks[hi] - marks[lo]))
+    notes.append("fetchredirect i_abandoned per case: " +
+                 ", ".join(f"mode {m} case {c}: {n}" for m, c, n in rows) + " (recorded)")
+    low = [(m, c, n) for m, c, n in rows if n < (minimum or 1)]
+    if minimum is None:
+        notes.append("fetchredirect: no per-case minimum in its header")
+    if low:
+        notes.append(f"fetchredirect: i_abandoned below the header's {minimum} per case: {low}")
+    return notes
+
+
+def positions_confirm_judge(job, rc, out, d):
+    """irqchain.s in a 16 KiB cache: the eviction block, 8 KiB after the tested code, has another index there
+    and evicts nothing, so the tested lines stay cached and the positions that the eviction step makes
+    unreachable (word 1 of a line, see irqchain_positions) are reached. Every position but bit 0 must be."""
+    verdict, notes = programs_judge(job, rc, out, d)
+    words = re.search(r"^RAM_WORDS (.*)$", read(os.path.join(d, "dut", "memsys-irqchain", "sim.log")), re.M)
+    if not words:
+        return "FAIL", notes + ["irqchain: no RAM_WORDS line"]
+    union = 0
+    for v in re.findall(r"=(?:0x)?([0-9a-fA-F]+)", words.group(1)):
+        union |= int(v, 16)
+    missing = [b for b in range(1, 22) if not union >> b & 1]
+    notes.append(f"irqchain positions in the 16 KiB cache: union 0x{union:x}; positions 1 to 21 not reached: {missing or 'none'}"
+                 + (" (recorded)" if not missing else ""))
+    return ("PASS" if verdict == "PASS" and not missing else "FAIL"), notes
 
 
 def coverage_judge(job, rc, out, d):
@@ -543,23 +647,47 @@ def coverage_judge(job, rc, out, d):
             notes.append(f"{prog}: {r.group(1)} cycles, 80% or more of the limit {lim}")
         elif r:
             notes.append(f"{prog}: {r.group(1)} cycles, {100 * int(r.group(1)) / lim:.1f}% of the limit {lim} (recorded)")
-    words = re.search(r"^RAM_WORDS (.*)$", read(os.path.join(d, "dut", "memsys-irqchain", "sim.log")), re.M)
-    if words:
-        vals = [int(v, 16) for v in re.findall(r"=(?:0x)?([0-9a-fA-F]+)", words.group(1))]
-        union = 0
-        for v in vals:
-            union |= v
-        chain = all(union >> b & 1 for b in range(3, 19))
-        wait = any(union >> b & 1 for b in range(19, 22))
-        missing = [b for b in range(3, 22) if not union >> b & 1]
-        notes.append(f"irqchain positions: masks {[hex(v) for v in vals]}; every chain position "
-                     f"{'covered' if chain else 'NOT covered'}, the wait loop {'reached' if wait else 'NOT reached'}"
-                     + (f"; missing bits {missing} (list them with the reason, or fail)" if missing else "")
-                     + " (recorded)")
-    else:
-        notes.append("irqchain: no RAM_WORDS line")
+    notes += irqchain_positions(job, d)
+    notes += fetchredirect_cases(d, header_minimum("fetchredirect", r"\(at least (\d+) per case\)"))
     fails = [n for n in notes if "recorded" not in n]
     return ("PASS" if verdict == "PASS" and not fails else "FAIL"), notes
+
+
+# ---- the validation of +irq_latency: irqlat.s, whose latencies are derived by hand in its header
+# (interrupts, max, mean) at the standard memory and at fixed latencies without a cache
+IRQLAT_EXPECTED = {"std": (6, 2, "2.00"), "lat1": (6, 4, "3.50"), "lat2": (6, 6, "5.00"), "lat5": (6, 12, "9.50")}
+
+
+def irqlat_judge(job, rc, out, d):
+    """The IRQLAT line of irqlat.s against the figures derived by hand in its header, and the program's
+    own reports (programs.py)."""
+    verdict, notes = programs_judge(job, rc, out, d)
+    if job.profile == "std":
+        # the standard simulator has no scoreboard (it is on with a slow memory)
+        notes = [n for n in notes if not n.startswith("scoreboard PASS in")]
+        verdict = "PASS" if rc == 0 and not [n for n in notes if not n.startswith("golden")] else "FAIL"
+    want = IRQLAT_EXPECTED[job.profile]
+    log = read(os.path.join(d, "dut", "memsys-irqlat", "sim.log"))
+    m = re.search(r"^IRQLAT interrupts=(\d+) max=(\d+) mean=([0-9.]+)", log, re.M)
+    if not m:
+        notes.append("no IRQLAT line")
+    else:
+        got = (int(m.group(1)), int(m.group(2)), m.group(3))
+        if got != want:
+            notes.append(f"IRQLAT interrupts={got[0]} max={got[1]} mean={got[2]}, derived by hand: "
+                         f"interrupts={want[0]} max={want[1]} mean={want[2]}")
+        else:
+            notes.append(f"IRQLAT {m.group(0)[7:]} equals the figures derived by hand (recorded)")
+    return ("PASS" if verdict == "PASS" and not [n for n in notes if "recorded" not in n and not n.startswith("golden")]
+            else "FAIL"), notes
+
+
+def irqlat_job(profile):
+    job = programs_job("irq-latency-validation", "standard", profile, only="memsys/irqlat$", cpus="dut",
+                       sim_args="+irq_latency", judge=irqlat_judge, est=2e6,
+                       name="standard-memory" if profile == "std" else f"mem-{profile}")
+    job.needs_cache = False
+    return job
 
 
 # ---- mid-run resets (the reset leg): placed from a +cache_phase_log run
@@ -680,19 +808,34 @@ def resets_job(leg, cache, profile, progs=("memsys/stores", "memsys/fetchredirec
 MODEL_PROGRAMS = ("memsys/fetchredirect", "asm/zkt", "memsys/stores")
 
 
-def model_job(leg, cache, profile, burst=False):
+def model_job(leg, cache, profile, burst=False, step4=False):
+    """One model-agreement job: step 0 (timing independence), steps 1 to 3 (or 5 with burst: the run with
+    MEM_BEAT_LAT=0) for the programs of MODEL_PROGRAMS, and with step4 the informative step 4."""
+    extra = ["MEM_BEAT_LAT=0"] if burst else []
+
     def cmd(d):
         return [sys.executable, os.path.abspath(__file__), "_model", "--dir", d, "--programs",
-                ",".join(MODEL_PROGRAMS), "--"] + config(cache, profile)
+                ",".join(MODEL_PROGRAMS)] + (["--app", "minimal"] if step4 else []) + \
+            ["--"] + config(cache, profile) + extra
+
     def judge(job, rc, out, d):
         notes = []
         for prog in MODEL_PROGRAMS:
             m = re.search(rf"^MODEL {re.escape(prog)}: RTLCHECK: (\S+)", out, re.M)
             if not m or m.group(1) != "AGREE":
                 notes.append(f"{prog}: {m.group(1) if m else 'no rtlcheck verdict'}")
+            t = re.search(rf"^TIMING {re.escape(prog)}: (\S+)", out, re.M)
+            if not t or t.group(1) != "SAME":
+                notes.append(f"{prog}: step 0, {t.group(1) if t else 'no timing comparison'}: the retired instructions "
+                             f"depend on the timing, replace the program")
+        if step4:
+            s4 = re.search(r"^STEP4 .*$", out, re.M)
+            notes.append((s4.group(0)[:320] + " (recorded)") if s4 else "no STEP4 line")
         notes += logs_problems(d)
-        return ("PASS" if not notes else "FAIL"), notes
-    return Job(leg, cname(cache, profile), cache, profile, cmd, judge, 2e7, cpus="dut")
+        return ("PASS" if not [n for n in notes if "recorded" not in n] else "FAIL"), notes
+    name = cname(cache, profile) + ("-burst0" if burst else "")
+    return Job(leg, name, cache, profile, cmd, judge, 2e7 + (6e7 if step4 else 0), cpus="dut", extra_vars=extra,
+               lock=("trace", "minimal") if step4 else None)
 
 
 # ------------------------------------------------------------------------------ the legs
@@ -738,8 +881,11 @@ def legs():
                                 stress_campaign_judge, 2e8, lock=(SMALL, p, "campaign")) for p in ("lat2", "rand1")]
     L["directed-coverage"] = [programs_job("directed-coverage", c, "lat2",
                                            only="memsys/(irqchain|fetchredirect|icoherence|stores)$", cpus="dut",
-                                           sim_args="+ram_words=0x46000,0x46004", judge=coverage_judge)
+                                           sim_args="+ram_words=0x46000,0x46004 +cache_stats_marks", judge=coverage_judge)
                               for c in (SMALL, LARGE)]
+    L["directed-coverage"].append(programs_job("directed-coverage", "i16k", "lat2", only="memsys/irqchain$", cpus="dut",
+                                               sim_args="+ram_words=0x46000,0x46004", judge=positions_confirm_judge,
+                                               name="i16k-lat2-irqchain-positions"))
     L["freertos-compare-large"] = [freertos_job("freertos-compare-large", a, LARGE, "lat2") for a in ("minimal", "stress")]
     L["cached-vs-golden"] = [Job("cached-vs-golden", f"{a}-{cname(SMALL, 'lat2')}", SMALL, "lat2",
                                  (lambda a: lambda d: [sys.executable, os.path.abspath(__file__), "_cached_vs_golden",
@@ -763,26 +909,36 @@ def legs():
                           "--app", "minimal", "--"] + config(SMALL, "lat2")
     mini.judge = resets_judge_factory(True, minimum=1)
     L["resets"].append(mini)
-    L["model-agreement"] = [model_job("model-agreement", SMALL, "lat2"), model_job("model-agreement", LARGE, "lat2")] + \
-                           [Job("model-agreement", "i512-lat2-burst0", SMALL, "lat2",
-                                lambda d: [sys.executable, os.path.abspath(__file__), "_model", "--dir", d, "--programs",
-                                           ",".join(MODEL_PROGRAMS), "--"] + config(SMALL, "lat2") + ["MEM_BEAT_LAT=0"],
-                                model_job("x", SMALL, "lat2").judge, 2e7, cpus="dut", extra_vars=["MEM_BEAT_LAT=0"])]
+    L["model-agreement"] = [model_job("model-agreement", SMALL, "lat2", step4=True),
+                            model_job("model-agreement", LARGE, "lat2", step4=True),
+                            model_job("model-agreement", SMALL, "lat2", burst=True),
+                            model_job("model-agreement", LARGE, "lat2", burst=True)]
     cpi = []
-    for app, extra in (("minimal", []), ("stress", []), ("mzba", []), ("mzba", ["MARCH=rv32im_zba"]), ("full", [])):
+    # the rows of 6.8: minimal, stress, mzba (rv32i and rv32im_zba), full and the scripted shell session, at
+    # BPRED 0 and 3, memory seed 1; memory seed 2 as the variance check for minimal and stress
+    for app, extra, seed in [(a_, e_, 1) for a_, e_ in (("minimal", []), ("stress", []), ("mzba", []),
+                                                         ("mzba", ["MARCH=rv32im_zba"]), ("full", []), ("shell", []))] + \
+                            [(a_, [], 2) for a_ in ("minimal", "stress")]:
         for b in (0, 3):
-            for col, cache, prof in (("cached", LARGE, "dram"), ("baseline", "standard", "dram-nobursts")):
-                nm = f"{app}{'-zba' if extra else ''}-bpred{b}-{col}"
-                cpi.append(Job("cpi", nm, cache, prof,
-                               (lambda app, b, cache, prof, extra: lambda d: [
-                                   sys.executable, os.path.abspath(__file__), "_cpi", "--dir", d, "--app", app,
-                                   "--bpred", str(b), "--"] + config(cache, prof) + extra)(app, b, cache, prof, extra),
-                               cpi_judge, 6e7, cpus="dut", lock=(cache, prof, app), needs_cache=cache != "standard",
-                               extra_vars=extra))
+            nm = f"{app}{'-zba' if extra else ''}-bpred{b}" + ("-seed2" if seed == 2 else "")
+            vars_ = extra + (["MEM_SEED=2"] if seed == 2 else [])
+            cpi.append(Job("cpi", nm, LARGE, "dram",
+                           (lambda nm, app, b, seed, vars_: lambda d: [
+                               sys.executable, os.path.abspath(__file__), "_cpirow", "--dir", d, "--app", app,
+                               "--bpred", str(b), "--seed", str(seed), "--name", nm, "--"] + vars_)(nm, app, b, seed, vars_),
+                           cpi_judge, 1e8 if app == "full" else 5e7, cpus="dut", lock=("trace", app),
+                           extra_vars=vars_))
     L["cpi"] = cpi
+    L["irq-latency-freertos"] = [
+        Job("irq-latency-freertos", f"stress-{cname(c, p)}", c, p,
+            (lambda c, p: lambda d: [sys.executable, os.path.abspath(__file__), "_irqlat_frtos", "--dir", d, "--app", "stress",
+                                     "--"] + config(c, p))(c, p),
+            irqlat_frtos_judge, 1e8, cpus="dut", lock=("irqlat", cname(c, p)), needs_cache=c != "standard")
+        for c, p in ((SMALL, "lat2"), (LARGE, "dram"), ("standard", "dram-nobursts"))]
     L["irq-latency"] = [programs_job("irq-latency", c, p, only="asm/uartirq$|memsys/irqchain$", cpus="dut",
                                      sim_args="+irq_latency", judge=lambda j, rc, out, d: exit_judge(j, rc, out, d))
                         for c, p in ((SMALL, "stress"), (LARGE, "dram"))]
+    L["irq-latency-validation"] = [irqlat_job(p) for p in ("std", "lat1", "lat2", "lat5")]
     for name, jobs in L.items():
         for j in jobs:
             j.leg = name
@@ -791,18 +947,35 @@ def legs():
 
 
 # ------------------------------------------------------------------------------ helpers run as jobs
+class build_lock:
+    """Builds of simulators and programs from several jobs of one matrix run never overlap in time (the
+    jobs share build directories: a simulator of one configuration is used by several of them)."""
+    path = os.path.join(REPO, "build", ".matrix-build.lock")
+
+    def __enter__(self):
+        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        self.f = open(self.path, "w")
+        fcntl.flock(self.f, fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, *exc):
+        fcntl.flock(self.f, fcntl.LOCK_UN)
+        self.f.close()
+
+
 def run_programs(vars_, progs, sim_args=(), cpu="dut"):
     """Build a configuration's simulator and programs; -> (simulator, {program: directory})."""
     env = clean_env()
     bdir, text = build_dir(vars_)
     model = {"dut": "dut", "golden": "ref"}[cpu]
-    subprocess.run(make_cmd(["frtos-model", f"FRTOS_CPU={model}", "FRTOS_RAM_KB=32"], vars_), check=True, env=env,
-                   stdout=subprocess.DEVNULL)
     # the goals in the spelling of make's own BUILD_DIR: absolute for a configuration's directory
     # (cfg-<name>), 'build' for the standard one; any other spelling names no rule
     raw = re.search(r"build directory:\s+(\S+)", text).group(1)
-    subprocess.run(make_cmd([os.path.join(raw, "test", p, "init.mem") for p in progs], vars_),
-                   check=True, env=env, stdout=subprocess.DEVNULL)
+    with build_lock():
+        subprocess.run(make_cmd(["frtos-model", f"FRTOS_CPU={model}", "FRTOS_RAM_KB=32"], vars_), check=True, env=env,
+                       stdout=subprocess.DEVNULL)
+        subprocess.run(make_cmd([os.path.join(raw, "test", p, "init.mem") for p in progs], vars_),
+                       check=True, env=env, stdout=subprocess.DEVNULL)
     return os.path.join(bdir, "frtos-model", f"{model}-32k", "top"), {p: os.path.join(bdir, "test", p) for p in progs}
 
 
@@ -811,8 +984,9 @@ def frtos_direct(app, vars_, plusargs, d):
     targets run it through run.sh, which takes none): the command of 'make -n frtos-run', run in the
     program's directory with the options appended; the output also goes to <d>/sim.log."""
     env = clean_env()
-    subprocess.run(make_cmd(["frtos-elf", "frtos-model", f"APP={app}"], vars_), check=True, env=env,
-                   stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    with build_lock():
+        subprocess.run(make_cmd(["frtos-elf", "frtos-model", f"APP={app}"], vars_), check=True, env=env,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     dry = subprocess.run(make_cmd(["-n", "frtos-run", f"APP={app}"], vars_), capture_output=True, text=True,
                          env=env).stdout.strip().splitlines()[-1]
     m = re.match(r"cd (\S+) && (\S+) (.*)$", dry)
@@ -862,20 +1036,97 @@ def helper_resets(a, vars_):
     return 0
 
 
+def retired_pcs(path):
+    """The PCs of the retired instructions of a bus trace (BUSTRACE=1: 16-byte records; word 1 bit 12: an
+    instruction retires, word 3: the PC of the instruction in Writeback)."""
+    import numpy as np
+    rec = np.fromfile(path, dtype="<u4")
+    rec = rec[:len(rec) // 4 * 4].reshape(-1, 4)
+    return rec[(rec[:, 1] >> 12) & 1 == 1, 3]
+
+
+def model_prep(binfile, outdir, ram_kb, name):
+    subprocess.run([sys.executable, os.path.join(HERE, "cachemodel.py"), "prep", binfile, outdir, "--ram-kb",
+                    str(ram_kb), "--name", name], check=True, stdout=subprocess.DEVNULL)
+
+
+def model_run(prepared, args, out, seed=1, w1=None):
+    """cachemodel.py run on a prepared trace -> the model's JSON result (one configuration)."""
+    cmd = [sys.executable, os.path.join(HERE, "cachemodel.py"), "run", prepared] + args + ["--seed", str(seed),
+                                                                                           "--out", out]
+    if w1 is not None:
+        cmd += ["--w1", str(w1)]
+    if os.path.exists(out):
+        os.remove(out)
+    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL)
+    with open(out) as f:
+        return json.loads(f.readline())
+
+
+def ram_kb_of(text):
+    """The RAM size in KiB from the scoreboard's 'SCOREBOARD on' line of a log."""
+    m = re.search(r"SCOREBOARD on: .* addresses 0x([0-9a-f]+)-0x([0-9a-f]+)", text)
+    return (int(m.group(2), 16) - int(m.group(1), 16) + 1) // 1024 if m else 32
+
+
+def model_step4(a, vars_):
+    """6.7 step 4, informative: the FreeRTOS program a.app in the cached configuration (the automatic tick),
+    its I-MPKI from the RTL's CACHE_STATS and RETIRED lines, and the model's on the trace of the same program
+    at the standard memory with the same TICK; the expected agreement is 10% of the model's value or 0.2
+    MPKI, whichever is larger. It does not gate."""
+    d = os.path.join(a.dir, "step4")
+    r, _, _, _ = frtos_direct(a.app, vars_ + ["BPRED=0"], [], os.path.join(d, "cached"))
+    text = r.stdout
+    st, ret = stats_of(text), re.search(r"^RETIRED cycles=(\d+) instructions=(\d+)", text, re.M)
+    tick = re.search(r"config: tick=(\d+)cyc", text)
+    cm = re.search(r"^CACHE I-cache (\d+) bytes, (\d+)-byte lines", text, re.M)
+    sm = re.search(r"^SLOW MEMORY memory port: read latency ([^,\s]+), write latency ([^,\s]+)", text, re.M)
+    if not (st and ret and tick and cm and sm):
+        print(f"STEP4 {a.app}: cannot read the cached run (CACHE_STATS, RETIRED, tick, configuration)")
+        return 1
+    rtl = st["i_done"] * 1000.0 / int(ret.group(2))
+    tdir = os.path.join(d, "trace")
+    os.makedirs(tdir, exist_ok=True)
+    binfile = os.path.join(tdir, "bustrace.bin")
+    frtos_direct(a.app, ["BUSTRACE=1", f"TICK={tick.group(1)}", "BPRED=0"], ["+bustrace=" + binfile], tdir)
+    model_prep(binfile, os.path.join(tdir, "prepared"), ram_kb_of(text), a.app)
+    os.remove(binfile)
+    lat = lambda t: t.replace("..", ":")
+    res = model_run(os.path.join(tdir, "prepared"),
+                    ["--isize", cm.group(1), "--dsize", "0", "--line", cm.group(2), "--mem", "beat",
+                     "--rd-lat", lat(sm.group(1)), "--wr-lat", lat(sm.group(2))], os.path.join(tdir, "model.jsonl"))
+    mod = res["i_mpki"]
+    tol = max(0.1 * mod, 0.2)
+    print(f"STEP4 {a.app} (tick {tick.group(1)}): RTL I-MPKI {rtl:.3f} (i_done {st['i_done']}, {ret.group(2)} "
+          f"retired instructions), model I-MPKI {mod:.3f} ({res['instructions']} instructions of the standard-memory "
+          f"trace); expected agreement +-{tol:.3f}: {'WITHIN' if abs(rtl - mod) <= tol else 'BEYOND'} "
+          f"(informative; the two runs execute different program phases)")
+    return 0
+
+
 def helper_model(a, vars_):
-    """Model agreement: the trace of each program at the standard memory (BUSTRACE=1), its cached
-    run, and cachemodel.py rtlcheck."""
+    """Model agreement: 6.7 step 0 (the retired instructions' PCs of each program at the standard memory and
+    at MEM_LAT=2, uncached, must be the same sequence), the trace of each program at the standard memory
+    (BUSTRACE=1), its cached run, and cachemodel.py rtlcheck (steps 1 to 3 and 5); with --app, step 4."""
     progs = a.programs.split(",")
     tsim, tdirs = run_programs(["BUSTRACE=1"], progs)
     csim, cdirs = run_programs(vars_, progs)
+    t2sim, t2dirs = run_programs(["BUSTRACE=1", "MEM_LAT=2"], progs)
     rc = 0
     for p in progs:
         d = os.path.join(a.dir, p.replace("/", "-"))
-        for sub in ("trace", "cached"):
+        for sub in ("trace", "trace-lat2", "cached"):
             os.makedirs(os.path.join(d, sub), exist_ok=True)
         shutil.copy(os.path.join(tdirs[p], "init.mem"), os.path.join(d, "trace"))
+        shutil.copy(os.path.join(t2dirs[p], "init.mem"), os.path.join(d, "trace-lat2"))
         shutil.copy(os.path.join(cdirs[p], "init.mem"), os.path.join(d, "cached"))
         subprocess.run([tsim, "+nodump"], cwd=os.path.join(d, "trace"), capture_output=True)
+        subprocess.run([t2sim, "+nodump", "+timeout=20000000"], cwd=os.path.join(d, "trace-lat2"), capture_output=True)
+        a0, a2 = retired_pcs(os.path.join(d, "trace", "bustrace.bin")), retired_pcs(os.path.join(d, "trace-lat2", "bustrace.bin"))
+        same = len(a0) == len(a2) and bool((a0 == a2).all())
+        print(f"TIMING {p}: {'SAME' if same else 'DIFFERENT'} sequence of retired PCs at the standard memory "
+              f"({len(a0)} instructions) and at MEM_LAT=2 uncached ({len(a2)})")
+        os.remove(os.path.join(d, "trace-lat2", "bustrace.bin"))
         r = subprocess.run([csim, "+nodump"], cwd=os.path.join(d, "cached"), capture_output=True, text=True,
                            errors="replace")
         with open(os.path.join(d, "cached", "sim.log"), "w") as f:
@@ -890,6 +1141,8 @@ def helper_model(a, vars_):
         v = re.search(r"^RTLCHECK: (\S+)", c.stdout, re.M)
         print(f"MODEL {p}: RTLCHECK: {v.group(1) if v else 'NONE'}")
         rc |= c.returncode
+    if a.app:
+        rc |= model_step4(a, vars_)
     return rc
 
 
@@ -954,37 +1207,198 @@ def helper_cached_vs_golden(a, vars_):
     return c.returncode
 
 
-def helper_cpi(a, vars_):
-    """One row of the CPI measurement: TICK=10000 (as the model's traces), the branch-predictor
-    mode, +retired_every=100000; full runs a fixed window of 10 M cycles. The RETIRED_AT, RETIRED and
-    CACHE_STATS lines are the row's figures (compared over equal retired instructions). A program
-    whose own real-time check ends the run early (FRTOS-RESULT: FAIL) marks the row, and the row
-    is run once more with the automatic tick: those lines are printed with the prefix 'AUTO ' (the
-    row's second line)."""
-    window = ["TIMEOUT=10000000"] if a.app == "full" else []
+def unsplit(text):
+    """A program's own output with the testbench's RETIRED_AT lines taken out: they are printed without a
+    line break and can stand inside a line of the program's text ('FRTOS-R<RETIRED_AT ...>ESULT: FAIL')."""
+    return re.sub(r"RETIRED_AT instructions=\d+ cycles=\d+\n?", "", text)
 
-    def run(extra, d, prefix):
-        r, _, _, _ = frtos_direct(a.app, vars_ + extra + [f"BPRED={a.bpred}"] + window,
-                                  ["+retired_every=100000"], d)
-        for l in r.stdout.splitlines():
-            # (a RETIRED_AT line can follow the program's UART output on the same line)
-            m = re.search(r"RETIRED_AT instructions=\d+ cycles=\d+", l)
-            if m:
-                print(prefix + m.group(0))
-            elif l.startswith(("RETIRED", "CACHE_STATS", "FRTOS-RESULT", "Simulation timeout", "SCOREBOARD")):
-                print(prefix + l)
-        return r, "FRTOS-RESULT: FAIL" in r.stdout
 
-    r, early = run(["TICK=10000"], a.dir, "")
-    ok = "SCOREBOARD: PASS" in r.stdout and not re.search(r"%(Fatal|Error)", r.stdout)
-    if early:
-        print("CPI ROW MARKED: the program's own check ended the run early at TICK=10000; "
-              "run once more with the automatic tick (second line, lines prefixed AUTO)")
-        r2, early2 = run([], os.path.join(a.dir, "auto"), "AUTO ")
-        ok = ok and "SCOREBOARD: PASS" in r2.stdout and not re.search(r"%(Fatal|Error)", r2.stdout)
-        if early2:
-            print("CPI ROW: the run with the automatic tick ended early as well")
-    return 0 if ok else 1
+def column_run(app, vars_, d, extra, bpred):
+    """One simulated column of a CPI row (the cached or the uncached baseline configuration): the figures of
+    its RETIRED_AT marks, its RETIRED and CACHE_STATS lines, whether the program's own check ended the run
+    early (FRTOS-RESULT: FAIL), and whether the run itself is sound (scoreboard PASS, no simulator error).
+    The shell session is the scripted session (session.txt) of make freertos-shell-test."""
+    os.makedirs(d, exist_ok=True)
+    if app == "shell":
+        r = subprocess.run(make_cmd(["freertos-shell-test", "APP=shell", "APP_CONSOLE_ARGS=+retired_every=100000"],
+                                    vars_ + extra + [f"BPRED={bpred}"]), capture_output=True, text=True,
+                           env=clean_env(), errors="replace")
+        bdir, _ = build_dir(vars_ + extra)
+        text = read(os.path.join(bdir, "test", "freertos", "shell", "session-dut.log"))
+        shutil.copy(os.path.join(bdir, "test", "freertos", "shell", "session-dut.log"), os.path.join(d, "sim.log")) \
+            if text else None
+        ok_result = "FREERTOS SHELL RESULT: PASS" in r.stdout
+        early = "FREERTOS SHELL RESULT: FAIL" in r.stdout
+    else:
+        window = ["TIMEOUT=10000000"] if app == "full" else []
+        r, _, _, _ = frtos_direct(app, vars_ + extra + window + [f"BPRED={bpred}"], ["+retired_every=100000"], d)
+        text = r.stdout
+        early = "FRTOS-RESULT: FAIL" in unsplit(text)
+        ok_result = "FRTOS-RESULT: PASS" in unsplit(text) or app == "full"
+    fig = dict(marks={int(i): int(c) for i, c in re.findall(r"RETIRED_AT instructions=(\d+) cycles=(\d+)", text)})
+    m = re.search(r"^RETIRED cycles=(\d+) instructions=(\d+)", text, re.M)
+    fig["cycles"], fig["instructions"] = (int(m.group(1)), int(m.group(2))) if m else (None, None)
+    fig["stats"] = stats_of(text)
+    fig["early"] = early
+    fig["result_ok"] = ok_result
+    fig["sound"] = "SCOREBOARD: PASS" in text and not re.search(r"%(Fatal|Error)", text)
+    fig["tick"] = (re.search(r"config: tick=(\d+)cyc", text) or [None, None])[1]
+    fig["ram_kb"] = ram_kb_of(text)
+    return fig
+
+
+def cpi_at(fig, mark):
+    return fig["marks"][mark] / mark
+
+
+def cpi_lines(prefix, name, cached, base, model, mark):
+    """The table of one line of a row; -> list of text lines."""
+    out = []
+    head = f"{prefix}ROW {name}"
+    if mark is None:
+        out.append(f"{head}: no RETIRED_AT mark reached by both columns; whole runs: cached CPI "
+                   f"{cached['cycles'] / cached['instructions']:.3f}, baseline CPI {base['cycles'] / base['instructions']:.3f}")
+        return out
+    out.append(f"{head}: compared over the first {mark} retired instructions (the largest RETIRED_AT mark of both columns)")
+    for col, f in (("cached  ", cached), ("baseline", base)):
+        tick = f" tick {f['tick']}" if f.get("tick") else ""
+        out.append(f"{prefix}  {col} cycles {f['marks'][mark]:>10}  instructions {mark:>8}  CPI {cpi_at(f, mark):.3f}"
+                   f"   (whole run: {f['cycles']} cycles, {f['instructions']} instructions{tick})")
+    if model:
+        out.append(f"{prefix}  model    cycles {model['cycles']:>10}  instructions {model['instructions']:>8}  "
+                   f"CPI {model['cpi']:.3f}   (I-MPKI {model['i_mpki']:.2f}; trace window of {model['window_cycles']} cycles; "
+                   f"no cache: CPI {model['cpi_base']:.3f})")
+    else:
+        out.append(f"{prefix}  model    not applicable (its traces are the runs at TICK=10000)")
+    st, n = cached["stats"], cached["instructions"]
+    if st:
+        out.append(f"{prefix}  CACHE_STATS of the cached run: i_done {st['i_done']}  I-MPKI {1000.0 * st['i_done'] / n:.2f}  "
+                   f"wait_i_for_port {st['wait_i_for_port']}  wait_d_for_port {st['wait_d_for_port']}  "
+                   f"port_irefill {st['port_irefill']}  port_data {st['port_data']}")
+        cyc = cached["cycles"]
+        wd, wi = st["wait_d_for_port"], st["wait_i_for_port"]
+        delta = cpi_at(cached, mark) - cpi_at(base, mark)
+        out.append(f"{prefix}  port sharing: data accesses waiting behind I-refills (wait_d_for_port) {wd} cycles = "
+                   f"{100.0 * wd / cyc:.2f}% of all cycles = {wd / n:.4f} per instruction; I-refills waiting behind data "
+                   f"transfers (wait_i_for_port) {wi} cycles = {100.0 * wi / cyc:.2f}% = {wi / n:.4f} per instruction")
+        out.append(f"{prefix}  CPI change cached - baseline {delta:+.3f}: port sharing costs {(wd + wi) / n:.3f} cycles per "
+                   f"instruction (wait_d_for_port + wait_i_for_port, whole run), the rest, {delta - (wd + wi) / n:+.3f}, is "
+                   f"attributed to the cache")
+    return out
+
+
+def model_for_row(app, bpred, d, vars_extra, mem_seed, mark, ram_kb, window):
+    """The model's CPI on the trace of the same program at the standard memory (TICK=10000, the row's BPRED),
+    over the window that ends where the trace has retired `mark` instructions."""
+    import numpy as np
+    tdir = os.path.join(d, "trace")
+    os.makedirs(tdir, exist_ok=True)
+    binfile = os.path.join(tdir, "bustrace.bin")
+    vars_extra = [v for v in vars_extra if not v.startswith("MEM_")]       # the trace is at the standard memory
+    if app == "shell":
+        subprocess.run(make_cmd(["freertos-shell-test", "APP=shell", f"APP_CONSOLE_ARGS=+bustrace={binfile}"],
+                                ["BUSTRACE=1", "TICK=10000", f"BPRED={bpred}"] + vars_extra), capture_output=True,
+                       text=True, env=clean_env())
+    else:
+        frtos_direct(app, ["BUSTRACE=1", "TICK=10000", f"BPRED={bpred}"] + vars_extra + window, ["+bustrace=" + binfile], tdir)
+    if not os.path.exists(binfile):
+        return None
+    prepared = os.path.join(tdir, "prepared")
+    model_prep(binfile, prepared, ram_kb, app)
+    os.remove(binfile)
+    code = np.load(os.path.join(prepared, "code.npy"), mmap_mode="r")
+    retired = np.cumsum((np.asarray(code) >> 5) & 1)
+    if mark is None or retired[-1] < mark:
+        return None
+    w1 = int(np.searchsorted(retired, mark)) + 1
+    res = model_run(prepared, ["--isize", "8192", "--dsize", "0", "--line", "16", "--mem", "burst", "--beat-cycles", "1",
+                               "--rd-lat", "8:24", "--wr-lat", "1:4"], os.path.join(tdir, "model.jsonl"),
+                    seed=mem_seed, w1=w1)
+    return dict(cycles=res["cycles"], instructions=res["instructions"], cpi=res["cpi"], cpi_base=res["cpi_base"],
+                i_mpki=res["i_mpki"], window_cycles=w1)
+
+
+def helper_cpirow(a, vars_):
+    """One row of the CPI measurement (6.8): the program in the cached configuration (P x GD) and in the
+    uncached baseline, at TICK=10000 (as the model's traces), the row's branch-predictor mode, and
+    +retired_every=100000; `full` runs a fixed window of 10 M cycles. The columns are compared at the
+    largest RETIRED_AT mark that both reached (CPI = cycles at the mark / instructions), the model on the
+    trace of the same program over the same number of retired instructions. A program whose own real-time
+    check ends a column early (FRTOS-RESULT: FAIL) marks the row, which is run once more with the
+    automatic tick in both columns (F = 18 and F = 17): the second line, with the prefix AUTO. The variables
+    after '--' are the row's (MARCH=..., MEM_SEED=...); `vars_` here is the row's own extra options."""
+    seed = int(a.seed)
+    extra = list(vars_)
+    cached_vars, base_vars = config("i8k", "dram"), config("standard", "dram-nobursts")
+    rows = {}
+    for line, prefix, tick in ((1, "CPI ", ["TICK=10000"]), (2, "CPI AUTO ", [])):
+        cols = {}
+        for name, cv in (("cached", cached_vars), ("baseline", base_vars)):
+            cols[name] = column_run(a.app, cv, os.path.join(a.dir, f"line{line}-{name}"), extra + tick, a.bpred)
+        marks = sorted(set(cols["cached"]["marks"]) & set(cols["baseline"]["marks"]))
+        mark = marks[-1] if marks else None
+        model = None
+        if line == 1:
+            window = ["TIMEOUT=10000000"] if a.app == "full" else []
+            model = model_for_row(a.app, a.bpred, a.dir, extra, seed, mark, cols["cached"]["ram_kb"], window)
+        for l in cpi_lines(prefix, a.name, cols["cached"], cols["baseline"], model, mark):
+            print(l, flush=True)
+        rows[line] = dict(mark=mark, model=model, cached={k: v for k, v in cols["cached"].items() if k != "marks"},
+                          baseline={k: v for k, v in cols["baseline"].items() if k != "marks"})
+        for name in ("cached", "baseline"):
+            c = cols[name]
+            print(f"{prefix}  {name}: program check {'FAILED (the run ended early)' if c['early'] else 'ok'}, "
+                  f"run {'sound' if c['sound'] else 'NOT SOUND'}", flush=True)
+        if line == 1:
+            if not (cols["cached"]["early"] or cols["baseline"]["early"]):
+                break
+            print("CPI ROW MARKED: the program's own check ended a run early at TICK=10000; run once more with the "
+                  "automatic tick in both columns (second line, lines prefixed 'CPI AUTO')", flush=True)
+        if line == 2 and (cols["cached"]["early"] or cols["baseline"]["early"]):
+            print("CPI ROW: a run with the automatic tick ended early as well", flush=True)
+            rows["failed"] = True
+    with open(os.path.join(a.dir, "row.json"), "w") as f:
+        json.dump(rows, f, indent=1)
+    sound = all(rows[k][c]["sound"] for k in (1, 2) if k in rows for c in ("cached", "baseline"))
+    return 0 if sound and not rows.get("failed") else 1
+
+
+def helper_irqlat_frtos(a, vars_):
+    """+irq_latency in a FreeRTOS program (the automatic tick of the configuration): the IRQLAT line, the tick
+    and the program's verdict."""
+    r, _, _, _ = frtos_direct(a.app, vars_, ["+irq_latency"], a.dir)
+    text = r.stdout
+    print(f"IRQ-LATENCY {a.app}: " + " ".join(vars_ or ["(standard)"]))
+    for pat in (r"config: tick=\d+cyc", r"^IRQLAT .*$", r"^RETIRED .*$"):
+        m = re.search(pat, text, re.M)
+        print(m.group(0) if m else f"(no line for {pat})")
+    print("FRTOS-RESULT: " + ("PASS" if "FRTOS-RESULT: PASS" in unsplit(text) else "NOT PASS"))
+    print("SCOREBOARD: " + ("PASS" if "SCOREBOARD: PASS" in text else "NOT PASS"))
+    return 0
+
+
+def irqlat_frtos_judge(job, rc, out, d):
+    """+irq_latency in FreeRTOS stress: a sound, passing run with an IRQLAT line whose maximum is below the tick
+    (the figures are the observed maximum of this run, not a bound)."""
+    notes = logs_problems(d)
+    if rc:
+        notes.append(f"exit status {rc}")
+    tick = re.search(r"config: tick=(\d+)cyc", out)
+    lat = re.search(r"^IRQLAT interrupts=(\d+) max=(\d+) mean=([0-9.]+)", out, re.M)
+    if not tick or not lat:
+        notes.append("no tick or no IRQLAT line")
+    else:
+        n, mx, mean, t = int(lat.group(1)), int(lat.group(2)), lat.group(3), int(tick.group(1))
+        notes.append(f"IRQLAT interrupts={n} max={mx} mean={mean} against the tick {t}: max = {100.0 * mx / t:.2f}% of the tick (recorded)")
+        if n == 0:
+            notes.append("no interrupt measured")
+        if mx >= t:
+            notes.append(f"the maximum latency {mx} is not below the tick {t}")
+    if "FRTOS-RESULT: PASS" not in out:
+        notes.append("the program did not pass")
+    if "SCOREBOARD: PASS" not in out:
+        notes.append("no SCOREBOARD: PASS")
+    return ("PASS" if not [n for n in notes if "recorded" not in n] else "FAIL"), notes
 
 
 def helper_lint(a, vars_):
@@ -1006,7 +1420,7 @@ def helper_lint(a, vars_):
 
 
 HELPERS = {"_resets": helper_resets, "_model": helper_model, "_benches": helper_benches,
-           "_timing_benches": helper_timing_benches, "_cached_vs_golden": helper_cached_vs_golden, "_cpi": helper_cpi,
+           "_timing_benches": helper_timing_benches, "_cached_vs_golden": helper_cached_vs_golden, "_cpirow": helper_cpirow, "_irqlat_frtos": helper_irqlat_frtos,
            "_lint": helper_lint}
 
 
@@ -1176,6 +1590,8 @@ def main():
         ap.add_argument("--cached", default="1")
         ap.add_argument("--app", default="")
         ap.add_argument("--bpred", default="0")
+        ap.add_argument("--seed", default="1")
+        ap.add_argument("--name", default="")
         # the make variables follow a '--': split there, since argparse (3.12) does not accept a '--'
         # between an option and a positional list
         argv = sys.argv[1:]

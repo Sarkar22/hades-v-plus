@@ -147,6 +147,7 @@ The options are compiled in as the simulator's defaults; these run-time options 
 | `+mem_only` | Refused in a cached simulator (one port) |
 | `+timeout=<cycles>` | The cycle limit of the run; without it the cached default applies ([below](#the-default-cycle-limit)) |
 | `+cache_stats`, `+nocache_stats` | The `CACHE_STATS` line at the end of the run; on by default in a cached simulator |
+| `+cache_stats_marks` | Also a `CACHE_STATS_MARK` line (`i_done`, `i_abandoned`, `snoop_inval` so far) at every report of the program (`Test pass!` / `Test fail!`), to attribute counts to the parts of a test |
 | `+reset_at=<cycle>[,<cycle>...]` | Resets in the middle of the run ([below](#testbench-options)) |
 | `+cache_phase_log=<file>` | One byte per cycle with the phase of the cache and of the data side, for placing resets |
 | `+ram_words=<byte address>[,...]` | At the end, one `RAM_WORDS` line with these RAM words |
@@ -225,7 +226,7 @@ The cache's phase is `idle`, `refill waiting for the port` or `refill beat <b> o
 
 **`+cache_phase_log=<file>`** writes one byte per cycle from the first clock edge: bit 0 the cache is granted the port, bit 1 a refill waits for the port, bit 2 a data request on the CPU's data bus waits for its answer, bit 3 that request is a RAM access, bit 4 it is a write, bit 5 the data side is granted the port, bit 6 `rst`, bit 7 0. A run with `+reset_at` is identical to the same run without it up to the reset, so a reset wanted in cycle `t` is requested with `+reset_at=<t-3>`.
 
-**`+irq_latency`** (HaDes-V+ only) measures, for every interrupt the CPU takes, the cycles from the first cycle in which an interrupt is pending and enabled in Writeback to the first fetch `ack` after the interrupt's jump cycle, and prints `IRQLAT interrupts=<n> max=<cycles> mean=<cycles>` at the end. It is an observed maximum of the runs made, not a worst case.
+**`+irq_latency`** (HaDes-V+ only) measures, for every interrupt the CPU takes, the cycles from the first cycle in which an interrupt is pending and enabled in Writeback to the first fetch `ack` after the interrupt's jump cycle, and prints `IRQLAT interrupts=<n> max=<cycles> mean=<cycles>` at the end. It is an observed maximum of the runs made, not a worst case. The monitor is checked against latencies derived by hand: `test/memsys/irqlat.s` and the matrix leg `irq-latency-validation` ([README](../test/memsys/README.md#directed-tests-with-an-instruction-cache)).
 
 **`+ram_words=<byte address>[,...]`** prints `RAM_WORDS <address>=<value> ...` at the end, for word-aligned addresses inside the RAM (`irqchain.s` records its interrupt positions this way). **`+retired_every=<n>`** (HaDes-V+ only) prints `RETIRED_AT instructions=<i> cycles=<c>` each time `RETIRED`'s count reaches another multiple of n.
 

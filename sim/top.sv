@@ -350,6 +350,8 @@ module top;
     // check that every request is answered within its bound, and take
     //   +cache_stats                     print the cache's event counts at the end (CACHE_STATS
     //                                    line; +nocache_stats: do not; on by default)
+    //   +cache_stats_marks               also a CACHE_STATS_MARK line at every report of the
+    //                                    program ("Test pass!" / "Test fail!"), with the counts so far
     // Every simulator of HaDes-V+ takes
     //   +irq_latency                     measure the latency of every interrupt (IRQLAT line)
 
@@ -1090,7 +1092,8 @@ module top;
     // wait_i_for_port + port_irefill, i_beats = LINE_WORDS * i_done + i_inflight_beats; i_hits,
     // d_loads and d_stores equal the fetches, loads and stores of the SCOREBOARD line, and
     // cycles the cycles of the RETIRED line.
-    bit              cs_en;
+    bit              cs_en, cs_marks;
+    longint unsigned cs_mark_n;               // reports so far (+cache_stats_marks)
     longint unsigned cs_cycles, cs_i_hits, cs_i_refills, cs_i_done, cs_i_beats, cs_i_abandoned,
                      cs_snoop_inval, cs_i_refill_cycles, cs_wait_i, cs_wait_d, cs_port_irefill,
                      cs_port_data, cs_d_loads, cs_d_stores;
@@ -1101,6 +1104,7 @@ module top;
         cs_en = 1;
         if ($test$plusargs("nocache_stats")) cs_en = 0;
         if ($test$plusargs("cache_stats"))   cs_en = 1;
+        cs_marks = $test$plusargs("cache_stats_marks");
     end
 
     /* verilator lint_off BLKSEQ */
@@ -1149,6 +1153,14 @@ module top;
             end
             if (mcu.cache_ev_grant_d)                  // a transfer's first granted cycle restarts it
                 cs_cur_d_port = ((mcu.mem_arbiter.owner == mcu.mem_arbiter.DATA) ? cs_cur_d_port : 0) + 1;
+            // +cache_stats_marks: the counts so far at every report of the program (a write of 0
+            // or 1 to the test register, which the testbench prints as "Test pass!" or "Test
+            // fail!"), to attribute counts to the parts of a test between its reports
+            if (cs_marks && mcu.wb_test.test_stb && mcu.wb_test.test_reg[31:1] == 0) begin
+                $display("CACHE_STATS_MARK report=%0d cycles=%0d i_done=%0d i_abandoned=%0d snoop_inval=%0d",
+                         cs_mark_n, cs_cycles, cs_i_done, cs_i_abandoned, cs_snoop_inval);
+                cs_mark_n++;
+            end
         end
     end
     /* verilator lint_on BLKSEQ */

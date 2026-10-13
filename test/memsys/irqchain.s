@@ -38,6 +38,26 @@
 # | first fetch misses as well. The block runs one jal per two lines (evict_block below);        |
 # | without a cache it costs about 30 cycles per delay.                                          |
 # |                                                                                              |
+# | POSITIONS THAT A CACHE MAKES UNREACHABLE. With the eviction step, six of the 22 positions    |
+# | are never recorded (mask 0x3bbbba at MEM_LAT=2 in a 512-byte and in an 8 KiB cache;          |
+# | 0x3ffffe, every position but bit 0, without a cache and in a 16 KiB cache, where the         |
+# | eviction block at +8 KiB does not evict). The interrupt is recognised in the cycle in which  |
+# | an instruction I is in Writeback; I retires, and mepc is the address after the next          |
+# | instruction J when J is in Writeback in the next cycle, else the address after I             |
+# | (rtl/writeback_stage.sv). Bit 0 (mepc = pad, the first nop): J would be the arming store, so |
+# | I, the instruction before it, would have to be in Writeback when the interrupt is pending,   |
+# | at least two cycles after the store's bus access; I has retired by then. It is unreachable   |
+# | at every latency. Bits 2, 6, 10, 14 and 18 (the nop at pad + 8 and chain instructions 3, 7,  |
+# | 11 and 15) are the second word of a 16-byte line (pad is the last word of its line, so the   |
+# | words behind it fall at offsets 4 of the following lines): mepc there needs J to be the      |
+# | first word of the line, in Writeback right behind I, the last word of the line before. Every |
+# | tested line misses in every iteration, so the first word of a line reaches Writeback only    |
+# | after the refill of its line, and J is a bubble: mepc is then the address after I, the first |
+# | word of the line. With a hit in the line (no cache, or a cache that the eviction block does  |
+# | not evict) the second word is reached as well. matrix.py (leg directed-coverage) derives the |
+# | list from the assembled program, requires a reason for every position that is missing, and   |
+# | runs this program in a 16 KiB cache to show that the six are otherwise reached except bit 0. |
+# |                                                                                              |
 # | Expected with a cache (from the assembled program): the tested code has TESTED_LINES = 16    |
 # | lines of 16 bytes, and every one of them retires an instruction in every iteration, so       |
 # | CACHE_STATS i_done is at least 2 * NMAX * TESTED_LINES = 6400 with 16-byte lines, in a       |
