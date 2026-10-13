@@ -142,7 +142,8 @@ module mcu #(
 `ifdef HADES_ICACHE_BYTES
     // With caches (simulation only, see the memory system below) a RAM access may wait behind a
     // cache refill on the shared memory port, so the RAM (slave 0) is exempt from the bus
-    // timeout; every other slave keeps it.
+    // timeout; every other slave keeps it. The slave map is that of the instance in the else
+    // branch below: keep both in step (only TIMEOUT_EXEMPT differs).
     wishbone_interconnect #(
         .NUM_SLAVES(9),
         .SLAVE_ADDRESS({
