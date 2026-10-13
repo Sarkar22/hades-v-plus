@@ -1282,6 +1282,7 @@ module icache_bench_env #(
                 else begin
                     bit [31:0] pc;
                     bit        jump, idle;
+                    bit [31:0] ga;
                     pc   = f_pc;
                     jump = 0;
                     idle = 0;
@@ -1330,7 +1331,18 @@ module icache_bench_env #(
                         r = int'(below(3));
                         fetch_bus.cyc <= r == 1;
                         fetch_bus.stb <= r == 2;
-                        fetch_bus.adr <= rnd();
+                        // Garbage that can matter: a uniformly random word address is almost never
+                        // inside the window, so half of the cycles present a word of a cached line
+                        // or of the window (a hit is possible, and must stay unanswered), or the
+                        // address of the last request
+                        case (below(8))
+                            0, 1:    ga = cached_word();       // 0 if no line is valid
+                            2:       ga = window_word();
+                            3:       ga = pc;
+                            default: ga = rnd();
+                        endcase
+                        if (ga == 0) ga = rnd();
+                        fetch_bus.adr <= ga;
                         fetch_bus.we  <= rnd() % 2 == 0;
                         fetch_bus.sel <= 4'(rnd());
                         fetch_bus.dat_mosi <= rnd();

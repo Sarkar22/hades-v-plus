@@ -50,6 +50,8 @@ CHECKS. The primary check of each mutant is one of:
     port-identity  the port cycles of refills and data transfers of a cached run at MEM_LAT=2
                    MEM_BEAT_LAT=0 (port_irefill = 6 * i_done + i_inflight_port, port_data =
                    3 * (d_loads + d_stores) + d_inflight_port): caught when one does not hold
+                   (a run that stops before its CACHE_STATS line, by a bound of 4.11 for example,
+                   has not shown them and counts as caught, with the stop as the evidence)
     resets         the mid-run reset runs (matrix.py, leg 'resets'): caught as the row says
 --map runs the negative controls of the run-time assertions (ASSERTION_MAP) as well; the bench's
 own negative cases (+negative=<case>) are run by legality.py.
@@ -597,10 +599,16 @@ def check(root, spec, mu):
         sys.path.insert(0, HERE)
         import matrix
         sys.path.pop(0)
+        if not logs:
+            return None, "no run matched: the identities were not evaluated"
         bad = []
         for t in logs:
             st = matrix.stats_of(t)
             if not st:
+                # a run that stopped before its CACHE_STATS line has not shown the identities; the
+                # stop (a bound of 4.11, an assertion, a scoreboard failure) is the difference
+                stop = next((l.strip() for l in t.splitlines() if "%Fatal" in l or "%Error" in l), "no CACHE_STATS line")
+                bad.append(f"the run stopped before its CACHE_STATS line: {stop}")
                 continue
             if st["port_irefill"] != 6 * st["i_done"] + st["i_inflight_port"]:
                 bad.append(f"port_irefill {st['port_irefill']} != 6 * {st['i_done']} + {st['i_inflight_port']}")
