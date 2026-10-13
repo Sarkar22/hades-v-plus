@@ -46,6 +46,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
@@ -63,6 +64,17 @@ def make(args, cwd=REPO):
     r = subprocess.run(["make", "-s", "--no-print-directory", "-C", REPO] + args, cwd=cwd, env=env(),
                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace")
     return r.returncode, r.stdout
+
+
+_LOCKS = {}
+_LOCKS_GUARD = threading.Lock()
+
+
+def build_lock(path):
+    """One lock per file to build: with --jobs above 1, two cases that need the same simulator or program image
+    must not run make on it side by side (the second would find, or run, a half-built file)."""
+    with _LOCKS_GUARD:
+        return _LOCKS.setdefault(path, threading.Lock())
 
 
 # ------------------------------------------------------------------------------ the cases
@@ -243,19 +255,23 @@ case("build-checks", "rtl/mcu.sv: a cache without HADES_SLOW_MEM", mcu_without_s
 # ---- a cached simulator's run-time options
 def sim_of(vars_, cpu="dut"):
     model = {"dut": "dut", "golden": "ref"}[cpu]
-    rc, out = make(["frtos-model", f"FRTOS_CPU={model}", "FRTOS_RAM_KB=32"] + vars_)
-    if rc:
-        return None, out
     rc, cfg = make(["sim-config"] + vars_)
     bdir = re.search(r"build directory:\s+(\S+)", cfg).group(1)
-    return os.path.join(REPO, bdir, "frtos-model", f"{model}-32k", "top"), os.path.join(REPO, bdir)
+    sim = os.path.join(REPO, bdir, "frtos-model", f"{model}-32k", "top")
+    with build_lock(sim):
+        rc, out = make(["frtos-model", f"FRTOS_CPU={model}", "FRTOS_RAM_KB=32"] + vars_)
+    if rc:
+        return None, out
+    return sim, os.path.join(REPO, bdir)
 
 
 def program(vars_, prog):
     rc, cfg = make(["sim-config"] + vars_)
     bdir = re.search(r"build directory:\s+(\S+)", cfg).group(1)
-    make([os.path.join(bdir, "test", prog, "init.mem")] + vars_)
-    return os.path.join(REPO, bdir, "test", prog, "init.mem")
+    image = os.path.join(REPO, bdir, "test", prog, "init.mem")
+    with build_lock(image):
+        make([image] + vars_)
+    return image
 
 
 def sim_run(vars_, plusargs, prog="asm/fencei", cpu="dut", tmp=None):
@@ -387,8 +403,10 @@ def builds(vars_, cpu, kind):
                   "console": os.path.join(bdir, "frtos-model", f"{model}-32k-console", "top")}[kind]
         if target is None:
             return True, "(the plain simulator is HaDes-V+ only)"
-        rc, out = make([os.path.relpath(target, REPO) if target.startswith(REPO) else target] + vars_ +
-                       (["FRTOS_RAM_KB=32"] if kind != "plain" else []))
+        # the goal is the absolute path: make spells the configuration's targets that way (BUILD_DIR is absolute
+        # below build/cfg-<name>), a relative build/cfg-<name>/... matches no rule
+        with build_lock(target):
+            rc, out = make([target] + vars_ + (["FRTOS_RAM_KB=32"] if kind != "plain" else []))
         return rc == 0 and os.path.exists(target), f"exit {rc}" + ("" if rc == 0 else f": {out.strip()[-200:]}")
     return fn
 
@@ -465,7 +483,8 @@ BENCH_CASES = {"fetch-write": r"icache: the fetch port presents we=1",
 def bench_case(name, message):
     def fn(tmp):
         top = os.path.join(REPO, "build", "test", "sv", "test_icache", "top")
-        rc, out = make([os.path.relpath(top, REPO)])
+        with build_lock(top):     # six cases share the one bench binary: one make at a time
+            rc, out = make([os.path.relpath(top, REPO)])
         if rc:
             return False, f"the bench does not build: {out.strip()[-200:]}"
         r = subprocess.run([top, f"+negative={name}"] if name else [top, "+compare=0"], cwd=os.path.dirname(top),

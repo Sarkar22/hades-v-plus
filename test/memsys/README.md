@@ -105,6 +105,7 @@ python3 test/memsys/programs.py run MEM_LAT=1:8 MEM_SEED=2
 python3 test/memsys/programs.py run MEM_LAT=0 BUSHASH=1 --out /abs/l0
 python3 test/memsys/programs.py run --sim-args +bushash --out /abs/std
 python3 test/memsys/programs.py compare /abs/std /abs/l0
+python3 test/memsys/programs.py compare --same-sources 642b86f 91e4332 /abs/before /abs/after
 ```
 
 With a slow memory every program also runs at latency 0 in the same simulator, and each run
@@ -140,7 +141,12 @@ a fault present at every latency gives the same wrong result at latency 0, and t
 then compares wrong with wrong. With a slow memory and the scoreboard off (`SCOREBOARD=0` or
 `+noscoreboard`), `run` refuses to start unless `--allow-no-scoreboard` is given, and then
 warns. `compare` of the standard simulator against latency 0 shows that the slow-memory
-simulator is cycle-for-cycle the standard one.
+simulator is cycle-for-cycle the standard one. `compare --same-sources <revision A> <revision B>`
+compares the runs of two source trees (A's from the first revision, B's from the second), and
+only the programs whose source files are identical in both revisions (read from git; a program
+whose source differs, or one that a revision lacks, is listed as left out, and the verdict line
+says so): a program that a change deliberately extended is expected to run differently, and
+says nothing about whether the simulators behave as before.
 
 ### With an instruction cache
 

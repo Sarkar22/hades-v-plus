@@ -13,6 +13,7 @@ e.g.
     python3 test/memsys/programs.py run MEM_LAT=1:8 MEM_SEED=2
     python3 test/memsys/programs.py run MEM_LAT=0 BUSHASH=1
     python3 test/memsys/programs.py compare <run dir A> <run dir B>
+    python3 test/memsys/programs.py compare --same-sources <revision A> <revision B> <run dir A> <run dir B>
 
 run: builds the simulators (make frtos-model FRTOS_CPU=dut|ref FRTOS_RAM_KB=32 with the
      given options) and the programs, runs every program on every CPU (--jobs at a time,
@@ -70,6 +71,17 @@ compare: for every program and CPU in both run directories, the simulator output
      the standard configuration with a slow memory at latency 0 (MEM_LAT=0 BUSHASH=1, and
      the standard runs with --sim-args +bushash) shows that the slow-memory simulator
      behaves exactly as the standard one, cycle for cycle. Exit status 1 on any difference.
+     --same-sources <revision A> <revision B>: for two run directories of two source trees
+     (A's runs from revision A, B's from revision B, both revisions in this repository), compare
+     only the programs whose source is the same in both revisions: a program (test/asm/<name>.s,
+     test/c/<name>.c, test/memsys/<name>.s) is left out when its source file differs between
+     the revisions (git's blob of the file), or when any other file of its directory differs
+     (a header, a linker script, a startup file: it could change any program of that kind;
+     documentation and Python files do not count).
+     A program that a revision lacks is left out as well. The output lists the programs left out and
+     the verdict line says that the comparison is restricted. This is what asks whether the
+     simulator configurations behave as before: a program that a change deliberately extended
+     is expected to run differently and says nothing about the simulators.
 """
 import argparse
 import concurrent.futures as cf
@@ -698,9 +710,57 @@ def program_output(d, r):
         return [l for l in f.read().splitlines() if not CONFIG_LINE.match(l)]
 
 
+def git_blobs(rev, d):
+    """{file name: blob id} of the directory d (relative to the repository) at the revision rev."""
+    r = subprocess.run(["git", "-C", REPO, "ls-tree", "-r", rev, "--", d + "/"], stdout=subprocess.PIPE,
+                       stderr=subprocess.PIPE, text=True)
+    if r.returncode:
+        sys.exit(f"programs.py: git ls-tree {rev} {d}: {r.stderr.strip()}")
+    return {l.split("\t", 1)[1]: l.split()[2] for l in r.stdout.splitlines()}
+
+
+def same_source_programs(rev_a, rev_b):
+    """(programs whose sources are the same in both revisions, the others with the reason)."""
+    same, left_out = set(), {}
+    for kind, ext in (("asm", ".s"), ("c", ".c"), ("memsys", ".s")):
+        d = f"test/{kind}"
+        a, b = git_blobs(rev_a, d), git_blobs(rev_b, d)
+        if not a or not b:
+            sys.exit(f"programs.py: no files in {d} at {rev_a if not a else rev_b}")
+        sources = {f for f in set(a) | set(b) if f.startswith(d + "/") and f.count("/") == 2 and f.endswith(ext)}
+        # the other files of the directory (and of its subdirectories) belong to every program of the kind,
+        # apart from the documentation and the Python tools, which no program is built from
+        shared_changed = sorted(f for f in set(a) | set(b) if f not in sources and a.get(f) != b.get(f)
+                                and not f.endswith((".md", ".py")))
+        for f in sorted(sources):
+            name = f"{kind}/{os.path.basename(f)[:-len(ext)]}"
+            if f not in a or f not in b:
+                left_out[name] = f"not in {rev_b if f not in b else rev_a}"
+            elif a[f] != b[f]:
+                left_out[name] = "source differs"
+            elif shared_changed:
+                left_out[name] = f"{shared_changed[0]} differs"
+            else:
+                same.add(name)
+    return same, left_out
+
+
 def compare(a):
     ra, A = outputs(a.dirs[0])
     rb, B = outputs(a.dirs[1])
+    restricted = ""
+    if a.same_sources:
+        same, left_out = same_source_programs(*a.same_sources)
+        gone = sorted({k[1] for k in list(A) + list(B) if k[1] in left_out})
+        A = {k: v for k, v in A.items() if k[1] in same}
+        B = {k: v for k, v in B.items() if k[1] in same}
+        print(f"COMPARE restricted to the programs whose sources are identical in {a.same_sources[0]} and "
+              f"{a.same_sources[1]}: {len({k[1] for k in A} | {k[1] for k in B})} programs compared, "
+              f"{len(gone)} left out:")
+        for g in gone:
+            print(f"  left out: {g} ({left_out[g]})")
+        restricted = f" (restricted to the {len({k[1] for k in A} | {k[1] for k in B})} programs with identical " \
+                     f"sources in {a.same_sources[0]} and {a.same_sources[1]}; {len(gone)} left out)"
     keys = sorted(set(A) | set(B))
     diffs, hashes, one_sided = [], 0, 0
     for k in keys:
@@ -727,7 +787,8 @@ def compare(a):
     for d in diffs:
         print(f"  {d}")
     print(f"PROGRAMS COMPARE: {'SAME' if not diffs else 'DIFFERENT'}  {len(keys)} runs, {len(diffs)} differ; "
-          f"equal bus hashes: {hashes}" + (f"; a bus hash in one run only (not compared): {one_sided}" if one_sided else ""))
+          f"equal bus hashes: {hashes}" + (f"; a bus hash in one run only (not compared): {one_sided}" if one_sided else "") +
+          restricted)
     return 1 if diffs else 0
 
 
@@ -751,6 +812,9 @@ def main():
     r.add_argument("--out", default=None, help="run directory (default: <build dir>/programs)")
     c = sub.add_parser("compare", help="compare the runs of two configurations")
     c.add_argument("dirs", nargs=2)
+    c.add_argument("--same-sources", nargs=2, metavar=("REV_A", "REV_B"),
+                   help="compare only the programs whose sources are identical in these two revisions of this "
+                        "repository (A's runs are of REV_A, B's of REV_B)")
     a = ap.parse_args()
     if a.cmd == "run":
         bad = [v for v in a.variables if not re.match(r"^[A-Z_]+=", v)]
