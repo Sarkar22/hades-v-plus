@@ -149,7 +149,7 @@ module icache #(
         .SNOOP_PORT(1'b0)
     ) data_ram (
         .clk(clk),
-        .a_adr(state == REFILL ? {refill_index, beat} : cpu.adr[O+I-1:0]),
+        .a_adr(state == REFILL ? {refill_index, beat} : {cpu_index, cpu.adr[O-1:0]}),
         .a_rdata(cpu.dat_miso),
         .a_we(beat_answered && !rst),
         .a_wdata(mem.dat_miso),
@@ -157,8 +157,10 @@ module icache #(
         .b_rdata(data_b_rdata)
     );
 
-    // A hit of the presented address (used in LOOKUP only; while the last beat of a refill is
-    // requested the tag port addresses the refilled set instead)
+    // A hit of the presented address. Meaningful in LOOKUP only: while the last beat of a refill
+    // is requested the tag port addresses the refilled set instead, so there this signal mixes
+    // the presented set's valid bit with the refilled set's tag and is not a hit of the
+    // presented address.
     assign hit  = req && valid[cpu_index] && tag_a_rdata == cpu_tag && cpu.adr[31:30] == 2'b00;
     assign miss = state == LOOKUP && req && inwin && !hit;
 
@@ -219,6 +221,9 @@ module icache #(
                     beat <= beat + 1'b1;
                 end
             end
+            // A snoop never meets a fill of the same line: no store is acknowledged inside a
+            // refill block, and the refilled set is invalid throughout the refill, so the order
+            // of these statements is no tie-break.
             if (snoop_inval)
                 valid[snoop_index] <= 1'b0;
         end
@@ -237,9 +242,11 @@ module icache #(
     assign ev_refill      = !rst && state == REFILL;
 
     // The read-only port of the data array is not used; nor are the bits of the snooped
-    // address outside the index and the tag, or the fetch port's write data
+    // address outside the index and the tag, or the fetch port's write data; the fetch port's
+    // we and sel and the refill port's err are read only by the simulation checks
     logic unused;
-    assign unused = ^{data_b_rdata, snoop_adr[31:30], snoop_adr[O-1:0], cpu.dat_mosi};
+    assign unused = ^{data_b_rdata, snoop_adr[31:30], snoop_adr[O-1:0], cpu.dat_mosi,
+                      cpu.we, cpu.sel, mem.err};
 
 `ifndef SYNTHESIS
     // --------------------------------------------------------------------------------------------

@@ -192,7 +192,7 @@ MUTANTS = [
         if (miss) mut_word <= 6'(cpu.adr[O-1:0]);
     end"""),
        (ICACHE, r"assign\s+cpu\.ack\s*=\s*([^;]+);", r"assign cpu.ack = (\1) || mut_after_fill;", 1),
-       (ICACHE, r"(\.a_adr\(\s*state\s*==\s*REFILL\s*\?\s*\{\s*refill_index\s*,\s*beat\s*\}\s*:\s*)(cpu\.adr\[)",
+       (ICACHE, r"(\.a_adr\(\s*state\s*==\s*REFILL\s*\?\s*\{\s*refill_index\s*,\s*beat\s*\}\s*:\s*)(cpu\.adr\[|\{\s*cpu_index\s*,\s*cpu\.adr\[)",
         r"\1mut_after_fill ? {refill_index, mut_word[O-1:0]} : \2", 1)],
       dict(kind="bench"), "scoreboard (fetchredirect.s); fetchredirect.s blinded; formal (the acknowledged word)"),
     m("latched-lookup", "late ack", "In the second-lookup cycle the hit is computed for the latched address "
