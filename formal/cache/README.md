@@ -634,6 +634,7 @@ reported (class `AUX`), not required.
 
 ### 10.9 Results
 
-`run.sh` writes the outcome table of every run to `SUMMARY.txt`; the table of the run on the
-tree with the D-cache is to be pasted here, with the depth, step, engine and time of each
-property, as in section 7.
+`run.sh` writes the outcome table of every run to `SUMMARY.txt` (and prints it at the end of the
+run): for each property and configuration the status, the step of the fallback ladder, the depth, the
+engine and the time, as in section 7, then the negative controls, the covers and the k-induction
+attempt.
