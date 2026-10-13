@@ -65,7 +65,11 @@ module decode_stage (
     output logic [31:0] jump_address_backwards_out,
 
     // Branch prediction passthrough (Fetch → Decode → Execute)
-    input  bpredict::bp_data_t bp_prediction_in
+    input  bpredict::bp_data_t bp_prediction_in,
+
+    // Hardware performance counters (rtl/hpm_events.sv): the load-use hazard
+    // below. An output only; it changes nothing in this stage.
+    output logic load_use_hazard_out
 );
 
     import pipeline_status::*;
@@ -148,6 +152,7 @@ module decode_stage (
     // FORWARDING: Execute > Memory > Writeback > Register File (most recent wins).
 
     logic load_use_hazard;
+    assign load_use_hazard_out = load_use_hazard;
     logic csr_use_hazard;
     logic wb_use_hazard;
     logic pipeline_hazard;

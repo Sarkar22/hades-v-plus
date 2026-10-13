@@ -70,7 +70,14 @@ module writeback_stage (
     // Pipeline control
     input  pipeline_status::forwards_t  status_forwards_in,
     output pipeline_status::backwards_t status_backwards_out,
-    output logic [31:0] jump_address_backwards_out
+    output logic [31:0] jump_address_backwards_out,
+
+    // Hardware performance counters (rtl/hpm.sv, rtl/hpm_events.sv): the delayed
+    // pipeline and memory-system events, and the present mask of the memory-system
+    // events. Like mtime_in, the golden model has no such ports; left unconnected
+    // in the unit benches they read 0: no event, no memory-system code.
+    input  hpm_pkg::late_t  hpm_late_in,
+    input  logic [31:0] hpm_ext_present_in
 );
 
     import pipeline_status::*;
@@ -102,12 +109,20 @@ module writeback_stage (
     logic [63:0] minstret;
 
     // Branch predictor CSRs
+    // The four counters count retired conditional branches (Part 11b); their
+    // selectors mhpmevent11-13 read the event codes 18-20 (counter unit).
     logic [31:0] bp_control;   // MHPMEVENT10  — algorithm select (0=NT,1=AT,2=BT,3=2bit)
     logic [31:0] bp_cnt_nn;    // MHPMCOUNTER10 — predict not-taken, actually not-taken
     logic [31:0] bp_cnt_nt;    // MHPMCOUNTER11 — predict not-taken, actually taken
     logic [31:0] bp_cnt_tn;    // MHPMCOUNTER12 — predict taken, actually not-taken
     logic [31:0] bp_cnt_tt;    // MHPMCOUNTER13 — predict taken, actually taken
     assign bp_control_out = bp_control;
+
+    // Hardware performance counters 3-9 and mcountinhibit: the counter unit
+    // (Part 11b). Its inhibit bits gate mcycle, minstret and counters 10-13.
+    logic [31:0] hpm_rdata;
+    logic        inh_cy, inh_ir;
+    logic [3:0]  inh_bp;
 
     // =========================================================================
     // Part 2: Classify instruction (raw status — for combo outputs)
@@ -200,7 +215,10 @@ module writeback_stage (
             csr::MHPMCOUNTER11: csr_read_val = bp_cnt_nt;
             csr::MHPMCOUNTER12: csr_read_val = bp_cnt_tn;
             csr::MHPMCOUNTER13: csr_read_val = bp_cnt_tt;
-            default:            csr_read_val = 32'b0;
+            // mcountinhibit, mhpmevent3-9 and 11-13, mhpmcounter3-9 and their
+            // high halves come from the counter unit, which reads 0 for every
+            // address it does not implement.
+            default:            csr_read_val = hpm_rdata;
         endcase
     end
 
@@ -229,10 +247,26 @@ module writeback_stage (
     // the updated values must be used." Used for interrupt detection at posedge.
     // Gated by !int_jump_reg: when a sequential interrupt JUMP is pending,
     // the stale instruction's CSR effects do not apply to flag computation.
+    //
+    // The new value of each flag is computed from the flag's own register, the
+    // op and source_data_in (csr_bit_write), not from csr_write_val: the value is
+    // used only when the address is MSTATUS or MIE, where csr_read_val equals
+    // those registers, so the result is the same, and the CSR read multiplexer
+    // stays off the path into the interrupt decision and the trap state.
 
     logic int_jump_reg;         // registered: interrupt JUMP pending
 
     logic mie_eff, meie_eff, mtie_eff, mpie_eff;
+
+    // One bit of a CSR write: the CSR's old bit, the op, and the source bit.
+    function automatic logic csr_bit_write(input op::t op_in, input logic old_bit, input logic src_bit);
+        case (op_in)
+            CSRRW, CSRRWI: return src_bit;
+            CSRRS, CSRRSI: return old_bit | src_bit;
+            CSRRC, CSRRCI: return old_bit & ~src_bit;
+            default:       return old_bit;
+        endcase
+    endfunction
 
     always_comb begin
         mie_eff  = mstatus_mie;
@@ -243,12 +277,12 @@ module writeback_stage (
         if (!int_jump_reg && is_valid && is_csr_op) begin
             case (instruction_in.csr)
                 csr::MSTATUS: begin
-                    mie_eff  = csr_write_val[3];
-                    mpie_eff = csr_write_val[7];
+                    mie_eff  = csr_bit_write(instruction_in.op, mstatus_mie,  source_data_in[3]);
+                    mpie_eff = csr_bit_write(instruction_in.op, mstatus_mpie, source_data_in[7]);
                 end
                 csr::MIE: begin
-                    meie_eff = csr_write_val[11];
-                    mtie_eff = csr_write_val[7];
+                    meie_eff = csr_bit_write(instruction_in.op, mie_meie, source_data_in[11]);
+                    mtie_eff = csr_bit_write(instruction_in.op, mie_mtie, source_data_in[7]);
                 end
                 default: ;
             endcase
@@ -516,17 +550,25 @@ module writeback_stage (
     end
 
     // =========================================================================
-    // Part 11: Counter write suppression helpers
+    // Part 11: Counter write test
     // =========================================================================
-    // Only CSRRW/CSRRWI explicitly write counters and suppress auto-increment.
-    // CSRRS/CSRRC with source=0 are "reads" and must NOT suppress auto-increment.
+    // The counters (mcycle, minstret, 3-13), their selectors and mcountinhibit
+    // are written by a retiring CSRRW or CSRRWI, and by a retiring CSRRS, CSRRC,
+    // CSRRSI or CSRRCI whose rs1 field (the uimm field of the immediate forms) is
+    // non-zero, even if the value in rs1 is 0 (Zicsr: with rs1 = x0 these "will
+    // not write to the CSR at all"). A write discards the written half's
+    // increment of the same cycle.
 
-    logic is_csr_explicit_write_op;
+    logic retire;               // minstret counts this instruction
+    logic csr_counter_write;    // the write test above, for the addressed CSR
+
+    assign retire = is_valid && !stale_replay;
 
     always_comb begin
         case (instruction_in.op)
-            CSRRW, CSRRWI: is_csr_explicit_write_op = 1'b1;
-            default:       is_csr_explicit_write_op = 1'b0;
+            CSRRW, CSRRWI:                 csr_counter_write = retire;
+            CSRRS, CSRRC, CSRRSI, CSRRCI:  csr_counter_write = retire && instruction_in.rs1_address != 5'b0;
+            default:                       csr_counter_write = 1'b0;
         endcase
     end
 
@@ -538,15 +580,123 @@ module writeback_stage (
     logic csr_writes_mcycle_lo, csr_writes_mcycle_hi;
     logic csr_writes_minstret_lo, csr_writes_minstret_hi;
 
-    assign csr_writes_mcycle_lo   = is_valid && is_csr_explicit_write_op && (instruction_in.csr == csr::MCYCLE);
-    assign csr_writes_mcycle_hi   = is_valid && is_csr_explicit_write_op && (instruction_in.csr == csr::MCYCLEH);
-    assign csr_writes_minstret_lo = is_valid && is_csr_explicit_write_op && (instruction_in.csr == csr::MINSTRET);
-    assign csr_writes_minstret_hi = is_valid && is_csr_explicit_write_op && (instruction_in.csr == csr::MINSTRETH);
+    assign csr_writes_mcycle_lo   = csr_counter_write && (instruction_in.csr == csr::MCYCLE);
+    assign csr_writes_mcycle_hi   = csr_counter_write && (instruction_in.csr == csr::MCYCLEH);
+    assign csr_writes_minstret_lo = csr_counter_write && (instruction_in.csr == csr::MINSTRET);
+    assign csr_writes_minstret_hi = csr_counter_write && (instruction_in.csr == csr::MINSTRETH);
 
     // Pre-computed incremented values for "increment first, then write" semantics.
+    // mcountinhibit's CY and IR bits stop the increments.
     logic [63:0] mcycle_inc, minstret_inc;
-    assign mcycle_inc   = mcycle   + 64'd1;
-    assign minstret_inc = minstret + 64'd1;
+    assign mcycle_inc   = mcycle   + 64'(!inh_cy);
+    assign minstret_inc = minstret + 64'(retire && !inh_ir);
+
+    // =========================================================================
+    // Part 11b: Hardware performance counters
+    // =========================================================================
+    // Class A events (codes 1-20) are those of the instruction in Writeback in
+    // this cycle, counted at the end of it, like minstret. The trap events
+    // (21-26) are this cycle's trap decision; the counter unit delays them two
+    // cycles, so that a trap counts after the stale instruction J of a
+    // sequential interrupt and before the handler's first instruction.
+
+    // Execute's prediction record, delayed to the branch's own Writeback cycle.
+    // A branch leaves Execute in the cycle its record is valid (it never stalls
+    // Execute and has no bus access) and is in Writeback two cycles later, or has
+    // been squashed into a bubble by then.
+    typedef struct packed {
+        logic valid;
+        logic predicted_taken;
+        logic was_taken;
+    } bp_rec_t;
+
+    bp_rec_t bp_rec1, bp_rec2;
+
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            bp_rec1 <= '0;
+            bp_rec2 <= '0;
+        end else begin
+            bp_rec1 <= '{valid:           bp_feedback_in.valid,
+                         predicted_taken: bp_feedback_in.predicted_taken,
+                         was_taken:       bp_feedback_in.was_taken};
+            bp_rec2 <= bp_rec1;
+        end
+    end
+
+    logic is_cond_branch, bp_retire_branch;
+    logic bp_ev_nn, bp_ev_nt, bp_ev_tn, bp_ev_tt;
+
+    assign is_cond_branch   = instruction_in.op inside {BEQ, BNE, BLT, BGE, BLTU, BGEU};
+    assign bp_retire_branch = retire && is_cond_branch;
+    assign bp_ev_nn = bp_retire_branch && bp_rec2.valid && !bp_rec2.predicted_taken && !bp_rec2.was_taken;
+    assign bp_ev_nt = bp_retire_branch && bp_rec2.valid && !bp_rec2.predicted_taken &&  bp_rec2.was_taken;
+    assign bp_ev_tn = bp_retire_branch && bp_rec2.valid &&  bp_rec2.predicted_taken && !bp_rec2.was_taken;
+    assign bp_ev_tt = bp_retire_branch && bp_rec2.valid &&  bp_rec2.predicted_taken &&  bp_rec2.was_taken;
+
+    // Class A events, indexed by code (defines/hpm.sv)
+    logic [20:1] hpm_ev_a;
+
+    always_comb begin
+        hpm_ev_a = '0;
+        hpm_ev_a[hpm_pkg::EV_CYCLE]         = 1'b1;
+        hpm_ev_a[hpm_pkg::EV_INSTRET]       = retire;
+        hpm_ev_a[hpm_pkg::EV_LOAD]          = retire && instruction_in.op inside {LB, LH, LW, LBU, LHU};
+        hpm_ev_a[hpm_pkg::EV_STORE]         = retire && instruction_in.op inside {SB, SH, SW};
+        hpm_ev_a[hpm_pkg::EV_BRANCH]        = bp_retire_branch;
+        // Execute passes {31'b0, taken} as a branch's result
+        hpm_ev_a[hpm_pkg::EV_BRANCH_TAKEN]  = bp_retire_branch && rd_data_in[0];
+        hpm_ev_a[hpm_pkg::EV_JUMP]          = retire && instruction_in.op inside {JAL, JALR};
+        hpm_ev_a[hpm_pkg::EV_MUL]           = retire && instruction_in.op inside {MUL, MULH, MULHSU, MULHU};
+        hpm_ev_a[hpm_pkg::EV_DIV]           = retire && instruction_in.op inside {DIV, DIVU, REM, REMU};
+        hpm_ev_a[hpm_pkg::EV_CSR]           = retire && is_csr_op;
+        // op::EXT: immediate[11] selects the cryptography half (op::ext_payload_t)
+        hpm_ev_a[hpm_pkg::EV_BITMANIP]      = retire && (instruction_in.op inside {SH1ADD, SH2ADD, SH3ADD} ||
+                                                     (instruction_in.op == EXT && !instruction_in.immediate[11]));
+        hpm_ev_a[hpm_pkg::EV_CRYPTO]        = retire && instruction_in.op == EXT && instruction_in.immediate[11];
+        hpm_ev_a[hpm_pkg::EV_MRET]          = retire && instruction_in.op == MRET;
+        hpm_ev_a[hpm_pkg::EV_FENCE_I]       = retire && instruction_in.op == FENCE_I;
+        hpm_ev_a[hpm_pkg::EV_REPLAY]        = stale_replay;
+        hpm_ev_a[hpm_pkg::EV_BR_MISPREDICT] = bp_ev_nt || bp_ev_tn;
+        hpm_ev_a[hpm_pkg::EV_BP_NN]         = bp_ev_nn;
+        hpm_ev_a[hpm_pkg::EV_BP_NT]         = bp_ev_nt;
+        hpm_ev_a[hpm_pkg::EV_BP_TN]         = bp_ev_tn;
+        hpm_ev_a[hpm_pkg::EV_BP_TT]         = bp_ev_tt;
+    end
+
+    // Trap events of this cycle: the conditions under which the trap block
+    // (Part 12) writes mcause.
+    logic exception_taken, interrupt_taken;
+    logic [26:21] hpm_trap;
+
+    assign exception_taken = is_exception && !int_jump_reg && !imm_jump_reg;
+    assign interrupt_taken = is_interrupt_seq || (is_interrupt_imm && !imm_jump_reg);
+
+    always_comb begin
+        hpm_trap = '0;
+        hpm_trap[hpm_pkg::EV_EXCEPTION] = exception_taken;
+        hpm_trap[hpm_pkg::EV_EXC_ECALL] = exception_taken && status_forwards_in == pipeline_status::ECALL;
+        hpm_trap[hpm_pkg::EV_EXC_OTHER] = exception_taken && status_forwards_in != pipeline_status::ECALL;
+        hpm_trap[hpm_pkg::EV_INTERRUPT] = interrupt_taken;
+        hpm_trap[hpm_pkg::EV_INT_TIMER] = interrupt_taken && !ext_int_pending;
+        hpm_trap[hpm_pkg::EV_INT_EXT]   = interrupt_taken &&  ext_int_pending;
+    end
+
+    hpm i_hpm (
+        .clk        (clk),
+        .rst        (rst),
+        .ev_a       (hpm_ev_a),
+        .trap_raw   (hpm_trap),
+        .late       (hpm_late_in),
+        .ext_present(hpm_ext_present_in),
+        .csr_addr   (instruction_in.csr),
+        .csr_we     (csr_counter_write),
+        .csr_wdata  (csr_write_val),
+        .rdata      (hpm_rdata),
+        .inh_cy     (inh_cy),
+        .inh_ir     (inh_ir),
+        .inh_bp     (inh_bp)
+    );
 
     // =========================================================================
     // Part 12: CSR Register Updates (SEQUENTIAL — posedge clk)
@@ -604,9 +754,9 @@ module writeback_stage (
             // The counter always increments; a CSR write overrides only the
             // targeted half, while the other half reflects the incremented value
             // (preserving carry across the 32-bit boundary).
-            if (!stale_replay && csr_writes_mcycle_lo)
+            if (csr_writes_mcycle_lo)
                 mcycle <= {mcycle_inc[63:32], csr_write_val};
-            else if (!stale_replay && csr_writes_mcycle_hi)
+            else if (csr_writes_mcycle_hi)
                 mcycle <= {csr_write_val, mcycle_inc[31:0]};
             else
                 mcycle <= mcycle_inc;
@@ -615,12 +765,13 @@ module writeback_stage (
             // A stale instruction that retires in the int_jump_reg cycle is
             // counted (it did retire: its result is written and mepc skips it);
             // a replayed one is not (it is counted when it re-executes).
-            if (!stale_replay && csr_writes_minstret_lo)
+            // csr_writes_* already require retire (no write by a replayed op).
+            if (csr_writes_minstret_lo)
                 minstret <= {minstret_inc[63:32], csr_write_val};
-            else if (!stale_replay && csr_writes_minstret_hi)
+            else if (csr_writes_minstret_hi)
                 minstret <= {csr_write_val, minstret_inc[31:0]};
-            else if (!stale_replay && is_valid)
-                minstret <= minstret + 64'd1;
+            else
+                minstret <= minstret_inc;
 
             // ---- CSR writes by instruction (not for a replayed stale op) ----
             if (!stale_replay && is_valid && is_csr_op) begin
@@ -640,25 +791,30 @@ module writeback_stage (
                     csr::MCAUSE:     mcause     <= csr_write_val;
                     csr::MSCRATCH:   mscratch   <= csr_write_val;
                     csr::MHPMEVENT10:  bp_control <= csr_write_val;
-                    csr::MHPMCOUNTER10: bp_cnt_nn <= csr_write_val;
-                    csr::MHPMCOUNTER11: bp_cnt_nt <= csr_write_val;
-                    csr::MHPMCOUNTER12: bp_cnt_tn <= csr_write_val;
-                    csr::MHPMCOUNTER13: bp_cnt_tt <= csr_write_val;
                     default: ;
                 endcase
             end
 
-            // ---- Branch prediction performance counters ----
-            if (bp_feedback_in.valid) begin
-                if (!bp_feedback_in.predicted_taken && !bp_feedback_in.was_taken)
-                    bp_cnt_nn <= bp_cnt_nn + 32'd1;
-                else if (!bp_feedback_in.predicted_taken && bp_feedback_in.was_taken)
-                    bp_cnt_nt <= bp_cnt_nt + 32'd1;
-                else if (bp_feedback_in.predicted_taken && !bp_feedback_in.was_taken)
-                    bp_cnt_tn <= bp_cnt_tn + 32'd1;
-                else
-                    bp_cnt_tt <= bp_cnt_tt + 32'd1;
-            end
+            // ---- Branch prediction performance counters (10-13) ----
+            // Retired conditional branches only (Part 11b). A write by the
+            // instruction in Writeback wins; it is never a branch, so it never
+            // meets an increment of the same counter.
+            if (csr_counter_write && instruction_in.csr == csr::MHPMCOUNTER10)
+                bp_cnt_nn <= csr_write_val;
+            else if (bp_ev_nn && !inh_bp[0])
+                bp_cnt_nn <= bp_cnt_nn + 32'd1;
+            if (csr_counter_write && instruction_in.csr == csr::MHPMCOUNTER11)
+                bp_cnt_nt <= csr_write_val;
+            else if (bp_ev_nt && !inh_bp[1])
+                bp_cnt_nt <= bp_cnt_nt + 32'd1;
+            if (csr_counter_write && instruction_in.csr == csr::MHPMCOUNTER12)
+                bp_cnt_tn <= csr_write_val;
+            else if (bp_ev_tn && !inh_bp[2])
+                bp_cnt_tn <= bp_cnt_tn + 32'd1;
+            if (csr_counter_write && instruction_in.csr == csr::MHPMCOUNTER13)
+                bp_cnt_tt <= csr_write_val;
+            else if (bp_ev_tt && !inh_bp[3])
+                bp_cnt_tt <= bp_cnt_tt + 32'd1;
 
             // ---- MRET effects on MSTATUS (suppressed during stale cycle) ----
             if (!int_jump_reg && is_mret) begin

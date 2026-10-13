@@ -8,6 +8,7 @@ defines/constants.sv
 defines/forwarding.sv
 defines/clk_params.sv
 defines/bpredict.sv
+defines/hpm.sv
 
 -y lib
 -y lib/peripherals

@@ -108,6 +108,15 @@ module mcu #(
     // CSRs shadow the real memory-mapped mtime (see wishbone_timer.mtime_out).
     logic [63:0] mtime;
 
+    // Memory-system events for the hardware performance counters (defines/hpm.sv): bit k is
+    // event code 128 + k, and the present mask has a 1 for every bit this configuration
+    // drives. Both are driven by the counter block below the memory system, and only there.
+    // The golden CPU does not read them (waiver: no lint warning in that build).
+    /* verilator lint_off UNUSEDSIGNAL */
+    logic [31:0] hpm_ext;
+    logic [31:0] hpm_ext_present;
+    /* verilator lint_on UNUSEDSIGNAL */
+
     // Instantiate CPU
     // To run a test against the golden model instead, verilate with +define+USE_REF_CPU:
     // ref_cpu has a frozen port list with no mtime_in, so that pin is excluded and
@@ -129,7 +138,9 @@ module mcu #(
         .memory_mem_port(mem_bus.master),
         .external_interrupt_in(external_interrupt),
         .timer_interrupt_in(timer_interrupt),
-        .mtime_in(mtime)
+        .mtime_in(mtime),
+        .hpm_ext_in(hpm_ext),
+        .hpm_ext_present_in(hpm_ext_present)
     );
 `endif
 
@@ -388,6 +399,25 @@ module mcu #(
         .port_b(mem_bus_slaves[0])
     );
 `endif
+
+    // --------------------------------------------------------------------------------------------
+    // |                         Performance counter events (memory system)                        |
+    // --------------------------------------------------------------------------------------------
+    // The one driver of hpm_ext and hpm_ext_present in every configuration: 0 without a cache.
+    // With the I-cache, bit k is the k-th of the cache events above in the counters' order
+    // (defines/hpm.sv, EXT_*); cache_ev_i_refill is not wired: its count equals the port's
+    // waiting plus granted refill cycles (cache_ev_wait_i + cache_ev_grant_i).
+    always_comb begin
+        hpm_ext         = 32'b0;
+        hpm_ext_present = 32'b0;
+`ifdef HADES_ICACHE_BYTES
+        hpm_ext[11:0]         = {cache_ev_port_store, cache_ev_port_load, cache_ev_grant_d,
+                                 cache_ev_grant_i, cache_ev_wait_d, cache_ev_wait_i,
+                                 cache_ev_i_snoop_inval, cache_ev_i_abandoned, cache_ev_i_fill,
+                                 cache_ev_i_beat, cache_ev_i_miss, cache_ev_i_hit};
+        hpm_ext_present[11:0] = 12'hFFF;
+`endif
+    end
 
     wishbone_leds #(
         .ADDRESS(LEDS_START),
