@@ -183,7 +183,7 @@ rules of the cached profile (`CACHE D-cache` is a configuration line).
 
 ```bash
 python3 test/memsys/programs.py run ICACHE=512 DCACHE=512 MEM_LAT=2
-python3 test/memsys/programs.py compare --same-sources <revision A> <revision B> \\
+python3 test/memsys/programs.py compare --same-sources <revision A> <revision B> \
     --reports-only asm/hpm --reports-only memsys/hpmcache --stats <run dir A> <run dir B>
 ```
 
@@ -420,11 +420,12 @@ expression that must match exactly as often as stated; `anchors` lists the ones 
 match the tree (a mutant whose patch does not apply is `ANCHOR MISSING`, never `CAUGHT`);
 `dryrun` applies every patch in a temporary copy, checks that the copy still builds (Verilator
 elaborates the simulator of the mutant's configuration, and the bench of the cache that is patched;
-a patched program is assembled) and deletes the copy. The 24 mutants of the data cache (`drop-lane-enable`
-to `data-present-mask-hole`) are the second part of the list; one of them is checked by the programs with the
-scoreboard's comparison of loaded words disabled (`store-writes-all-lanes`, with `dcache.s`), and one with the
-comparisons of the RAM disabled as well (`store-hit-skips-memory`: the RAM is never written, so the scoreboard
-would stop the run before the program had judged anything). `--map` also shows each run-time
+a patched program is assembled) and deletes the copy. The 24 mutants of the data cache and its wiring
+(`drop-lane-enable` to `data-present-mask-hole`) are the second part of the list. `dcache.s` with the
+scoreboard's comparison of loaded words disabled must also catch three of them (`drop-lane-enable`,
+`valid-on-store-miss` and `store-writes-all-lanes`, whose primary check it is), and with the comparisons of
+the RAM and of the fetched words disabled as well `store-hit-skips-memory` (the RAM is never written, so the
+scoreboard would stop the run before the program had judged anything); each ends `SCOREBOARD: PASS`. `--map` also shows each run-time
 assertion firing on its negative control. `apply <name> <dir>` writes a copy of the tree with one
 mutant applied: the negative controls of `make formal-cache` take their mutants from it, so each
 mutant is written in one place.
