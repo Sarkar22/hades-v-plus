@@ -135,6 +135,19 @@
 #define HPM_EV_IC_HIT_USED      160u
 #define HPM_EV_IC_MISS_JUMP     161u
 
+/* memory-system events of the data cache: only in a build with both caches. DC_LOOKUP_HIT counts
+ * every load answered from the cache, a missed load once more at its second lookup, so the load
+ * hits are HPM_EV_DC_LOOKUP_HIT - HPM_EV_DC_LOAD_MISS; DC_STORE_WAIT and DC_REFILL_CYCLE count
+ * cycles. Codes 148..159 and 162..191 stay free. */
+#define HPM_EV_DC_LOOKUP_HIT    140u
+#define HPM_EV_DC_LOAD_MISS     141u
+#define HPM_EV_DC_BEAT          142u
+#define HPM_EV_DC_FILL          143u
+#define HPM_EV_DC_STORE_HIT     144u
+#define HPM_EV_DC_STORE_MISS    145u
+#define HPM_EV_DC_STORE_WAIT    146u
+#define HPM_EV_DC_REFILL_CYCLE  147u
+
 /* -------------------------------------------------------------------- CSR access -- */
 
 /* A CSR number must be an immediate, so each access is a switch over the counter number. */
@@ -311,7 +324,9 @@ static inline void hpm_write( unsigned uN, uint64_t ullValue )
     X( REDIRECT_JUMP ) X( REDIRECT_WB ) X( FETCH_DELIVER ) X( FETCH_DISCARD ) X( IO_ACCESS )          \
     X( IC_LOOKUP_HIT ) X( IC_MISS ) X( IC_BEAT ) X( IC_FILL ) X( IC_ABANDON ) X( IC_SNOOP_INVAL )     \
     X( PORT_WAIT_I ) X( PORT_WAIT_D ) X( PORT_GRANT_I ) X( PORT_GRANT_D ) X( PORT_LOAD )              \
-    X( PORT_STORE ) X( IC_HIT_USED ) X( IC_MISS_JUMP )
+    X( PORT_STORE ) X( IC_HIT_USED ) X( IC_MISS_JUMP )                                                \
+    X( DC_LOOKUP_HIT ) X( DC_LOAD_MISS ) X( DC_BEAT ) X( DC_FILL ) X( DC_STORE_HIT )                  \
+    X( DC_STORE_MISS ) X( DC_STORE_WAIT ) X( DC_REFILL_CYCLE )
 
 /* The name of an event code ("CYCLE", "IC_MISS", ...), or NULL for a code that has none. */
 static inline const char * hpm_event_name( uint32_t ulCode )

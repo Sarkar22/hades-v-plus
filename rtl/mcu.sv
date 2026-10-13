@@ -280,10 +280,52 @@ module mcu #(
         .ev_refill(cache_ev_i_refill)
     );
 
+`ifdef HADES_DCACHE_BYTES
+    // With a D-cache (+define+HADES_DCACHE_BYTES, make DCACHE=<bytes>, only together with the
+    // I-cache): a write-through data cache without write-allocate as the RAM's port of the
+    // interconnect (slave 0), with the I-cache's line size. Its memory port, which carries its
+    // refill reads and its store writes, is the arbiter's data side. The I-cache's snoop above
+    // keeps reading slave 0, where a store is acknowledged in the cycle the memory answers it.
+    wishbone_interface dcache_mem();      // the D-cache's memory port
+    logic              dcache_mem_cont;   // ... its continuation tag
+
+    // The events of the D-cache (docs/CACHES.md lists their conditions); like the ones above,
+    // nothing in this memory system reads them.
+    logic cache_ev_d_lookup_hit;
+    logic cache_ev_d_load_miss;
+    logic cache_ev_d_beat;
+    logic cache_ev_d_fill;
+    logic cache_ev_d_store_hit;
+    logic cache_ev_d_store_miss;
+    logic cache_ev_d_store_wait;
+    logic cache_ev_d_refill;
+
+    dcache #(
+        .BYTES(`HADES_DCACHE_BYTES),
+        .LINE_BYTES(ICACHE_LINE_BYTES),
+        .WINDOW_START(MEMORY_START),
+        .WINDOW_WORDS(MEMORY_SIZE)
+    ) dcache (
+        .clk(clk),
+        .rst(rst),
+        .cpu(mem_bus_slaves[0]),
+        .mem(dcache_mem.master),
+        .mem_cont(dcache_mem_cont),
+        .ev_lookup_hit(cache_ev_d_lookup_hit),
+        .ev_load_miss(cache_ev_d_load_miss),
+        .ev_beat(cache_ev_d_beat),
+        .ev_fill(cache_ev_d_fill),
+        .ev_store_hit(cache_ev_d_store_hit),
+        .ev_store_miss(cache_ev_d_store_miss),
+        .ev_store_wait(cache_ev_d_store_wait),
+        .ev_refill(cache_ev_d_refill)
+    );
+
     mem_arbiter mem_arbiter (
         .clk(clk),
         .rst(rst),
-        .data(mem_bus_slaves[0]),
+        .data(dcache_mem.slave),
+        .data_cont(dcache_mem_cont),
         .irefill(icache_mem.slave),
         .irefill_cont(icache_mem_cont),
         .mem(memory_port.master),
@@ -295,6 +337,24 @@ module mcu #(
         .ev_port_load(cache_ev_port_load),
         .ev_port_store(cache_ev_port_store)
     );
+`else
+    mem_arbiter mem_arbiter (
+        .clk(clk),
+        .rst(rst),
+        .data(mem_bus_slaves[0]),
+        .data_cont(1'b0),
+        .irefill(icache_mem.slave),
+        .irefill_cont(icache_mem_cont),
+        .mem(memory_port.master),
+        .mem_cont(memory_port_cont),
+        .ev_wait_i(cache_ev_wait_i),
+        .ev_wait_d(cache_ev_wait_d),
+        .ev_grant_i(cache_ev_grant_i),
+        .ev_grant_d(cache_ev_grant_d),
+        .ev_port_load(cache_ev_port_load),
+        .ev_port_store(cache_ev_port_store)
+    );
+`endif
 
     slow_memory #(
         .PORT("memory"),
@@ -349,6 +409,17 @@ module mcu #(
         $display("CACHE I-cache %0d bytes, %0d-byte lines, %0d sets, direct-mapped; tag adr[29:%0d], index adr[%0d:%0d], word adr[%0d:0]; window 0x%08x-0x%08x; random initial arrays, seed %0d; one memory port, data side first; RAM exempt from the interconnect timeout",
                  icache.BYTES, icache.LINE_BYTES, icache.SETS, icache.O + icache.I, icache.O + icache.I - 1, icache.O,
                  icache.O - 1, icache.WINDOW_START << 2, ((icache.WINDOW_START + icache.WINDOW_WORDS) << 2) - 1, seed);
+`ifdef HADES_DCACHE_BYTES
+        if (dcache.WINDOW_START != ram.ADDRESS || dcache.WINDOW_WORDS != ram.SIZE ||
+            dcache.WINDOW_START != peripheral_bus_interconnect.SLAVE_ADDRESS[8*32 +: 32] ||
+            dcache.WINDOW_WORDS != peripheral_bus_interconnect.SLAVE_SIZE[8*32 +: 32])
+            $fatal(1, "rtl/mcu.sv: the D-cache's window (word address 0x%08x, 0x%08x words) must be the RAM's (0x%08x, 0x%08x words) and the interconnect's slave 0's (0x%08x, 0x%08x words)",
+                   dcache.WINDOW_START, dcache.WINDOW_WORDS, ram.ADDRESS, ram.SIZE,
+                   peripheral_bus_interconnect.SLAVE_ADDRESS[8*32 +: 32], peripheral_bus_interconnect.SLAVE_SIZE[8*32 +: 32]);
+        $display("CACHE D-cache %0d bytes, %0d-byte lines, %0d sets, direct-mapped, write-through, no write-allocate; tag adr[29:%0d], index adr[%0d:%0d], word adr[%0d:0]; window 0x%08x-0x%08x; random initial arrays, seed %0d",
+                 dcache.BYTES, dcache.LINE_BYTES, dcache.SETS, dcache.O + dcache.I, dcache.O + dcache.I - 1, dcache.O,
+                 dcache.O - 1, dcache.WINDOW_START << 2, ((dcache.WINDOW_START + dcache.WINDOW_WORDS) << 2) - 1, seed);
+`endif
     end
 `endif
 `elsif HADES_SLOW_MEM
@@ -400,13 +471,23 @@ module mcu #(
     );
 `endif
 
+`ifndef SYNTHESIS
+`ifdef HADES_DCACHE_BYTES
+`ifndef HADES_ICACHE_BYTES
+    // A D-cache exists only together with the I-cache (make refuses DCACHE without ICACHE)
+    initial $fatal(1, "rtl/mcu.sv: HADES_DCACHE_BYTES needs HADES_ICACHE_BYTES: a D-cache needs an I-cache (make DCACHE=<bytes> needs ICACHE=<bytes>)");
+`endif
+`endif
+`endif
+
     // --------------------------------------------------------------------------------------------
     // |                         Performance counter events (memory system)                        |
     // --------------------------------------------------------------------------------------------
     // The one driver of hpm_ext and hpm_ext_present in every configuration: 0 without a cache.
     // With the I-cache, bit k is the k-th of the cache events above in the counters' order
     // (defines/hpm.sv, EXT_*); cache_ev_i_refill is not wired: its count equals the port's
-    // waiting plus granted refill cycles (cache_ev_wait_i + cache_ev_grant_i).
+    // waiting plus granted refill cycles (cache_ev_wait_i + cache_ev_grant_i). With the D-cache as
+    // well, bits 12-19 are its eight events in the same order (EXT_DC_*); bits 20-31 stay 0.
     always_comb begin
         hpm_ext         = 32'b0;
         hpm_ext_present = 32'b0;
@@ -416,6 +497,11 @@ module mcu #(
                                  cache_ev_i_snoop_inval, cache_ev_i_abandoned, cache_ev_i_fill,
                                  cache_ev_i_beat, cache_ev_i_miss, cache_ev_i_hit};
         hpm_ext_present[11:0] = 12'hFFF;
+`ifdef HADES_DCACHE_BYTES
+        hpm_ext[19:12]         = {cache_ev_d_refill, cache_ev_d_store_wait, cache_ev_d_store_miss, cache_ev_d_store_hit,
+                                  cache_ev_d_fill, cache_ev_d_beat, cache_ev_d_load_miss, cache_ev_d_lookup_hit};
+        hpm_ext_present[19:12] = 8'hFF;
+`endif
 `endif
     end
 

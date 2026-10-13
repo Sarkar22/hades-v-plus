@@ -129,12 +129,24 @@ package hpm_pkg;
     localparam bit [7:0] EV_PORT_STORE     = 8'd139;
     localparam bit [7:0] EV_IC_HIT_USED    = 8'd160;  // IC_LOOKUP_HIT and Decode takes the word
     localparam bit [7:0] EV_IC_MISS_JUMP   = 8'd161;  // IC_MISS while Fetch is redirected
+    // Codes 140-147 are bits 12-19 of the event vector (EXT_DC_* below): the D-cache's events,
+    // legal only in a build with both caches. Load hits = DC_LOOKUP_HIT - DC_LOAD_MISS (a missed
+    // load is counted once more by DC_LOOKUP_HIT at its second lookup). Codes 148-159 and
+    // 162-191 stay free.
+    localparam bit [7:0] EV_DC_LOOKUP_HIT    = 8'd140;
+    localparam bit [7:0] EV_DC_LOAD_MISS     = 8'd141;
+    localparam bit [7:0] EV_DC_BEAT          = 8'd142;
+    localparam bit [7:0] EV_DC_FILL          = 8'd143;
+    localparam bit [7:0] EV_DC_STORE_HIT     = 8'd144;
+    localparam bit [7:0] EV_DC_STORE_MISS    = 8'd145;
+    localparam bit [7:0] EV_DC_STORE_WAIT    = 8'd146;  // a cycle event
+    localparam bit [7:0] EV_DC_REFILL_CYCLE  = 8'd147;  // a cycle event
 
     // --------------------------------------------------------------------------------------------
     // |                        Memory-system event vector (bit order)                           |
     // --------------------------------------------------------------------------------------------
     // Bit k of the vector (rtl/mcu.sv: hpm_ext) is event code 128 + k. A new
-    // event takes the next free bit; the order never changes. Bits 12-31 are
+    // event takes the next free bit; the order never changes. Bits 20-31 are
     // reserved for later memory-system events.
     localparam int EXT_IC_LOOKUP_HIT  = 0;   // cache_ev_i_hit
     localparam int EXT_IC_MISS        = 1;   // cache_ev_i_miss
@@ -148,6 +160,14 @@ package hpm_pkg;
     localparam int EXT_PORT_GRANT_D   = 9;   // cache_ev_grant_d
     localparam int EXT_PORT_LOAD      = 10;  // cache_ev_port_load
     localparam int EXT_PORT_STORE     = 11;  // cache_ev_port_store
+    localparam int EXT_DC_LOOKUP_HIT  = 12;  // cache_ev_d_lookup_hit (with a D-cache)
+    localparam int EXT_DC_LOAD_MISS   = 13;  // cache_ev_d_load_miss
+    localparam int EXT_DC_BEAT        = 14;  // cache_ev_d_beat
+    localparam int EXT_DC_FILL        = 15;  // cache_ev_d_fill
+    localparam int EXT_DC_STORE_HIT   = 16;  // cache_ev_d_store_hit
+    localparam int EXT_DC_STORE_MISS  = 17;  // cache_ev_d_store_miss
+    localparam int EXT_DC_STORE_WAIT  = 18;  // cache_ev_d_store_wait
+    localparam int EXT_DC_REFILL      = 19;  // cache_ev_d_refill
 
     // --------------------------------------------------------------------------------------------
     // |                         Events delivered late to the counter unit                        |
