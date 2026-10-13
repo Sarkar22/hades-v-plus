@@ -56,6 +56,7 @@ module instruction_decoder (
     assign valid_csr = instruction_in[31:20] inside {
         [12'h300:12'h306],       // MSTATUS, MISA, MEDELEG, MIDELEG, MIE, MTVEC, MCOUNTEREN
         12'h310,                  // MSTATUSH
+        12'h320,                  // MCOUNTINHIBIT
         [12'h323:12'h33F],       // MHPMEVENT3..31
         [12'h340:12'h344],       // MSCRATCH, MEPC, MCAUSE, MTVAL, MIP
         12'hB00, 12'hB02,        // MCYCLE, MINSTRET (0xB01 not defined)

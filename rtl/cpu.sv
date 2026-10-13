@@ -20,7 +20,15 @@ module cpu (
     // Live 64-bit mtime from the platform timer (wishbone_timer.mtime_out).
     // Only consumer is the Writeback stage, which exposes it as the Zicntr
     // TIME/TIMEH CSRs. Same clock domain as `clk`, so it is used directly.
-    input logic [63:0] mtime_in
+    input logic [63:0] mtime_in,
+
+    // Memory-system events for the hardware performance counters, from rtl/mcu.sv
+    // (bit k is event code 128 + k, defines/hpm.sv), and the mask of the bits the
+    // configuration drives (a constant; selectors accept only those codes). Both are
+    // 0 in a build without a cache. Same clock domain as `clk`; registered once in
+    // hpm_events before any use.
+    input logic [31:0] hpm_ext_in,
+    input logic [31:0] hpm_ext_present_in
 );
 
     // =========================================================================
@@ -97,6 +105,13 @@ module cpu (
     logic        mem_bus_pending;
 
     // =========================================================================
+    // Hardware performance counter events
+    // =========================================================================
+
+    logic       load_use_hazard_d;  // Decode → hpm_events: Decode's load-use hazard
+    hpm_pkg::late_t hpm_late;           // hpm_events → Writeback (counter unit): B1 and B2 events
+
+    // =========================================================================
     // Stage instantiations
     // =========================================================================
 
@@ -138,7 +153,8 @@ module cpu (
         .status_backwards_out      (bwd_status_d),
         .jump_address_backwards_in (jump_addr_e),
         .jump_address_backwards_out(jump_addr_d),
-        .bp_prediction_in          (bp_pred_f)
+        .bp_prediction_in          (bp_pred_f),
+        .load_use_hazard_out       (load_use_hazard_d)
     );
 
     // --- Execute Stage --------------------------------------------------------
@@ -211,7 +227,32 @@ module cpu (
         .mem_bus_pending_in        (mem_bus_pending),
         .status_forwards_in        (fwd_status_m),
         .status_backwards_out      (bwd_status_wb),
-        .jump_address_backwards_out(jump_addr_wb)
+        .jump_address_backwards_out(jump_addr_wb),
+        .hpm_late_in               (hpm_late),
+        .hpm_ext_present_in        (hpm_ext_present_in)
+    );
+
+    // --- Performance counter events -------------------------------------------
+    // Registers the raw conditions once and computes the delayed events that the
+    // counter unit in Writeback counts (rtl/hpm_events.sv, rtl/hpm.sv). It only
+    // observes: no pipeline signal depends on it.
+    hpm_events i_hpm_events (
+        .clk            (clk),
+        .rst            (rst),
+        .status_d       (bwd_status_d),
+        .status_e       (bwd_status_e),
+        .status_m       (bwd_status_m),
+        .status_wb      (bwd_status_wb),
+        .fetch_ack      (memory_fetch_port.ack),
+        .fetch_err      (memory_fetch_port.err),
+        .op_d           (inst_d.op),
+        .op_e           (inst_e.op),
+        .load_use_hazard(load_use_hazard_d),
+        .mem_cyc        (memory_mem_port.cyc),
+        .mem_pending    (mem_bus_pending),
+        .mem_adr        (memory_mem_port.adr),
+        .ext            (hpm_ext_in),
+        .late           (hpm_late)
     );
 
 `ifndef SYNTHESIS
@@ -223,6 +264,14 @@ module cpu (
     always_ff @(posedge clk) begin
         if (!rst && mem_bus_pending && bwd_status_wb == pipeline_status::JUMP)
             $fatal(1, "cpu: JUMP from Writeback while a Memory bus access is in flight");
+    end
+
+    // Invariant (simulation only): a retiring conditional branch always finds
+    // Execute's prediction record, delayed two cycles, in Writeback: the branch
+    // predictor's counters 10-13 count at retirement from that record.
+    always_ff @(posedge clk) begin
+        if (!rst && i_writeback.bp_retire_branch && !i_writeback.bp_rec2.valid)
+            $fatal(1, "cpu: a conditional branch retires without its prediction record (pc 0x%08x)", pc_m);
     end
 `endif
 

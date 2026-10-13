@@ -41,6 +41,7 @@ set SOURCES {
     defines/constants.sv
     defines/forwarding.sv
     defines/clk_params.sv
+    defines/hpm.sv
 
     lib/*.sv
     lib/peripherals/*.sv
