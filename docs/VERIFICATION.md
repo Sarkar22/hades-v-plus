@@ -256,8 +256,8 @@ make formal-cache   # bounded proofs on tiny configurations, k-induction, covers
 
 It uses the same tools and ends with `FORMAL CACHE RESULT: PASS` or `FORMAL CACHE RESULT: FAIL ...`.
 What it proves, the environment it assumes, the depths and the fallback used for each property
-are in [formal/cache/README.md](../formal/cache/README.md); there are no recorded results of it
-yet. The proofs concern the cache and the arbiter, which exist only in the simulators.
+and the outcome of a run (section 7) are in [formal/cache/README.md](../formal/cache/README.md); there is no
+record of it under `results/` yet. The proofs concern the cache and the arbiter, which exist only in the simulators.
 
 ### The M unit
 

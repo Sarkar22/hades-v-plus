@@ -313,17 +313,65 @@ is in the run directory.
 
 ## 7. Results
 
-`run.sh` writes, in `SUMMARY.txt`, an "Outcome table" in the form below: for each property and
-configuration the step of the fallback ladder at which it was proved, with the depth, the engine
-and the harness; the covers; the negative controls; the k-induction attempt. No run is recorded
-here or under `results/` yet, so this section gives only the form of the table.
+The tables below are the outcome of one run of `run.sh --par 4` (four jobs at a time) with the
+tools used then (Yosys 0.69, bitwuzla 0.9.1, Yices 2.7.0, Z3 5.1.0, sv2v 0.0.13): 38 required
+checks, all `PASS`, and 37 negative controls, all `FAIL` as required; the whole run took 386 s.
+`run.sh` writes the same table in `SUMMARY.txt` ("Outcome table"). The times are wall-clock
+seconds of that run on one machine, for orientation only; they are not part of what is proved.
 
-| Check | Configuration | Outcome |
-|---|---|---|
-| each property of section 1 | tiny, second | proved to depth `<d>` (step `<n>`, `<engine>`) |
-| covers | tiny, second | reached |
-| negative controls | tiny | all fail as required |
-| k-induction | tiny, second | proved, unbounded, or not proved |
+Every bounded property was proved at its stated depth (40 in the tiny configuration, 30 in the
+second one) at step 1 of the ladder of section 4, by the first engine (`smtbmc` with bitwuzla), on
+the full harness: no property needed a smaller depth, a decomposed harness, a narrower memory or a
+simulation. The three interconnect properties were proved unbounded by induction, also at step 1.
+
+| Property | Configuration | Depth proved | Step of the ladder | Engine | Time |
+|---|---|---|---|---|---|
+| `ack_err` | tiny | 40 | 1 (the stated depth, first engine) | bitwuzla | 4 s |
+| `answer_req` | tiny | 40 | 1 (the stated depth, first engine) | bitwuzla | 5 s |
+| `bound` | tiny | 40 | 1 (the stated depth, first engine) | bitwuzla | 6 s |
+| `bound_cpu` | tiny | 40 | 1 (the stated depth, first engine) | bitwuzla | 5 s |
+| `data_indep` | tiny | 40 | 1 (the stated depth, first engine) | bitwuzla | 19 s |
+| `fetch_data` | tiny | 40 | 1 (the stated depth, first engine) | bitwuzla | 98 s |
+| `fetch_data` | second | 30 | 1 (the stated depth, first engine) | bitwuzla | 78 s |
+| `grant_kept` | tiny | 40 | 1 (the stated depth, first engine) | bitwuzla | 3 s |
+| `grant_route` | tiny | 40 | 1 (the stated depth, first engine) | bitwuzla | 6 s |
+| `line_data` | tiny | 40 | 1 (the stated depth, first engine) | bitwuzla | 31 s |
+| `line_data` | second | 30 | 1 (the stated depth, first engine) | bitwuzla | 35 s |
+| `refill_no_write` | tiny | 40 | 1 (the stated depth, first engine) | bitwuzla | 4 s |
+| `refill_stable` | tiny | 40 | 1 (the stated depth, first engine) | bitwuzla | 5 s |
+| `refill_stable` | second | 30 | 1 (the stated depth, first engine) | bitwuzla | 3 s |
+| `refill_window` | tiny | 40 | 1 (the stated depth, first engine) | bitwuzla | 4 s |
+| `refill_window` | second | 30 | 1 (the stated depth, first engine) | bitwuzla | 4 s |
+| `reset_state` | tiny | 40 | 1 (the stated depth, first engine) | bitwuzla | 5 s |
+| `reset_state` | second | 30 | 1 (the stated depth, first engine) | bitwuzla | 3 s |
+| `store_fetch` | tiny | 40 | 1 (the stated depth, first engine) | bitwuzla | 114 s |
+| `store_fetch` | second | 30 | 1 (the stated depth, first engine) | bitwuzla | 80 s |
+| `store_once` | tiny | 40 | 1 (the stated depth, first engine) | bitwuzla | 6 s |
+| `window` | tiny | 40 | 1 (the stated depth, first engine) | bitwuzla | 4 s |
+| `window` | second | 30 | 1 (the stated depth, first engine) | bitwuzla | 4 s |
+| `ic_default` | interconnect | unbounded (induction) | 1 (induction, first engine) | bitwuzla | 1 s |
+| `ic_ram_exempt` | interconnect | unbounded (induction) | 1 (induction, first engine) | bitwuzla | 2 s |
+| `ic_io_timeout` | interconnect | unbounded (induction) | 1 (induction, first engine) | bitwuzla | 1 s |
+
+Covers (every cover statement must be reached): all eight runs passed, with no unreached cover.
+
+| Cover run | Reached | Unreached | Time |
+|---|---|---|---|
+| tiny | 22 | 0 | 4.3 s |
+| tiny, CPU-like data side | 23 | 0 | 5.7 s |
+| second | 22 | 0 | 9.1 s |
+| second, CPU-like data side | 23 | 0 | 11.0 s |
+| I-cache pair, tiny | 3 | 0 | 1.3 s |
+| interconnect, default mask | 1 | 0 | 34.7 s |
+| interconnect, I/O timeout | 1 | 0 | 35.9 s |
+| interconnect, RAM exemption | 1 | 0 | 160.7 s |
+
+Negative controls (section 5): all 37 controls fail on the property they target, in the tiny
+configuration, at the step, depth and engine at which that property was proved (1 to 3 s each).
+
+k-induction on the I-cache alone (section 6): `PASS`, an unbounded proof of `fetch_data`,
+`line_data`, `window` and `reset_state`, in both the tiny (1.6 s) and the second (1.9 s)
+configuration.
 
 ---------------------------------------------------------------------------------------------
 
