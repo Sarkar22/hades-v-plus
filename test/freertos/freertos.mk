@@ -108,7 +108,9 @@ FRTOS_HEAP    ?= 4
 # F = 1 + ceil(the larger of the mean read latency and the mean write latency) (the means of
 # the configured ranges), plus 1 with a cache (a miss costs a whole refill, and wrong-path
 # refills cost whole lines), and the programs get -DFRTOS_SLOW_SCALE=F (mzba multiplies its
-# interrupt intervals by it). For example F = 3 (tick 30000) at MEM_LAT=2, F = 4 with ICACHE=512
+# interrupt intervals by it, brk its interrupt intervals and its sleep period: a larger tick
+# alone cannot keep their load, which is counted in cycles, at the standard build's level).
+# For example F = 3 (tick 30000) at MEM_LAT=2, F = 4 with ICACHE=512
 # as well. test/freertos/campaign.py passes FRTOS_TICK itself, so its ticks stay unscaled.
 FRTOS_SLOW_SCALE :=
 ifneq ($(filter +define+HADES_SLOW_MEM,$(SIM_CFG_DEFS)),)

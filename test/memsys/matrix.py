@@ -54,6 +54,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -101,7 +102,9 @@ CACHE_STATS = re.compile(r"^CACHE_STATS (.*)$", re.M)
 LINE_BYTES = re.compile(r"^CACHE I-cache \d+ bytes, (\d+)-byte lines", re.M)
 SCOREBOARD_PASS = re.compile(r"^SCOREBOARD: PASS\s+(\d+) fetches, (\d+) loads, (\d+) stores", re.M)
 RETIRED = re.compile(r"^RETIRED cycles=(\d+)", re.M)
-RESET = re.compile(r"^RESET at cycle (\d+) \(\+reset_at=(\d+)\): (.*)$", re.M)
+# (a program's UART text without a newline can stand in front of the RESET line, as in front of
+# RETIRED_AT, so it is searched in the line, not at its start)
+RESET = re.compile(r"RESET at cycle (\d+) \(\+reset_at=(\d+)\): (.*)$", re.M)
 # The cycles with rst = 1 at the start of a run (rtl/mcu.sv: rst is set at time 0 and cleared at
 # the first edge). Used only to relate RESET lines to RETIRED; checked on the first reset runs.
 INITIAL_RESET_CYCLES = 1
@@ -477,6 +480,16 @@ def exit_judge(job, rc, out, d):
     return ("PASS" if rc == 0 and not [n for n in notes if "recorded" not in n] else "FAIL"), notes
 
 
+def cpi_judge(job, rc, out, d):
+    """A CPI row: the helper's exit status and the logs as for any job, and the row's marks recorded
+    (a program's own check that ended the run early, and the second line run with the automatic tick)."""
+    verdict, notes = exit_judge(job, rc, out, d)
+    for l in out.splitlines():
+        if l.startswith(("CPI ROW", "FRTOS-RESULT: FAIL", "AUTO FRTOS-RESULT")):
+            notes.append(f"{l[:160]} (recorded)")
+    return verdict, notes
+
+
 # ---- the coverage of the directed tests (headers of the programs)
 def header_minimum(prog, pattern):
     """A number from a test's header box, read as running text (the box's line breaks removed)."""
@@ -647,7 +660,9 @@ def resets_judge_factory(cached, minimum=3):
 
 
 def resets_job(leg, cache, profile, progs=("memsys/stores", "memsys/fetchredirect", "memsys/icoherence",
-                                           "memsys/irqchain", "asm/ops")):
+                                           "memsys/irqchain", "asm/ops", "asm/memirq")):
+    # asm/memirq is the program of the set that accesses the test stall register (a 4-cycle wait for
+    # the answer): none of the others waits for an I/O answer, so without it no reset lands in an I/O wait
     cached = cache != "standard"
 
     def cmd(d):
@@ -758,7 +773,7 @@ def legs():
                                (lambda app, b, cache, prof, extra: lambda d: [
                                    sys.executable, os.path.abspath(__file__), "_cpi", "--dir", d, "--app", app,
                                    "--bpred", str(b), "--"] + config(cache, prof) + extra)(app, b, cache, prof, extra),
-                               exit_judge, 6e7, cpus="dut", lock=(cache, prof, app), needs_cache=cache != "standard",
+                               cpi_judge, 6e7, cpus="dut", lock=(cache, prof, app), needs_cache=cache != "standard",
                                extra_vars=extra))
     L["cpi"] = cpi
     L["irq-latency"] = [programs_job("irq-latency", c, p, only="asm/uartirq$|memsys/irqchain$", cpus="dut",
@@ -779,7 +794,10 @@ def run_programs(vars_, progs, sim_args=(), cpu="dut"):
     model = {"dut": "dut", "golden": "ref"}[cpu]
     subprocess.run(make_cmd(["frtos-model", f"FRTOS_CPU={model}", "FRTOS_RAM_KB=32"], vars_), check=True, env=env,
                    stdout=subprocess.DEVNULL)
-    subprocess.run(make_cmd([os.path.relpath(os.path.join(bdir, "test", p, "init.mem"), REPO) for p in progs], vars_),
+    # the goals in the spelling of make's own BUILD_DIR: absolute for a configuration's directory
+    # (cfg-<name>), 'build' for the standard one; any other spelling names no rule
+    raw = re.search(r"build directory:\s+(\S+)", text).group(1)
+    subprocess.run(make_cmd([os.path.join(raw, "test", p, "init.mem") for p in progs], vars_),
                    check=True, env=env, stdout=subprocess.DEVNULL)
     return os.path.join(bdir, "frtos-model", f"{model}-32k", "top"), {p: os.path.join(bdir, "test", p) for p in progs}
 
@@ -811,6 +829,7 @@ def helper_resets(a, vars_):
     if a.app:
         # a FreeRTOS program: the phase log of one run, then one run per placed reset
         d = os.path.join(a.dir, a.app)
+        os.makedirs(d, exist_ok=True)          # the phase log is opened in it before frtos_direct writes there
         frtos_direct(a.app, vars_, ["+cache_phase_log=" + os.path.join(d, "phase.bin")], d)
         _, rundir, sim, args = frtos_direct(a.app, vars_, [], os.path.join(d, "base"))
         for name, cyc in place_resets(os.path.join(d, "phase.bin"), cached):
@@ -871,7 +890,12 @@ def helper_model(a, vars_):
 
 
 def helper_benches(a, vars_):
-    names = sorted(f[:-3] for f in os.listdir(os.path.join(REPO, "test", "sv")) if f.endswith(".sv"))
+    # every bench of test/sv, or those named by --programs; test_example.sv is the template of the
+    # original repository, which does not build in any configuration (the standard one included)
+    names = sorted(f[:-3] for f in os.listdir(os.path.join(REPO, "test", "sv"))
+                   if f.endswith(".sv") and f != "test_example.sv")
+    if a.programs:
+        names = [n for n in names if n in a.programs.split(",")]
     rc = 0
     for n in names:
         r = subprocess.run(make_cmd([f"test/sv/{n}"], vars_), capture_output=True, text=True, env=clean_env(),
@@ -929,17 +953,34 @@ def helper_cached_vs_golden(a, vars_):
 def helper_cpi(a, vars_):
     """One row of the CPI measurement: TICK=10000 (as the model's traces), the branch-predictor
     mode, +retired_every=100000; full runs a fixed window of 10 M cycles. The RETIRED_AT, RETIRED and
-    CACHE_STATS lines are the row's figures (compared over equal retired instructions)."""
-    goal_vars = vars_ + ["TICK=10000", f"BPRED={a.bpred}"] + (["TIMEOUT=10000000"] if a.app == "full" else [])
-    r, _, _, _ = frtos_direct(a.app, goal_vars, ["+retired_every=100000"], a.dir)
-    for l in r.stdout.splitlines():
-        # (a RETIRED_AT line can follow the program's UART output on the same line)
-        m = re.search(r"RETIRED_AT instructions=\d+ cycles=\d+", l)
-        if m:
-            print(m.group(0))
-        elif l.startswith(("RETIRED", "CACHE_STATS", "FRTOS-RESULT", "Simulation timeout", "SCOREBOARD")):
-            print(l)
-    return 0 if "SCOREBOARD: PASS" in r.stdout and not re.search(r"%(Fatal|Error)", r.stdout) else 1
+    CACHE_STATS lines are the row's figures (compared over equal retired instructions). A program
+    whose own real-time check ends the run early (FRTOS-RESULT: FAIL) marks the row, and the row
+    is run once more with the automatic tick: those lines are printed with the prefix 'AUTO ' (the
+    row's second line)."""
+    window = ["TIMEOUT=10000000"] if a.app == "full" else []
+
+    def run(extra, d, prefix):
+        r, _, _, _ = frtos_direct(a.app, vars_ + extra + [f"BPRED={a.bpred}"] + window,
+                                  ["+retired_every=100000"], d)
+        for l in r.stdout.splitlines():
+            # (a RETIRED_AT line can follow the program's UART output on the same line)
+            m = re.search(r"RETIRED_AT instructions=\d+ cycles=\d+", l)
+            if m:
+                print(prefix + m.group(0))
+            elif l.startswith(("RETIRED", "CACHE_STATS", "FRTOS-RESULT", "Simulation timeout", "SCOREBOARD")):
+                print(prefix + l)
+        return r, "FRTOS-RESULT: FAIL" in r.stdout
+
+    r, early = run(["TICK=10000"], a.dir, "")
+    ok = "SCOREBOARD: PASS" in r.stdout and not re.search(r"%(Fatal|Error)", r.stdout)
+    if early:
+        print("CPI ROW MARKED: the program's own check ended the run early at TICK=10000; "
+              "run once more with the automatic tick (second line, lines prefixed AUTO)")
+        r2, early2 = run([], os.path.join(a.dir, "auto"), "AUTO ")
+        ok = ok and "SCOREBOARD: PASS" in r2.stdout and not re.search(r"%(Fatal|Error)", r2.stdout)
+        if early2:
+            print("CPI ROW: the run with the automatic tick ended early as well")
+    return 0 if ok else 1
 
 
 def helper_lint(a, vars_):
@@ -1064,7 +1105,7 @@ def cmd_run(a):
           f"{len(todo)} to run, {a.jobs} at a time, longest first; results in {out}", flush=True)
     if a.dry_run:
         for j in todo:
-            print(f"  would run {j.id}")
+            print(f"  would run {j.id}\n      {shlex.join(j.cmd(os.path.join(out, 'jobs', j.id.replace('/', '--'))))}")
         return 0
     cache_ok = {}
     held, held_lock = set(), threading.Condition()
@@ -1131,9 +1172,12 @@ def main():
         ap.add_argument("--cached", default="1")
         ap.add_argument("--app", default="")
         ap.add_argument("--bpred", default="0")
-        ap.add_argument("vars", nargs="*")
-        a = ap.parse_args()
-        return HELPERS[a.helper](a, a.vars)
+        # the make variables follow a '--': split there, since argparse (3.12) does not accept a '--'
+        # between an option and a positional list
+        argv = sys.argv[1:]
+        k = argv.index("--") if "--" in argv else len(argv)
+        a = ap.parse_args(argv[:k])
+        return HELPERS[a.helper](a, argv[k + 1:])
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("list")
