@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: MIT
+# The Writeback miter (props/writeback_props.vh; the top module writeback_top is written by
+# scripts/model.py): unbounded proofs by k-induction, and the covers. The *_x0 tasks add the
+# assumption that a CSRRS/CSRRC/CSRRSI/CSRRCI with rs1 field 0 has source 0 (run.sh
+# --assume-x0-source). The events tasks also assert the miter's equalities: their induction needs them.
+[tasks]
+writeback_miter     prove p_miter
+writeback_events    prove p_events
+writeback_miter_x0  prove p_miter x0
+writeback_events_x0 prove p_events x0
+covers              cov
+
+[options]
+prove: mode prove
+prove: depth 4
+cov: mode cover
+cov: depth 8
+
+[engines]
+smtbmc bitwuzla
+
+[script]
+p_miter:  verilog_defaults -add -DCHECK_WRITEBACK_MITER
+p_events: verilog_defaults -add -DCHECK_WRITEBACK_EVENTS -DCHECK_WRITEBACK_MITER
+x0:       verilog_defaults -add -DASSUME_X0_SOURCE
+cov:      verilog_defaults -add -DCOVERS
+read_verilog -sv -formal writeback.v
+hierarchy -top writeback_top
+proc -norom
+flatten
+prep -top writeback_top
+
+[files]
+../gen/writeback.v
+../props/writeback_props.vh
