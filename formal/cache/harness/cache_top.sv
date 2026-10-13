@@ -69,7 +69,7 @@ module cache_top (
         .ev_abandoned(e_abandoned), .ev_snoop_inval(e_snoop_inval), .ev_refill(e_refill));
 
     mem_arbiter mem_arbiter (
-        .clk(clk), .rst(rst), .data(dbus.slave), .irefill(refill.slave), .irefill_cont(refill_cont),
+        .clk(clk), .rst(rst), .data(dbus.slave), .data_cont(1'b0), .irefill(refill.slave), .irefill_cont(refill_cont),
         .mem(mbus.master), .mem_cont(mbus_cont),
         .ev_wait_i(e_wait_i), .ev_wait_d(e_wait_d), .ev_grant_i(e_grant_i), .ev_grant_d(e_grant_d),
         .ev_port_load(e_port_load), .ev_port_store(e_port_store));

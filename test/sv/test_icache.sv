@@ -445,6 +445,7 @@ module icache_bench_env #(
         .clk           (clk),
         .rst           (rst),
         .data          (data_bus.slave),
+        .data_cont     (1'b0),
         .irefill       (icache_mem.slave),
         .irefill_cont  (icache_mem_cont),
         .mem           (memory_port.master),
