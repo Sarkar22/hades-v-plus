@@ -70,12 +70,12 @@ module cache_pair_top (
         .ev_abandoned(ei_b[4]), .ev_snoop_inval(ei_b[5]), .ev_refill(ei_b[6]));
 
     mem_arbiter mem_arbiter_a (
-        .clk(clk), .rst(rst), .data(dbus_a.slave), .irefill(refill_a.slave),
+        .clk(clk), .rst(rst), .data(dbus_a.slave), .data_cont(1'b0), .irefill(refill_a.slave),
         .irefill_cont(refill_cont_a), .mem(mbus_a.master), .mem_cont(mbus_cont_a),
         .ev_wait_i(ea_a[0]), .ev_wait_d(ea_a[1]), .ev_grant_i(ea_a[2]), .ev_grant_d(ea_a[3]),
         .ev_port_load(ea_a[4]), .ev_port_store(ea_a[5]));
     mem_arbiter mem_arbiter_b (
-        .clk(clk), .rst(rst), .data(dbus_b.slave), .irefill(refill_b.slave),
+        .clk(clk), .rst(rst), .data(dbus_b.slave), .data_cont(1'b0), .irefill(refill_b.slave),
         .irefill_cont(refill_cont_b), .mem(mbus_b.master), .mem_cont(mbus_cont_b),
         .ev_wait_i(ea_b[0]), .ev_wait_d(ea_b[1]), .ev_grant_i(ea_b[2]), .ev_grant_d(ea_b[3]),
         .ev_port_load(ea_b[4]), .ev_port_store(ea_b[5]));

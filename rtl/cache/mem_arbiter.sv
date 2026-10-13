@@ -4,8 +4,10 @@
 //
 // Simulation only, like the caches (rtl/mcu.sv, +define+HADES_ICACHE_BYTES): the data side is
 // the RAM's port of the data-bus interconnect (it requests only for addresses in the RAM
-// window: the interconnect raises stb there only for those), the other side is the I-cache's
-// refill port. docs/CACHES.md describes the design.
+// window: the interconnect raises stb there only for those) or, with a D-cache
+// (+define+HADES_DCACHE_BYTES), the D-cache's memory port, which carries its refill reads and
+// its store writes; the other side is the I-cache's refill port. docs/CACHES.md describes the
+// design.
 //
 // Rules (d_req, i_req: cyc && stb of the data and the refill side; owner: who holds the port):
 //   - Data first: on a free port a data request is granted in the cycle it is made, the
@@ -14,13 +16,18 @@
 //   - A grant is never taken away: a data grant lasts until its transfer is answered, an
 //     I-refill grant until its block ends, which is the first cycle in which the I-cache does
 //     not request (the port is free in that cycle). No fairness state.
+//   - A D-refill block is never interrupted: each beat is a data transfer of its own, the port
+//     is free after each answered beat, and the D-cache requests the next beat in the next
+//     cycle, which data first grants at once (checked below: a continuing data beat is granted).
 //   - The granted side's request reaches the memory unchanged and once; the answer (ack, err,
 //     dat_miso) goes to the granted side only; the other side sees ack = err = 0 and
 //     dat_miso = 0. An idle port is all zeros. An answer in a cycle without a grant reaches
 //     no side (and stops a simulation).
 //   - So no memory write can happen inside an I-refill block, and a store is never
 //     acknowledged while an I-refill holds the port.
-//   - mem_cont is the I-cache's continuation tag while the I-cache is granted, else 0.
+//   - mem_cont is the continuation tag of the granted side: the I-cache's (irefill_cont) while
+//     the I-cache is granted, the data side's (data_cont: the D-cache's refill beats 1 and
+//     later; 0 without a D-cache) while the data side is granted, else 0.
 // The memory side is a plain Wishbone block port (plus that simulation-only tag): nothing
 // here assumes when the memory answers, or that it drops a request at a reset.
 // Events (ev_*): outputs only, 0 in cycles with rst = 1; rtl/mcu.sv names them cache_ev_*.
@@ -30,11 +37,12 @@ module mem_arbiter (
     input  logic clk,
     input  logic rst,
 
-    wishbone_interface.slave  data,           // the RAM's port of the data-bus interconnect
+    wishbone_interface.slave  data,           // the RAM's port of the interconnect, or the D-cache's memory port
+    input  logic              data_cont,      // the data side's continuation tag (tie to 0 without a D-cache)
     wishbone_interface.slave  irefill,        // the I-cache's refill port
     input  logic              irefill_cont,   // the I-cache's continuation tag
     wishbone_interface.master mem,            // the memory port
-    output logic              mem_cont,       // the continuation tag, while the I-cache is granted
+    output logic              mem_cont,       // the continuation tag of the granted side
 
     output logic              ev_wait_i,      // the I-refill waits: the data side holds the port
     output logic              ev_wait_d,      // the data side waits: an I-refill holds the port
@@ -66,7 +74,7 @@ module mem_arbiter (
     assign mem.sel      = gd ? data.sel      : gi ? irefill.sel      : 4'h0;
     assign mem.we       = gd ? data.we       : gi ? irefill.we       : 1'b0;
     assign mem.dat_mosi = gd ? data.dat_mosi : gi ? irefill.dat_mosi : 32'h0;
-    assign mem_cont     = gi && irefill_cont;
+    assign mem_cont     = (gi && irefill_cont) || (gd && data_cont);
 
     // The answer, to the granted side only
     assign data.ack         = gd && mem.ack;
@@ -145,6 +153,9 @@ module mem_arbiter (
                             (!data.we || data.dat_mosi == d_held_dat)))
                 $fatal(1, "mem_arbiter: the granted data request (address 0x%08x sel=%04b we=%0d data 0x%08x) changed before its answer, at cycle %0d",
                        d_held_adr << 2, d_held_sel, d_held_we, d_held_dat, sim_cycle);
+            if (data_cont && d_req && !gd)
+                $fatal(1, "mem_arbiter: a continuing data beat was not granted at cycle %0d, address 0x%08x (a D-refill block must not be interrupted)",
+                       sim_cycle, data.adr << 2);
 
             d_held     <= gd && !mem.ack && !mem.err;
             d_held_adr <= data.adr;
