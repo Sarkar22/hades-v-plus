@@ -81,6 +81,12 @@ SV_DIR = $(TEST_DIR)/sv
 #   BUSHASH=0|1                 print a hash of both CPU buses at the end of every run
 #   BUSTRACE=0|1                write a per-cycle bus trace of HaDes-V+ to bustrace.bin (for
 #                               the cache model test/memsys/cachemodel.py; default 0)
+#   HPM_COUNTERS=<n>            the number of programmable performance counters of HaDes-V+
+#                               (0 to 7, default 7: mhpmcounter3 up to mhpmcounter<2+n>); the
+#                               simulator is built into cfg-hpm<n> (rtl/hpm.sv, defines/hpm.sv)
+#   HPM_PRESET=<A..I>           the selectors mhpmevent3-9 reset to the seven event codes of a
+#                               preset (defines/hpm.sv), and +hpm_stats and +hpm_check are on by
+#                               default (sim/top.sv); H and I need ICACHE
 # They are compiled into the simulator as its defaults; the run-time options of
 # sim/top.sv and sim/slow_memory.sv (+mem_lat=..., +noscoreboard, ...) override them.
 # A simulator with a slow memory also prints, at the end of every run, the instructions
@@ -90,7 +96,7 @@ SV_DIR = $(TEST_DIR)/sv
 # Each option below adds its part to the configuration's name, its Verilator defines and
 # its description (SIM_CFG_NAME, SIM_CFG_DEFS, SIM_CFG_TEXT); a new option is one more
 # such block and one more name in SIM_CFG_VARS.
-SIM_CFG_VARS = MEM_LAT MEM_WR_LAT MEM_BEAT_LAT MEM_ONLY MEM_SEED ICACHE LINE SCOREBOARD BUSHASH BUSTRACE
+SIM_CFG_VARS = MEM_LAT MEM_WR_LAT MEM_BEAT_LAT MEM_ONLY MEM_SEED ICACHE LINE SCOREBOARD BUSHASH BUSTRACE HPM_COUNTERS HPM_PRESET
 $(foreach v,$(SIM_CFG_VARS),$(if $(filter command line,$(origin $(v))),,$(eval $(v) := $(HADES_$(v)))))
 # the options that come from the environment
 SIM_CFG_ENV := $(strip $(foreach v,$(SIM_CFG_VARS),$(if $(filter command line,$(origin $(v))),,$(if $($(v)),$(v)))))
@@ -213,7 +219,7 @@ SIM_CFG_DEFS += +define+HADES_BUSHASH=1
 endif
 endif
 sim_cfg_comma := ,
-SIM_CFG_TEXT += bus hash $(if $(filter 1,$(BUSHASH)),on,off)$(if $(filter 1,$(BUSTRACE)),$(sim_cfg_comma))
+SIM_CFG_TEXT += bus hash $(if $(filter 1,$(BUSHASH)),on,off)$(if $(or $(filter 1,$(BUSTRACE)),$(HPM_COUNTERS),$(HPM_PRESET)),$(sim_cfg_comma))
 ifneq ($(BUSTRACE),)
 ifeq ($(filter 0 1,$(BUSTRACE)),)
 $(error BUSTRACE='$(BUSTRACE)': give 0 or 1)
@@ -221,8 +227,29 @@ endif
 ifeq ($(BUSTRACE),1)
 SIM_CFG_NAME += trace
 SIM_CFG_DEFS += +define+HADES_BUSTRACE
-SIM_CFG_TEXT += bus trace on
+SIM_CFG_TEXT += bus trace on$(if $(or $(HPM_COUNTERS),$(HPM_PRESET)),$(sim_cfg_comma))
 endif
+endif
+ifneq ($(HPM_COUNTERS),)
+ifeq ($(filter 0 1 2 3 4 5 6 7,$(HPM_COUNTERS)),)
+$(error HPM_COUNTERS='$(HPM_COUNTERS)': give a number from 0 to 7)
+endif
+SIM_CFG_NAME += hpm$(HPM_COUNTERS)
+SIM_CFG_DEFS += +define+HADES_HPM_COUNTERS=$(HPM_COUNTERS)
+SIM_CFG_TEXT += $(HPM_COUNTERS) performance counters$(if $(HPM_PRESET),$(sim_cfg_comma))
+endif
+ifneq ($(HPM_PRESET),)
+ifeq ($(filter A B C D E F G H I,$(HPM_PRESET)),)
+$(error HPM_PRESET='$(HPM_PRESET)': give one of the letters A to I (the presets are listed in defines/hpm.sv))
+endif
+ifneq ($(filter H I,$(HPM_PRESET)),)
+ifeq ($(SIM_ICACHE),)
+$(error HPM_PRESET=$(HPM_PRESET) counts events of the I-cache: give ICACHE=<bytes> as well)
+endif
+endif
+SIM_CFG_NAME += preset$(HPM_PRESET)
+SIM_CFG_DEFS += +define+HADES_HPM_PRESET=$(HPM_PRESET)
+SIM_CFG_TEXT += counter preset $(HPM_PRESET)
 endif
 sim_cfg_empty :=
 sim_cfg_space := $(sim_cfg_empty) $(sim_cfg_empty)
@@ -374,6 +401,10 @@ help:
 	@echo "  formal-cache      The proofs of the I-cache and its memory-port arbiter, and of the interconnect's"
 	@echo "                    timeout exemption (simulation-only caches; guide: formal/cache/README.md)"
 	@echo "                    [FORMAL_PAR=4, FORMAL_CACHE_ARGS='<options of formal/cache/run.sh>']"
+	@echo "  csr-legal-check   The CSR legality map of the decoders (HaDes-V+ and golden) against the trapsweep model's"
+	@echo "  hpm-codes         The event codes of std/include/hpm.h, sim/top.sv and defines/hpm.sv, compared"
+	@echo "  formal-hpm        The proofs of the performance counters: counter unit, decoder and Writeback"
+	@echo "                    miters (guide: formal/hpm/README.md) [FORMAL_PAR=4, FORMAL_HPM_ARGS='<options of formal/hpm/run.sh>']"
 	@echo ""
 	@echo "Benchmarks (guide: test/bench/README.md; recorded results: results/):"
 	@echo "  bench-zba         Zba: two C programs for rv32i and rv32i_zba, compared [OPT=-O2]"
@@ -410,9 +441,14 @@ help:
 	@echo "  BUSHASH=0|1                 print a hash of both CPU buses at the end of every run (default 0)"
 	@echo "  BUSTRACE=0|1                write a per-cycle bus trace to bustrace.bin, HaDes-V+ only (default 0;"
 	@echo "                              for python3 test/memsys/cachemodel.py)"
+	@echo "  HPM_COUNTERS=<n>            performance counters of HaDes-V+: 0 to 7 programmable ones (default 7)"
+	@echo "  HPM_PRESET=<A..I>           the counters' selectors reset to a preset of event codes, with +hpm_check"
+	@echo "                              and +hpm_stats on (H and I need ICACHE); sets: defines/hpm.sv"
 	@echo "  e.g. make test/asm/ops MEM_LAT=2    make freertos APP=stress MEM_LAT=1:8    make freertos-stress MEM_LAT=2"
 	@echo "       make test/memsys/stores ICACHE=512 MEM_LAT=2    make freertos APP=minimal ICACHE=8192 MEM_LAT=1:8"
 	@echo "       make test/sv/test_icache [SIM_ARGS='+seed=2']   (the I-cache bench; checks of the caches: docs/CACHES.md)"
+	@echo "       make test/sv/test_hpm [SIM_ARGS='+seed=2']      (the bench of the performance counters' unit)"
+	@echo "       make test/asm/hpm    make test/memsys/hpmcache ICACHE=512 MEM_LAT=2    make test/asm/ops HPM_PRESET=B"
 	@echo "  sim-config        Print the configuration, its build directory and the environment for scripts"
 	@echo "  lint-loops        List the combinational loops of the configuration (Verilator, no UNOPTFLAT waiver)"
 	@echo "  SIM_ARGS='<opts>' Run-time options for the simulator of test/asm/*, test/c/*, test/memsys/*"
@@ -617,7 +653,7 @@ $(C_TEST_NAMES): $(C_DIR)/%: $(BUILD_DIR)/$(C_DIR)/%/init.mem $(BUILD_DIR)/$(C_D
 ################################################################################
 
 SV_TESTS = $(wildcard $(SV_DIR)/*.sv)
-SV_TEST_NAMES = $(filter-out $(SV_DIR)/test_icache, $(patsubst $(SV_DIR)/%.sv, $(SV_DIR)/%, $(SV_TESTS)))
+SV_TEST_NAMES = $(filter-out $(SV_DIR)/test_icache $(SV_DIR)/test_hpm, $(patsubst $(SV_DIR)/%.sv, $(SV_DIR)/%, $(SV_TESTS)))
 
 # Include dependency files (if they exist)
 -include $(wildcard $(BUILD_DIR)/$(SV_DIR)/*/top__ver.d)
@@ -655,6 +691,17 @@ $(BUILD_DIR)/$(SV_DIR)/test_icache/top.mk: $(REF_SO_DEPS)
 	@ mkdir -p $(BUILD_DIR)/$(SV_DIR)/test_icache
 	$(VERILATOR) $(VERILATOR_FLAGS) -f $(SV_DIR)/files.txt -y $(RTL_DIR)/cache --trace-fst --trace-structs --timing --assert --main --exe --prefix top -Mdir $(BUILD_DIR)/$(SV_DIR)/test_icache --top-module test_icache $(SV_DIR)/test_icache.sv
 	@echo 'gtkwave $(BUILD_DIR)/$(SV_DIR)/test_icache/test_icache.fst $(SAVES_DIR)/test_icache.gtkw' > $(BUILD_DIR)/show.sh
+
+# The counter-unit bench (test/sv/test_hpm.sv) takes run-time options through SIM_ARGS, for example
+#     make test/sv/test_hpm SIM_ARGS='+seed=2 +cycles=50000'
+# (the options are listed at the head of the file) and is built with at most four compilers at a
+# time. It finds the unit (rtl/hpm.sv) and its package through sim/files.txt like the other benches.
+.PHONY: $(SV_DIR)/test_hpm
+$(SV_DIR)/test_hpm: $(BUILD_DIR)/$(SV_DIR)/test_hpm/top
+	cd $(BUILD_DIR)/$(SV_DIR)/test_hpm && $(BUILD_ABS)/$(SV_DIR)/test_hpm/top$(if $(SIM_ARGS), $(SIM_ARGS))
+
+$(BUILD_DIR)/$(SV_DIR)/test_hpm/top: $(BUILD_DIR)/$(SV_DIR)/test_hpm/top.mk
+	$(MAKE) -j4 -C $(BUILD_DIR)/$(SV_DIR)/test_hpm -f top.mk
 
 ################################################################################
 #                               FreeRTOS Programs                              #
@@ -721,6 +768,52 @@ formal-ext:
 .PHONY: formal-cache
 formal-cache:
 	bash formal/cache/run.sh --par $(FORMAL_PAR) --out $(BUILD_ABS)/formal-cache $(FORMAL_CACHE_ARGS)
+
+# Proofs of the hardware performance counters (the counter unit, a miter of the instruction
+# decoder and one of the Writeback stage against the base commit's), see formal/hpm/README.md;
+# written to $(BUILD_DIR)/formal-hpm, last line FORMAL HPM RESULT: PASS or FAIL (...).
+# FORMAL_HPM_ARGS passes further options of formal/hpm/run.sh, for example
+#     make formal-hpm FORMAL_HPM_ARGS='--only writeback_miter,writeback_events --no-controls'
+.PHONY: formal-hpm
+formal-hpm:
+	bash formal/hpm/run.sh --par $(FORMAL_PAR) --out $(BUILD_ABS)/formal-hpm $(FORMAL_HPM_ARGS)
+
+# The CSR legality map of the instruction decoder (all 4,096 addresses, the six access forms, an rs1
+# field of 0 and a non-zero one) against the map of the model in test/trapsweep/iss.py, for HaDes-V+
+# and for the golden CPU (test/hpm/csr_map.sv). HaDes-V+'s two maps must be identical. The golden
+# CPU's must agree at the addresses of the counters (0x320-0x33F, 0xB03-0xB1F, 0xB83-0xB9F); its
+# other differences from the model are only listed (the model of the golden decoder is not a
+# measurement of it). The maps are written to $(BUILD_DIR)/csr-legal/<dut|golden>/map.txt.
+CSR_LEGAL_DIR = $(BUILD_DIR)/csr-legal
+CSR_LEGAL_HPM = ^0x(3[23][0-9a-f]|b0[3-9a-f]|b1[0-9a-f]|b8[3-9a-f]|b9[0-9a-f]) 
+.PHONY: csr-legal-check
+csr-legal-check: $(CSR_LEGAL_DIR)/dut/top $(CSR_LEGAL_DIR)/golden/top
+	@ for k in dut golden; do \
+	      iss=$$k; if [ $$k = golden ]; then iss=ref; fi; \
+	      d=$(CSR_LEGAL_DIR)/$$k; \
+	      (cd $$d && $(BUILD_ABS)/csr-legal/$$k/top | grep '^0x' > map.txt); \
+	      python3 $(TEST_DIR)/trapsweep/iss.py --csr-map $$iss | grep '^0x' > $$d/iss-map.txt; \
+	      diff $$d/map.txt $$d/iss-map.txt > $$d/diff.txt; \
+	      if [ $$k = dut ]; then grep -E . $$d/diff.txt > $$d/diff-hpm.txt; else grep -E '^[<>] $(CSR_LEGAL_HPM)' $$d/diff.txt > $$d/diff-hpm.txt; fi; \
+	      if [ -s $$d/diff-hpm.txt ]; then \
+	          echo "CSR LEGALITY ($$k): the decoder's map differs from the model's:"; head -20 $$d/diff-hpm.txt; exit 1; \
+	      fi; \
+	      echo "CSR LEGALITY ($$k): the decoder's map equals the model's$$([ $$k = dut ] || echo ' at the addresses of the counters') ($$(wc -l < $$d/map.txt) addresses)"; \
+	      if [ $$k = golden ] && [ -s $$d/diff.txt ]; then echo "    (other differences of the golden decoder from the model, not checked: $$(grep -c . $$d/diff.txt) lines in $$d/diff.txt)"; fi; \
+	  done
+
+# The event codes of the performance counters in the places that must agree: std/include/hpm.h,
+# the names of the +hpm_stats monitor in sim/top.sv and the package defines/hpm.sv
+.PHONY: hpm-codes
+hpm-codes:
+	python3 $(TEST_DIR)/hpm/codes.py
+
+$(CSR_LEGAL_DIR)/%/top: $(CSR_LEGAL_DIR)/%/top.mk
+	$(MAKE) -C $(CSR_LEGAL_DIR)/$* -f top.mk
+
+$(CSR_LEGAL_DIR)/%/top.mk: $(TEST_DIR)/hpm/csr_map.sv $(REF_SO_DEPS)
+	@ mkdir -p $(CSR_LEGAL_DIR)/$*
+	$(VERILATOR) $(VERILATOR_FLAGS) $(if $(filter golden,$*),+define+CSR_MAP_GOLDEN) --trace-fst --trace-structs --assert --timing --main --exe --prefix top -Mdir $(CSR_LEGAL_DIR)/$* --top-module csr_map $(TEST_DIR)/hpm/csr_map.sv
 
 ################################################################################
 #                                   Waveform                                   #
