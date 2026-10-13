@@ -48,8 +48,8 @@ module unit_top (
     import pipeline_status::*;
     import op::*;
 
-    localparam int F_N = hpm::COUNTERS;
-    localparam int F_W = hpm::WIDTH;
+    localparam int F_N = hpm_pkg::COUNTERS;
+    localparam int F_W = hpm_pkg::WIDTH;
 
     // ---- reset: the first cycle is a reset, later resets are free ----
     logic f_first = 1'b1;

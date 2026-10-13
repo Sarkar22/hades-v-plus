@@ -205,7 +205,7 @@ def gen_unit(src, here, out, name, mutant):
                            r'\s*=\s*(\d+)\s*;', top)
             val = g2.group(1) if g2 else None
         if val is None or int(val) != want:
-            die(f'{name}: hpm::{par} is {val}, not {want}: the package must take '
+            die(f'{name}: hpm_pkg::{par} is {val}, not {want}: the package must take '
                 f'`HADES_HPM_{par} (the configuration cannot be built)')
     text = insert_before_endmodule(text, 'unit_top', '`include "unit_props.vh"')
     open(os.path.join(out, name + '.v'), 'w').write(text)
@@ -285,10 +285,10 @@ def gen_writeback(src, here, out, mutant):
             die('the counter unit (module hpm) has no input ev_a or trap_raw')
         if not (ev_rng[0] >= 20 and ev_rng[1] <= 2 and ev_rng[0] <= 31):
             die(f'hpm.ev_a is [{ev_rng[0]}:{ev_rng[1]}]: the class-A codes 2-20 must be bits 2-20')
-        if trap_rng != (5, 0):
-            die(f'hpm.trap_raw is [{trap_rng[0]}:{trap_rng[1]}], not [5:0]')
+        if trap_rng not in ((5, 0), (26, 21)):
+            die(f'hpm.trap_raw is [{trap_rng[0]}:{trap_rng[1]}], not [5:0] or [26:21]')
         report.append(f'writeback_stage instantiates the counter unit as i_hpm ({hname}); '
-                      f'ev_a [{ev_rng[0]}:{ev_rng[1]}], trap_raw [5:0]')
+                      f'ev_a [{ev_rng[0]}:{ev_rng[1]}], trap_raw [{trap_rng[0]}:{trap_rng[1]}]')
     else:
         report.append('writeback_stage has no instance i_hpm: the miter without the counter unit '
                       '(no inhibit invariant, no event check)')
@@ -347,7 +347,7 @@ def gen_writeback(src, here, out, mutant):
            f'.bp_in(in_bp_feedback_in), {fconn});']
     if has_hpm:
         top += ['`define F_HAS_HPM', f'`define F_EV_A_HI {ev_rng[0]}', f'`define F_EV_A_LO {ev_rng[1]}',
-                '`define F_TRAP_HI 5', '`define F_TRAP_LO 0']
+                f'`define F_TRAP_HI {trap_rng[0]}', f'`define F_TRAP_LO {trap_rng[1]}']
     top += ['`include "writeback_props.vh"', 'endmodule', '']
     open(os.path.join(out, 'writeback.v'), 'w').write(text + '\n'.join(top))
     for r in report:

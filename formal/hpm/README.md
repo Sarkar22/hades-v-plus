@@ -113,21 +113,22 @@ turned into a ROM would have free contents in the induction step), and flattens 
 something differently:
 
 - `harness/unit_bind.svh` names the ports of `hpm_events` and `hpm` (the counter unit's ports are
-  `clk`, `rst`, `ev_a`, `ev_b1`, `ev_b2_s1`, `trap_raw`, `csr_addr`, `csr_we`, `csr_wdata`,
-  `hpm_ext_present`, `rdata`, `inh_cy`, `inh_ir`, `inh_bp`). The counter unit's instance must be
-  `u_hpm`.
+  `clk`, `rst`, `ev_a` (codes 1-20), `trap_raw` (codes 21-26), `late` (a struct, `hpm_pkg::late_t`,
+  that carries the class-B1 and the first stage of the class-B2 events, every field indexed by
+  event code), `csr_addr`, `csr_we`, `csr_wdata`, `hpm_ext_present`, `rdata`, `inh_cy`, `inh_ir`,
+  `inh_bp`). The counter unit's instance must be `u_hpm`.
 - `props/observe_hpm.svh`, inserted as one include line before the final `endmodule` of the copy of
   `rtl/hpm.sv`, exports the unit's state as `f_obs_cnt`, `f_obs_sel` and `f_obs_inh`. It reads the
-  parameters `N` and `W` and the registers `cnt` and `sel` (arrays indexed 0 .. N - 1 for counters
-  3 .. 2 + N) and `inh`.
+  parameters `N` and `W` and the registers `cnt` and `sel` (arrays indexed 3 .. 9, of which counters
+  3 .. 2 + N exist) and `inhibit`.
 - The package `defines/hpm.sv` must take `HADES_HPM_COUNTERS` and `HADES_HPM_WIDTH` into
-  `hpm::COUNTERS` and `hpm::WIDTH`; `scripts/model.py` checks that each configuration was built
+  `hpm_pkg::COUNTERS` and `hpm_pkg::WIDTH`; `scripts/model.py` checks that each configuration was built
   with its values.
 - The Writeback miter reads the registers listed in section 1 by their names in both stages (the
   model is not built if one is missing or has another width), the base stage's own signals
   (`is_valid`, `stale_replay`, `is_exception`, `is_interrupt_seq`, `is_interrupt_imm`,
   `ext_int_pending`, `int_hold`, `int_jump_fire`), and, when the new stage instantiates the counter
-  unit as `i_hpm`, its ports `ev_a` (which must hold bits 2-20), `trap_raw` (6 bits) and the
+  unit as `i_hpm`, its ports `ev_a` (which must hold bits 2-20), `trap_raw` (6 bits, `[5:0]` or `[26:21]`) and the
   inhibit outputs. Without an `i_hpm` the miter runs without the inhibit invariant and
   `writeback_events` is not run.
 - The base copies `base/writeback_stage_base.sv` and `base/instruction_decoder_base.sv` are the base

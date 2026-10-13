@@ -29,9 +29,9 @@ The hardware performance counters (docs/EXTENSIONS.md) are modelled for the stan
 configuration only: seven programmable counters, no cache, no preset. The DUT has mcountinhibit
 (0x320) and the selectors mhpmevent3..9 (WARL: the standard build's event codes), reads the
 constants 18, 19 and 20 at mhpmevent11..13, and honours the IR bit of mcountinhibit in minstret.
-Counter values are timing and are tainted. The golden CPU has none of this (GOLDEN_ILLEGAL and
-GOLDEN_READ0 below hold what it does at those addresses; the legality map of the golden decoder
-decides them).
+Counter values are timing and are tainted. The golden CPU has none of this: its decoder traps on
+every access to 0x320 (GOLDEN_ILLEGAL below) and accepts 0x323-0x33F, which read 0 (make
+csr-legal-check measures the decoder's map).
 
 usage: iss.py <rundir> [dut] [ref] [--nom] [-v]
        (reads <rundir>/init.bin and <rundir>/<kind>/sim.log; --nom: no M extension)
@@ -57,7 +57,7 @@ HPM_INHIBIT = 0x320
 HPM_IMPL_MASK = 0x3FFD                          # CY, IR, counters 3..9 and 10..13; TM stays 0
 HPM_CODES = frozenset(list(range(1, 27)) + list(range(32, 50)))   # event codes of the standard build
 HPM_FIXED = {0x32B: 18, 0x32C: 19, 0x32D: 20}   # mhpmevent11..13 read these on the DUT
-# The golden CPU at the new addresses (set from the golden decoder's legality map once measured):
+# The golden CPU at the new addresses (measured with its decoder, make csr-legal-check):
 GOLDEN_ILLEGAL = frozenset([HPM_INHIBIT])       # addresses whose every access traps
 
 class ISS:
@@ -143,13 +143,12 @@ class ISS:
         raise Viol('fault')
 
     # ---------------- CSRs -------------------
-    CSR_VALID = set([0xF11, 0xF12, 0xF13, 0xF14, 0xF15, 0x300, 0x301, 0x302, 0x303, 0x304, 0x305, 0x306, 0x310,
+    CSR_VALID = set([0xF11, 0xF12, 0xF13, 0xF14, 0xF15, 0x300, 0x301, 0x302, 0x303, 0x304, 0x305, 0x306, 0x310, 0x320,
                      0x340, 0x341, 0x342, 0x343, 0x344, 0xB00, 0xB02, 0xB80, 0xB82, 0xC00, 0xC01, 0xC02, 0xC80, 0xC81, 0xC82]
                     + list(range(0xB03, 0xB20)) + list(range(0xB83, 0xBA0)) + list(range(0x323, 0x340)))
 
     def csr_valid(self, c):
-        if not self.has_hpm and c in GOLDEN_ILLEGAL: return False
-        if c == HPM_INHIBIT: return True        # the DUT has it; the golden CPU only if GOLDEN_ILLEGAL lacks it
+        if not self.has_hpm and c in GOLDEN_ILLEGAL: return False   # the DUT has 0x320; the golden CPU only if GOLDEN_ILLEGAL lacks it
         return c in self.CSR_VALID
 
     def csr_legal(self, c, f3, rs1):
@@ -454,9 +453,10 @@ def rtl_traps(recs):
     return traps
 
 import copy
-def _later_match(s, v, mepc, n=12):
-    """minstret can repeat after a minstret write: is there a boundary within n instructions
-    with the same minstret AND pc == the RTL's mepc? (then inject there instead)"""
+def _later_match(s, v, mepc, n=256):
+    """minstret can repeat after a minstret write, and stands still while the IR bit of mcountinhibit
+    is set (a handler runs inside such a window): is there a boundary within n instructions with the
+    same minstret AND pc == the RTL's mepc? (then inject there instead)"""
     t = copy.copy(s); t.x = list(s.x); t.tx = list(s.tx); t.ram = bytearray(s.ram); t.trace = []; t.on_trace = None
     t.vga = dict(s.vga); t.taint_mem = set(s.taint_mem); t.hpm_sel = list(s.hpm_sel)
     for _ in range(n):

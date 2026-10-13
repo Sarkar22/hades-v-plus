@@ -23,12 +23,13 @@ here, and nothing in formal/scripts/ is edited.
 ANCHORS. A patch is a list of (file, regular expression, replacement, expected number of matches), as in
 test/memsys/mutants.py; a patch whose expression does not match exactly that often is not applied, and
 the mutant is reported as 'ANCHOR MISSING' (never as CAUGHT or MISSED). The patches of this file are
-written against the names that the counter unit's design fixes (docs/EXTENSIONS.md, "Hardware
-Performance Counters"): the registers sel, inh and cnt of rtl/hpm.sv, its inputs ev_a, ev_b1 and
-ev_b2_s1, the events built in rtl/hpm_events.sv, the Writeback stage's retire, trap and predictor
-signals, the counter block of rtl/mcu.sv (hpm_ext, hpm_ext_present) and the monitors of sim/top.sv
-(hm_*). 'anchors' shows which of them match the tree; a patch whose text does not find its anchor
-is fixed here to the code as it is, never by changing the design.
+written against the code as it is: the counter unit rtl/hpm.sv (cnt_next, sel, inhibit, ev, pipe_s2,
+trap_s2), the events built in rtl/hpm_events.sv, the Writeback stage's retire, trap and predictor
+signals (hpm_ev_a, hpm_trap, bp_rec1, bp_rec2), the counter block of rtl/mcu.sv (hpm_ext,
+hpm_ext_present) and the monitors of sim/top.sv (hm_*). 'anchors' shows which of them match the tree;
+a patch whose text does not find its anchor is fixed here to the code as it is, never by changing the
+design. 'dryrun' applies each patch to a copy of the tree and lints the standard simulator and a
+simulator with an instruction cache.
 
 CHECKS ('layers'). Each is a command in the copy; it must pass on the unchanged tree ('baseline'), and
 it catches a mutant when it then fails:
@@ -91,53 +92,54 @@ def m(name, what, patches, layers, also="", left_out=False):
 # ------------------------------------------------------------------------------ the mutants
 MUTANTS = [
     m("event-tied-to-zero", "One raw retirement event (LOAD) is tied to 0.",
-      [(WB, r"(ev_a\s*\[\s*(?:hpm::)?(?:EV_)?(?:LOAD|3)\s*\]\s*=\s*)[^;]+;", r"\g<1>1'b0;", 1)],
+      [(WB, r"(hpm_ev_a\[hpm_pkg::EV_LOAD\]\s*=\s*)[^;]+;", r"\g<1>1'b0;", 1)],
       ["hpm", "check-B"], "the unit bench drives the unit's inputs, not Writeback's wiring"),
     m("increment-adds-two", "A counter that sees an event adds 2.",
-      [(HPM, r"(nxt\s*=\s*cnt\[\s*n\s*\]\s*\+\s*)step", r"\g<1>{step, 1'b0}", 1)],
+      [(HPM, r"(cnt_next\[n\]\s*=\s*cnt_64\[n\]\s*\+\s*)64'\((ev\[sel\[n\]\]\s*&&\s*!inhibit\[n\])\);", r"\g<1>{62'b0, \g<2>, 1'b0};", 1)],
       ["unit", "formal", "hpm"]),
     m("inhibit-ignored-for-counter-5", "The inhibit bit of the third programmable counter (HPM5) is ignored.",
-      [(HPM, r"(step\s*=[^;]*?)!\s*inh\[([^\]]+)\]", r"\g<1>(!inh[\2] || n == 2)", 1)],
+      [(HPM, r"(64'\(ev\[sel\[n\]\]\s*&&\s*)!inhibit\[n\]\)", r"\g<1>(!inhibit[n] || n == 5))", 1)],
       ["unit", "formal", "hpm"]),
     m("increment-beats-write", "A write to a counter loses when an event arrives in the same cycle (the increment is kept).",
-      [(HPM, r"we_lo\(n\)\s*\?", r"(we_lo(n) && !step) ?", 1), (HPM, r"we_hi\(n\)\s*\?", r"(we_hi(n) && !step) ?", 1)],
+      [(HPM, r"if \(csr_we && is_lo && idx == 4'\(n\)\)", "if (csr_we && is_lo && idx == 4'(n) && !(ev[sel[n]] && !inhibit[n]))", 1),
+       (HPM, r"else if \(csr_we && is_hi && idx == 4'\(n\) && W > 32\)", "else if (csr_we && is_hi && idx == 4'(n) && W > 32 && !(ev[sel[n]] && !inhibit[n]))", 1)],
       ["unit", "formal", "hpm"], "'write wins' in hpm.s"),
     m("selector-not-legalised", "A selector keeps any 8-bit value that is written (no check against the codes of the build).",
-      [(HPM, r"legal\(\s*wdata\s*\)\s*\?\s*wdata\[7:0\]\s*:\s*8'd0", "wdata[7:0]", 1)],
+      [(HPM, r"hpm_pkg::legal\(csr_wdata, hpm_ext_present\)\s*\?\s*csr_wdata\[7:0\]\s*:\s*8'd0", "csr_wdata[7:0]", 1)],
       ["unit", "formal", "hpm"]),
     m("b2-event-one-cycle-late", "A class B2 event reaches its counter one cycle later than it should (a third stage).",
-      [*added_logic(HPM, "    // (mutation) a third stage for the class B2 events\n    logic [255:0] mut_b2_late;",
-                    "    always_ff @(posedge clk) mut_b2_late <= rst ? '0 : b2;"),
-       (HPM, r"(ev\[code\]\s*=\s*[^;]*?:\s*)b2\[code\]", r"\g<1>mut_b2_late[code]", 1)],
+      [*added_logic(HPM, "    // (mutation) a third stage for the class B2 pipeline events\n    logic [46:32] mut_pipe_s3;",
+                    "    always_ff @(posedge clk) mut_pipe_s3 <= rst ? '0 : pipe_s2;"),
+       (HPM, r"(ev\[46:32\]\s*=\s*)pipe_s2;", r"\g<1>mut_pipe_s3;", 1)],
       ["unit", "formal", "check-A", "gate"], "the partition over a counter window; hpm.s ('IO_ACCESS visible' for the B1 case)"),
     m("b1-event-two-cycles-late", "A class B1 event reaches its counter two cycles later than it should.",
-      [*added_logic(HPM, "    // (mutation) a second stage for the class B1 events\n    logic [255:0] mut_b1_late;",
-                    "    always_ff @(posedge clk) mut_b1_late <= rst ? '0 : ev_b1;"),
-       (HPM, r"(\?\s*)ev_b1\[code\](\s*:)", r"\g<1>mut_b1_late[code]\2", 1)],
+      [*added_logic(HPM, "    // (mutation) a second stage for the class B1 events\n    logic [49:47] mut_b1_late;",
+                    "    always_ff @(posedge clk) mut_b1_late <= rst ? '0 : late.b1;"),
+       (HPM, r"(ev\[49:47\]\s*=\s*)late\.b1;", r"\g<1>mut_b1_late;", 1)],
       ["unit", "formal", "hpm", "check-F"], "hpm.s: an access to a register that answers at once is already counted for the next instruction"),
     m("select-index-off-by-one", "Counter n selects its event with the selector of counter n + 1.",
-      [(HPM, r"ev\[\s*sel\[\s*n\s*\]\s*\]", "ev[sel[(n + 1) % N]]", 1)],
+      [(HPM, r"ev\[\s*sel\[\s*n\s*\]\s*\]", "ev[sel[(n == 9) ? 3 : n + 1]]", 1)],
       ["unit", "formal", "hpm"], "hpm.s gives each counter a different count"),
     m("hpm-ext-bits-swapped", "Two bits of the memory-system vector in rtl/mcu.sv are swapped (IC_LOOKUP_HIT and IC_MISS).",
       [(MCU, r"cache_ev_i_beat,\s*cache_ev_i_miss,\s*cache_ev_i_hit\s*\}", "cache_ev_i_beat, cache_ev_i_hit, cache_ev_i_miss}", 1)],
       ["cache", "hpmcache"]),
     m("retire-without-replay-gate", "The unit's retirement event counts a replayed instruction too.",
-      [(WB, r"(hpm_retire\s*=\s*is_valid\s*&&\s*)!\s*stale_replay", r"\g<1>1'b1", 1)],
+      [(WB, r"(hpm_ev_a\[hpm_pkg::EV_INSTRET\]\s*=\s*)retire;", r"\g<1>is_valid;", 1)],
       ["hpmirq", "gate", "check-B"]),
     m("predictor-events-not-gated-by-retirement", "The predictor events count a branch that is squashed after Execute.",
-      [(WB, r"(rec2\.valid\s*&&\s*)retire\s*&&\s*", r"\g<1>", 1)],
+      [(WB, r"bp_retire_branch\s*&&\s*bp_rec2\.valid", "bp_rec2.valid", 4)],
       ["bpsquash", "gate", "check-E"]),
     m("predictor-record-one-stage", "The predictor's record is delayed by one stage instead of two.",
-      [(WB, r"(rec2\s*<=\s*)rec1", r"\g<1>{bp_feedback_in.valid, bp_feedback_in.predicted_taken, bp_feedback_in.was_taken}", 1)],
+      [(WB, r"bp_rec2 <= bp_rec1;", "bp_rec2 <= '{valid: bp_feedback_in.valid, predicted_taken: bp_feedback_in.predicted_taken, was_taken: bp_feedback_in.was_taken};", 1)],
       ["bpsquash", "gate", "check-E"]),
     m("csrrs-x0-writes", "csrrs and csrrc with rs1 = x0 write the counters (the rs1 field is not looked at).",
       [(WB, r"\s*&&\s*instruction_in\.rs1_address\s*!=\s*5'b0+", "", 1)],
       ["hpm", "check-A"]),
-    m("high-half-not-masked", "The high half of a counter reads more than W - 32 bits.",
-      [(HPM, r"(cnt\[\s*idx\s*\]\[\s*W\s*-\s*1\s*:\s*32\s*\])", r"(\1 | 32'hFFFF_0000)", 1)],
+    m("high-half-not-masked", "The high half of a counter reads one bit more than W - 32 bits (bit 16 of the high half reads 1).",
+      [(HPM, r"(rdata\s*=\s*cnt_64\[n\]\[63:32\])\s*;", r"\g<1> | 32'h0001_0000;", 1)],
       ["unit", "formal", "hpm"]),
     m("inhibit-register-too-wide", "mcountinhibit keeps TM (bit 1) and bits above 13.",
-      [(PKG, r"(IMPL_MASK[^;]*?)32'h(?:0000_)?3FFD", r"\g<1>32'hFFFF_FFFF", 1)],
+      [(HPM, r"(localparam bit \[31:0\] IMPL_MASK = )32'h0000_3C05", r"\g<1>32'hFFFF_3C07", 1)],
       ["unit", "formal", "hpm"]),
     m("decoder-wrong-address", "The decoder accepts 0x321 and rejects 0x320.",
       [(DECODER, r"12'h320", "12'h321", 1)],
@@ -146,33 +148,33 @@ MUTANTS = [
       [(WB, r"\s*&&\s*!\s*inh_ir\b", "", 1)],
       ["hpm", "sweep", "check-B"]),
     m("hazard-load-uses-csr-hazard", "HAZARD_LOAD is Decode's CSR-use hazard instead of its load-use hazard.",
-      [(DEC, r"(assign\s+load_use_hazard_out\s*=\s*)load_use_hazard", r"\g<1>csr_use_hazard", 1)],
+      [(DEC, r"(assign\s+load_use_hazard_out\s*=\s*)load_use_hazard;", r"\g<1>csr_use_hazard;", 1)],
       ["hpm", "check-F"]),
     m("memwait-load-store-swapped", "MEMWAIT_LOAD and MEMWAIT_STORE swap their conditions.",
-      [(EVENTS, r"(memwait_load\s*=[^;]*?)is_load_e", r"\g<1>is_store_e", 1),
-       (EVENTS, r"(memwait_store\s*=[^;]*?)is_store_e", r"\g<1>is_load_e", 1)],
+      [(EVENTS, r"(EV_MEMWAIT_LOAD\]\s*=\s*memwait_any\s*&&\s*)r_e_load", r"\g<1>r_e_store", 1),
+       (EVENTS, r"(EV_MEMWAIT_STORE\]\s*=\s*memwait_any\s*&&\s*)r_e_store", r"\g<1>r_e_load", 1)],
       ["hpm", "check-F", "gate"]),
     m("io-access-counts-ram", "IO_ACCESS also counts accesses to the RAM.",
-      [(EVENTS, r"(io_start\s*=[^;]*?)&&\s*!\s*in_ram_q\b", r"\g<1>", 1)],
+      [(EVENTS, r"(EV_IO_ACCESS\]\s*=\s*r_valid\s*&&\s*r_start)\s*&&\s*!r_in_ram", r"\g<1>", 1)],
       ["hpm", "check-F"]),
     m("exception-from-redirect", "EXCEPTION is counted from Writeback's JUMP instead of the trap entry.",
-      [(WB, r"(trap_raw\[\s*0\s*\]\s*=\s*)[^;]+;", r"\g<1>(status_backwards_out == pipeline_status::JUMP);", 1)],
+      [(WB, r"(hpm_trap\[hpm_pkg::EV_EXCEPTION\]\s*=\s*)exception_taken;", r"\g<1>(status_backwards_out == pipeline_status::JUMP);", 1)],
       ["gate", "hpm", "check-D"]),
     m("fetch-wait-without-ready", "FETCH_WAIT without the condition that Execute is ready (the overlapping definition).",
-      [(EVENTS, r"(fetch_wait\s*=\s*)e_ready_q\s*&&\s*", r"\g<1>", 1)],
+      [(EVENTS, r"(fetch_wait\s*=\s*r_valid\s*&&\s*)r_e == READY\s*&&\s*", r"\g<1>", 1)],
       ["gate", "check-A", "hpmwait"]),
     m("timer-external-swapped", "INT_TIMER and INT_EXT swap.",
-      [(WB, r"(trap_raw\[\s*4\s*\]\s*=\s*[^;]*?)!\s*ext_int_pending", r"\g<1>ext_int_pending", 1),
-       (WB, r"(trap_raw\[\s*5\s*\]\s*=\s*[^;]*?)\bext_int_pending", r"\g<1>!ext_int_pending", 1)],
+      [(WB, r"(hpm_trap\[hpm_pkg::EV_INT_TIMER\]\s*=\s*interrupt_taken\s*&&\s*)!ext_int_pending", r"\g<1>ext_int_pending", 1),
+       (WB, r"(hpm_trap\[hpm_pkg::EV_INT_EXT\]\s*=\s*interrupt_taken\s*&&\s*)ext_int_pending", r"\g<1>!ext_int_pending", 1)],
       ["hpm", "check-D"]),
     m("fixed-selectors-read-zero", "mhpmevent11..13 read 0 again.",
-      [(HPM, r"(12'h32B\s*:\s*)[^,;]+", r"\g<1>32'd0", 1)],
+      [(HPM, r"rdata = \{24'b0, hpm_pkg::EV_BP_NN \+ 8'\(idx - 4'd10\)\};", "rdata = 32'd0;", 1)],
       ["hpm", "unit", "sweep"]),
     m("interrupt-enable-value-or-for-clear", "The restructured mstatus write value that Writeback uses for the interrupt enables ORs for CSRRC.",
-      [(WB, r"(mstatus_mie\s*)&(\s*~\s*source_data_in\[3\])", r"\g<1>|\2", 1)],
+      [(WB, r"(CSRRC, CSRRCI:\s*return\s*)old_bit\s*&\s*~src_bit;", r"\g<1>old_bit | src_bit;", 1)],
       ["formal", "sweep"]),
     m("present-mask-all-ones", "The standard build says that all memory-system codes exist.",
-      [(MCU, r"(hpm_ext_present\s*=\s*)'0\s*;", r"\g<1>'1;", 1)],
+      [(MCU, r"(hpm_ext_present\s*=\s*)32'b0;", r"\g<1>32'hFFFF_FFFF;", 1)],
       ["hpm", "unit"]),
     m("cache-compare-without-pending-event", "The comparison of the counters with CACHE_STATS forgets the event in the delay register (a mutant of the monitor).",
       [(TOP, r"have = hm_cnt\[k\] \+ \(\(!hm_inh\[3 \+ k\] && hm_last_ext\[code - 128\]\) \? 1 : 0\);", "have = hm_cnt[k];", 1)],
@@ -180,7 +182,7 @@ MUTANTS = [
     # A mutant that cannot change behaviour, left out on purpose: the bits 12 to 31 of the memory-system vector
     # are tied to 0 in rtl/mcu.sv and are masked by the present mask, so tying them to 1 changes nothing.
     m("unused-memory-system-bits", "Bits 12 to 31 of the memory-system vector tied to 1.",
-      [(MCU, r"(hpm_ext\s*=\s*)'0\s*;", r"\g<1>'1;", 1)],
+      [(MCU, r"(hpm_ext\s*=\s*)32'b0;", r"\g<1>32'hFFFF_FFFF;", 1)],
       [], "the present mask is 0 for those bits, so the unit never looks at them", left_out=True),
 ]
 
@@ -193,8 +195,11 @@ def make(root, args, timeout=None):
 def program_check(root, prog, extra=()):
     rc, text = make(root, [prog] + list(extra) + ["SIM_ARGS=+nodump"])
     ok = rc == 0 and PASSED in text
-    line = next((l for l in text.splitlines() if "Test fail!" in l), None)
-    why = "passed" if ok else (f"{line.strip()}" if line else text.strip().splitlines()[-1][:120] if text.strip() else "no output")
+    # (the first 'Test fail!' of every run is the deliberate initial one)
+    fails = [l for l in text.splitlines() if "Test fail!" in l][1:]
+    summary = next((l for l in text.splitlines() if "test(s) failed" in l or "Simulation timeout" in l), None)
+    line = (fails[0].strip() + (f" ({summary.strip()})" if summary else "")) if fails else summary
+    why = "passed" if ok else (f"{line}" if line else text.strip().splitlines()[-1][:120] if text.strip() else "no output")
     return ok, why
 
 
@@ -319,16 +324,23 @@ def run_one(mu, keep, only_layers, base):
 
 def build_check(root, mu):
     """Does the tree with the mutant still elaborate? Verilator lints the standard simulator when a
-    SystemVerilog file is patched."""
+    SystemVerilog file is patched, and a simulator with an instruction cache too (the cached branch
+    of rtl/mcu.sv and the cache monitors of sim/top.sv are not part of the standard one)."""
     files = sorted({f for f, *_ in mu["patches"]})
-    if any(f.endswith(".sv") for f in files):
+    if not any(f.endswith(".sv") for f in files):
+        return True, "nothing to build"
+    rc, text = make(root, ["sim-config", "ICACHE=512", "MEM_LAT=2"])
+    defs = re.search(r"Verilator defines:\s*(.*)", text)
+    cached = defs.group(1).split() if defs and rc == 0 else []
+    for name, extra in (("standard", []), ("with an instruction cache", cached)):
+        if name != "standard" and not cached:
+            return False, "no configuration with an instruction cache"
         rc, text = sh(["verilator", "--lint-only", "-Wno-fatal", "--timing", "--assert", "-Mdir", os.path.join(root, "build", "lint-only"),
-                       "-f", "sim/files.txt", "--top-module", "top", "sim/top.sv"], root)
+                       "-f", "sim/files.txt"] + extra + ["--top-module", "top", "sim/top.sv"], root)
         err = next((l for l in text.splitlines() if l.startswith("%Error")), None)
         if rc or err:
-            return False, (err or text.strip()[-160:])[:200]
-        return True, "the simulator elaborates"
-    return True, "nothing to build"
+            return False, f"{name}: " + (err or text.strip()[-160:])[:200]
+    return True, "the simulators (standard, with an instruction cache) elaborate"
 
 
 def dry_one(mu):

@@ -1231,10 +1231,7 @@ module top;
 `endif
 
 `ifndef USE_REF_CPU
-`ifdef HADES_HPM_UNIT
     // ==== Performance-counter monitors (HaDes-V+ only; docs/EXTENSIONS.md, "Hardware Performance Counters") ====
-    // Compiled where the counter unit exists: defines/hpm.sv defines HADES_HPM_UNIT (a tree without the unit
-    // simulates as before, and the options below are then unknown to the simulator).
     // Two passive monitors, appended after the blocks above so that their line numbers do not move.
     // They read signals inside the CPU and the counter unit, so they exist for HaDes-V+ only (the
     // golden CPU has no counters).
@@ -1266,20 +1263,21 @@ module top;
     // uses, are the three functions hm_r_cnt, hm_r_sel and hm_r_inh and the vector mcu.hpm_ext.
     // They are the contract of the counter unit (docs/EXTENSIONS.md): change them there only.
 
-    localparam int HM_N = 7;                               // programmable counters 3..9
-    localparam int HM_W = 48;                              // their width
+    localparam int HM_N = hpm_pkg::COUNTERS;               // programmable counters 3 .. 2+N
+    localparam int HM_W = hpm_pkg::WIDTH;                  // their width
+    localparam int HM_NA = (HM_N > 0) ? HM_N : 1;          // size of the arrays below
     localparam bit [63:0] HM_MASK = (64'd1 << HM_W) - 64'd1;
     localparam bit [31:0] HM_INH_MASK = 32'h0000_3C05 | (((32'd1 << HM_N) - 32'd1) << 3);   // CY, IR, counters, 10..13
 
     // ---- the counter unit of the RTL: the only names of it that the monitors use ----
     function automatic bit [63:0] hm_r_cnt(int n);
-        return 64'(mcu.cpu.i_writeback.i_hpm.cnt[n]);
+        return 64'(mcu.cpu.i_writeback.i_hpm.cnt[n + 3]);
     endfunction
     function automatic bit [7:0] hm_r_sel(int n);
-        return 8'(mcu.cpu.i_writeback.i_hpm.sel[n]);
+        return 8'(mcu.cpu.i_writeback.i_hpm.sel[n + 3]);
     endfunction
     function automatic bit [31:0] hm_r_inh();
-        return 32'(mcu.cpu.i_writeback.i_hpm.inh);
+        return 32'(mcu.cpu.i_writeback.i_hpm.inhibit);
     endfunction
     function automatic bit [31:0] hm_r_ext();
         return 32'(mcu.hpm_ext);
@@ -1327,11 +1325,7 @@ module top;
     endfunction
 
     // ---- the presets of docs/EXTENSIONS.md (make HPM_PRESET=<A..I>: the letter as 0..8) ----
-`ifdef HADES_HPM_PRESET
-    localparam int HM_PRESET = `HADES_HPM_PRESET;
-`else
-    localparam int HM_PRESET = -1;
-`endif
+    localparam int HM_PRESET = (hpm_pkg::PRESET == hpm_pkg::NO_PRESET) ? -1 : hpm_pkg::PRESET - 1;
     function automatic int hm_preset_code(int p, int k);
         case (p)
             0: case (k) 0: return 32; 1: return 33; 2: return 34; 3: return 35; 4: return 36; 5: return 37; default: return 16; endcase
@@ -1395,8 +1389,8 @@ module top;
     bit              hm_ev     [256];     // the events of this cycle
     bit              hm_s1     [256];     // ... of the cycle before
     bit              hm_s2     [256];     // ... of the cycle before that
-    bit       [63:0] hm_cnt    [HM_N];
-    bit        [7:0] hm_sel    [HM_N];
+    bit       [63:0] hm_cnt    [HM_NA];
+    bit        [7:0] hm_sel    [HM_NA];
     bit       [31:0] hm_inh;
     bit       [63:0] hm_minstret, hm_mcycle;
     bpredict::bp_data_t hm_bp1, hm_bp2;   // Execute's branch record, delayed one and two cycles
@@ -1435,7 +1429,7 @@ module top;
         bit [11:0] a;
         bit [31:0] old, src, wval, ext;
         bit [63:0] nxt, mi_inc, mc_inc;
-        bit        counted [HM_N];
+        bit        counted [HM_NA];
         int        code, cls;
         pipeline_status::backwards_t sd, se, sm, sw;
 
@@ -1660,7 +1654,6 @@ module top;
             end
         end
     end
-`endif
 `endif
 `endif
 endmodule
