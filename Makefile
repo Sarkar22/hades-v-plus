@@ -42,8 +42,8 @@ SV_DIR = $(TEST_DIR)/sv
 # every simulator a flow builds (test/asm/*, test/c/*, test/memsys/*, the FreeRTOS targets
 # including freertos-stress, lint-loops). The module benches (test/sv/*) are built in the
 # configuration's directory too; none contains the memory system, so they do not change,
-# apart from the I-cache bench (test/sv/test_icache.sv), whose system configuration holds the
-# memory wrapper and takes the configuration's latencies as its defaults.
+# apart from the cache benches (test/sv/test_icache.sv, test/sv/test_dcache.sv), whose system
+# configurations hold the memory wrapper and take the configuration's latencies as their defaults.
 # The standard configuration has none of them; any other one builds into a directory of its
 # own, <build directory>/cfg-<name>, so the standard simulators and their results stay
 # untouched. Give them on the command line:
@@ -74,8 +74,12 @@ SV_DIR = $(TEST_DIR)/sv
 #                               0; MEM_ONLY is refused). The RAM is then exempt from the
 #                               interconnect's timeout, so the 254-cycle limit below does not
 #                               apply. rtl/cache/, docs/CACHES.md
-#   LINE=8|16|32|64             the cache's line size in bytes (default 16; only with ICACHE)
-#                               (DCACHE is refused: there is no data cache yet)
+#   DCACHE=<bytes>              a data cache of <bytes> bytes as well (a power of two of at
+#                               least two lines; 0: none), direct-mapped, write-through, no
+#                               write-allocate, as the RAM's port of the data bus; its refills
+#                               and stores share the one memory port. Only together with ICACHE
+#                               (a D-cache needs an I-cache)
+#   LINE=8|16|32|64             the caches' line size in bytes (default 16; only with ICACHE)
 #   SCOREBOARD=0|1              the shadow-memory scoreboard of sim/top.sv (default: on
 #                               with a slow memory, off otherwise)
 #   BUSHASH=0|1                 print a hash of both CPU buses at the end of every run
@@ -96,7 +100,7 @@ SV_DIR = $(TEST_DIR)/sv
 # Each option below adds its part to the configuration's name, its Verilator defines and
 # its description (SIM_CFG_NAME, SIM_CFG_DEFS, SIM_CFG_TEXT); a new option is one more
 # such block and one more name in SIM_CFG_VARS.
-SIM_CFG_VARS = MEM_LAT MEM_WR_LAT MEM_BEAT_LAT MEM_ONLY MEM_SEED ICACHE LINE SCOREBOARD BUSHASH BUSTRACE HPM_COUNTERS HPM_PRESET
+SIM_CFG_VARS = MEM_LAT MEM_WR_LAT MEM_BEAT_LAT MEM_ONLY MEM_SEED ICACHE DCACHE LINE SCOREBOARD BUSHASH BUSTRACE HPM_COUNTERS HPM_PRESET
 $(foreach v,$(SIM_CFG_VARS),$(if $(filter command line,$(origin $(v))),,$(eval $(v) := $(HADES_$(v)))))
 # the options that come from the environment
 SIM_CFG_ENV := $(strip $(foreach v,$(SIM_CFG_VARS),$(if $(filter command line,$(origin $(v))),,$(if $($(v)),$(v)))))
@@ -111,18 +115,29 @@ sim_cfg_lat_error = $(error $(1)='$($(1))' is not a latency: give <n> or <min>:<
 SIM_MEM_DATA_MAX = 254
 sim_cfg_data_error = $(error $(1)='$($(1))': the data port waits at most $(SIM_MEM_DATA_MAX) cycles (the interconnect ends a data access after 255 cycles without an answer, lib/wishbone/wishbone_interconnect.sv); longer waits are possible on the fetch port alone, with MEM_ONLY=fetch)
 
-# The I-cache: SIM_ICACHE is its size (empty: no cache), SIM_LINE its line size
-ifneq ($(or $(filter command line,$(origin DCACHE)),$(HADES_DCACHE)),)
-$(error DCACHE='$(or $(DCACHE),$(HADES_DCACHE))': there is no data cache yet; the simulators with caches have an I-cache only (ICACHE=<bytes>, see docs/CACHES.md))
-endif
+# The caches: SIM_ICACHE and SIM_DCACHE are their sizes (empty: no cache), SIM_LINE their line
+# size. A D-cache needs an I-cache.
 SIM_ICACHE := $(filter-out 0,$(strip $(ICACHE)))
+SIM_DCACHE := $(filter-out 0,$(strip $(DCACHE)))
 SIM_LINE   := $(or $(strip $(LINE)),16)
+# "<option>" or "HADES_<option>": how the option was given (in a message)
+sim_cfg_given = $(if $(filter $(1),$(SIM_CFG_ENV)),HADES_)$(1)
+ifneq ($(SIM_DCACHE),)
+ifeq ($(SIM_ICACHE),)
+$(error $(call sim_cfg_given,DCACHE)='$(DCACHE)' needs an I-cache: a D-cache needs an I-cache (they share the memory port and the line size), so give ICACHE=<bytes> as well$(if $(strip $(ICACHE)), (not $(call sim_cfg_given,ICACHE)='$(ICACHE)')))
+endif
+endif
 ifneq ($(SIM_ICACHE),)
 ifneq ($(words $(SIM_LINE)) $(filter 8 16 32 64,$(SIM_LINE)),1 $(SIM_LINE))
 $(error LINE='$(LINE)': the I-cache's line size is 8, 16, 32 or 64 bytes)
 endif
 ifeq ($(shell echo '$(ICACHE)' | awk '/^[1-9][0-9]*$$/ { n = $$1 + 0; while (n > 1 && n % 2 == 0) n /= 2; if (n == 1 && $$1 + 0 >= 2 * $(SIM_LINE)) print "ok" }'),)
 $(error ICACHE='$(ICACHE)': give the I-cache's size in bytes, a decimal number without sign or leading zeros that is a power of two of at least two lines ($(shell echo $$(( 2 * $(SIM_LINE) ))) bytes with $(SIM_LINE)-byte lines), or 0 for none)
+endif
+ifneq ($(SIM_DCACHE),)
+ifeq ($(shell echo '$(DCACHE)' | awk '/^[1-9][0-9]*$$/ { n = $$1 + 0; while (n > 1 && n % 2 == 0) n /= 2; if (n == 1 && $$1 + 0 >= 2 * $(SIM_LINE)) print "ok" }'),)
+$(error $(call sim_cfg_given,DCACHE)='$(DCACHE)': give the D-cache's size in bytes, a decimal number without sign or leading zeros that is a power of two of at least two lines ($(shell echo $$(( 2 * $(SIM_LINE) ))) bytes with $(SIM_LINE)-byte lines), or 0 for none)
+endif
 endif
 ifneq ($(MEM_ONLY),)
 $(error MEM_ONLY='$(MEM_ONLY)' and ICACHE='$(ICACHE)': with a cache there is one memory port, shared by the fetches and the data side; leave MEM_ONLY out)
@@ -191,9 +206,15 @@ SIM_CFG_DEFS += +define+HADES_SLOW_MEM \
 SIM_CFG_TEXT += slow memory$(if $(MEM_ONLY), on the $(MEM_ONLY) port only): reads wait $(call sim_cfg_rtext,$(SIM_MEM_RD)) and writes $(call sim_cfg_rtext,$(SIM_MEM_WR)) cycles,
 SIM_CFG_TEXT += $(if $(SIM_MEM_BEAT),a further beat of a burst waits $(word 1,$(SIM_MEM_BEAT)),bursts off), seed $(SIM_MEM_SEED);
 ifneq ($(SIM_ICACHE),)
-SIM_CFG_NAME += i$(if $(filter ok,$(shell [ $(SIM_ICACHE) -lt 1024 ] && echo ok)),$(SIM_ICACHE),$(shell echo $$(( $(SIM_ICACHE) / 1024 )))k) l$(SIM_LINE)
+# a cache size in a name: <n> below 1024, else <n/1024>k
+sim_cfg_kname = $(if $(filter ok,$(shell [ $(1) -lt 1024 ] && echo ok)),$(1),$(shell echo $$(( $(1) / 1024 )))k)
+SIM_CFG_NAME += i$(call sim_cfg_kname,$(SIM_ICACHE)) $(if $(SIM_DCACHE),d$(call sim_cfg_kname,$(SIM_DCACHE))) l$(SIM_LINE)
 SIM_CFG_DEFS += +define+HADES_ICACHE_BYTES=$(SIM_ICACHE) +define+HADES_CACHE_LINE_BYTES=$(SIM_LINE) -y $(RTL_DIR)/cache
 SIM_CFG_TEXT += I-cache $(SIM_ICACHE) bytes, $(SIM_LINE)-byte lines; one memory port shared with the data side; RAM exempt from the interconnect timeout;
+ifneq ($(SIM_DCACHE),)
+SIM_CFG_DEFS += +define+HADES_DCACHE_BYTES=$(SIM_DCACHE)
+SIM_CFG_TEXT += D-cache $(SIM_DCACHE) bytes, write-through, no write-allocate;
+endif
 endif
 SIM_SCOREBOARD_DEFAULT := 1
 else
@@ -435,8 +456,10 @@ help:
 	@echo "                              0: none) and one memory port shared by its refills and the data"
 	@echo "                              side, with the latencies above (default 0; no MEM_ONLY; the data"
 	@echo "                              side's 254-cycle limit does not apply); guide: docs/CACHES.md"
-	@echo "  LINE=8|16|32|64             the I-cache's line size in bytes (default 16; only with ICACHE)"
-	@echo "                              (DCACHE is refused: there is no data cache yet)"
+	@echo "  DCACHE=<bytes>              a D-cache of <bytes> bytes as well (a power of two of at least two"
+	@echo "                              lines; 0: none), write-through, no write-allocate, its refills and"
+	@echo "                              stores on the same memory port; only with ICACHE"
+	@echo "  LINE=8|16|32|64             the caches' line size in bytes (default 16; only with ICACHE)"
 	@echo "  SCOREBOARD=0|1              shadow-memory scoreboard (default: 1 with a slow memory, else 0)"
 	@echo "  BUSHASH=0|1                 print a hash of both CPU buses at the end of every run (default 0)"
 	@echo "  BUSTRACE=0|1                write a per-cycle bus trace to bustrace.bin, HaDes-V+ only (default 0;"
@@ -446,7 +469,9 @@ help:
 	@echo "                              and +hpm_stats on (H and I need ICACHE); sets: defines/hpm.sv"
 	@echo "  e.g. make test/asm/ops MEM_LAT=2    make freertos APP=stress MEM_LAT=1:8    make freertos-stress MEM_LAT=2"
 	@echo "       make test/memsys/stores ICACHE=512 MEM_LAT=2    make freertos APP=minimal ICACHE=8192 MEM_LAT=1:8"
+	@echo "       make test/memsys/stores ICACHE=512 DCACHE=512 MEM_LAT=2    (both caches)"
 	@echo "       make test/sv/test_icache [SIM_ARGS='+seed=2']   (the I-cache bench; checks of the caches: docs/CACHES.md)"
+	@echo "       make test/sv/test_dcache [SIM_ARGS='+seed=2']   (the bench of both caches and the arbiter)"
 	@echo "       make test/sv/test_hpm [SIM_ARGS='+seed=2']      (the bench of the performance counters' unit)"
 	@echo "       make test/asm/hpm    make test/memsys/hpmcache ICACHE=512 MEM_LAT=2    make test/asm/ops HPM_PRESET=B"
 	@echo "  sim-config        Print the configuration, its build directory and the environment for scripts"
@@ -454,7 +479,7 @@ help:
 	@echo "  SIM_ARGS='<opts>' Run-time options for the simulator of test/asm/*, test/c/*, test/memsys/*"
 	@echo "                    (+scoreboard, +bushash, +retired, +mem_lat=<n>, ... see sim/top.sv and"
 	@echo "                    sim/slow_memory.sv; with a slow memory the default +timeout is 100000"
-	@echo "                    times 1 + the longest wait; with an I-cache 100000 times 1 + the longest"
+	@echo "                    times 1 + the longest wait; with caches 100000 times 1 + the longest"
 	@echo "                    refill or data transfer of the memory port, max(R, D) cycles with"
 	@echo "                    R = (RD + 1) + (LINE/4 - 1) * (B + 1), D = max(RD, WR) + 1, RD and WR the"
 	@echo "                    longest read and write wait, B the beat wait in burst mode, else RD)"
@@ -653,7 +678,7 @@ $(C_TEST_NAMES): $(C_DIR)/%: $(BUILD_DIR)/$(C_DIR)/%/init.mem $(BUILD_DIR)/$(C_D
 ################################################################################
 
 SV_TESTS = $(wildcard $(SV_DIR)/*.sv)
-SV_TEST_NAMES = $(filter-out $(SV_DIR)/test_icache $(SV_DIR)/test_hpm, $(patsubst $(SV_DIR)/%.sv, $(SV_DIR)/%, $(SV_TESTS)))
+SV_TEST_NAMES = $(filter-out $(SV_DIR)/test_icache $(SV_DIR)/test_dcache $(SV_DIR)/test_hpm, $(patsubst $(SV_DIR)/%.sv, $(SV_DIR)/%, $(SV_TESTS)))
 
 # Include dependency files (if they exist)
 -include $(wildcard $(BUILD_DIR)/$(SV_DIR)/*/top__ver.d)
@@ -691,6 +716,21 @@ $(BUILD_DIR)/$(SV_DIR)/test_icache/top.mk: $(REF_SO_DEPS)
 	@ mkdir -p $(BUILD_DIR)/$(SV_DIR)/test_icache
 	$(VERILATOR) $(VERILATOR_FLAGS) -f $(SV_DIR)/files.txt -y $(RTL_DIR)/cache --trace-fst --trace-structs --timing --assert --main --exe --prefix top -Mdir $(BUILD_DIR)/$(SV_DIR)/test_icache --top-module test_icache $(SV_DIR)/test_icache.sv
 	@echo 'gtkwave $(BUILD_DIR)/$(SV_DIR)/test_icache/test_icache.fst $(SAVES_DIR)/test_icache.gtkw' > $(BUILD_DIR)/show.sh
+
+# The bench of both caches and the arbiter (test/sv/test_dcache.sv) has rules of the same kind:
+# it finds the cache modules in rtl/cache in every configuration, takes run-time options through
+# SIM_ARGS (listed at the head of the file) and is built with at most four compilers at a time.
+.PHONY: $(SV_DIR)/test_dcache
+$(SV_DIR)/test_dcache: $(BUILD_DIR)/$(SV_DIR)/test_dcache/top
+	cd $(BUILD_DIR)/$(SV_DIR)/test_dcache && $(BUILD_ABS)/$(SV_DIR)/test_dcache/top$(if $(SIM_ARGS), $(SIM_ARGS))
+
+$(BUILD_DIR)/$(SV_DIR)/test_dcache/top: $(BUILD_DIR)/$(SV_DIR)/test_dcache/top.mk
+	$(MAKE) -j4 -C $(BUILD_DIR)/$(SV_DIR)/test_dcache -f top.mk
+
+$(BUILD_DIR)/$(SV_DIR)/test_dcache/top.mk: $(REF_SO_DEPS)
+	@ mkdir -p $(BUILD_DIR)/$(SV_DIR)/test_dcache
+	$(VERILATOR) $(VERILATOR_FLAGS) -f $(SV_DIR)/files.txt -y $(RTL_DIR)/cache --trace-fst --trace-structs --timing --assert --main --exe --prefix top -Mdir $(BUILD_DIR)/$(SV_DIR)/test_dcache --top-module test_dcache $(SV_DIR)/test_dcache.sv
+	@echo 'gtkwave $(BUILD_DIR)/$(SV_DIR)/test_dcache/test_dcache.fst $(SAVES_DIR)/test_dcache.gtkw' > $(BUILD_DIR)/show.sh
 
 # The counter-unit bench (test/sv/test_hpm.sv) takes run-time options through SIM_ARGS, for example
 #     make test/sv/test_hpm SIM_ARGS='+seed=2 +cycles=50000'
