@@ -493,9 +493,11 @@ module top;
             bit   [31:0] a, w;
             // A store that is acknowledged in the half cycle in which the run ends has been written to the
             // RAM (which writes on the inverted clock), but the copy follows an acknowledge at the next rising
-            // edge, which never comes: the copy takes the store here
+            // edge, which never comes: the copy takes the store here. Only a run that ends at a falling edge
+            // (the cycle limit) does this: after a rising edge the acknowledge that the RAM still shows is
+            // the one of the transfer before, which the copy has taken already
             a = mcu.mem_bus.adr;
-            if (!mcu.rst && mcu.mem_bus.cyc && mcu.mem_bus.stb && mcu.mem_bus.ack && mcu.mem_bus.we && sb_in_ram(a)) begin
+            if (!clk && !mcu.rst && mcu.mem_bus.cyc && mcu.mem_bus.stb && mcu.mem_bus.ack && mcu.mem_bus.we && sb_in_ram(a)) begin
                 w = sb_mem[a - RAM_START];
                 for (int lane = 0; lane < 4; lane++)
                     if (mcu.mem_bus.sel[lane]) w[8*lane +: 8] = mcu.mem_bus.dat_mosi[8*lane +: 8];
