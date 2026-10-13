@@ -462,6 +462,7 @@ case4:
 case5:
     li   t2, 5
     csrw mcountinhibit, s11
+    csrw 0xB03, zero              # (the counter counted while case 2 probed the selectors)
     li   t0, -1
     csrw 0xB83, t0
     csrr a1, 0xB83
