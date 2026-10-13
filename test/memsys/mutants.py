@@ -98,6 +98,20 @@ def added_logic(f, decl, body=""):
 # The scoreboard's comparison of a fetched word with its copy, disabled (the blinded runs)
 BLIND = [(TOP, r"else if \(mcu\.fetch_bus\.dat_miso != sb_mem\[a - RAM_START\]\)",
           "else if (1'b0 && mcu.fetch_bus.dat_miso != sb_mem[a - RAM_START])", 1)]
+# For the two mutants whose wrong acknowledge falls on a fetch outside the window (no-second-lookup and
+# latched-lookup: the cache acknowledges an address that the CPU presents as an error), the scoreboard's
+# protocol checks of the fetch bus 'ack and err together' and 'ack outside the RAM' would stop the run
+# before the directed test has judged anything, and so does the I-cache's own assertion of the same rule; the
+# blinded runs of these two mutants disable all three (EXTRA_BLINDED, answers=True), so that fetchredirect.s is
+# the only judge. A blinded run still has to end with SCOREBOARD: PASS.
+BLIND_ANSWERS = [
+    (TOP, r"if \(mcu\.fetch_bus\.ack && mcu\.fetch_bus\.err\)\n(\s+sb_stop\(\$sformatf\(\"fetch bus: ack and err together)",
+     r"if (1'b0 && mcu.fetch_bus.ack && mcu.fetch_bus.err)\n\1", 1),
+    (TOP, r"if \(!sb_in_ram\(a\)\)\n(\s+sb_stop\(\$sformatf\(\"fetch bus: ack for address)",
+     r"if (1'b0 && !sb_in_ram(a))\n\1", 1),
+    (ICACHE, r"if \(cpu\.ack && cpu\.err\)\n(\s+\$fatal\(1, \"icache: ack and err together on the fetch port)",
+     r"if (1'b0 && cpu.ack && cpu.err)\n\1", 1),
+]
 
 
 def m(name, cls, what, patches, primary, also="", needs_anchor=True):
@@ -408,10 +422,12 @@ MUTANTS = [
       handler_mepc(-4), dict(kind="blinded", config=LAT2, only="memsys/irqchain$", also_config=SMALL_LAT2), "",
       needs_anchor=False),
 ]
-# further checks of the directed tests with the fetch compare blinded, beyond the primary ones
+# further checks of the directed tests with the fetch compare blinded, beyond the primary ones: run
+# by 'run' after the primary check, and required (a mutant that the blinded test does not catch is
+# reported as MISSED even if its primary check caught it)
 EXTRA_BLINDED = {
-    "no-second-lookup": dict(config=SMALL_LAT2, only="memsys/fetchredirect$"),
-    "latched-lookup": dict(config=SMALL_LAT2, only="memsys/fetchredirect$"),
+    "no-second-lookup": dict(config=SMALL_LAT2, only="memsys/fetchredirect$", answers=True),
+    "latched-lookup": dict(config=SMALL_LAT2, only="memsys/fetchredirect$", answers=True),
 }
 
 # Negative controls of the run-time assertions: the control, and the run in which only that check
@@ -561,6 +577,11 @@ def check(root, spec, mu):
             probs = apply(root, BLIND)
             if probs:
                 return None, "the blinding patch: " + "; ".join(probs)
+        if kind == "blinded" and spec.get("answers") and "1'b0 && mcu.fetch_bus.ack && mcu.fetch_bus.err" not in \
+                open(os.path.join(root, TOP)).read():
+            probs = apply(root, BLIND_ANSWERS)
+            if probs:
+                return None, "the blinding patch of the answer checks: " + "; ".join(probs)
         rc, text, res, out = programs_run(root, spec["config"], spec.get("only", ""))
         if res is None:
             return True, f"programs.py did not finish (exit {rc}): {text.strip()[-160:]}"
@@ -570,7 +591,8 @@ def check(root, spec, mu):
             return bool(bad), "; ".join(f"{r['program']}: {(r['differences'] + r['problems'] + r['errors'])[:1]}"
                                         for r in bad[:3]) or "every run the same or expected"
         if kind == "blinded":
-            invalid = [r["program"] for r in runs if r["scoreboard"] != "PASS"]
+            stopped = [r for r in runs if r["scoreboard"] != "PASS"]
+            invalid = [r["program"] for r in stopped]
             if invalid:
                 return None, f"blinded run(s) without SCOREBOARD: PASS (not valid): {invalid}"
             # the program's own checks: its reports against the run at latency 0 (which can be wrong in
@@ -664,6 +686,16 @@ def run_one(mu, out, keep, with_map, primary_only=False):
             c2, ev2 = check(root, spec, mu)
             res["also_config"] = dict(config=extra, verdict="CAUGHT" if c2 else ("MISSED" if c2 is not None
                                                                                    else "INVALID"), evidence=ev2)
+        blind = EXTRA_BLINDED.get(mu["name"])
+        if blind and not primary_only:
+            # the directed test with the fetch compare blinded (6.5 item 6): required in addition to the primary check
+            shutil.rmtree(os.path.join(root, "build", "mutant-programs"), ignore_errors=True)
+            c4, ev4 = check(root, dict(blind, kind="blinded"), mu)
+            res["blinded"] = dict(config=blind["config"], only=blind["only"],
+                                  verdict="CAUGHT" if c4 else ("MISSED" if c4 is not None else "INVALID"), evidence=ev4)
+            if res["verdict"] == "CAUGHT" and res["blinded"]["verdict"] != "CAUGHT":
+                res["verdict"] = res["blinded"]["verdict"]
+                res["evidence"] += f"; with the fetch compare blinded: {res['blinded']['verdict']}: {ev4}"
         if with_map:
             for assertion, control, spec in ASSERTION_MAP:
                 if control == mu["name"] and spec:
@@ -806,12 +838,16 @@ def cmd_anchors(a):
         print(f"{'ok     ' if not probs else 'MISSING'} {n}" + "".join(f"\n        {p}" for p in probs))
     d = tempfile.mkdtemp(prefix="mutant-anchor-")
     try:
-        os.makedirs(os.path.join(d, "sim"))
-        shutil.copy(os.path.join(REPO, TOP), os.path.join(d, TOP))
+        for f in (TOP, ICACHE):
+            os.makedirs(os.path.dirname(os.path.join(d, f)), exist_ok=True)
+            shutil.copy(os.path.join(REPO, f), os.path.join(d, f))
         probs = apply(d, BLIND)
+        probs_a = apply(d, BLIND_ANSWERS)
     finally:
         shutil.rmtree(d, ignore_errors=True)
     print(f"{'ok     ' if not probs else 'MISSING'} (the blinding of the fetch compare)" + "".join(f"\n        {p}" for p in probs))
+    print(f"{'ok     ' if not probs_a else 'MISSING'} (the blinding of the fetch answer checks)" + "".join(f"\n        {p}" for p in probs_a))
+    probs += probs_a
     print(f"ANCHORS: {len(names) - bad} of {len(names)} mutants apply to this tree")
     return 0 if not bad and not probs else 1
 
@@ -847,9 +883,12 @@ def cmd_run(a):
         for res in ex.map(lambda mu: run_one(mu, a.out, a.keep, a.map, a.primary_only), mus):
             results.append(res)
             extra = res.get("also_config")
+            blind = res.get("blinded")
             print(f"{res['verdict']:14s} {res['name']}: {res['evidence']}" +
                   (f"\n{'':14s}   also {' '.join(extra['config'])}: {extra['verdict']}: {extra['evidence']}"
                    if extra else "") +
+                  (f"\n{'':14s}   blinded {blind['only']} at {' '.join(blind['config'])}: {blind['verdict']}: "
+                   f"{blind['evidence']}" if blind else "") +
                   "".join(f"\n{'':14s}   assertion '{x['assertion']}': {'shown' if x['shown'] else 'NOT shown'}: "
                           f"{x['evidence']}" for x in res.get("map", [])), flush=True)
     with open(os.path.join(a.out, "mutants.json"), "w") as f:

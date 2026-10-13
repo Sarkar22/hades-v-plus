@@ -17,6 +17,7 @@ and the Basys 3 bitstream have none.
 | [programs.py](programs.py) | here | Runs every assembly and C program (`test/asm/*.s`, `test/c/*.c`) and the programs here (`test/memsys/*.s`) on both CPUs in one configuration, and judges each run against the same program at latency 0. The module benches, FreeRTOS and the trap sweep are not part of it. |
 | [stores.s](stores.s) | here | Loads and stores with no other instruction between them (back to back on the bus when instruction fetch does not wait), in two passes (branch predictor off, then mode 3) in which every store changes the bytes it writes: they expose early acknowledgements and dropped, misdirected or reordered writes at any latency, also without the scoreboard (apart from two stores that are overwritten before any load; see its header). |
 | [irqchain.s](irqchain.s) | here | An interrupt armed 1 to 200 cycles ahead of a chain of 16 instructions, each of which changes `a0`, so that it lands before every chain instruction, also while Fetch waits: every instruction must retire exactly once, and the handler checks `mcause`, `mepc` and `a0` at every interrupt. Before every delay an eviction step makes the tested code miss again in an instruction cache. |
+| [irqlat.s](irqlat.s) | here | Six interrupts in straight-line code, for the validation of `+irq_latency`: the latencies are derived by hand in its header and checked by `matrix.py`. |
 | [fetchredirect.s](fetchredirect.s) | here | Abandoned fetches: taken branches and jumps forward and backward, predicted and mispredicted, whose targets each make a distinct, order-dependent checksum update and whose wrong-path words count in a register of their own, so that a word delivered for the wrong address shows also without the scoreboard. An eviction step before every pass and case makes the tested code miss again in an instruction cache. |
 | [icoherence.s](icoherence.s) | here | Instruction-stream coherence: a block is run, patched with `sw`, `sh` and `sb` within one 16-byte line and across two, and run again after `fence.i`; the words right behind a `fence.i` are stored to before it. Both also with the block evicted from an instruction cache before every patch; stores with a cached line's index and another tag; a data store into a line of code; blocks one cache size apart; a store to the next line just before its first fetch; eight stores in consecutive instructions to eight cached lines. |
 | `warm_*.s`, [mkwarm.py](mkwarm.py) | here | Warm-cache variants of the programs that time their own instructions with `mcycle`: each timing window runs twice, and only its second pass, from a warm instruction cache, is checked. Written by mkwarm.py from `test/asm`; do not edit them. |
@@ -93,6 +94,7 @@ Run-time options of [sim/top.sv](../../sim/top.sv), for placing events and readi
 | `+cache_phase_log=<file>` | One byte per cycle: the cache and the data side's phases, to choose the cycle of a reset (a reset wanted in cycle `t` is requested with `+reset_at=<t-3>`) |
 | `+ram_words=<byte address>[,...]` | At the end, a `RAM_WORDS` line with these RAM words (word-aligned, inside the RAM) |
 | `+retired_every=<n>` | A `RETIRED_AT instructions=<i> cycles=<c>` line each time HaDes-V+ has retired another n instructions |
+| `+cache_stats_marks` | Cached simulators: a `CACHE_STATS_MARK report=<n> cycles=<c> i_done=<n> i_abandoned=<n> snoop_inval=<n>` line at every report of the program (a write of 0 or 1 to the test register), the counts so far |
 | `+irq_latency` | An `IRQLAT interrupts=<n> max=<cycles> mean=<cycles>` line at the end: the cycles from an interrupt pending in Writeback to the first fetch answer after its jump. HaDes-V+ only; in every simulator |
 
 ## Programs Under Wait States
@@ -158,7 +160,7 @@ rules of their originals marked uncached-only: with a cache their looped windows
 strictly. The default cycle limit of a cached run is 100000 times 1 + max(R, D), with R the
 cycles of the longest refill and D those of the longest data transfer of the one memory port (at
 `MEM_LAT=2` with 16-byte lines: R = 12, D = 3, 1300000 cycles); the reference runs keep 100000.
-The lines `CACHE`, `CACHE_STATS`, `RESET`, `IRQLAT`, `RAM_WORDS` and `RETIRED_AT` are
+The lines `CACHE`, `CACHE_STATS`, `CACHE_STATS_MARK`, `RESET`, `IRQLAT`, `RAM_WORDS` and `RETIRED_AT` are
 configuration lines, which neither the judging nor `compare` reads as program output.
 
 ## Warm-Cache Timing Variants
@@ -203,7 +205,18 @@ refill that always completes (and is counted as abandoned). The header of each t
 what a cached run must show in its `CACHE_STATS` line (`i_done`, `i_abandoned`,
 `snoop_inval`), computed from the assembled program and its retired instructions on the
 standard build; `irqchain.s` records the positions its interrupts reached (read them with
-`+ram_words=0x46000,0x46004`).
+`+ram_words=0x46000,0x46004`). Six of its 22 positions cannot be reached with the eviction step
+(the header derives why: bit 0 at every latency, and the second word of each line, whose
+first word never follows the last word of the line before directly when every line misses);
+`matrix.py` lists them with their reasons and runs the program in a 16 KiB cache, where the
+eviction block evicts nothing and every position but bit 0 is reached. The abandoned
+refills of `fetchredirect.s` per case come from `+cache_stats_marks`.
+
+[irqlat.s](irqlat.s) validates `+irq_latency`: it takes six interrupts in straight-line code
+and its header derives the latency by hand, `L + 2 + d` cycles with `L` the wait states of a
+fetch and `d` between 0 and `L` (the standard build: `max=2 mean=2.00`; `MEM_LAT=1`: `max=4
+mean=3.50`; `MEM_LAT=2`: `max=6 mean=5.00`; `MEM_LAT=5`: `max=12 mean=9.50`). The matrix leg
+`irq-latency-validation` compares the `IRQLAT` line of each with these figures.
 
 ## Fetches Outside the RAM (trap sweep)
 
@@ -306,8 +319,21 @@ the RAM's exemption) and `dram` (measurements only): the programs, the module be
 timing benches (`bench-mcost` and `bench-fencei-window` judged by its own rules with a cache),
 FreeRTOS compares, the shell and the loader, the trap sweeps, the stress campaign, the coverage
 of the directed tests, HaDes-V+ cached against the golden CPU uncached, `lint-loops`, mid-run
-resets placed from a `+cache_phase_log` run, the model agreement (`cachemodel.py rtlcheck`) and
-the CPI rows. It checks the `CACHE_STATS` identities on every log of a cached run, keeps every
+resets placed from a `+cache_phase_log` run, the model agreement (`cachemodel.py rtlcheck` on
+three programs at both cache sizes, the burst rule, the check that each program's retired
+instructions do not depend on the timing, and the informative comparison of the I-miss rate of
+`minimal` with the model's), the CPI rows, the validation of `+irq_latency` (`irqlat.s`) and the
+maximum interrupt latency of FreeRTOS `stress`.
+
+A CPI row is one job: the program in the cached configuration (8 KiB cache, DRAM-like memory)
+and in the uncached baseline at `TICK=10000`, the model on the trace of the same program at
+the standard memory, and a table that compares the columns over the same retired instructions
+(the largest `RETIRED_AT` mark that both reached), with the effect of the shared memory port
+named (`wait_d_for_port`, `wait_i_for_port`). The rows are `minimal`, `stress`, `mzba` (rv32i
+and rv32im_zba), `full` (a window of 10 M cycles) and the scripted shell session, each with the
+branch predictor off and in mode 3, and with the memory's seed 2 for `minimal` and `stress`. A
+program whose own real-time check ends a column early marks its row, which is run once more with
+the automatic tick as a second line. It checks the `CACHE_STATS` identities on every log of a cached run, keeps every
 verdict in `<out>/matrix.json` for the tree it ran on (a job judged for the same tree is not run
 again), runs the longest jobs first, never runs two FreeRTOS builds of one program in one
 configuration directory at once, and writes a summary table. A leg that needs a cache refuses
@@ -317,7 +343,10 @@ to run in a tree whose Makefile does not know `ICACHE`.
 the tree, never in the checkout) and runs the check that must catch it: the I-cache bench, a
 program set in a configuration (the directed tests with the scoreboard's fetch compare disabled,
 their own checks deciding), the trap sweep, a formal property, a port-cycle identity or the
-reset runs; it prints `CAUGHT` or `MISSED`. Every patch names the code it changes by a regular
+reset runs; it prints `CAUGHT` or `MISSED`. Two mutants (`no-second-lookup`, `latched-lookup`)
+must also be caught by `fetchredirect.s` alone: that run switches off the scoreboard's fetch
+compare and the checks of the answers that those mutants break (an acknowledge together with an
+error), and the program must still end with `SCOREBOARD: PASS`. Every patch names the code it changes by a regular
 expression that must match exactly as often as stated; `anchors` lists the ones that do not
 match the tree (a mutant whose patch does not apply is `ANCHOR MISSING`, never `CAUGHT`);
 `dryrun` applies every patch in a temporary copy, checks that the copy still builds (Verilator
