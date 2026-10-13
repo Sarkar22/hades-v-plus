@@ -3,23 +3,28 @@
 """model.py -- build the formal models of formal/cache from the RTL of a source tree.
 
   model.py gen <src> <here> <out> [--mutant NAME --mutants FILE] MODEL...
-      Copies the RTL of <src> (rtl/cache/icache.sv, cache_ram.sv, mem_arbiter.sv, rtl/mcu.sv,
-      lib/wishbone/wishbone_interface.sv, wishbone_interconnect.sv, defines/*.sv) to <out>/src,
-      applies the named mutant of the mutant table (an exact text that must occur exactly once,
-      replaced), inserts one include line of an observer before the final endmodule of the copies
-      of icache.sv and mem_arbiter.sv, converts every MODEL with sv2v (SYNTHESIS and HADES_FORMAL
-      defined) to <out>/<MODEL>.v and inserts, before the final endmodule of the harness module and
-      of module cache_ram, one include line each (the properties; the array observer). It checks
-      that these lines are the only differences from the RTL and from the sv2v output.
+      Copies the RTL of <src> (rtl/cache/icache.sv, dcache.sv, cache_ram.sv, mem_arbiter.sv,
+      rtl/mcu.sv, lib/wishbone/wishbone_interface.sv, wishbone_interconnect.sv, defines/*.sv) to
+      <out>/src, and <here>/mem_arbiter_base.sv (the base commit's arbiter) to
+      <out>/src/formal/cache, applies the named mutant of the mutant table (an exact text that
+      must occur exactly once, replaced), inserts one include line of an observer before the final
+      endmodule of the copies of icache.sv, dcache.sv, mem_arbiter.sv and mem_arbiter_base.sv,
+      converts every MODEL with sv2v (SYNTHESIS and HADES_FORMAL defined) to <out>/<MODEL>.v and
+      inserts, before the final endmodule of the harness module and of module cache_ram, one
+      include line each (the properties; the array observer). It checks that these lines are the
+      only differences from the RTL and from the sv2v output.
       MODEL: cache_<cfg>[_narrow][_cpu], pair_<cfg>[_narrow], icache_<cfg>[_narrow],
-      arbiter_<cfg>[_narrow][_cpu] (cfg tiny or second), ic_default, ic_ram_exempt, ic_io_timeout.
+      arbiter_<cfg>[_narrow][_cpu] (cfg tiny or second), ic_default, ic_ram_exempt, ic_io_timeout;
+      with both caches: memsys_<cfg>[_nowait][_narrow][_free|_cpu], mpair_<cfg>[_narrow],
+      dcache_<cfg>[_nowait][_narrow][_free], arbid_<cfg>[_nowait][_narrow], equiv.
   model.py mask <mcu.sv>
       Prints the TIMEOUT_EXEMPT mask of the interconnect in rtl/mcu.sv's cached branch (the
       `ifdef HADES_ICACHE_BYTES regions) as <width>'b<bits>; exits 1 if there is none, more than
       one, or one outside those regions.
-  model.py base <repo> <commit> <copy>
-      Checks <copy> against `git show <commit>:lib/wishbone/wishbone_interconnect.sv` with only the
-      module name changed to wishbone_interconnect_base. Prints SAME, DIFFERENT or UNAVAILABLE.
+  model.py base <repo> <commit> <copy> [<path> <module>]
+      Checks <copy> against `git show <commit>:<path>` (default lib/wishbone/wishbone_interconnect.sv,
+      module wishbone_interconnect) with only the module name changed to <module>_base. Prints
+      SAME, DIFFERENT or UNAVAILABLE.
   model.py mutants <file>
       Lists the mutant table: name, properties, defined or not.
   model.py snoop <mcu.sv>
@@ -30,10 +35,14 @@ import hashlib, os, re, shutil, subprocess, sys
 
 PACKAGES = ['op.sv', 'csr.sv', 'pipeline_status.sv', 'forwarding.sv', 'bpredict.sv', 'constants.sv',
             'instruction.sv', 'clk_params.sv']
-CACHE_RTL = ['rtl/cache/icache.sv', 'rtl/cache/cache_ram.sv', 'rtl/cache/mem_arbiter.sv']
+CACHE_RTL = ['rtl/cache/icache.sv', 'rtl/cache/cache_ram.sv', 'rtl/cache/mem_arbiter.sv',
+             'rtl/cache/dcache.sv']
 OTHER = ['rtl/mcu.sv', 'lib/wishbone/wishbone_interface.sv', 'lib/wishbone/wishbone_interconnect.sv']
 OBSERVERS = {'rtl/cache/icache.sv': ('icache', 'observe_icache.svh'),
-             'rtl/cache/mem_arbiter.sv': ('mem_arbiter', 'observe_arbiter.svh')}
+             'rtl/cache/mem_arbiter.sv': ('mem_arbiter', 'observe_arbiter.svh'),
+             'rtl/cache/dcache.sv': ('dcache', 'observe_dcache.svh')}
+# the base commit's arbiter (a copy in formal/cache with its module renamed), for the equivalence
+ARB_BASE = 'formal/cache/mem_arbiter_base.sv'
 
 
 def die(msg):
@@ -96,7 +105,7 @@ def check_one_line_added(before, after, line, what):
     die(f'{what}: the only difference must be the line {line!r}')
 
 
-def copy_sources(src, out, mutant):
+def copy_sources(src, here, out, mutant):
     dst = os.path.join(out, 'src')
     if os.path.isdir(dst):
         shutil.rmtree(dst)
@@ -122,8 +131,13 @@ def copy_sources(src, out, mutant):
                 die(f"mutant {mutant['name']}: the original text occurs {n} times in "
                     f"{c['file']} (expected exactly 1)")
             open(p, 'w').write(t.replace(c['old'], c['new']))
+    # the base commit's arbiter, never mutated
+    base = os.path.join(here, 'mem_arbiter_base.sv')
+    if os.path.isfile(base):
+        os.makedirs(os.path.dirname(os.path.join(dst, ARB_BASE)), exist_ok=True)
+        shutil.copyfile(base, os.path.join(dst, ARB_BASE))
     # the observers: one include line before the final endmodule of the copies
-    for f, (mod, inc) in OBSERVERS.items():
+    for f, (mod, inc) in list(OBSERVERS.items()) + [(ARB_BASE, ('mem_arbiter_base', 'observe_arbiter.svh'))]:
         p = os.path.join(dst, f)
         if not os.path.isfile(p):
             continue
@@ -286,13 +300,37 @@ def gen_model(name, here, out, have):
                         os.path.join(here, 'wishbone_interconnect_base.sv'),
                         os.path.join(here, 'harness/interconnect_top.sv')]
         top, props = 'interconnect_top', 'interconnect_props.vh'
-    else:
-        harness = {'cache': 'cache_top', 'pair': 'cache_pair_top', 'icache': 'icache_top',
-                   'arbiter': 'arbiter_top'}.get(parts[0])
-        if harness is None or len(parts) < 2 or parts[1] not in ('tiny', 'second'):
+    elif parts[0] == 'equiv':
+        # the arbiter of the tree against the base commit's (both with their observers)
+        if len(parts) != 1:
             die(f'unknown model {name}')
+        if 'rtl/cache/mem_arbiter.sv' not in have:
+            die('rtl/cache/mem_arbiter.sv not found in the source tree')
+        if not os.path.isfile(os.path.join(srcdir, ARB_BASE)):
+            die('mem_arbiter_base.sv not found in ' + here)
+        files = pkgs + [iface, os.path.join(srcdir, 'rtl/cache/mem_arbiter.sv'),
+                        os.path.join(srcdir, ARB_BASE),
+                        os.path.join(here, 'harness/arbiter_equiv_top.sv')]
+        top, props = 'arbiter_equiv_top', 'equiv_props.vh'
+    else:
+        # harness, its modules (in this order on the sv2v command line) and its properties
+        table = {
+            'cache':   ('cache_top', ['cache_ram', 'icache', 'mem_arbiter'], 'cache_props.vh'),
+            'pair':    ('cache_pair_top', ['cache_ram', 'icache', 'mem_arbiter'], 'pair_props.vh'),
+            'icache':  ('icache_top', ['cache_ram', 'icache'], 'cache_props.vh'),
+            'arbiter': ('arbiter_top', ['cache_ram', 'mem_arbiter'], 'cache_props.vh'),
+            'memsys':  ('memsys_top', ['cache_ram', 'icache', 'dcache', 'mem_arbiter'], 'dcache_props.vh'),
+            'mpair':   ('memsys_pair_top', ['cache_ram', 'icache', 'dcache', 'mem_arbiter'], 'dpair_props.vh'),
+            'dcache':  ('dcache_top', ['cache_ram', 'dcache'], 'dcache_props.vh'),
+            'arbid':   ('arbiter_id_top', ['cache_ram', 'mem_arbiter'], 'dcache_props.vh'),
+        }
+        if parts[0] not in table or len(parts) < 2 or parts[1] not in ('tiny', 'second'):
+            die(f'unknown model {name}')
+        harness, mods, props = table[parts[0]]
         flags = parts[2:]
-        if any(f not in ('narrow', 'cpu') for f in flags):
+        allowed = ('narrow', 'cpu') if parts[0] in ('cache', 'pair', 'icache', 'arbiter') else \
+                  ('narrow', 'cpu', 'nowait', 'free')
+        if any(f not in allowed for f in flags) or ('cpu' in flags and 'free' in flags):
             die(f'unknown model {name}')
         if parts[1] == 'second':
             defs.append('-DFCACHE_SECOND')
@@ -300,18 +338,17 @@ def gen_model(name, here, out, have):
             defs.append('-DFCACHE_NARROW')
         if 'cpu' in flags:
             defs.append('-DFCACHE_CPU_DATA')
-        need = ['rtl/cache/cache_ram.sv']
-        if harness != 'arbiter_top':
-            need.append('rtl/cache/icache.sv')
-        if harness != 'icache_top':
-            need.append('rtl/cache/mem_arbiter.sv')
+        if 'nowait' in flags:
+            defs.append('-DFCACHE_WRITE_NOWAIT')
+        if 'free' in flags:
+            defs.append('-DFCACHE_FREE_DATA')
+        need = ['rtl/cache/' + m + '.sv' for m in mods]
         for f in need:
             if f not in have:
                 die(f'{f} not found in the source tree')
         files = pkgs + [iface] + [os.path.join(srcdir, f) for f in need] + \
                 [os.path.join(here, 'harness', harness + '.sv')]
         top = harness
-        props = 'pair_props.vh' if harness == 'cache_pair_top' else 'cache_props.vh'
     raw = sv2v(['sv2v'] + defs + incs + files, os.path.join(out, name + '_sv2v.v'))
     text = raw
     if module_span(text, 'cache_ram') is not None:
@@ -353,7 +390,7 @@ def main(argv):
                 die(f'mutant {mutant_name} not in {mutants_file}')
             mutant = rows[0]
         os.makedirs(out, exist_ok=True)
-        have = copy_sources(src, out, mutant)
+        have = copy_sources(src, here, out, mutant)
         header = snoop_header(os.path.join(out, 'src', 'rtl/mcu.sv'))
         open(os.path.join(out, 'snoop.svh'), 'w').write(header)
         print(header.split('\n')[0].replace('// generated by formal/cache/scripts/model.py: ', 'snoop: '))
@@ -368,12 +405,14 @@ def main(argv):
         print(f"{width}'b{value:0{width}b} (written {lit})")
     elif cmd == 'base':
         repo, commit, copy = argv[2], argv[3], argv[4]
-        r = subprocess.run(['git', '-C', repo, 'show', commit + ':lib/wishbone/wishbone_interconnect.sv'],
+        path, module = (argv[5], argv[6]) if len(argv) > 6 else \
+            ('lib/wishbone/wishbone_interconnect.sv', 'wishbone_interconnect')
+        r = subprocess.run(['git', '-C', repo, 'show', commit + ':' + path],
                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
         if r.returncode != 0:
             print('UNAVAILABLE')
             return 0
-        expect = re.sub(r'^module wishbone_interconnect #\(', 'module wishbone_interconnect_base #(',
+        expect = re.sub(r'^module ' + re.escape(module) + r'\b', 'module ' + module + '_base',
                         r.stdout, count=1, flags=re.M)
         print('SAME' if expect == open(copy).read() else 'DIFFERENT')
     elif cmd == 'mutants':

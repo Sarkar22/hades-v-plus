@@ -8,6 +8,9 @@
 //                  addresses below and above them. Addresses are word addresses.
 //   FCACHE_NARROW  the narrower memory of the fallback ladder: every transfer is answered after 0
 //                  or 1 wait cycles (default: 0 to 2).
+//   FCACHE_WRITE_NOWAIT  writes are answered without wait cycles (reads keep F_MAX_WAIT): the
+//                  memory then has a read bound and a write bound (F_MAX_WAIT_WR = 0). Off by
+//                  default; only the harness of both caches uses it (harness/memsys_top.sv).
 // ---------------------------------------------------------------------------------------------
 `ifdef FCACHE_SECOND
     localparam int unsigned F_BYTES        = 32;
@@ -24,6 +27,11 @@
     localparam int unsigned F_MAX_WAIT = 1;
 `else
     localparam int unsigned F_MAX_WAIT = 2;
+`endif
+`ifdef FCACHE_WRITE_NOWAIT
+    localparam int unsigned F_MAX_WAIT_WR = 0;            // the longest wait of a write
+`else
+    localparam int unsigned F_MAX_WAIT_WR = F_MAX_WAIT;
 `endif
     localparam int unsigned F_LINE_WORDS = F_LINE_BYTES / 4;
     localparam int unsigned F_O          = $clog2(F_LINE_WORDS);   // word-in-line bits

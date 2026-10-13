@@ -1,0 +1,85 @@
+# SPDX-License-Identifier: MIT
+# Bounded proofs of the memory system with both caches (harness/memsys_top.sv), one task per
+# property and configuration: <property>_tiny (depth 50), <property>_nowait (the tiny
+# configuration with writes answered without waits, depth 50) and <property>_second (depth 30).
+# dbound_cpu uses the model with the CPU-like data side; dack_req, dwindow and drefill_stable the
+# model whose data requests are free in every cycle (free mode). formal/cache/run.sh runs these
+# tasks and derives the fallback ladder's variants from them (another engine, another depth, the
+# narrower memory), see README.md, section 10.
+[tasks]
+load_data_tiny            load_data           tiny
+dline_data_tiny           dline_data          tiny
+store_mem_tiny            store_mem           tiny
+id_refill_no_write_tiny   id_refill_no_write  tiny
+dfill_kept_tiny           dfill_kept          tiny
+dbound_tiny               dbound              tiny
+dbound_cpu_tiny           dbound_cpu          tiny_cpu
+dack_req_tiny             dack_req            tiny_free
+dwindow_tiny              dwindow             tiny_free
+drefill_stable_tiny       drefill_stable      tiny_free
+dreset_state_tiny         dreset_state        tiny
+id_fetch_data_tiny        id_fetch_data       tiny
+id_store_fetch_tiny       id_store_fetch      tiny
+dbound_nowait             dbound              nowait
+dbound_cpu_nowait         dbound_cpu          nowait_cpu
+store_mem_nowait          store_mem           nowait
+dreset_state_nowait       dreset_state        nowait
+load_data_second          load_data           second
+dline_data_second         dline_data          second
+store_mem_second          store_mem           second
+dreset_state_second       dreset_state        second
+dbound_cpu_second         dbound_cpu          second_cpu
+
+[options]
+mode bmc
+tiny: depth 50
+tiny_cpu: depth 50
+tiny_free: depth 50
+nowait: depth 50
+nowait_cpu: depth 50
+second: depth 30
+second_cpu: depth 30
+
+[engines]
+smtbmc bitwuzla
+
+[script]
+load_data:          verilog_defaults -add -DCHECK_LOAD_DATA
+dline_data:         verilog_defaults -add -DCHECK_DLINE_DATA
+store_mem:          verilog_defaults -add -DCHECK_STORE_MEM
+id_refill_no_write: verilog_defaults -add -DCHECK_ID_REFILL_NO_WRITE
+dfill_kept:         verilog_defaults -add -DCHECK_DFILL_KEPT
+dbound:             verilog_defaults -add -DCHECK_DBOUND
+dbound_cpu:         verilog_defaults -add -DCHECK_DBOUND_CPU
+dack_req:           verilog_defaults -add -DCHECK_DACK_REQ
+dwindow:            verilog_defaults -add -DCHECK_DWINDOW
+drefill_stable:     verilog_defaults -add -DCHECK_DREFILL_STABLE
+dreset_state:       verilog_defaults -add -DCHECK_DRESET_STATE
+id_fetch_data:      verilog_defaults -add -DCHECK_ID_FETCH_DATA
+id_store_fetch:     verilog_defaults -add -DCHECK_ID_STORE_FETCH
+verilog_defaults -add -DFH_ICACHE -DFH_DCACHE -DFH_ARBITER -DFH_FULL
+tiny:       read_verilog -sv -formal memsys_tiny.v
+tiny_cpu:   read_verilog -sv -formal memsys_tiny_cpu.v
+tiny_free:  read_verilog -sv -formal memsys_tiny_free.v
+nowait:     read_verilog -sv -formal memsys_tiny_nowait.v
+nowait_cpu: read_verilog -sv -formal memsys_tiny_nowait_cpu.v
+second:     read_verilog -sv -formal memsys_second.v
+second_cpu: read_verilog -sv -formal memsys_second_cpu.v
+hierarchy -top memsys_top
+proc
+flatten
+memory -nomap
+memory_map
+opt_clean
+prep -top memsys_top
+
+[files]
+../gen/memsys_tiny.v
+../gen/memsys_tiny_cpu.v
+../gen/memsys_tiny_free.v
+../gen/memsys_tiny_nowait.v
+../gen/memsys_tiny_nowait_cpu.v
+../gen/memsys_second.v
+../gen/memsys_second_cpu.v
+../gen/observe_ram.vh
+../props/dcache_props.vh

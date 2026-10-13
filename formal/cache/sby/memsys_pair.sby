@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: MIT
+# Non-interference with data values of the memory system with both caches
+# (harness/memsys_pair_top.sv): ddata_indep_tiny, a bounded proof at depth 50, and its covers.
+[tasks]
+ddata_indep_tiny   ddata_indep tiny
+cover_dpair_tiny   cover       tiny
+
+[options]
+ddata_indep: mode bmc
+cover: mode cover
+tiny: depth 50
+
+[engines]
+smtbmc bitwuzla
+
+[script]
+ddata_indep: verilog_defaults -add -DCHECK_DDATA_INDEP
+cover:       verilog_defaults -add -DCOVERS
+tiny: read_verilog -sv -formal mpair_tiny.v
+hierarchy -top memsys_pair_top
+proc
+flatten
+memory -nomap
+memory_map
+opt_clean
+prep -top memsys_pair_top
+
+[files]
+../gen/mpair_tiny.v
+../gen/observe_ram.vh
+../props/dpair_props.vh

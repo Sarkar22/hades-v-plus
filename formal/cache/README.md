@@ -1,15 +1,23 @@
-# Formal verification of the instruction cache
+# Formal verification of the caches
 
-This directory holds the formal proofs of the simulation-only instruction cache and its memory
-system. The caches exist only in the simulators; the standard build and the Basys 3 bitstream
-have no cache, and nothing here is part of `make formal`. The proofs cover:
+This directory holds the formal proofs of the simulation-only caches and their memory system.
+The caches exist only in the simulators; the standard build and the Basys 3 bitstream have no
+cache, and nothing here is part of `make formal`. The proofs cover:
 
 - **the I-cache**, `rtl/cache/icache.sv` with its array wrapper `rtl/cache/cache_ram.sv`;
 - **the memory arbiter**, `rtl/cache/mem_arbiter.sv`, which shares the single memory port
   between the I-cache's refills and the data side;
 - **the interconnect's timeout exemption**: the `TIMEOUT_EXEMPT` mask of
   `lib/wishbone/wishbone_interconnect.sv` and the mask that the cached branch of `rtl/mcu.sv`
-  passes to it.
+  passes to it;
+- **the D-cache**, `rtl/cache/dcache.sv`, and **the memory system with both caches**: the
+  I-cache, the D-cache, the arbiter with D-refill blocks and a tiny memory together, the
+  arbiter's equivalence with the base commit's when its data continuation tag is 0, and a
+  k-induction attempt on the D-cache alone (section 10).
+
+Sections 1 to 9 describe the proofs of the I-cache and the arbiter, which also run unchanged
+with the D-cache present (their harnesses tie the arbiter's `data_cont` input to 0); section 10
+describes what the D-cache adds.
 
 ```sh
 make formal-cache        # every proof, cover and negative control; output in $(BUILD_DIR)/formal-cache
@@ -32,6 +40,7 @@ Contents:
 7. [Results](#7-results)
 8. [Running the proofs](#8-running-the-proofs)
 9. [Files](#9-files)
+10. [The memory system with both caches](#10-the-memory-system-with-both-caches)
 
 ---------------------------------------------------------------------------------------------
 
@@ -391,10 +400,12 @@ bash formal/cache/run.sh --only fetch_data,grant_kept,ic_default --configs tiny 
 ```
 
 Options (`bash formal/cache/run.sh --help`): `--only`, `--configs`, `--depth`, `--step-limit`,
-`--sim-cycles`, `--accept-sim`, `--no-controls`, `--mutants`, `--mutant-cmd`, `--src` (prove
-the RTL of another tree), `--base` (the commit of the base copy). `--only` takes property names,
-`covers` and `induction`; a run with `--only` checks only those (and their negative controls), so
-its verdict covers only them. A run without negative controls never ends with `PASS`. The random
+`--dind-limit`, `--sim-cycles`, `--accept-sim`, `--no-controls`, `--mutants`, `--mutant-cmd`,
+`--src` (prove the RTL of another tree), `--base` and `--arb-base` (the commits of the base
+copies). `--only` takes property names, `covers`, `induction` and `dinduction`; a run with
+`--only` checks only those (and their negative controls), so its verdict covers only them.
+`--configs` takes `tiny`, `nowait` and `second` (default all three; `nowait` concerns only the
+properties of section 10). A run without negative controls never ends with `PASS`. The random
 simulation of the ladder's last step builds with Verilator, one model at a time, with 4 jobs.
 
 **Output** (`<out>` = `$(BUILD_DIR)/formal-cache`):
@@ -431,7 +442,8 @@ generation with a message.
 | Path | Contents |
 |---|---|
 | `run.sh` | Driver: models, ladders, covers, controls, summary and verdict |
-| `scripts/model.py` | Copies the sources, applies a mutant, inserts and checks the include lines, runs sv2v, reads the mask and the snoop connection of `rtl/mcu.sv`, checks the base copy |
+| `scripts/props.sh` | The bounded properties: their configurations, depths, `.sby` files and models |
+| `scripts/model.py` | Copies the sources, applies a mutant, inserts and checks the include lines, runs sv2v, reads the mask and the snoop connection of `rtl/mcu.sv`, checks the base copies |
 | `scripts/ladder.sh` | The fallback ladder of one property in one configuration |
 | `scripts/control.sh` | One negative control |
 | `scripts/sim.sh`, `scripts/simtb.py` | The random simulation of the ladder's last step |
@@ -445,3 +457,183 @@ generation with a message.
 | `sby/pair.sby`, `cover.sby`, `split.sby`, `induction.sby`, `interconnect.sby` | Non-interference, covers, the decomposed harness, k-induction, the interconnect |
 | `mutants.txt` | The negative controls |
 | `wishbone_interconnect_base.sv` | The base commit's `lib/wishbone/wishbone_interconnect.sv` with only its module name changed |
+| `harness/memsys_top.sv`, `memsys_pair_top.sv`, `dcache_top.sv`, `arbiter_id_top.sv`, `arbiter_equiv_top.sv` | The harnesses of section 10 |
+| `harness/config_memsys.svh`, `env_ddata.svh` | The bounds with both caches; the data requests at the D-cache's CPU port |
+| `props/dcache_props.vh`, `dpair_props.vh`, `equiv_props.vh` | The properties, covers and induction helpers of section 10; non-interference with both caches; the arbiter's equivalence |
+| `props/observe_dcache.svh` | The observer inserted into the copy of `rtl/cache/dcache.sv` |
+| `sby/memsys.sby`, `memsys_cover.sby`, `memsys_pair.sby`, `dsplit.sby`, `dinduction.sby`, `arbiter_equiv.sby` | The bounded proofs, covers, non-interference, decomposed harness, k-induction and equivalence of section 10 |
+| `mem_arbiter_base.sv` | The base commit's `rtl/cache/mem_arbiter.sv` with only its module name changed |
+
+---------------------------------------------------------------------------------------------
+
+## 10. The memory system with both caches
+
+The D-cache (`rtl/cache/dcache.sv`: direct-mapped, write-through, no write-allocate, interconnect
+slave 0) adds a harness with both caches, the arbiter and a tiny memory, the D-cache's own
+properties, the I-cache's properties again with the D-cache's stores writing memory, and the
+arbiter's equivalence with the base commit's arbiter when its new input `data_cont` is 0. They run
+in `make formal-cache` with everything above; `run.sh` reports them under the names below.
+
+### 10.1 What is proven
+
+Bounded proofs in three configurations (10.4): tasks `<name>_tiny`, `<name>_nowait` and
+`<name>_second` of `sby/memsys.sby`.
+
+| Name | Property | Configurations |
+|---|---|---|
+| `load_data` | A load `ack` delivers memory's word of the presented address as it was at the start of the cycle: the last value written there (for the tracked address). | tiny, second |
+| `dline_data` | A valid D-line holding the tracked address (valid with its tag) equals memory, lane by lane. | tiny, second |
+| `store_mem` | At the edge of each accepted store (`st_accept`) memory holds the store's `sel` lanes; exactly one memory write is answered per acknowledged store, in the same cycle, with the store's address, `sel` and data; no other write. The D-cache acknowledges a store exactly in its `st_accept` cycles. | tiny, nowait, second |
+| `id_refill_no_write` | No memory write from an I-refill's first grant through its last beat, unless a reset comes in between, with the D-cache's stores and D-refills on the data side. | tiny |
+| `dfill_kept` | A granted D-refill keeps the port to its last beat (unless a reset comes in between); a continuing data beat (`data_cont`) is always granted; the D-cache requests a read in every refill cycle and tags exactly beats 1 to `LINE_WORDS - 1` as continuing; the memory port's tag is `gi && irefill_cont \|\| gd && data_cont`. | tiny |
+| `dbound` | Bounded response: (a) a request at the D-cache's CPU port is answered by cycle `R + max(R + 1, WR)` of its interval; (c) a granted I-refill's last beat by cycle `R` of its grant; (e) a D-refill is granted by cycle `R` of its refill; (f) a granted D-refill's last beat by cycle `R` of its grant. | tiny, nowait |
+| `dbound_cpu` | With the data side of a CPU (10.3): (b) an I-refill is granted by cycle `max(K_OLDER * (WR + 1), R + 1)` of its wait, counted from its first refill cycle. | tiny, nowait, second |
+| `dack_req` | The D-cache answers `ack` only with `cyc && stb`, never `err`, and no `ack` in `REFILL`. | tiny (free mode) |
+| `dwindow` | Every memory-side request of the D-cache (refill beats and stores) lies inside the window. | tiny (free mode) |
+| `drefill_stable` | The D-cache's memory-side request (address, `we`, `sel`, write data, continuation tag) does not change until it is answered, unless a reset comes in between: a refill beat's in any case, a store's while the CPU holds the store. | tiny (free mode) |
+| `dreset_state` | In the cycle after a reset cycle no D valid bit is set and the D-cache is in `LOOKUP` with `beat == 0`; its state register is two bits wide. | tiny, nowait, second |
+| `ddata_indep` | Non-interference: two copies of both caches and the arbiter with equal inputs except data values (memory's read data, the write data of the CPU's stores, the initial contents of the data arrays) produce equal `ack` and `err` on every port, equal request control signals of the memory port and of both caches' memory ports, equal continuation tags, equal grants and the 21 equal events. | tiny |
+| `id_fetch_data` | `fetch_data` (section 1) with the D-cache's stores writing memory. | tiny |
+| `id_store_fetch` | `store_fetch` (section 1) with the stores acknowledged at slave 0 by the D-cache. | tiny |
+| `arb_equiv` | The arbiter of the tree with `data_cont` tied to 0 and the base commit's arbiter (`mem_arbiter_base.sv`), with the same free inputs from a common reset, have equal outputs (memory request, continuation tag, both sides' answers, events) and the same owner in every cycle. Unbounded, by induction. | - |
+
+`R`, `WR`, `K_OLDER` as in 10.4. A grant in `dfill_kept`, `dbound`, `dbound_cpu` and
+`id_refill_no_write` is the grant that the arbiter gives, as its grant events show it.
+
+### 10.2 The harnesses
+
+| Harness | Modules | Used for |
+|---|---|---|
+| `memsys_top.sv` | `icache`, `dcache` and `mem_arbiter`, connected as the branch of `rtl/mcu.sv` with both caches connects them (slave 0 to the D-cache's CPU port, the D-cache's memory port and `mem_cont` to the arbiter's data side and `data_cont`, the snoop on slave 0's acknowledged stores), and the memory of `env_memory.svh` | every bounded property but `ddata_indep`; the covers |
+| `memsys_pair_top.sv` | two copies of all three | `ddata_indep` |
+| `dcache_top.sv` | `dcache` alone; an abstract port grants its requests in free cycles, holds a grant until the answer and answers it | the k-induction attempt; the D-cache's share in the decomposed step of the ladder |
+| `arbiter_id_top.sv` | `mem_arbiter` alone, with the I-side refill master of `arbiter_top.sv` and a data-side master that issues single transfers or refill blocks tagged with `data_cont` | the arbiter's share in the decomposed step |
+| `arbiter_equiv_top.sv` | `mem_arbiter` of the tree and `mem_arbiter_base` | `arb_equiv` |
+
+`scripts/model.py` inserts `props/observe_dcache.svh` before the final `endmodule` of its copy of
+`rtl/cache/dcache.sv`, as for the I-cache (section 2). It reads the fixed names of the D-cache:
+the states `LOOKUP` and `REFILL` of the two-bit register `state`, `beat`, `refill_line`, `valid`,
+`present` and `st_accept`. The tag array (instance `tag_ram`) and the four 8-bit data lanes
+(generate block `lane[0..3]`, each with one `cache_ram` instance `data_ram`) are read through the
+wires `dcache.tag_ram.f_obs_words` and `dcache.lane[k].data_ram.f_obs_words`. It also copies
+`mem_arbiter_base.sv` with the arbiter's observer inserted; `run.sh` checks that file against
+`git show <commit>:rtl/cache/mem_arbiter.sv` with the module name changed (`--arb-base`, default
+3c15c40) when the repository has that commit.
+
+### 10.3 Environment
+
+As section 3, with these differences:
+
+- **Data side at the D-cache's CPU port** (`env_ddata.svh`): as section 3's data side, at the
+  D-cache's CPU port: a request in the window, held until it is answered or a reset drops it,
+  one at a time (a new request at the earliest in the cycle after the previous answer), `cyc`
+  free between requests. **Free mode** (`dack_req`, `dwindow`, `drefill_stable`): nothing is held,
+  the request is a free choice in every cycle; it allows every sequence of the held mode and more,
+  in particular requests that change while the D-cache refills, the only way to reach a request
+  for another line in `REFILL` (`data-ack-in-refill`, `data-refill-follows-cpu-adr`).
+- **Memory** (`env_memory.svh`): unchanged, so a read of the tracked address returns the last
+  value written there and a write answered there updates it by its `sel` lanes; with the macro
+  `FCACHE_WRITE_NOWAIT` (configuration `nowait`) every write is answered in its first cycle and
+  reads keep 0 to 2 wait cycles. Only the D-cache writes memory; the I-cache only reads.
+- **The data side of a CPU** (`dbound_cpu` only): after an I-miss, only the older instructions
+  can still access data: from the I-miss cycle up to the I-refill's first grant at most `K_OLDER =
+  3` CPU data requests are served, at most two of them started after the I-miss cycle. The
+  harness counts the requests that start at the D-cache's CPU port in I-refill cycles before
+  that grant and starts no new request once two have started. With the one-at-a-time rule this
+  is also "the load in the Memory stage is presented in the I-miss cycle or never": a load that
+  misses there makes both caches miss in one cycle, its D-refill wins the port for `R` cycles and
+  its second lookup frees it, so the I-refill is granted in cycle `R + 1`.
+
+### 10.4 Configurations and bounds
+
+Both caches have the sizes, lines and window of the configuration (section 2). `R` is the
+longest a granted refill takes (every beat a read of at most `F_MAX_WAIT` wait cycles), `WR` the
+longest wait of a write (`harness/config_memsys.svh`).
+
+| Configuration | Sizes, lines, window | Waits | `R` | `WR` | (a) | (b) | Binding term of (b) | Depth |
+|---|---|---|---|---|---|---|---|---|
+| tiny | 16 bytes each, 8-byte lines, window words 8 to 15 | reads and writes 0 to 2 | 6 | 2 | 13 | 9 | `K_OLDER * (WR + 1)` = 9 > `R + 1` = 7 | 50 |
+| nowait | as tiny, `FCACHE_WRITE_NOWAIT` | reads 0 to 2, writes 0 | 6 | 0 | 13 | 7 | `R + 1` = 7 > 3 | 50 |
+| second | 32 bytes each, 16-byte lines, window words 16 to 31 | reads and writes 0 to 2 | 12 | 2 | 25 | 13 | `R + 1` = 13 > 9 | 30 |
+
+`dbound_cpu` is proved in all three, so each term of the maximum in (b) is the binding one in at
+least one proof, and a cover reaches it exactly (10.7).
+
+### 10.5 Depths and the fallback ladder
+
+The stated depths are 50 (tiny, nowait) and 30 (second). Minimum depths: 40 for `load_data`,
+`dline_data`, `id_fetch_data` and `id_store_fetch`, 20 for `dreset_state`, 25 for the others (in
+the second configuration at most 30). The ladder is that of section 4. Its decomposed step uses
+`sby/dsplit.sby`: the D-cache's share on `dcache_top.sv` (`load_data`, `dline_data`, `store_mem`,
+`dfill_kept`, `dack_req`, `dwindow`, `drefill_stable`, `dreset_state`), the I-cache's share on
+`icache_top.sv` (`id_fetch_data`, `id_store_fetch`: the shares of `fetch_data` and `store_fetch`,
+whose free stores include the D-cache's) and the arbiter's share on `arbiter_id_top.sv`
+(`store_mem`, `id_refill_no_write`, `dfill_kept`); `dbound`, `dbound_cpu` and `ddata_indep` have
+no decomposed harness and skip that step. `arb_equiv` is proved by induction with each engine in
+turn; its fallback is a bounded check to depth 50.
+
+`load_data` is checked together with its lemma, the D-line invariant of `dline_data`, asserted
+in the same task: bounded model checking assumes the assertions of the earlier steps when it
+checks a step, which spares the solver the history of the line. The lemma is asserted, never
+assumed, so it can make the task fail but never hide a failure; a control's line in
+`controls.txt` names the assertion that failed.
+
+### 10.6 Negative controls
+
+Each property must fail, where it was proved in the tiny configuration, on each of its controls
+(the mutants of the repository's cache mutation campaign, `mutants.txt`):
+
+| Property | Negative controls |
+|---|---|
+| `load_data` | `drop-lane-enable`, `valid-on-store-miss`, `ignore-valid-data`, `forward-memory-ack`, `data-refill-word-off-by-one` |
+| `dline_data` | `drop-lane-enable`, `valid-on-store-miss`, `data-refill-word-off-by-one`, `store-writes-all-lanes`, `store-hit-ignores-tag` |
+| `store_mem` | `store-hit-skips-memory`, `forward-memory-ack` |
+| `id_refill_no_write` | `grant-free-between-beats` |
+| `dfill_kept` | `data-refill-gap`, `refill-beats-continuing-data`, `data-cont-on-first-beat`, `data-cont-ignored` |
+| `dbound` | `data-refill-gap`, `refill-beats-continuing-data` |
+| `dbound_cpu` | `i-side-starved` |
+| `dack_req` | `forward-memory-ack`, `data-ack-in-refill` |
+| `dwindow`, `drefill_stable` | `data-refill-follows-cpu-adr` |
+| `dreset_state` | `data-reset-keeps-state`, `data-reset-keeps-valid` |
+| `ddata_indep` | `data-dependent-store-hit` |
+| `id_fetch_data` | `no-snoop`, `no-second-lookup` |
+| `id_store_fetch` | `no-snoop` |
+| `arb_equiv` | `data-always-continues` |
+
+`data-cont-ignored` (the arbiter's tag ignores `data_cont`) changes no timing in this memory,
+whose refill cost `R` counts every beat at the longest wait (it has no burst mode); `dbound`
+cannot see it, and `dfill_kept`'s check of the memory port's tag does.
+
+### 10.7 Covers
+
+Each must be reached (`sby/memsys_cover.sby`, `memsys_pair.sby`, `arbiter_equiv.sby`). In the
+tiny and the second configuration: a D-refill completes; a store hit and a store miss; a load hit
+while an I-refill holds the port; both caches miss in the same cycle; an I-miss during a D-refill;
+a reset during a D-refill beat and while a store waits for its answer; bound (a) reached exactly
+by a load; bounds (c), (e) and (f) reached exactly; and the trigger of each property (the tracked
+word loaded, the tracked D-line valid, a store to the tracked word, a store hit, a store waiting
+behind an I-refill, a granted D-refill continuing, a D request waiting, a fetch of the tracked
+word, also after a store to it). In the second configuration also: a load misses while an
+I-refill holds the port, is answered, and a later load hits the same line, within depth 30. With
+the data side of a CPU, in each configuration: the I-miss and the load's miss in the same cycle
+with the I-refill granted in cycle `R + 1` exactly; in the tiny configuration also bound (b)
+reached exactly by `K_OLDER` stores. For the pair: both caches' refills, a store hit and a load
+answered from the arrays. For the equivalence: a data transfer, then a continuing refill beat.
+
+### 10.8 k-induction on the D-cache alone
+
+`sby/dinduction.sby` attempts unbounded proofs of `load_data` and of `dline_data` on the D-cache
+alone (`dcache_top.sv`, memory side abstract), one task each per configuration, each time-boxed
+(`--dind-limit`, default 4 hours), with helper invariants (`INDUCTION` in
+`props/dcache_props.vh`): exactly one of the two named states and `beat == 0` outside a refill;
+the line being refilled lies in the window and its set's valid bit is clear; the words of the
+tracked line that the current refill has already written are memory's; the D-line invariant;
+the CPU's held request lies in the window; every valid D-line holds the tag of a line inside the
+window. The outcome and the time are
+reported (class `AUX`), not required.
+
+### 10.9 Results
+
+`run.sh` writes the outcome table of every run to `SUMMARY.txt`; the table of the run on the
+tree with the D-cache is to be pasted here, with the depth, step, engine and time of each
+property, as in section 7.

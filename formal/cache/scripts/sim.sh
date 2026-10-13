@@ -10,11 +10,17 @@
 #   Last line: "SIM PASS <cycles, runs, seed>" or "SIM FAIL <where>".
 HERE="$(cd "$(dirname "$0")" && pwd)"
 W="$1"; P="$2"; C="$3"; N="$4"
+source "$HERE/props.sh"
 FH="-DFH_ICACHE -DFH_ARBITER -DFH_FULL"
+model=$(model_of "$P" "$C" 0)
 case "$P" in
-    data_indep) model="pair_$C";       top=cache_pair_top; defs="-DCHECK_DATA_INDEP";;
-    bound_cpu)  model="cache_${C}_cpu"; top=cache_top;     defs="-DCHECK_BOUND_CPU $FH";;
-    *)          model="cache_$C";       top=cache_top;     defs="-DCHECK_$(echo "$P" | tr a-z A-Z) $FH";;
+    data_indep)  top=cache_pair_top;  defs="-DCHECK_DATA_INDEP";;
+    ddata_indep) top=memsys_pair_top; defs="-DCHECK_DDATA_INDEP";;
+    *) if is_id_prop "$P"; then
+           top=memsys_top; defs="-DCHECK_$(echo "$P" | tr a-z A-Z) $FH -DFH_DCACHE"
+       else
+           top=cache_top;  defs="-DCHECK_$(echo "$P" | tr a-z A-Z) $FH"
+       fi;;
 esac
 D="$W/sim/${P}_$C"
 rm -rf "$D"; mkdir -p "$D"

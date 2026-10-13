@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: MIT
+# The k-induction attempt on the D-cache alone (harness/dcache_top.sv, memory side abstract):
+# the loaded word (load_data) and the cached line (dline_data), each with the helper invariants of
+# props/dcache_props.vh (macro INDUCTION), by k-induction (mode prove). The result is recorded
+# either way: PASS is an unbounded proof; otherwise the induction step's counterexample is kept
+# in the run directory for analysis. formal/cache/run.sh gives each task its own time limit.
+[tasks]
+dinduction_load_data_tiny     load_data   tiny
+dinduction_dline_data_tiny    dline_data  tiny
+dinduction_load_data_second   load_data   second
+dinduction_dline_data_second  dline_data  second
+
+[options]
+mode prove
+depth 4
+
+[engines]
+smtbmc bitwuzla
+
+[script]
+verilog_defaults -add -DFH_DCACHE -DINDUCTION
+load_data:  verilog_defaults -add -DCHECK_LOAD_DATA
+dline_data: verilog_defaults -add -DCHECK_DLINE_DATA
+tiny:   read_verilog -sv -formal dcache_tiny.v
+second: read_verilog -sv -formal dcache_second.v
+hierarchy -top dcache_top
+proc
+flatten
+memory -nomap
+memory_map
+opt_clean
+prep -top dcache_top
+
+[files]
+../gen/dcache_tiny.v
+../gen/dcache_second.v
+../gen/observe_ram.vh
+../props/dcache_props.vh
