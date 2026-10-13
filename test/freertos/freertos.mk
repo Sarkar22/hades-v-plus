@@ -210,9 +210,10 @@ FRTOS_CFLAGS     = -march=$(FRTOS_MARCH) $(FRTOS_CFLAGS_COMMON)
 FRTOS_REF_CFLAGS = -march=rv32i $(FRTOS_CFLAGS_COMMON) -DFRTOS_REF_BUILD
 # The mean interval (cycles) of mzba's random external interrupt that this build uses, as the compiler
 # reads mzba/app_config.h with the program's -march, -O level and -D options (the scaled default or a
-# DEFS=-DMZBA_IRQ_MEAN=... override); it is shown in the build line and in the label of every run.
+# DEFS=-DMZBA_IRQ_MEAN=... override); it is shown in the build line and in the run label of every
+# slow-memory or cached run. Standard runs keep their published labels unchanged.
 FRTOS_NOTE :=
-ifeq ($(FRTOS_APP),mzba)
+ifneq ($(and $(filter mzba,$(FRTOS_APP)),$(SIM_CFG_NAME)),)
 FRTOS_NOTE := $(shell x=$$(printf '\043include "app_config.h"\nMZBA_IRQ_MEAN\n' | $(CC) -march=$(FRTOS_MARCH) $(FRTOS_OPT) \
                  $(FRTOS_KNOBS) -I$(FRTOS_DIR)/mzba -E -P -x c - 2>/dev/null | tail -n 1); echo " irq_mean=$$(( $$x ))")
 endif
