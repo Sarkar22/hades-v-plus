@@ -5,8 +5,9 @@ independent instruction-set model (iss.py) and, where it applies, against the go
 
   sweep.py list                                  families, probe counts, DUT-only marks
   sweep.py run  [--fam csr,exc|all] [--src ext,timer,both] [--targets dut,ref] [--no-mtvec]
-                ('all' is every listed family; --fam ext, Zbb/Zbs/Zicond on the DUT, and --fam crypto,
-                Zbkb/Zbkx/Zknh on the DUT, only when named)
+                ('all' is every listed family; --fam ext, Zbb/Zbs/Zicond on the DUT, --fam crypto,
+                Zbkb/Zbkx/Zknh on the DUT, and --fam hpm, the performance-counter CSRs on the DUT in the
+                standard counter configuration, only when named)
   sweep.py fuzz --seeds 101-130 [--variant i|m|mt|bp|b|k] [--nseg 40]
   sweep.py file prog.s [prog2.s ...]              hand-written programs (probes.py trace protocol)
 common options: --jobs N (6)  --out DIR (<build dir>/trapsweep/<mode>)  --tree ROOT (simulators from
@@ -334,6 +335,13 @@ def main():
     programs = []
     if args.mode == "run":
         fams = list(probes.FAMS) if args.fam == "all" else args.fam.split(",")
+        if "hpm" in fams:
+            # iss.py models the standard counter configuration only (seven counters, no cache, no preset);
+            # a configuration reaches this script as HADES_<option> in the environment (see the Makefile)
+            other = [v for v in ("HADES_HPM_COUNTERS", "HADES_HPM_PRESET", "HADES_ICACHE", "HADES_LINE") if os.environ.get(v)]
+            if other:
+                raise SystemExit("--fam hpm models the standard counter configuration only (7 counters, no cache, no preset); "
+                                 "unset " + ", ".join(other))
         for fam in fams:
             if fam not in probes.FAMS and fam not in probes.OPT_FAMS:
                 raise SystemExit(f"unknown family {fam}; see: sweep.py list")

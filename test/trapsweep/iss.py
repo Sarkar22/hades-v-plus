@@ -25,8 +25,17 @@ Zicntr, and with its minstret reading one higher than the DUT's from reset (a go
 To check a NEW instruction, add it to ISS.step() (and, for a new CSR, to
 CSR_VALID/csr_read/csr_write); the frozen golden models cannot check it.
 
+The hardware performance counters (docs/EXTENSIONS.md) are modelled for the standard counter
+configuration only: seven programmable counters, no cache, no preset. The DUT has mcountinhibit
+(0x320) and the selectors mhpmevent3..9 (WARL: the standard build's event codes), reads the
+constants 18, 19 and 20 at mhpmevent11..13, and honours the IR bit of mcountinhibit in minstret.
+Counter values are timing and are tainted. The golden CPU has none of this (GOLDEN_ILLEGAL and
+GOLDEN_READ0 below hold what it does at those addresses; the legality map of the golden decoder
+decides them).
+
 usage: iss.py <rundir> [dut] [ref] [--nom] [-v]
        (reads <rundir>/init.bin and <rundir>/<kind>/sim.log; --nom: no M extension)
+       iss.py --csr-map [dut|ref]      print the CSR legality map of the model
 """
 import sys, struct
 
@@ -41,6 +50,15 @@ def sx(v, b):
     return v - (1 << b) if v >> (b - 1) else v
 
 M32 = 0xffffffff
+M64 = (1 << 64) - 1
+
+# Performance counters, standard counter configuration (7 counters, no cache, no preset)
+HPM_INHIBIT = 0x320
+HPM_IMPL_MASK = 0x3FFD                          # CY, IR, counters 3..9 and 10..13; TM stays 0
+HPM_CODES = frozenset(list(range(1, 27)) + list(range(32, 50)))   # event codes of the standard build
+HPM_FIXED = {0x32B: 18, 0x32C: 19, 0x32D: 20}   # mhpmevent11..13 read these on the DUT
+# The golden CPU at the new addresses (set from the golden decoder's legality map once measured):
+GOLDEN_ILLEGAL = frozenset([HPM_INHIBIT])       # addresses whose every access traps
 
 class ISS:
     def __init__(self, binf, instret_off=0, has_m=True, has_zba=True, has_zbb=True, has_zbs=True, has_zicond=True,
@@ -62,6 +80,9 @@ class ISS:
         self.taint_mem = set()
         self.bp_ctl = 0
         self.no_zicntr = False
+        self.has_hpm = True                         # performance counters: DUT yes, golden CPU no
+        self.inh = 0; self.hpm_sel = [0] * 7        # mcountinhibit, mhpmevent3..9
+        self._ir_before = 0; self._mi_pending = None
         self.on_trace = None
 
     # ---------------- memory -----------------
@@ -126,6 +147,18 @@ class ISS:
                      0x340, 0x341, 0x342, 0x343, 0x344, 0xB00, 0xB02, 0xB80, 0xB82, 0xC00, 0xC01, 0xC02, 0xC80, 0xC81, 0xC82]
                     + list(range(0xB03, 0xB20)) + list(range(0xB83, 0xBA0)) + list(range(0x323, 0x340)))
 
+    def csr_valid(self, c):
+        if not self.has_hpm and c in GOLDEN_ILLEGAL: return False
+        if c == HPM_INHIBIT: return True        # the DUT has it; the golden CPU only if GOLDEN_ILLEGAL lacks it
+        return c in self.CSR_VALID
+
+    def csr_legal(self, c, f3, rs1):
+        """may CSR instruction (funct3 f3: 1 3 5 6 7 forms, rs1 = the rs1/uimm field) access CSR c without trapping"""
+        if not self.csr_valid(c): return False
+        if self.no_zicntr and (c >> 8) == 0xC: return False
+        if (c >> 10) == 3 and (f3 in (1, 5) or rs1 != 0): return False     # a write to a read-only CSR
+        return True
+
     def csr_read(self, c):
         if c == 0x300: return (self.mpie << 7) | (self.mie_b << 3), False
         if c == 0x304: return (self.meie << 11) | (self.mtie << 7), False
@@ -139,6 +172,11 @@ class ISS:
         if c in (0xB00, 0xC00, 0xB80, 0xC80, 0xC01, 0xC81): return 0, True   # cycle/time: timing
         if c == 0x323 + 7: return self.bp_ctl, False                   # mhpmevent10
         if c in (0xB0A, 0xB0B, 0xB0C, 0xB0D): return 0, True          # bp counters: timing-ish
+        if self.has_hpm:
+            if c == HPM_INHIBIT: return self.inh, False
+            if 0x323 <= c <= 0x329: return self.hpm_sel[c - 0x323], False
+            if c in HPM_FIXED: return HPM_FIXED[c], False
+            if 0xB03 <= c <= 0xB09 or 0xB83 <= c <= 0xB89: return 0, True   # programmable counters: timing
         return 0, False
 
     def csr_write(self, c, v):
@@ -149,9 +187,24 @@ class ISS:
         elif c == 0x342: self.mcause = v & M32
         elif c == 0x340: self.mscratch = v & M32
         elif c == 0x323 + 7: self.bp_ctl = v & M32
-        elif c == 0xB02: self.minstret = ((self.minstret & ~M32) | v) - 1     # the writing instruction is not counted
-        elif c == 0xB82: self.minstret = ((v << 32) | (self.minstret & M32)) - 1
+        elif c == 0xB02: self._mi_pending = ('lo', v)     # applied by retire(): the counter increments first
+        elif c == 0xB82: self._mi_pending = ('hi', v)
         elif c in (0xB00, 0xB80): pass
+        elif self.has_hpm:
+            if c == HPM_INHIBIT: self.inh = v & HPM_IMPL_MASK
+            elif 0x323 <= c <= 0x329: self.hpm_sel[c - 0x323] = v if v in HPM_CODES else 0
+
+    def retire(self):
+        """minstret after a retired instruction. The instruction is counted unless the IR bit of
+        mcountinhibit was set before it (a write to mcountinhibit takes effect after the writing
+        instruction). A write to minstret or minstreth comes after the increment: the written
+        half takes the value, the other half keeps the incremented value, carry included."""
+        m = (self.minstret + (0 if self._ir_before else 1)) & M64
+        if self._mi_pending:
+            half, v = self._mi_pending
+            m = ((m & ~M32) | v) if half == 'lo' else ((v << 32) | (m & M32))
+            self._mi_pending = None
+        self.minstret = m & M64
 
     # ---------------- traps ------------------
     def trap(self, cause, epc):
@@ -169,6 +222,7 @@ class ISS:
     def step(self):
         """Executes one instruction. Returns None (retired) or an exception cause."""
         pc = self.pc
+        self._ir_before = (self.inh >> 2) & 1; self._mi_pending = None
         if not (RAM0 <= pc < RAM0 + RAMN) or pc & 3:
             return 1 if pc & 3 == 0 else 0
         ins = int.from_bytes(self.ram[pc - RAM0:pc - RAM0 + 4], 'little')
@@ -310,13 +364,11 @@ class ISS:
                 return 2
             else:
                 c = ins >> 20
-                if c not in self.CSR_VALID: return 2
-                if self.no_zicntr and (c >> 8) == 0xC: return 2
+                if not self.csr_legal(c, f3, rs1): return 2
                 imm_form = f3 >= 5
                 src = rs1 if imm_form else a
                 tsrc = False if imm_form else ta
                 writes = f3 in (1, 5) or rs1 != 0
-                if (c >> 10) == 3 and writes: return 2
                 old, told = self.csr_read(c)
                 kind = f3 & 3
                 if writes and c == 0x344:
@@ -406,15 +458,15 @@ def _later_match(s, v, mepc, n=12):
     """minstret can repeat after a minstret write: is there a boundary within n instructions
     with the same minstret AND pc == the RTL's mepc? (then inject there instead)"""
     t = copy.copy(s); t.x = list(s.x); t.tx = list(s.tx); t.ram = bytearray(s.ram); t.trace = []; t.on_trace = None
-    t.vga = dict(s.vga); t.taint_mem = set(s.taint_mem)
+    t.vga = dict(s.vga); t.taint_mem = set(s.taint_mem); t.hpm_sel = list(s.hpm_sel)
     for _ in range(n):
         try:
             e = t.step()
         except Viol:
             return False
         if e is not None: return False
-        t.minstret += 1
-        if t.minstret == v and t.pc == mepc: return True
+        t.retire()
+        if t.minstret & M32 == v and t.pc == mepc: return True
     return False
 
 def check(rundir, kind, has_m=True, max_steps=20_000_000, verbose=False):
@@ -431,6 +483,7 @@ def check(rundir, kind, has_m=True, max_steps=20_000_000, verbose=False):
             has_zbb=kind != 'ref', has_zbs=kind != 'ref', has_zicond=kind != 'ref', has_zbkb=kind != 'ref',
             has_zbkx=kind != 'ref', has_zknh=kind != 'ref')
     s.no_zicntr = (kind == 'ref')
+    s.has_hpm = (kind != 'ref')
     st = dict(ti=0, g=0)
     def on_trace(o, v):
         if o == 0:
@@ -439,7 +492,7 @@ def check(rundir, kind, has_m=True, max_steps=20_000_000, verbose=False):
             st['ti'] = min(nxt) if nxt else len(traps)
         elif o == 0x38 and st['g'] in snaps:
             s.x[16] = snaps[st["g"]]               # a6 holds the snapshot
-            s.minstret = snaps[st["g"]] + 1        # resync (csrr a6 has retired; the sw has not) (each iteration re-initialises its state)
+            s.minstret = (s.minstret & ~M32) | ((snaps[st["g"]] + 1) & M32)   # resync the low half (csrr a6 has retired; the sw has not) (each iteration re-initialises its state)
     s.on_trace = on_trace
     steps = 0; violations = []; notes = []; pend_window = 0
     def viol(msg):
@@ -452,7 +505,7 @@ def check(rundir, kind, has_m=True, max_steps=20_000_000, verbose=False):
             if gsteps > 300000:
                 viol(f"ISS desynchronised from the RTL in group {st['g']} (after an earlier violation); stopping")
                 break
-            if ti < len(traps) and traps[ti][3] == st['g'] and traps[ti][1] is not None and traps[ti][1] >> 31 and traps[ti][0] == s.minstret \
+            if ti < len(traps) and traps[ti][3] == st['g'] and traps[ti][1] is not None and traps[ti][1] >> 31 and traps[ti][0] == s.minstret & M32 \
                     and (s.pc == traps[ti][4] or not _later_match(s, traps[ti][0], traps[ti][4])):
                 cause = traps[ti][1]
                 if not s.irq_enabled(cause):
@@ -478,13 +531,13 @@ def check(rundir, kind, has_m=True, max_steps=20_000_000, verbose=False):
                 v, c, cyc, gg, _ = traps[ti]
                 if c >> 31:
                     viol(f"exception cause {exc} at pc={pc0:#x} (minstret={s.minstret}); RTL's next trap is interrupt {c:#x} at minstret={v} (cycle {cyc})")
-                elif c != exc or v != s.minstret:
+                elif c != exc or v != s.minstret & M32:
                     viol(f"exception cause {exc} at pc={pc0:#x} (minstret={s.minstret}); RTL recorded cause {c} at minstret={v} (cycle {cyc})")
             s.trap(exc, pc0); st['ti'] += 1
         else:
-            s.minstret += 1
+            s.retire()
             ti = st['ti']
-            if ti < len(traps) and traps[ti][1] is not None and not (traps[ti][1] >> 31) and traps[ti][0] < s.minstret:
+            if ti < len(traps) and traps[ti][1] is not None and not (traps[ti][1] >> 31) and 0 < (s.minstret - traps[ti][0]) & M32 < 1 << 31:
                 viol(f"RTL recorded exception cause {traps[ti][1]} at minstret={traps[ti][0]} (cycle {traps[ti][2]}) "
                      f"but the ISS retired that instruction (pc={pc0:#x}) without an exception")
                 st['ti'] += 1
@@ -524,7 +577,26 @@ def check(rundir, kind, has_m=True, max_steps=20_000_000, verbose=False):
     res['ctx'] = ctx
     return res
 
+CSR_FORMS = (('csrrw', 1), ('csrrs', 2), ('csrrc', 3), ('csrrwi', 5), ('csrrsi', 6), ('csrrci', 7))
+
+def csr_map(kind):
+    """The legality map of the model: one line per CSR address that some access may use,
+    '0x<addr> <12 letters>', the letters in the order csrrw, csrrs, csrrc, csrrwi, csrrsi, csrrci,
+    each with the rs1 (uimm) field 0 and then non-zero; L = no trap, '.' = illegal instruction.
+    Addresses where every access traps are left out. The golden CPU's map (kind 'ref') is the model of
+    its decoder, not a measurement."""
+    s = ISS.__new__(ISS)
+    s.no_zicntr = (kind == 'ref'); s.has_hpm = (kind != 'ref')
+    out = [f"# CSR legality map of the model, kind {kind}: csrrw csrrs csrrc csrrwi csrrsi csrrci, each with the rs1/uimm field 0, then non-zero"]
+    for c in range(4096):
+        row = ''.join('L' if s.csr_legal(c, f3, rs1) else '.' for _, f3 in CSR_FORMS for rs1 in (0, 1))
+        if 'L' in row: out.append(f"0x{c:03x} {row}")
+    return out
+
 if __name__ == '__main__':
+    if len(sys.argv) > 1 and sys.argv[1] == '--csr-map':
+        print('\n'.join(csr_map(sys.argv[2] if len(sys.argv) > 2 else 'dut')))
+        sys.exit(0)
     d = sys.argv[1]; kinds = [k for k in sys.argv[2:] if not k.startswith('-')] or ['dut', 'ref']
     nom = '--nom' in sys.argv
     rc = 0

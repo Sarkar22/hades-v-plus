@@ -638,10 +638,125 @@ def window_probes():
              probe="    .align 4\n    auipc a4, 0x80\n    jalr ra, 4(a4)\n    li   a1, 0x77", dump=['a1']),
     ]
 
-# Families that sweep.py runs only when named (sweep.py run --fam ext, --fam crypto, --fam window):
+def hpm_probes():
+    """Performance-counter CSRs (docs/EXTENSIONS.md) on the DUT with the standard counter configuration
+    (seven counters, no cache, no preset; sweep.py refuses the family in any other configuration):
+    every access form on mcountinhibit and mhpmevent3 with read-back, the constant selectors
+    mhpmevent11..13, counter writes as the stale instruction of an interrupt, the IR bit set for a few
+    instructions around neighbours of every kind, writes to minstreth, and writes to minstret and
+    minstreth in the cycle in which the low half carries. Counter values are timing, so these
+    probes never read-modify-write a counter (iss.py): they write counters with csrrw and read them
+    with the pure-read forms. Every probe that touches mcountinhibit or a selector clears it in its
+    setup, so each iteration starts with all counters running and all selectors at 0."""
+    clr = "    csrw mcountinhibit, zero\n    csrw mhpmevent3, zero\n"
+    def P(name, setup, probe, dump=('a1',), **k):
+        return dict(name=name, setup=clr + setup, probe=probe, dump=list(dump), **k)
+    ps = []
+    # mcountinhibit: every form, written values with unimplemented bits (WARL), read back through rd and after
+    # (no probe here sets IR: the next section does, for short windows only)
+    ps.append(P("csrrw a1,mcountinhibit,a0 (a0=0xFFFFFFFB)", "    li   a0, 0xFFFFFFFB", "    csrrw a1, mcountinhibit, a0", readback='mcountinhibit'))
+    ps.append(P("csrrs a1,mcountinhibit,a0 (a0=0xFFFFFFFB)", "    li   a0, 0xFFFFFFFB", "    csrrs a1, mcountinhibit, a0", readback='mcountinhibit'))
+    ps.append(P("csrrc a1,mcountinhibit,a0 (from 0x3FF9, a0=8)", "    li   a0, 0x00000008\n    li   t1, 0x3FF9\n    csrw mcountinhibit, t1",
+                "    csrrc a1, mcountinhibit, a0", readback='mcountinhibit'))
+    ps.append(P("csrrwi a1,mcountinhibit,0x1b", "", "    csrrwi a1, mcountinhibit, 0x1b", readback='mcountinhibit'))
+    ps.append(P("csrrsi a1,mcountinhibit,0x1b", "", "    csrrsi a1, mcountinhibit, 0x1b", readback='mcountinhibit'))
+    ps.append(P("csrrci a1,mcountinhibit,0x09 (from 0x3FF9)", "    li   t1, 0x3FF9\n    csrw mcountinhibit, t1", "    csrrci a1, mcountinhibit, 0x09", readback='mcountinhibit'))
+    ps.append(P("csrr a1,mcountinhibit", "    li   t1, 0x2008\n    csrw mcountinhibit, t1", "    csrr a1, mcountinhibit", readback='mcountinhibit'))
+    ps.append(P("csrrw x0,mcountinhibit,a0 then csrr", "    li   a0, 0x1ff9", "    csrw mcountinhibit, a0\n    csrr a1, mcountinhibit", readback='mcountinhibit'))
+    ps.append(P("csrrs x0,mcountinhibit,x0 (no write)", "    li   t1, 0x400\n    csrw mcountinhibit, t1", "    csrrs a1, mcountinhibit, x0\n    csrrsi a2, mcountinhibit, 0",
+                dump=('a1', 'a2'), readback='mcountinhibit'))
+    # mhpmevent3: WARL selector, every form
+    for form, setup, a0 in (('csrrw', "", 0x31), ('csrrw', "", 0x80), ('csrrw', "", 0x100), ('csrrw', "", 0xFFFFFFFF),
+                            ('csrrs', "    li   t1, 0x0f\n    csrw mhpmevent3, t1\n", 0x30), ('csrrs', "    li   t1, 0x0f\n    csrw mhpmevent3, t1\n", 0x10),
+                            ('csrrc', "    li   t1, 0x31\n    csrw mhpmevent3, t1\n", 0x01)):
+        ps.append(P(f"{form} a1,mhpmevent3,a0 (a0={a0:#x})", setup + f"    li   a0, {a0:#x}", f"    {form} a1, mhpmevent3, a0", readback='mhpmevent3'))
+    for form, setup, imm in (('csrrwi', "", 0x1a), ('csrrsi', "    li   t1, 0x20\n    csrw mhpmevent3, t1", 5),
+                             ('csrrci', "    li   t1, 0x1a\n    csrw mhpmevent3, t1", 2), ('csrrwi', "", 0x1f)):
+        ps.append(P(f"{form} a1,mhpmevent3,{imm:#x}", setup, f"    {form} a1, mhpmevent3, {imm:#x}", readback='mhpmevent3'))
+    ps.append(P("csrr a1,mhpmevent3; csrr a2,mhpmevent9", "    li   t1, 0x2a\n    csrw mhpmevent3, t1\n    li   t1, 0x30\n    csrw mhpmevent9, t1",
+                "    csrr a1, mhpmevent3\n    csrr a2, mhpmevent9", dump=('a1', 'a2'), restore="    csrw mhpmevent9, zero"))
+    ps.append(P("csrw mhpmevent9 (2 selectors); read both", "    li   a0, 0x16",
+                "    csrw mhpmevent9, a0\n    csrw mhpmevent4, a0\n    csrr a1, mhpmevent9\n    csrr a2, mhpmevent4", dump=('a1', 'a2'),
+                restore="    csrw mhpmevent9, zero\n    csrw mhpmevent4, zero"))
+    ps.append(P("mhpmevent10 (predictor mode) next to mhpmevent3", "    li   a0, 0x20",
+                "    csrw mhpmevent3, a0\n    csrw mhpmevent10, zero\n    csrr a1, mhpmevent3", restore="    csrw mhpmevent10, zero"))
+    # constant selectors 11..13: reads, ignored writes
+    ps.append(P("csrr mhpmevent11..13", "", "    csrr a1, mhpmevent11\n    csrr a2, mhpmevent12\n    csrr a3, mhpmevent13", dump=('a1', 'a2', 'a3')))
+    ps.append(P("csrw mhpmevent11..13 ignored", "    li   a0, 0x31",
+                "    csrw mhpmevent11, a0\n    csrw mhpmevent12, zero\n    csrrw a4, mhpmevent13, a0\n    csrr a1, mhpmevent11\n    csrr a2, mhpmevent12\n    csrr a3, mhpmevent13",
+                dump=('a1', 'a2', 'a3', 'a4')))
+    ps.append(P("csrrw/csrrwi mhpmevent14, 31 (read-only 0)", "    li   a0, 5",
+                "    csrrw a1, mhpmevent14, a0\n    csrrwi a2, mhpmevent31, 7\n    csrr a3, mhpmevent14", dump=('a1', 'a2', 'a3')))
+    # counter writes as the stale J of an interrupt, and their pure reads (values are timing and tainted)
+    for csr in ('mhpmcounter3', 'mhpmcounter3h', 'mhpmcounter9', 'mhpmcounter10', 'mcycle'):
+        ps.append(P(f"csrw {csr}", "    li   a0, 0x12345", f"    csrw {csr}, a0\n    csrr a1, {csr}\n    addi a2, a2, 1", dump=('a2',)))
+    ps.append(P("csrrw a1,mhpmcounter4,a0 (old value tainted)", "    li   a0, 7", "    csrrw a1, mhpmcounter4, a0\n    csrr a2, mhpmcounter4h", dump=('a1', 'a2')))
+    ps.append(P("csrrwi mhpmcounter5,0; csrrwi mhpmcounter5h,0", "", "    csrrwi x0, mhpmcounter5, 0\n    csrrwi x0, mhpmcounter5h, 0\n    csrr a1, mhpmcounter5", dump=('a1',)))
+    ps.append(P("csrw mhpmevent3 as stale J (selects INSTRET)", "    li   a0, 2",
+                "    csrw mhpmevent3, a0\n    addi a2, a2, 1\n    csrr a1, mhpmevent3", dump=('a1', 'a2'), restore="    csrw mhpmevent3, zero"))
+    ps.append(P("csrw mcountinhibit as stale J (HPM3|CY)", "    li   a0, 9",
+                "    csrw mcountinhibit, a0\n    addi a2, a2, 1\n    csrr a1, mcountinhibit", dump=('a1', 'a2')))
+    # IR (instret inhibit): a window of a few instructions with the interrupt swept across it
+    ir = ("    li   a0, 4\n    csrw mcountinhibit, a0\n    nop\n    nop\n    csrw mcountinhibit, zero\n"
+          "    csrr a1, minstret\n    csrr a2, minstret")
+    ps.append(P("IR window: csrw 4; 2 nops; csrw 0", "", ir, dump=('a1', 'a2')))
+    ps.append(P("IR window with CY: csrw 5; 2 nops; csrw 0", "", ir.replace("li   a0, 4", "li   a0, 5"), dump=('a1', 'a2')))
+    ps.append(P("IR window: csrsi 4; csrci 4 (no instruction between)", "",
+                "    csrsi mcountinhibit, 4\n    csrci mcountinhibit, 4\n    csrr a1, minstret\n    csrr a2, minstret", dump=('a1', 'a2')))
+    ps.append(P("IR window: csrrsi a3 ; csrr minstret ; csrrci a4", "",
+                "    csrrsi a3, mcountinhibit, 4\n    csrr a1, minstret\n    csrr a2, minstret\n    csrrci a4, mcountinhibit, 4\n    csrr a5, minstret",
+                dump=('a1', 'a2', 'a3', 'a4', 'a5')))
+    ps.append(P("IR window around csrci mstatus,8 / csrsi mstatus,8", "",
+                "    csrsi mcountinhibit, 4\n    csrci mstatus, 8\n    csrr a1, mstatus\n    csrsi mstatus, 8\n    csrci mcountinhibit, 4\n    csrr a2, minstret",
+                dump=('a1', 'a2')))
+    ps.append(P("IR window around ecall", "", "    csrsi mcountinhibit, 4\n    ecall\n    nop\n    csrci mcountinhibit, 4\n    csrr a1, minstret", dump=('a1',)))
+    ps.append(P("IR window around lw misaligned (trap)", "", "    csrsi mcountinhibit, 4\n    lw   a2, 2(t2)\n    nop\n    csrci mcountinhibit, 4\n    csrr a1, minstret",
+                dump=('a1', 'a2')))
+    ps.append(P("IR window around a taken branch and a load", "",
+                "    csrsi mcountinhibit, 4\n    beq  zero, zero, 7f\n    li   a3, 0xbad\n7:  lw   a2, 0(t2)\n    addi a4, a2, 1\n    csrci mcountinhibit, 4\n    csrr a1, minstret",
+                dump=('a1', 'a2', 'a3', 'a4')))
+    ps.append(P("IR window around fence.i", "", "    csrsi mcountinhibit, 4\n    fence.i\n    nop\n    csrci mcountinhibit, 4\n    csrr a1, minstret", dump=('a1',)))
+    ps.append(P("IR window around csrw minstret", "    li   a0, 0x7000", "    csrsi mcountinhibit, 4\n    csrw minstret, a0\n    nop\n    csrci mcountinhibit, 4\n    csrr a1, minstret", dump=('a1',)))
+    ps.append(P("IR window around mret (MIE=0 MPIE=1: mret enables)", "    la   s9, 5f\n    csrw mepc, s9\n    li   t1, 0x80\n    csrw mstatus, t1",
+                "    csrsi mcountinhibit, 4\n    mret\n    li   a1, 0xbad\n5:  csrci mcountinhibit, 4\n    csrr a2, minstret", dump=('a1', 'a2')))
+    ps.append(P("IR window around sw STALLREG", "    li   a4, STALLREG", "    csrsi mcountinhibit, 4\n    sw   a0, 0(a4)\n    lw   a3, 0(a4)\n    csrci mcountinhibit, 4\n    csrr a1, minstret",
+                dump=('a1', 'a3'), kmax=56, periph=True))
+    ps.append(P("IR window: nested ecall handler", "", "    csrsi mcountinhibit, 4\n    nop\n    csrci mcountinhibit, 4\n    csrr a1, minstret", dump=('a1',), nested=True, kmax=40))
+    # minstreth writes, and minstret/minstreth writes in the cycle of the carry (the written half takes the value, the other keeps the incremented one)
+    ps.append(P("csrw minstreth", "    li   a0, 5", "    csrw minstreth, a0\n    csrr a1, minstret\n    csrr a3, minstreth", dump=('a1', 'a3'), restore="    csrw minstreth, zero"))
+    ps.append(P("csrrw a1,minstreth,a0 ; csrr minstreth", "    li   a0, 0x70000009", "    csrrw a1, minstreth, a0\n    csrr a3, minstreth\n    csrr a2, minstret", dump=('a1', 'a2', 'a3'),
+                restore="    csrw minstreth, zero"))
+    ps.append(P("csrrs/csrrc minstreth", "    li   a0, 0x30\n    csrw minstreth, a0", "    csrrs a1, minstreth, a0\n    csrrci a2, minstreth, 0x10\n    csrr a3, minstreth", dump=('a1', 'a2', 'a3'),
+                restore="    csrw minstreth, zero"))
+    ps.append(P("csrrs/csrrc minstret", "    li   a0, 0x30\n    csrw minstret, a0", "    csrrs a1, minstret, a0\n    csrrci a2, minstret, 0x10\n    csrr a3, minstret", dump=('a1', 'a2', 'a3')))
+    for tag, v1, gap in (("writer sees 0xFFFFFFFF", "0xFFFFFFFF", ""), ("carry just before the writer", "0xFFFFFFFF", "    nop\n"),
+                         ("carry just after the writer", "0xFFFFFFFE", "")):
+        for csr in ('minstret', 'minstreth'):
+            ps.append(P(f"csrw {csr} at low half: {tag}", "    li   a2, 0x1111\n    li   a0, " + v1 + "\n    csrw minstreth, zero",
+                        f"    csrw minstret, a0\n{gap}    csrw {csr}, a2\n    csrr a1, minstret\n    csrr a3, minstreth", dump=('a1', 'a3'), restore="    csrw minstreth, zero"))
+    ps.append(P("csrw minstret at 0xFFFFFFFF with IR set", "    li   a2, 0x1111\n    li   a0, 0xFFFFFFFF\n    csrw minstreth, zero",
+                "    csrw minstret, a0\n    csrsi mcountinhibit, 4\n    csrw minstret, a2\n    csrci mcountinhibit, 4\n    csrr a1, minstret\n    csrr a3, minstreth",
+                dump=('a1', 'a3'), restore="    csrw minstreth, zero"))
+    # neighbours: counters, selectors and the inhibit register next to the interrupt-enable CSRs, branches and traps
+    ps.append(P("csrw mhpmevent3 ; csrci mstatus,8 ; csrr mstatus", "    li   a0, 2", "    csrw mhpmevent3, a0\n    csrci mstatus, 8\n    csrr a1, mstatus", restore="    csrw mhpmevent3, zero"))
+    ps.append(P("csrci mstatus,8 ; csrw mcountinhibit ; csrsi mstatus,8", "    li   a0, 8", "    csrci mstatus, 8\n    csrw mcountinhibit, a0\n    csrr a1, mcountinhibit\n    csrsi mstatus, 8", dump=('a1',)))
+    ps.append(P("csrw mhpmcounter3 ; csrw mie ; csrr mie", "    li   a0, 0x880", "    csrw mhpmcounter3, a0\n    csrw mie, a0\n    csrr a1, mie", readback='mie'))
+    ps.append(P("csrw mcountinhibit ; ecall ; csrw mhpmevent3", "    li   a0, 8", "    csrw mcountinhibit, a0\n    ecall\n    csrw mhpmevent3, a0\n    csrr a1, mhpmevent3", restore="    csrw mhpmevent3, zero"))
+    ps.append(P("csrw mhpmevent3 ; lw misaligned ; csrr", "    li   a0, 0x16", "    csrw mhpmevent3, a0\n    lw   a2, 2(t2)\n    csrr a1, mhpmevent3", dump=('a1', 'a2'), restore="    csrw mhpmevent3, zero"))
+    ps.append(P("taken branch -> csrw mcountinhibit", "    li   a0, 8", "    beq  zero, zero, 7f\n    li   a3, 0xbad\n7:  csrw mcountinhibit, a0\n    csrr a1, mcountinhibit", dump=('a1', 'a3')))
+    ps.append(P("lw -> csrw mhpmevent3 (load-use into a counter CSR)", "    li   a4, 0x21\n    sw   a4, 20(t2)", "    lw   a5, 20(t2)\n    csrw mhpmevent3, a5\n    csrr a1, mhpmevent3",
+                restore="    csrw mhpmevent3, zero\n    sw   zero, 20(t2)"))
+    ps.append(P("csrr mhpmcounter3 -> add (CSR-use hazard)", "", "    csrr a2, mhpmcounter3\n    add  a3, a2, a2\n    csrr a1, minstret", dump=('a1',)))
+    ps.append(P("mret MIE=0 MPIE=1 between counter writes", "    la   s9, 5f\n    csrw mepc, s9\n    li   t1, 0x80\n    csrw mstatus, t1\n    li   a0, 3",
+                "    csrw mhpmevent3, a0\n    mret\n    li   a1, 0xbad\n5:  csrw mhpmcounter3, a0\n    csrr a2, mhpmevent3", dump=('a1', 'a2'), restore="    csrw mhpmevent3, zero"))
+    ps.append(P("div ; csrw mhpmevent3 ; csrw mcountinhibit", "    li   a0, 1000003\n    li   a2, 7\n    li   a4, 2",
+                "    div  a1, a0, a2\n    csrw mhpmevent3, a4\n    csrw mcountinhibit, a4\n    csrr a3, mcountinhibit", dump=('a1', 'a3'), kmax=60, restore="    csrw mhpmevent3, zero"))
+    return ps
+
+# Families that sweep.py runs only when named (sweep.py run --fam ext, --fam crypto, --fam window, --fam hpm):
 # they are not part of 'all' or of 'sweep.py list', whose output the trapsweep record stores.
 # 'window' runs on both CPUs (it is not in DUT_ONLY).
-OPT_FAMS = {'ext': ext_probes, 'crypto': crypto_probes, 'window': window_probes}
+OPT_FAMS = {'ext': ext_probes, 'crypto': crypto_probes, 'window': window_probes, 'hpm': hpm_probes}
 
 FAMS = {'ctl': ctl_probes, 'race': race_probes, 'csr': csr_probes, 'exc': exc_probes, 'exc_mie0': lambda: exc_probes('mie0'), 'exc_mie0mpie0': lambda: exc_probes('mie0mpie0'),
         'exc_mpie0': lambda: exc_probes('mpie0'), 'nested': nested_probes, 'flow': flow_probes, 'bus': bus_probes,
@@ -650,7 +765,7 @@ FAMS = {'ctl': ctl_probes, 'race': race_probes, 'csr': csr_probes, 'exc': exc_pr
 # Families that only run on the DUT: the golden CPU has no M/Zba (m, pre) and no
 # branch predictor (bp: it ignores MHPMEVENT10, so the sweep would test nothing).
 # pre_i is the M-free subset of pre, for the golden CPU.
-DUT_ONLY = {'m', 'pre', 'bp', 'ext', 'crypto'}
+DUT_ONLY = {'m', 'pre', 'bp', 'ext', 'crypto', 'hpm'}
 
 if __name__ == '__main__':
     # probes.py <family> [ext|timer|both] [ids-file]: print one program with every probe of a family

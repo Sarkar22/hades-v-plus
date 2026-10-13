@@ -62,6 +62,7 @@ python3 test/trapsweep/sweep.py fuzz --seeds 501-560 --variant b     # + M/Zba/Z
 python3 test/trapsweep/sweep.py fuzz --seeds 2001-3000 --variant k   # + Zbkb/Zbkx/Zknh as well (DUT only)
 python3 test/trapsweep/sweep.py run --fam ext --targets dut          # Zbb/Zbs/Zicond probes (only when named)
 python3 test/trapsweep/sweep.py run --fam crypto --targets dut       # Zbkb/Zbkx/Zknh probes (only when named)
+python3 test/trapsweep/sweep.py run --fam hpm --targets dut          # performance-counter CSRs (only when named; the standard counter configuration)
 python3 test/trapsweep/sweep.py run --tree ../other-checkout         # test another tree's RTL
 python3 test/trapsweep/sweep.py file my_probe.s                      # a hand-written program
 ```
