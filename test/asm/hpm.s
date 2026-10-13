@@ -363,6 +363,7 @@ case3:
     li   t2, 3
     li   s1, 0                    # wrong read-backs
     li   a0, 0
+    li   a3, 0                    # 1 if the selector of code 140 read back 140
 sel_loop:
     csrw 0x323, a0
     csrr a1, 0x323
@@ -374,14 +375,27 @@ sel_loop:
     or   t4, t4, t5
     beqz t4, 1f
     mv   a2, a0
-1:  xor  t4, a1, a2
+1:  addi t4, a0, -141             # 141..147 do what 140 did: all eight read back or none
+    sltiu t4, t4, 7
+    beqz t4, 2f
+    mv   a2, zero
+    beqz a3, 3f
+    mv   a2, a0
+3:  xor  t4, a1, a2
     beqz t4, sel_next
-    # a mismatch is allowed where an instruction cache would add its events (128..139, 160, 161),
-    # but only on a memory that is not the plain one (s5 = 0), and only as the code itself
+    j    sel_bad
+2:  addi t4, a0, -140             # 140: whether it read back decides 141..147
+    bnez t4, 4f
+    xor  t4, a1, a0
+    seqz a3, t4
+4:  xor  t4, a1, a2
+    beqz t4, sel_next
+    # a mismatch is allowed where the caches would add their events (128..147, 160, 161), but
+    # only on a memory that is not the plain one (s5 = 0), and only as the code itself
     bnez s5, sel_bad
     bne  a1, a0, sel_bad
     addi t5, a0, -128
-    sltiu t5, t5, 12
+    sltiu t5, t5, 20
     addi t4, a0, -160
     sltiu t4, t4, 2
     or   t5, t5, t4

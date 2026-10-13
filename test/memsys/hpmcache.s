@@ -4,16 +4,37 @@
 #
 # ------------------------------------------------------------------------------------------------
 # |                                                                                              |
-# | THE I-CACHE EVENTS IN THE PERFORMANCE COUNTERS, for the memory-system checks (test/memsys/    |
-# | programs.py) in a simulator with an instruction cache (docs/CACHES.md; make ICACHE=512 or     |
-# | ICACHE=8192, any LINE). The counters count the cache's event signals (codes 128 to 139, 160 |
-# | and 161); the cache's own CACHE_STATS line, which sim/top.sv prints, counts the same events  |
-# | and must agree with the counters at the end of the run (the monitor of sim/top.sv does that  |
+# | THE CACHE EVENTS IN THE PERFORMANCE COUNTERS, for the memory-system checks (test/memsys/     |
+# | programs.py) in a simulator with an instruction cache (docs/CACHES.md; make ICACHE=512 or    |
+# | ICACHE=8192, any LINE), with or without a data cache (DCACHE=512 or DCACHE=4096). The        |
+# | counters count the event signals of the caches (codes 128 to 139, 140 to 147 with a data     |
+# | cache, 160 and 161); the CACHE_STATS line that sim/top.sv prints counts the same events and  |
+# | must agree with the counters at the end of the run (the monitor of sim/top.sv does that      |
 # | comparison for the HPM_PRESET simulators H and I).                                           |
 # |                                                                                              |
-# | Without a cache the selectors for these codes read back 0: the program finds out (s5 = 1 with |
-# | a cache) and every check that needs the cache is then made 'without looking', so the         |
-# | reports are the same in every configuration, as programs.py requires.                        |
+# | Without a cache the selectors for these codes read back 0: the program finds out (s5 = 1     |
+# | with an instruction cache, s4 = 1 with a data cache as well, s3 = 1 with an instruction      |
+# | cache alone) and every check that needs a cache is then made 'without looking', so the       |
+# | reports are the same in every configuration, as programs.py requires. Every check is made    |
+# | in every configuration that has the events it needs, in the form of that configuration.      |
+# | The load at the head of the functions under test (below) is a data transfer on the memory    |
+# | port with an instruction cache alone, and a data-cache hit without a port cycle with a       |
+# | data cache: its line is present after the warm-up pass of every window (the eviction block   |
+# | is code, and the head load is the only load or store of the functions under test, so         |
+# | nothing conflicts with buf), which the data-cache form checks with DC_LOAD_MISS = 0. The     |
+# | checks of the memory port, in the two forms (instruction cache alone / with a data cache):   |
+# |   evict, warm   PORT_LOAD     1 / 0                                                          |
+# |   evict         PORT_STORE    0 / 0                                                          |
+# |   evict         PORT_GRANT_D  >= 1 / 0 (the head load never reaches the port)                |
+# |   evict         PORT_WAIT_D   >= 1 for lines of 4 words or more / 0 (a data-cache hit is     |
+# |                               answered during the instruction-cache refill)                  |
+# |   PORT_WAIT_I, PORT_GRANT_I, PORT_WAIT_D of the warm window, and the other zeros: as before. |
+# | The data cache's own events are counted by a second pass over the same window (the seven     |
+# | counters of a window are all taken): counter 3 DC_LOAD_MISS = 0, counter 4 DC_LOOKUP_HIT = 1;|
+# | they belong to the report of the PORT_LOAD check (one report in every configuration, and the |
+# | reports are the same as without a data cache). The port events of data-cache refills         |
+# | (PORT_LOAD = LINE_WORDS * DC_LOAD_MISS, PORT_GRANT_D, PORT_WAIT_D behind a running I-refill) |
+# | are checked in hpmdcache.s, where the loads miss by design.                                  |
 # |                                                                                              |
 # | CODE UNDER TEST (the layout is what makes the counts exact; every part is a multiple of 64   |
 # | bytes, 64-byte aligned, so a cache line of any size from 8 to 64 bytes holds code of one     |
@@ -54,8 +75,9 @@
 # | Register allocation:                                                                         |
 # |     t1: 1       t2: test case number    t3: test peripheral address     t6: address of buf   |
 # |     s5: 1 with an instruction cache      s6: LINE_WORDS-ish: IC_MISS of the last window       |
+# |     s4: 1 with a data cache as well      s3: 1 with an instruction cache alone               |
 # |     s8: eviction entry (block + 12)  s9: the function the trampoline runs  s10: its return   |
-# |     s11: 0x3FFD   ra: return address   a0-a7, s0-s4, s7: the checks                         |
+# |     s11: 0x3FFD   ra: return address   a0-a7, s0-s2, s7: the checks                          |
 # |                                                                                              |
 # ------------------------------------------------------------------------------------------------
 
@@ -77,6 +99,8 @@
 .equ EV_PORT_STORE,   139
 .equ EV_IC_HIT_USED,  160
 .equ EV_IC_MISS_JUMP, 161
+.equ EV_DC_LOOKUP_HIT, 140
+.equ EV_DC_LOAD_MISS, 141
 
 .macro pass
     sw zero, 0(t3)
@@ -102,6 +126,21 @@
 .macro assert_value reg:req, value:req
     li   t0, \value
     assert_equal t0, \reg
+.endm
+
+# The head load: PORT_LOAD (\plc) is 1 with an instruction cache alone and 0 with a data cache (the load hits it),
+# and then DC_LOAD_MISS (\dmiss) is 0 and DC_LOOKUP_HIT (\dhit) is 1; one report, without looking where there is no cache
+.macro assert_head_load plc:req, dmiss:req, dhit:req
+    sub  t0, \plc, s3
+    sltu t0, zero, t0
+    snez t4, \dmiss
+    addi t5, \dhit, -1
+    snez t5, t5
+    or   t4, t4, t5
+    and  t4, t4, s4
+    or   t0, t0, t4
+    and  t0, t0, s5
+    sw   t0, 0(t3)
 .endm
 
 # reg >= value
@@ -189,6 +228,16 @@ __reset:
     csrw 0x323, zero
     addi t4, t4, -EV_IC_MISS
     seqz s5, t4
+    # a data cache? The selector for DC_LOAD_MISS reads back only where its events exist
+    li   t0, EV_DC_LOAD_MISS
+    csrw 0x323, t0
+    csrr t4, 0x323
+    csrw 0x323, zero
+    addi t4, t4, -EV_DC_LOAD_MISS
+    seqz s4, t4
+    and  s4, s4, s5               # (a build with the data cache's events has both caches)
+    xori t4, s4, 1
+    and  s3, s5, t4               # an instruction cache and no data cache
     csrw mcountinhibit, s11
     .irp n, 3, 4, 5, 6, 7, 8, 9
     csrw 0xB80+\n, zero
@@ -259,22 +308,46 @@ __reset:
     rdc  7, a5
     rdc  8, a6
     rdc  9, a7
-    assert_value a5, 1            # the load of the head is the only data transfer
+    # the same window once more for the data cache's two events (all seven counters are taken)
+    selc 3, EV_DC_LOAD_MISS
+    selc 4, EV_DC_LOOKUP_HIT
+    jal  ra, tramp_evict
+    rdc  3, s1
+    rdc  4, s2
+    assert_head_load a5, s1, s2   # the load of the head: the only data transfer (PORT_LOAD 1; with a data cache 0, a hit)
     assert_value a6, 0
-    assert_ge a4, 1
+    # PORT_GRANT_D: >= 1 with an instruction cache alone, 0 with a data cache (the head load never reaches the port)
+    sltiu t0, a4, 1               # 1 if PORT_GRANT_D = 0
+    and  t0, t0, s3
+    snez t5, a4
+    and  t5, t5, s4
+    or   t0, t0, t5
+    sw   t0, 0(t3)
     li   t4, 9
     sltu t4, a7, t4               # 1 if IC_MISS <= 8: lines of 4 words or more
     seqz t0, a1                   # 1 if PORT_WAIT_D = 0
     and  t0, t0, t4
-    and  t0, t0, s5
-    sw   t0, 0(t3)                # PORT_WAIT_D >= 1 where the line has at least 4 words
+    and  t0, t0, s3               # PORT_WAIT_D >= 1 where the line has at least 4 words ...
+    snez t5, a1
+    and  t5, t5, s4
+    or   t0, t0, t5
+    sw   t0, 0(t3)                # ... and = 0 with a data cache (the hit is answered during the I-refill)
     li   t2, 4
+    selc 3, EV_PORT_WAIT_D
+    selc 4, EV_PORT_WAIT_I
+    selc 5, EV_PORT_GRANT_I
+    selc 7, EV_PORT_LOAD
     jal  ra, tramp_warm
     rdc  3, a1
     rdc  4, a2
     rdc  5, a3
     rdc  7, a5
-    assert_value a5, 1
+    selc 3, EV_DC_LOAD_MISS
+    selc 4, EV_DC_LOOKUP_HIT
+    jal  ra, tramp_warm
+    rdc  3, s1
+    rdc  4, s2
+    assert_head_load a5, s1, s2
     assert_value a2, 0            # no refill, so the I side never waits for the port or uses it
     assert_value a3, 0
     assert_value a1, 0

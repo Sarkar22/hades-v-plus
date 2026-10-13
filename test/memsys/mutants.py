@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""mutants.py -- the mutation campaign of the memory system with an instruction cache.
+"""mutants.py -- the mutation campaign of the memory system with an instruction cache and a data cache.
 
 Every mutant is a source patch, applied to a temporary copy of the tree (never to this checkout),
 with its own build directory. The check that must catch it runs in that copy and the mutant is
@@ -30,18 +30,32 @@ event ports; mem_arbiter: d_req, i_req, free, gd, gi, owner, NONE/DATA/IREFILL, 
 irefill, mem). 'anchors' shows which of them match the tree; a mutant whose description below and
 whose patch disagree with the code is fixed in this file, never by changing the design.
 
+The mutants of the data cache (dcache.sv, the arbiter's data_cont, the data-cache events of the
+counter block in rtl/mcu.sv) are the second half of the list; they are written against the interfaces and
+the fixed names of the data cache (dcache: state, beat, refill_line, valid, present, st_accept, tag_ram,
+lane[0..3].data_ram, mem_cont, the event ports ev_lookup_hit ... ev_refill), 'anchors' shows which of the
+patches find their text in the tree, and the patches whose text differs from the RTL are fixed in this file.
+
 CHECKS. The primary check of each mutant is one of:
     bench          the I-cache bench (make test/sv/test_icache): caught when it does not end with
                    'ICACHE BENCH: PASS' and exit status 0
+    dbench         the same for the memory-system bench of both caches (make test/sv/test_dcache,
+                   'DCACHE BENCH: PASS')
     bench-assert   the bench with +compare=0 (only the assertions inside the RTL can stop it):
-                   caught when the named assertion's message appears
+                   caught when the named assertion's message appears (dbench-assert: the other bench)
     bench-message  the bench with the options of the row (+compare=bounds: only its answer bounds
                    are checked): caught when the named message of its own checks appears
+                   (dbench-message: the other bench)
     programs       test/memsys/programs.py run in a configuration: caught when a HaDes-V+ run
                    differs otherwise, or any run is bad (scoreboard, simulator error, exit status)
     blinded        the same with the scoreboard's comparison of fetched words disabled (a patch of
                    sim/top.sv): caught when a HaDes-V+ program's own reports differ; every blinded
-                   run must still say 'SCOREBOARD: PASS', otherwise the run is not valid
+                   run must still say 'SCOREBOARD: PASS', otherwise the run is not valid. For the data
+                   cache the comparison of loaded words is disabled instead ('blind': ['load']), and,
+                   for a mutant that never writes the RAM (store-hit-skips-memory), the scoreboard's two
+                   comparisons of the RAM with its copy as well (['load', 'store']): they would stop the
+                   run before the program has judged anything
+    identities     a system run of programs, caught when a CACHE_STATS identity of matrix.py does not hold
     assert         a system run that only the named check can stop: caught when its message appears
     sweep          test/trapsweep/sweep.py run in a configuration: caught when a HaDes-V+ program is
                    not ISS-consistent or a simulation stops with an error
@@ -49,7 +63,9 @@ CHECKS. The primary check of each mutant is one of:
                    tiny configuration, without its negative controls): caught when it fails
     port-identity  the port cycles of refills and data transfers of a cached run at MEM_LAT=2
                    MEM_BEAT_LAT=0 (port_irefill = 6 * i_done + i_inflight_port, port_data =
-                   3 * (d_loads + d_stores) + d_inflight_port): caught when one does not hold
+                   3 * (d_loads + d_stores) + d_inflight_port; with a data cache port_data =
+                   6 * dc_done + 3 * d_stores + dc_inflight_port + d_inflight_port): caught when one
+                   does not hold
                    (a run that stops before its CACHE_STATS line, by a bounded-answer assertion for example,
                    has not shown them and counts as caught, with the stop as the evidence)
     resets         the mid-run reset runs (matrix.py, leg 'resets'): caught as the row says
@@ -77,6 +93,7 @@ REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
 sys.dont_write_bytecode = True
 
 ICACHE, ARB, MCU = "rtl/cache/icache.sv", "rtl/cache/mem_arbiter.sv", "rtl/mcu.sv"
+DCACHE = "rtl/cache/dcache.sv"
 ICON, SLOW, TOP = "lib/wishbone/wishbone_interconnect.sv", "sim/slow_memory.sv", "sim/top.sv"
 IRQCHAIN = "test/memsys/irqchain.s"
 
@@ -84,6 +101,12 @@ SMALL_LAT0, SMALL_LAT2, SMALL_BURST, SMALL_STRESS = ["ICACHE=512"], ["ICACHE=512
     ["ICACHE=512", "MEM_LAT=1:64"]
 LARGE_LAT2 = ["ICACHE=8192", "MEM_LAT=2"]
 LAT2, LAT18 = ["MEM_LAT=2"], ["MEM_LAT=1:8"]
+# the configurations with both caches (512-byte instruction and data cache)
+VD_LAT0, VD_LAT2, VD_BURST = ["ICACHE=512", "DCACHE=512"], ["ICACHE=512", "DCACHE=512", "MEM_LAT=2"], \
+    ["ICACHE=512", "DCACHE=512", "MEM_LAT=1:8", "MEM_BEAT_LAT=0"]
+VD_BURST0 = ["ICACHE=512", "DCACHE=512", "MEM_LAT=2", "MEM_BEAT_LAT=0"]
+VD_STRESS = ["ICACHE=512", "DCACHE=512", "MEM_LAT=1:64"]
+PD_GD = ["ICACHE=8192", "DCACHE=4096", "MEM_LAT=8:24", "MEM_WR_LAT=1:4", "MEM_BEAT_LAT=0"]
 
 
 def added_logic(f, decl, body=""):
@@ -98,6 +121,13 @@ def added_logic(f, decl, body=""):
 # The scoreboard's comparison of a fetched word with its copy, disabled (the blinded runs)
 BLIND = [(TOP, r"else if \(mcu\.fetch_bus\.dat_miso != sb_mem\[a - RAM_START\]\)",
           "else if (1'b0 && mcu.fetch_bus.dat_miso != sb_mem[a - RAM_START])", 1)]
+# The scoreboard's comparison of a loaded word with its copy, disabled (the blinded runs of the data cache);
+# and its two comparisons of the RAM with its copy (after each store, at the end), for a mutant that never
+# writes the RAM: the program's own checks then decide
+BLIND_LOAD = [(TOP, r"if \(mcu\.mem_bus\.dat_miso != sb_mem\[a - RAM_START\]\)",
+               "if (1'b0 && mcu.mem_bus.dat_miso != sb_mem[a - RAM_START])", 1)]
+BLIND_STORE = [(TOP, r"if \(mcu\.ram\.memory\[a - RAM_START\] != w\)", "if (1'b0 && mcu.ram.memory[a - RAM_START] != w)", 1),
+               (TOP, r"if \(mcu\.ram\.memory\[i\] != sb_mem\[i\]\) begin", "if (1'b0 && mcu.ram.memory[i] != sb_mem[i]) begin", 1)]
 # For the two mutants whose wrong acknowledge falls on a fetch outside the window (no-second-lookup and
 # latched-lookup: the cache acknowledges an address that the CPU presents as an error), the scoreboard's
 # protocol checks of the fetch bus 'ack and err together' and 'ack outside the RAM' would stop the run
@@ -114,8 +144,15 @@ BLIND_ANSWERS = [
 ]
 
 
-def m(name, cls, what, patches, primary, also="", needs_anchor=True):
-    return dict(name=name, cls=cls, what=what, patches=patches, primary=primary, also=also, needs_anchor=needs_anchor)
+BLINDS = {"fetch": (BLIND, "1'b0 && mcu.fetch_bus.dat_miso"),
+          "answers": (BLIND_ANSWERS, "1'b0 && mcu.fetch_bus.ack && mcu.fetch_bus.err"),
+          "load": (BLIND_LOAD, "1'b0 && mcu.mem_bus.dat_miso"),
+          "store": (BLIND_STORE, "1'b0 && mcu.ram.memory[a - RAM_START]")}
+
+
+def m(name, cls, what, patches, primary, also="", needs_anchor=True, d=False):
+    """d: a mutant of the data cache's configurations (its simulator and bench are the ones with both caches)."""
+    return dict(name=name, cls=cls, what=what, patches=patches, primary=primary, also=also, needs_anchor=needs_anchor, d=d)
 
 
 # ---- the fetch port's wrapper (sim/slow_memory.sv, PORT "fetch"), for the uncached configurations
@@ -422,6 +459,158 @@ MUTANTS = [
       handler_mepc(-4), dict(kind="blinded", config=LAT2, only="memsys/irqchain$", also_config=SMALL_LAT2), "",
       needs_anchor=False),
 ]
+
+# ------------------------------------------------------------------------------ the data cache's mutants
+# The lines of rtl/cache/dcache.sv and rtl/cache/mem_arbiter.sv that the patches expect (the names of the
+# data cache are the fixed ones: state, beat, refill_line, valid, present, st_accept, tag_ram and the
+# four byte lanes lane[0..3], each with a data_ram; the rest follows the instruction cache's style):
+#   assign present = valid[cpu_index] && tag_a_rdata == cpu_tag;
+#   assign st_accept = state == LOOKUP && req && cpu.we && mem.ack;
+#   assign cpu.ack = (state == LOOKUP) && ((req && !cpu.we && present) || st_accept);
+#   the write enable of lane k: ... st_accept && present && cpu.sel[k] ...
+#   the tag array: .a_we(fill && !rst) and .a_wdata(refill_tag)
+#   assign miss = state == LOOKUP && req && !cpu.we && !present;
+#   assign mem.cyc/stb = (state == REFILL) || (state == LOOKUP && req && cpu.we);
+#   assign mem.adr = state == REFILL ? {2'b00, refill_line, beat} : cpu.adr;
+#   assign mem_cont = state == REFILL && beat != '0;
+#   assign ev_lookup_hit = !rst && ...; assign ev_store_hit = !rst && st_accept && present; ...
+#   the reset branch: state <= LOOKUP; beat <= '0; valid <= '0;
+LANE_WE = r"(st_accept\s*&&\s*present\s*&&\s*)cpu\.sel\[(\w+)\]"
+D_MUTANTS = [
+    m("drop-lane-enable", "store lanes", "Lane 2's write enable on store hits is never set.",
+      [(DCACHE, LANE_WE, r"\1cpu.sel[\2] && \2 != 2", 1)],
+      dict(kind="dbench"), "scoreboard (dcache.s); formal dline_data; dcache.s with the load compare blinded", d=True),
+    m("valid-on-store-miss", "store miss", "A store miss writes the selected lanes and the tag and sets valid, without a "
+      "refill.",
+      [*added_logic(DCACHE, """    // (mutation) a store miss marks its set valid
+    logic [SETS-1:0] mut_av;""", """    always_ff @(posedge clk) begin
+        if (rst)
+            mut_av <= '0;
+        else begin
+            if (st_accept && !present)
+                mut_av[cpu_index] <= 1'b1;
+            if (miss)
+                mut_av[cpu_index] <= 1'b0;
+        end
+    end"""),
+       (DCACHE, LANE_WE, r"st_accept && cpu.sel[\2]", 1),
+       (DCACHE, r"(\.a_we\()\s*fill\s*&&\s*!rst\s*(\))", r"\1(fill || (st_accept && !present)) && !rst\2", 1),
+       (DCACHE, r"(\.a_wdata\()\s*refill_tag\s*(\))", r"\1(st_accept && !present) ? cpu_tag : refill_tag\2", 1),
+       (DCACHE, r"(assign\s+present\s*=\s*)valid\[([^\]]+)\]", r"\1(valid[\2] || mut_av[\2])", 1)],
+      dict(kind="dbench"), "formal load_data; dcache.s with the load compare blinded", d=True),
+    m("store-hit-skips-memory", "store hit", "A store hit is acknowledged at once and written into the lanes without a "
+      "memory write.",
+      [(DCACHE, r"(assign\s+st_accept\s*=\s*)([^;]+);", r"\1(state == LOOKUP && req && cpu.we && (present || mem.ack));", 1),
+       (DCACHE, r"(assign\s+mem\.cyc\s*=\s*)([^;]+);", r"\1(\2) && !(state == LOOKUP && req && cpu.we && present);", 1),
+       (DCACHE, r"(assign\s+mem\.stb\s*=\s*)([^;]+);", r"\1(\2) && !(state == LOOKUP && req && cpu.we && present);", 1)],
+      dict(kind="formal", prop="store_mem"),
+      "the scoreboard's comparison of the RAM with its copy; dcache.s with the load compare and the RAM comparisons blinded "
+      "(store, evict, reload)", d=True),
+    m("ignore-valid-data", "valid", "The D hit ignores valid.",
+      [(DCACHE, r"(assign\s+present\s*=\s*)valid\[[^\]]+\]\s*&&\s*", r"\1", 1)],
+      dict(kind="dbench"),
+      "scoreboard (all programs, VD, latency 0); formal load_data", d=True),
+    m("forward-memory-ack", "late ack", "Every mem.ack is passed to a presented request: a refill beat answers the held "
+      "load (the memory's ack forwarded to whatever request is presented).",
+      [(DCACHE, r"(assign\s+cpu\.ack\s*=\s*)([^;]+);", r"\1(\2) || (req && mem.ack);", 1)],
+      dict(kind="programs", config=VD_LAT0, only=""), "bench; formal load_data and dack_req", d=True),
+    m("data-refill-word-off-by-one", "refill", "Beat k of a D-refill is written to word k + 1.",
+      [(DCACHE, r"\{\s*refill_index\s*,\s*beat\s*\}", r"{refill_index, beat + 1'b1}", 1)],
+      dict(kind="programs", config=VD_LAT0, only=""), "bench; formal dline_data", d=True),
+    m("store-writes-all-lanes", "store lanes", "A store hit writes all four lanes.",
+      [(DCACHE, LANE_WE, r"\1 1'b1", 1)],
+      dict(kind="blinded", blind=["load"], config=VD_LAT0, only="memsys/dcache$"), "scoreboard; bench", d=True),
+    m("data-ack-in-refill", "refill", "The D load hit is not gated by LOOKUP.",
+      [(DCACHE, r"(assign\s+cpu\.ack\s*=\s*)\(?\s*state\s*==\s*LOOKUP\s*\)?\s*&&\s*", r"\1", 1)],
+      dict(kind="dbench", args=["+mode=free"]), "formal dack_req (invisible with a CPU: the held load's line is invalid)",
+      d=True),
+    m("data-refill-follows-cpu-adr", "refill", "The D-refill beat address takes its line from the presented address "
+      "instead of refill_line.",
+      [(DCACHE, r"(\{\s*2'b00\s*,\s*)refill_line\b", r"\1cpu.adr[29:O]", 1)],
+      dict(kind="dbench", args=["+mode=free"]), "formal dwindow and drefill_stable", d=True),
+    m("data-refill-gap", "refill", "The D-cache drops its request for a cycle after each answered beat of a refill.",
+      [*added_logic(DCACHE, """    // (mutation) no request in the cycle after an answered refill beat
+    logic mut_gap;""", """    always_ff @(posedge clk) mut_gap <= !rst && state == REFILL && mem.ack && beat != LAST_BEAT;"""),
+       (DCACHE, r"(assign\s+mem\.cyc\s*=\s*)([^;]+);", r"\1(\2) && !mut_gap;", 1),
+       (DCACHE, r"(assign\s+mem\.stb\s*=\s*)([^;]+);", r"\1(\2) && !mut_gap;", 1)],
+      dict(kind="dbench-assert", message=r"mem_arbiter: a continuing data beat was not granted"),
+      "the wrapper's block_cont check (VD, burst profile); formal dfill_kept; bound (f)", d=True),
+    m("refill-beats-continuing-data", "arbiter", "The arbiter grants an I-refill over a continuing data beat.",
+      [(ARB, r"(assign\s+gd\s*=\s*)([^;]+);", r"\1d_req && (owner == DATA || (free && !(i_req && data_cont)));", 1),
+       (ARB, r"(assign\s+gi\s*=\s*)([^;]+);", r"\1i_req && (owner == IREFILL || (free && (!d_req || data_cont)));", 1)],
+      dict(kind="formal", prop="dfill_kept"),
+      "the arbiter's continuing-beat assertion; the bench with +compare=bounds (bound (e))", d=True),
+    m("data-cont-on-first-beat", "wrapper tag", "mem_cont also on beat 0 of a D-refill.",
+      [(DCACHE, r"(assign\s+mem_cont\s*=)[^;]*;", r"\1 (state == REFILL);", 1)],
+      dict(kind="assert", config=VD_BURST, only="memsys/dcache$", message=r"slow_memory: memory port: block_cont = 1 at cycle"),
+      "bench", d=True),
+    m("data-cont-ignored", "arbiter", "The arbiter's mem_cont ignores data_cont.",
+      [(ARB, r"(assign\s+mem_cont\s*=\s*)[^;]*;", r"\1gi && irefill_cont;", 1)],
+      dict(kind="port-identity", config=VD_BURST0, only="memsys/dcache$"),
+      "bound (f) first, where it stops the run (bench with +compare=bounds)", d=True),
+    m("data-always-continues", "arbiter", "mem_cont = (gi && irefill_cont) || gd: every data transfer is tagged as "
+      "continuing.",
+      [(ARB, r"(assign\s+mem_cont\s*=\s*)[^;]*;", r"\1(gi && irefill_cont) || gd;", 1)],
+      dict(kind="formal", prop="arb_equiv"), "the wrapper's block_cont check (VD, burst profile)", d=True),
+    m("data-events-in-reset", "events", "A D-cache event is not forced to 0 in reset.",
+      [(DCACHE, r"(assign\s+ev_lookup_hit\s*=\s*)!rst\s*&&\s*", r"\1", 1)],
+      dict(kind="dbench"), "", d=True),
+    m("store-event-every-wait-cycle", "events", "The store hit and miss events fire in every cycle of a store, not only "
+      "in the cycle it is accepted.",
+      [(DCACHE, r"(assign\s+ev_store_hit\s*=\s*!rst\s*&&\s*)st_accept(\s*&&\s*present)", r"\1req && cpu.we\2", 1),
+       (DCACHE, r"(assign\s+ev_store_miss\s*=\s*!rst\s*&&\s*)st_accept(\s*&&\s*!present)", r"\1req && cpu.we\2", 1)],
+      dict(kind="identities", config=VD_LAT2, only="memsys/(stores|dcache)$"),
+      "bench", d=True),
+    m("data-event-bits-swapped", "events", "The counter block swaps bits 12 and 13 of the memory-system vector "
+      "(DC_LOOKUP_HIT and DC_LOAD_MISS).",
+      [(MCU, r"cache_ev_d_load_miss,\s*cache_ev_d_lookup_hit\s*\}", "cache_ev_d_lookup_hit, cache_ev_d_load_miss}", 1)],
+      dict(kind="assert", config=VD_LAT2, only="memsys/hpmdcache$", message=r"hpm_ext|wiring"),
+      "hpmdcache.s (the warm loop: DC_LOAD_MISS = 0)", d=True),
+    m("data-reset-keeps-state", "reset", "The reset clears the D valid bits but not state and beat.",
+      [(DCACHE, r"(\bif\s*\(\s*rst\s*\)\s*begin(?:(?!\bend\b).)*?)\bstate\s*<=\s*LOOKUP\s*;", r"\1", 1),
+       (DCACHE, r"(\bif\s*\(\s*rst\s*\)\s*begin(?:(?!\bend\b).)*?)\bbeat\s*<=\s*[^;]+;", r"\1", 1)],
+      dict(kind="dbench"), "formal dreset_state", d=True),
+    m("data-dependent-store-hit", "data dependence", "A store whose lowest byte is zero does not write the line (it is "
+      "treated as a miss).",
+      [(DCACHE, LANE_WE, r"\1cpu.dat_mosi[7:0] != 8'h00 && cpu.sel[\2]", 1)],
+      dict(kind="formal", prop="ddata_indep"), "bench", d=True),
+    m("data-reset-keeps-valid", "reset", "The reset leaves the D valid bits as they are.",
+      [(DCACHE, r"valid\s*<=\s*'0\s*;", "valid <= valid;", 1)],
+      dict(kind="dbench"), "formal dreset_state", d=True),
+    m("store-hit-invalidates", "performance", "A store hit clears the line's valid bit and writes no lanes. Write-through "
+      "hides it from every correctness check (the next load refills from memory); only performance shows it.",
+      [*added_logic(DCACHE, """    // (mutation) a store hit kills its line until the next refill
+    logic [SETS-1:0] mut_dead;""", """    always_ff @(posedge clk) begin
+        if (rst)
+            mut_dead <= '0;
+        else begin
+            if (st_accept && present)
+                mut_dead[cpu_index] <= 1'b1;
+            if (ev_fill)
+                mut_dead[refill_index] <= 1'b0;
+        end
+    end"""),
+       (DCACHE, r"(assign\s+present\s*=\s*)", r"\1!mut_dead[cpu_index] && ", 1)],
+      dict(kind="dbench"), "dc_load_misses and dc_lookup_hits of the model agreement (VD, latency 2); hpmdcache.s (stores "
+      "to a present line, then DC_LOAD_MISS = 0)", d=True),
+    m("store-hit-ignores-tag", "store lanes", "A store writes its lanes whenever valid[s] is set, without the tag compare: "
+      "it corrupts another line.",
+      [(DCACHE, r"(st_accept\s*&&\s*)present(\s*&&\s*cpu\.sel\[\w+\])", r"\1valid[cpu_index]\2", 1)],
+      dict(kind="programs", config=VD_LAT0, only="memsys/dcache$"), "bench; formal dline_data; dc_store_hits of the model "
+      "agreement", d=True),
+    m("load-hit-refills", "performance", "The first lookup of a load whose line is present is treated as a miss and the "
+      "line is refilled (the valid bit stays set). Only performance shows it.",
+      [*added_logic(DCACHE, """    // (mutation) the lookup after a fill hits, any other lookup of a load misses
+    logic mut_second;""", """    always_ff @(posedge clk) mut_second <= !rst && ev_fill;"""),
+       (DCACHE, r"(assign\s+miss\s*=\s*)([^;]+);", r"\1state == LOOKUP && req && !cpu.we && (!present || !mut_second);", 1),
+       (DCACHE, r"(assign\s+cpu\.ack\s*=\s*)([^;]+);", r"\1(\2) && !(req && !cpu.we && !mut_second);", 1)],
+      dict(kind="dbench"), "dc_load_misses and dc_lookup_hits of the model agreement; hpmdcache.s and hpmcache.s (the "
+      "warm loop: DC_LOAD_MISS = 0)", d=True),
+    m("data-present-mask-hole", "events", "The counter block's hpm_ext_present[19:12] has bit 15 clear: DC_FILL is absent.",
+      [(MCU, r"(hpm_ext_present\[19:12\]\s*=\s*)8'hFF\s*;", r"\g<1>8'hF7;", 1)],
+      dict(kind="programs", config=VD_LAT2, only="asm/hpm$"), "hpmdcache.s", d=True),
+]
+MUTANTS += D_MUTANTS
 # further checks of the directed tests with the fetch compare blinded, beyond the primary ones: run
 # by 'run' after the primary check, and required (a mutant that the blinded test does not catch is
 # reported as MISSED even if its primary check caught it)
@@ -466,6 +655,32 @@ ASSERTION_MAP = [
     ("the interconnect timeout never fires while slave 0 is selected", "ram-not-exempt", None),
     ("block_cont only for a read continuing the previous transfer", "cont-on-first-beat", None),
     ("the scoreboard's reset handling", "sb-wait-kept", None),
+    # with a data cache (the bench of both caches takes the same options; +mode=cpu is its CPU-like data mode,
+    # in which bound (b) is checked)
+    ("ack and err never together, an answer only with cyc && stb (dcache)", "forward-memory-ack",
+     dict(kind="dbench-assert", message=r"dcache: an answer without cyc && stb")),
+    ("ack and err never together (dcache), bench case", "D bench case ack-err", None),
+    ("the memory never answers err to a D-refill", "D bench case d-refill-err", None),
+    ("the memory never answers err to a store of the D-cache", "D bench case d-store-err", None),
+    ("no memory answer in a cycle without a grant (the bench of both caches)", "D bench case spontaneous-answer", None),
+    ("a D-cache request lies inside the window", "D bench case d-out-of-window", None),
+    ("the D-cache's memory-side request stays the same until answered", "D bench case d-request-change", None),
+    ("a continuing data beat is granted", "data-refill-gap",
+     dict(kind="dbench-assert", message=r"mem_arbiter: a continuing data beat was not granted")),
+    ("bounded answer (a) with a D-cache: a slave-0 request", "grant-never-released",
+     dict(kind="assert", config=VD_LAT2, only="memsys/stores$", message=r"bounded answer \(a\)")),
+    ("bounded answer (b) with a D-cache: an I-refill is granted", "i-side-starved",
+     dict(kind="dbench-message", args=["+compare=bounds", "+cover=0", "+cycles=100000", "+mode=cpu"],
+          message=r"refill of line .* not granted within")),
+    ("bounded answer (e): a D-refill is granted", "refill-first",
+     dict(kind="dbench-message", args=["+compare=bounds", "+cover=0", "+cycles=100000"],
+          message=r"D-refill of line .* not granted within")),
+    ("bounded answer (f): a granted D-refill's last beat", "data-refill-gap",
+     dict(kind="dbench-message", args=["+compare=bounds", "+cover=0", "+cycles=100000", "+seed=1"],
+          message=r"D-refill .* last beat not answered within R")),
+    ("the wiring of bits 12 to 19 of the memory-system vector", "data-event-bits-swapped",
+     dict(kind="assert", config=VD_LAT2, only="memsys/hpmdcache$", message=r"hpm_ext|wiring")),
+    ("the present mask of the data-cache events (hpm.s, case 3)", "data-present-mask-hole", None),
 ]
 
 
@@ -526,9 +741,13 @@ def sh(cmd, cwd, timeout=None):
     return r.returncode, r.stdout
 
 
-def bench_run(root, args):
-    """Build the I-cache bench in the tree at root (make) and run it with these options."""
-    top = os.path.join(root, "build", "test", "sv", "test_icache", "top")
+BENCHES = {"icache": ("test_icache", "ICACHE BENCH"), "dcache": ("test_dcache", "DCACHE BENCH")}
+
+
+def bench_run(root, args, bench="icache"):
+    """Build the bench (the I-cache's, or the memory-system bench of both caches) in the tree at root (make)
+    and run it with these options."""
+    top = os.path.join(root, "build", "test", "sv", BENCHES[bench][0], "top")
     rc, text = sh(["make", "-s", "--no-print-directory", os.path.relpath(top, root)], root)
     if rc:
         return None, f"the bench does not build: {text.strip()[-160:]}"
@@ -552,36 +771,42 @@ def programs_run(root, config, only, sim_args="", cpu="dut"):
 def check(root, spec, mu):
     """-> (caught, evidence)."""
     kind = spec["kind"]
-    if kind == "bench":
-        rc, text = sh(["make", "-s", "--no-print-directory", "test/sv/test_icache"], root)
-        ok = rc == 0 and "ICACHE BENCH: PASS" in text
+    if kind in ("bench", "dbench"):
+        bench = "dcache" if kind == "dbench" else "icache"
+        tag = BENCHES[bench][1]
+        if spec.get("args"):
+            rc, text = bench_run(root, spec["args"], bench)
+            if rc is None:
+                return None, text
+        else:
+            rc, text = sh(["make", "-s", "--no-print-directory", "test/sv/" + BENCHES[bench][0]], root)
+        ok = rc == 0 and f"{tag}: PASS" in text
         lines = text.splitlines()
-        line = next((l for l in lines if "ICACHE BENCH: FAIL" in l or "%Fatal" in l or "ICACHE BENCH: PASS" in l),
+        line = next((l for l in lines if f"{tag}: FAIL" in l or "%Fatal" in l or f"{tag}: PASS" in l),
                     lines[-1] if lines else "(no output)")
         return (not ok), line[:200]
-    if kind == "bench-message":
-        rc, text = bench_run(root, spec.get("args", []))
+    if kind in ("bench-message", "dbench-message"):
+        rc, text = bench_run(root, spec.get("args", []), "dcache" if kind.startswith("d") else "icache")
         if rc is None:
             return None, text
         hit = next((l for l in text.splitlines() if re.search(spec["message"], l)), None)
         return hit is not None, (hit or "the message did not appear")[:200]
-    if kind == "bench-assert":
+    if kind in ("bench-assert", "dbench-assert"):
         # only the assertions inside the RTL can stop the bench with +compare=0
-        rc, text = bench_run(root, ["+compare=0", "+cover=0", "+cycles=100000"])
+        rc, text = bench_run(root, ["+compare=0", "+cover=0", "+cycles=100000"], "dcache" if kind.startswith("d") else "icache")
         if rc is None:
             return None, text
         hit = next((l for l in text.splitlines() if re.search(spec["message"], l) and "%" in l), None)
         return hit is not None, (hit or "the assertion's message did not appear")[:200]
-    if kind in ("programs", "blinded", "assert", "port-identity"):
-        if kind == "blinded" and "1'b0 && mcu.fetch_bus.dat_miso" not in open(os.path.join(root, TOP)).read():
-            probs = apply(root, BLIND)
-            if probs:
-                return None, "the blinding patch: " + "; ".join(probs)
-        if kind == "blinded" and spec.get("answers") and "1'b0 && mcu.fetch_bus.ack && mcu.fetch_bus.err" not in \
-                open(os.path.join(root, TOP)).read():
-            probs = apply(root, BLIND_ANSWERS)
-            if probs:
-                return None, "the blinding patch of the answer checks: " + "; ".join(probs)
+    if kind in ("programs", "blinded", "assert", "port-identity", "identities"):
+        if kind == "blinded":
+            # the scoreboard comparisons that the row blinds (default: the fetch compare), each patched once
+            for b in spec.get("blind", ["fetch"]) + (["answers"] if spec.get("answers") else []):
+                patches, sentinel = BLINDS[b]
+                if sentinel not in open(os.path.join(root, TOP)).read():
+                    probs = apply(root, patches)
+                    if probs:
+                        return None, f"the blinding patch ({b}): " + "; ".join(probs)
         rc, text, res, out = programs_run(root, spec["config"], spec.get("only", ""))
         if res is None:
             return True, f"programs.py did not finish (exit {rc}): {text.strip()[-160:]}"
@@ -611,6 +836,13 @@ def check(root, spec, mu):
                     bad.append(f"{r['program']}: {why}")
             return bool(bad), "; ".join(bad[:3]) or "the programs' own reports and verdicts unchanged"
         logs = [open(os.path.join(out, r["dir"], "sim.log"), errors="replace").read() for r in runs]
+        if kind == "identities":
+            sys.path.insert(0, HERE)
+            import matrix
+            sys.path.pop(0)
+            bad = [f"{r['program']}: {x}" for r, t in zip(runs, logs) for x in matrix.identities(t)]
+            bad += [f"{r['program']}: {(r['problems'] + r['errors'])[0]}" for r in runs if r["problems"] or r["errors"]]
+            return bool(bad), "; ".join(bad[:2]) or "the identities hold"
         if kind == "assert":
             hit = next((l for t in logs for l in t.splitlines() if re.search(spec["message"], l) and "%" in l), None)
             ev = ""
@@ -634,7 +866,13 @@ def check(root, spec, mu):
                 continue
             if st["port_irefill"] != 6 * st["i_done"] + st["i_inflight_port"]:
                 bad.append(f"port_irefill {st['port_irefill']} != 6 * {st['i_done']} + {st['i_inflight_port']}")
-            if st["port_data"] != 3 * (st["d_loads"] + st["d_stores"]) + st["d_inflight_port"]:
+            if "dc_done" in st:
+                # with a data cache: a refill is 6 cycles, a store 3
+                want = 6 * st["dc_done"] + 3 * st["d_stores"] + st["dc_inflight_port"] + st["d_inflight_port"]
+                if st["port_data"] != want:
+                    bad.append(f"port_data {st['port_data']} != 6 * {st['dc_done']} + 3 * {st['d_stores']} + "
+                               f"{st['dc_inflight_port']} + {st['d_inflight_port']}")
+            elif st["port_data"] != 3 * (st["d_loads"] + st["d_stores"]) + st["d_inflight_port"]:
                 bad.append(f"port_data {st['port_data']} != 3 * ({st['d_loads']} + {st['d_stores']}) + "
                            f"{st['d_inflight_port']}")
         return bool(bad), "; ".join(bad[:2]) or "the port identities hold"
@@ -725,7 +963,7 @@ def build_check(root, mu):
     files = sorted({f for f, *_ in mu["patches"]})
     done = []
     if any(f.endswith(".sv") for f in files):
-        config = mu["primary"].get("config") or SMALL_LAT2
+        config = mu["primary"].get("config") or (VD_LAT2 if mu.get("d") else SMALL_LAT2)
         rc, cfg = sh(["make", "-s", "--no-print-directory", "sim-config"] + config, root)
         m_ = re.search(r"Verilator defines:\s+(.*)", cfg)
         if rc or not m_:
@@ -733,9 +971,13 @@ def build_check(root, mu):
         defs = [] if m_.group(1).strip() == "(none)" else m_.group(1).split()
         lints = [("the simulator (" + " ".join(config) + ")",
                   ["-f", "sim/files.txt"] + defs + ["--top-module", "top", "sim/top.sv"])]
-        if any(f.startswith("rtl/cache/") for f in files):
+        if any(f.startswith("rtl/cache/") for f in files) and (not mu.get("d") or ARB in files):
             lints.append(("the I-cache bench", ["-f", "sim/files.txt", "-f", "test/sv/files.txt", "-y", "rtl/cache",
                                                 "--top-module", "test_icache", "test/sv/test_icache.sv"]))
+        if any(f.startswith("rtl/cache/") for f in files) and mu.get("d") and \
+                os.path.exists(os.path.join(root, "test", "sv", "test_dcache.sv")):
+            lints.append(("the memory-system bench", ["-f", "sim/files.txt", "-f", "test/sv/files.txt", "-y", "rtl/cache",
+                                                      "--top-module", "test_dcache", "test/sv/test_dcache.sv"]))
         for what, args in lints:
             rc, text = sh(["verilator", "--lint-only", "-Wno-fatal", "--timing", "--assert",
                            "-Mdir", os.path.join(root, "build", "lint-only")] + args, root)
@@ -843,11 +1085,14 @@ def cmd_anchors(a):
             shutil.copy(os.path.join(REPO, f), os.path.join(d, f))
         probs = apply(d, BLIND)
         probs_a = apply(d, BLIND_ANSWERS)
+        probs_l = apply(d, BLIND_LOAD)
+        probs_s = apply(d, BLIND_STORE)
     finally:
         shutil.rmtree(d, ignore_errors=True)
-    print(f"{'ok     ' if not probs else 'MISSING'} (the blinding of the fetch compare)" + "".join(f"\n        {p}" for p in probs))
-    print(f"{'ok     ' if not probs_a else 'MISSING'} (the blinding of the fetch answer checks)" + "".join(f"\n        {p}" for p in probs_a))
-    probs += probs_a
+    for what, pr in (("the blinding of the fetch compare", probs), ("the blinding of the fetch answer checks", probs_a),
+                     ("the blinding of the load compare", probs_l), ("the blinding of the RAM comparisons", probs_s)):
+        print(f"{'ok     ' if not pr else 'MISSING'} ({what})" + "".join(f"\n        {p}" for p in pr))
+    probs += probs_a + probs_l + probs_s
     print(f"ANCHORS: {len(names) - bad} of {len(names)} mutants apply to this tree")
     return 0 if not bad and not probs else 1
 

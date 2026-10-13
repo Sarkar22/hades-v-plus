@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""matrix.py -- the verification matrix of the simulators with an instruction cache.
+"""matrix.py -- the verification matrix of the simulators with an instruction cache and with both caches.
 
 Runs the legs below, each a set of jobs (one configuration, one program set or one FreeRTOS
 program, one or both CPUs), judges every job, checks the CACHE_STATS identities on every log of a
@@ -12,7 +12,11 @@ cached run, and keeps the verdicts, so that the whole matrix can be run over sev
     python3 test/memsys/matrix.py summary [--out DIR]       the table of the recorded verdicts
 
 Configurations: the small cache (ICACHE=512) and the large one (ICACHE=8192), 16-byte lines unless
-a leg says otherwise; 'standard' is the build without a slow memory. Latency profiles:
+a leg says otherwise; 'standard' is the build without a slow memory. The legs whose names begin with 'd-'
+run the same suites with a data cache as well: the small pair (ICACHE=512 DCACHE=512, 'i512-d512') in place
+of the small cache and the large pair (ICACHE=8192 DCACHE=4096, 'i8k-d4k') in place of the large one;
+'i-only-regression' runs the instruction-cache-only configurations on this tree and on an earlier revision
+(REGRESSION_BASE=<revision>) and compares them. Latency profiles:
 
     lat0     no MEM_* option: the cache alone, latency 0 (refills at one cycle per beat)
     lat2     MEM_LAT=2: every transfer waits 2 cycles, bursts off
@@ -21,6 +25,7 @@ a leg says otherwise; 'standard' is the build without a slow memory. Latency pro
     stress   MEM_LAT=1:64: beyond the interconnect timeout without the RAM's exemption
     dram     MEM_LAT=8:24 MEM_WR_LAT=1:4 MEM_BEAT_LAT=0: DRAM-like (measurements only)
     dram-nobursts  MEM_LAT=8:24 MEM_WR_LAT=1:4 without a cache: the baseline of the CPI rows
+    dram-wr48, dram-wr824  as dram with MEM_WR_LAT=4:8 and 8:24 (reads stay 8:24): the write-latency rows
 
 Every job runs with the scoreboard on (the default with a slow memory) and its fetch compare on.
 Hard conditions for every run of both CPUs: no scoreboard mismatch, no %Fatal or %Error (every
@@ -35,6 +40,12 @@ CACHE_STATS identities, on every log of a cached run without a RESET line:
     i_beats = <words per line> * i_done + i_inflight_beats
     i_hits, d_loads, d_stores = the fetches, loads and stores of the SCOREBOARD line
     cycles = the cycles of the RETIRED line
+and, with a data cache (the dc_ fields; d_loads is then the words that D-refills read, d_stores the stores):
+    dc_load_misses = dc_done + dc_inflight      dc_beats = <words per line> * dc_done + dc_inflight_beats
+    d_loads = dc_beats                          dc_lookup_hits = the loads of the SCOREBOARD line
+    dc_store_hits + dc_store_misses = d_stores = the stores of the SCOREBOARD line
+    at a fixed latency: port_irefill = <refill> * i_done + i_inflight_port and
+    port_data = <refill> * dc_done + (write latency + 1) * d_stores + dc_inflight_port + d_inflight_port
 and on a log with RESET lines: cycles = the cycles after the last reset (RETIRED counts every
 cycle without reset since time 0; see cycles_after_last_reset).
 
@@ -46,7 +57,7 @@ directory never run at the same time: their build directory is shared.
 
 A leg that needs an instruction cache refuses to run in a tree whose Makefile does not know the
 ICACHE option (make sim-config shows no HADES_ICACHE_BYTES define): such a tree would silently
-build the uncached configuration.
+build the uncached configuration. The same for a data cache and the DCACHE option.
 """
 import argparse
 import concurrent.futures as cf
@@ -78,13 +89,20 @@ PROFILES = {
     "dram":   ["MEM_LAT=8:24", "MEM_WR_LAT=1:4", "MEM_BEAT_LAT=0"],
     # the uncached baseline of the CPI measurement: two ports, bursts off
     "dram-nobursts": ["MEM_LAT=8:24", "MEM_WR_LAT=1:4"],
+    # the write latency of the store-stall measurement: reads stay 8:24
+    "dram-wr48":  ["MEM_LAT=8:24", "MEM_WR_LAT=4:8", "MEM_BEAT_LAT=0"],
+    "dram-wr824": ["MEM_LAT=8:24", "MEM_WR_LAT=8:24", "MEM_BEAT_LAT=0"],
     # fixed latencies of the interrupt-latency validation (irqlat.s)
     "lat1":   ["MEM_LAT=1"],
     "lat5":   ["MEM_LAT=5"],
 }
 CACHES = {"i512": ["ICACHE=512"], "i8k": ["ICACHE=8192"], "i16k": ["ICACHE=16384"], "standard": [],
           "i512-line8": ["ICACHE=512", "LINE=8"], "i512-line32": ["ICACHE=512", "LINE=32"],
-          "i512-line64": ["ICACHE=512", "LINE=64"]}
+          "i512-line64": ["ICACHE=512", "LINE=64"],
+          # with a data cache as well: the small pair (512-byte caches) and the large pair (8 KiB and 4 KiB)
+          "i512-d512": ["ICACHE=512", "DCACHE=512"], "i8k-d4k": ["ICACHE=8192", "DCACHE=4096"],
+          "i512-d512-line8": ["ICACHE=512", "DCACHE=512", "LINE=8"], "i512-d512-line32": ["ICACHE=512", "DCACHE=512", "LINE=32"],
+          "i512-d512-line64": ["ICACHE=512", "DCACHE=512", "LINE=64"]}
 # the automatic FreeRTOS tick factor F of each profile with a cache (test/freertos/freertos.mk)
 TICK_FACTOR = {"lat0": 2, "lat2": 4, "rand1": 7, "rand2": 7, "rand3": 7, "burst": 7, "stress": 35}
 
@@ -104,6 +122,7 @@ def cname(cache, profile):
 # ------------------------------------------------------------------------------ the logs
 CACHE_STATS = re.compile(r"^CACHE_STATS (.*)$", re.M)
 LINE_BYTES = re.compile(r"^CACHE I-cache \d+ bytes, (\d+)-byte lines", re.M)
+DCACHE_LINE = re.compile(r"^CACHE D-cache (\d+) bytes, (\d+)-byte lines", re.M)
 SCOREBOARD_PASS = re.compile(r"^SCOREBOARD: PASS\s+(\d+) fetches, (\d+) loads, (\d+) stores", re.M)
 RETIRED = re.compile(r"^RETIRED cycles=(\d+)", re.M)
 # (a program's UART text without a newline can stand in front of the RESET line, as in front of
@@ -131,6 +150,21 @@ def cycles_after_last_reset(text):
     return int(r.group(1)) - before
 
 
+def sim_latencies(text):
+    """The latencies of the one memory port from the 'SLOW MEMORY memory port:' line of a log ->
+    (read range, write range, burst beat latency or -1 when off) or None."""
+    m = re.search(r"^SLOW MEMORY memory port: read latency (\S+), write latency (\S+), burst beats (\S+)", text, re.M)
+    if not m:
+        return None
+
+    def rng(t):
+        a = re.fullmatch(r"(\d+)(?:(?:\.\.|:|-)(\d+))?", t.strip())
+        return (int(a.group(1)), int(a.group(2) or a.group(1))) if a else None
+    rd, wr = rng(m.group(1)), rng(m.group(2))
+    beat = -1 if m.group(3).startswith("off") else int(re.match(r"\d+", m.group(3)).group(0))
+    return (rd, wr, beat) if rd and wr else None
+
+
 def identities(text):
     """The CACHE_STATS identities of one log -> list of violations ([] if it has no CACHE_STATS)."""
     st = stats_of(text)
@@ -144,6 +178,7 @@ def identities(text):
         return bad
     lm = LINE_BYTES.search(text)
     lw = int(lm.group(1)) // 4 if lm else 4
+    dcache = "dc_lookup_hits" in st
 
     def need(name, got, want):
         if got != want:
@@ -153,14 +188,32 @@ def identities(text):
         need("i_refill_cycles = wait_i_for_port + port_irefill", st["i_refill_cycles"],
              st["wait_i_for_port"] + st["port_irefill"])
         need(f"i_beats = {lw} * i_done + i_inflight_beats", st["i_beats"], lw * st["i_done"] + st["i_inflight_beats"])
+        if dcache:
+            need("dc_load_misses = dc_done + dc_inflight", st["dc_load_misses"], st["dc_done"] + st["dc_inflight"])
+            need(f"dc_beats = {lw} * dc_done + dc_inflight_beats", st["dc_beats"], lw * st["dc_done"] + st["dc_inflight_beats"])
+            need("d_loads = dc_beats", st["d_loads"], st["dc_beats"])
+            need("dc_store_hits + dc_store_misses = d_stores", st["dc_store_hits"] + st["dc_store_misses"], st["d_stores"])
         sb = SCOREBOARD_PASS.search(text)
         if sb:
             need("i_hits = scoreboard fetches", st["i_hits"], int(sb.group(1)))
-            need("d_loads = scoreboard loads", st["d_loads"], int(sb.group(2)))
+            if dcache:
+                need("dc_lookup_hits = scoreboard loads", st["dc_lookup_hits"], int(sb.group(2)))
+            else:
+                need("d_loads = scoreboard loads", st["d_loads"], int(sb.group(2)))
             need("d_stores = scoreboard stores", st["d_stores"], int(sb.group(3)))
         r = RETIRED.search(text)
         if r:
             need("cycles = RETIRED cycles", st["cycles"], int(r.group(1)))
+        lat = sim_latencies(text) if dcache else None
+        if lat and lat[0][0] == lat[0][1] and lat[1][0] == lat[1][1]:
+            # a fixed latency: the port cycles of D-refills and stores (the burst rule discounts the beats of a refill block)
+            rd, wr, beat = lat[0][0], lat[1][0], lat[2]
+            refill = (rd + 1) + (lw - 1) * ((beat if beat >= 0 else rd) + 1)
+            need(f"port_irefill = {refill} * i_done + i_inflight_port", st["port_irefill"],
+                 refill * st["i_done"] + st["i_inflight_port"])
+            need(f"port_data = {refill} * dc_done + {wr + 1} * d_stores + dc_inflight_port + d_inflight_port",
+                 st["port_data"], refill * st["dc_done"] + (wr + 1) * st["d_stores"] + st["dc_inflight_port"] +
+                 st["d_inflight_port"])
     except KeyError as e:
         bad.append(f"CACHE_STATS lacks {e}")
     return bad
@@ -212,8 +265,12 @@ def clean_env():
 
 
 def has_cache(vars_):
+    """Whether make sim-config shows the caches that the options ask for (a tree whose Makefile does not know
+    ICACHE or DCACHE would silently build the configuration without them)."""
     _, text = build_dir(vars_)
-    return "+define+HADES_ICACHE_BYTES=" in text
+    if "+define+HADES_ICACHE_BYTES=" not in text:
+        return False
+    return "+define+HADES_DCACHE_BYTES=" in text or not any(v.startswith("DCACHE=") for v in vars_)
 
 
 # ---- judges: (job, returncode, output text, job directory) -> (verdict, [notes])
@@ -602,13 +659,54 @@ def positions_confirm_judge(job, rc, out, d):
     return ("PASS" if verdict == "PASS" and not missing else "FAIL"), notes
 
 
+DSIDE_MINIMA = {
+    prog: dict(dc_load_misses=(prog, r"dc_load_misses is at least (\d+)"),
+               dc_store_hits=(prog, r"dc_store_hits at least (\d+)"),
+               dc_store_misses=(prog, r"dc_store_misses at least (\d+)"))
+    for prog in ("dcache", "dcoherence")}
+
+
+def dside_notes(d):
+    """The coverage stated in the headers of dcache.s and dcoherence.s: CACHE_STATS dc_load_misses, dc_store_hits and
+    dc_store_misses at least the minimum of the header (they do not depend on the timing, and are the same for the
+    512-byte and the 4 KiB data cache, 16-byte lines) -> notes ('(recorded)' for a figure that holds)."""
+    notes = []
+    for prog, want in DSIDE_MINIMA.items():
+        log = read(os.path.join(d, "dut", f"memsys-{prog}", "sim.log"))
+        if not log:
+            continue
+        st = stats_of(log)
+        if not st or "dc_load_misses" not in st:
+            notes.append(f"{prog}: no CACHE_STATS line with the dc_ fields")
+            continue
+        for k, (hp, pat) in want.items():
+            v = header_minimum(hp, pat)
+            if v is None:
+                notes.append(f"{prog}: no minimum of {k} in its header")
+            elif st.get(k, -1) < v:
+                notes.append(f"{prog}: {k}={st.get(k)} below the header's {v}")
+            else:
+                notes.append(f"{prog}: {k}={st.get(k)} (at least {v}; recorded)")
+    return notes
+
+
+def dcache_coverage_judge(job, rc, out, d):
+    """dcache.s and dcoherence.s (and the other programs of the job) as programs.py judges them, and the coverage of
+    their headers."""
+    verdict, notes = programs_judge(job, rc, out, d)
+    notes += dside_notes(d)
+    fails = [n for n in notes if "recorded" not in n and not n.startswith("golden (recorded)")]
+    return ("PASS" if verdict == "PASS" and not fails else "FAIL"), notes
+
+
 def coverage_judge(job, rc, out, d):
     """Directed tests with a cache: the reports as on the standard build (programs.py), and the
     coverage stated in each test's header: i_done and i_abandoned of irqchain and fetchredirect,
     snoop_inval of icoherence, the interrupt positions of irqchain (+ram_words), and every test
-    below 80% of its cycle limit."""
+    below 80% of its cycle limit; with a data cache also the data-cache figures of dcache.s and
+    dcoherence.s."""
     verdict, notes = programs_judge(job, rc, out, d)
-    large = job.cache == "i8k"
+    large = job.cache.startswith("i8k")
     try:
         limit = json.load(open(os.path.join(d, "results.json")))["timeout"]
     except (OSError, ValueError, KeyError):
@@ -647,6 +745,8 @@ def coverage_judge(job, rc, out, d):
             notes.append(f"{prog}: {r.group(1)} cycles, 80% or more of the limit {lim}")
         elif r:
             notes.append(f"{prog}: {r.group(1)} cycles, {100 * int(r.group(1)) / lim:.1f}% of the limit {lim} (recorded)")
+    if "-d" in job.cache:
+        notes += dside_notes(d)
     notes += irqchain_positions(job, d)
     notes += fetchredirect_cases(d, header_minimum("fetchredirect", r"\(at least (\d+) per case\)"))
     fails = [n for n in notes if "recorded" not in n]
@@ -698,18 +798,24 @@ PHASES = {
     "RAM store wait":   lambda b: (b & 0x1C) == 0x1C,
     "RAM load wait":    lambda b: (b & 0x1C) == 0x0C,
     "I/O wait":         lambda b: (b & 0x0C) == 0x04,
+    # with a data cache: bit 7 of the phase log is 'the D-cache is in REFILL', bit 5 'the data side is granted the port'
+    "D refill beat":    lambda b: (b & 0x80) and (b & 0x20),
+    "D refill waiting": lambda b: (b & 0x80) and not (b & 0x20),
 }
 # The phase of a RESET line. With a cache a RAM access that waits for its answer is either still
 # waiting for the memory port ("RAM load waiting") or granted it ("granted (RAM load)"); both count.
-RESET_TEXT = {"refill beat": r"I-cache refill beat", "refill waiting": r"refill waiting for the port",
+RESET_TEXT = {"refill beat": r"I-cache refill beat", "refill waiting": r"I-cache refill waiting for the port",
               "RAM store wait": r"data side (RAM store waiting|granted \(RAM store\))",
-              "RAM load wait": r"data side (RAM load waiting|granted \(RAM load\))",
-              "I/O wait": r"data side I/O access waiting"}
+              "RAM load wait": r"data side (RAM load waiting|granted \(RAM load\)|RAM load: refill)",
+              "I/O wait": r"data side I/O access waiting",
+              "D refill beat": r"data side RAM load: refill beat \d+ of \d+",
+              "D refill waiting": r"data side RAM load: refill waiting for the port"}
 
 
-def place_resets(phase_log, cached):
+def place_resets(phase_log, cached, dcached=False):
     """Cycles to reset in, from a phase log (one byte per cycle): three refill beats and three waiting
-    refills (cached only), and for each kind of data wait its first, a middle and its last cycle."""
+    refills (cached only), the same of the D-cache's refills (with a data cache only), and for each kind of
+    data wait its first, a middle and its last cycle."""
     data = open(phase_log, "rb").read()
     picks = []
 
@@ -725,8 +831,10 @@ def place_resets(phase_log, cached):
     for name, test in PHASES.items():
         if not cached and name.startswith("refill"):
             continue
+        if not dcached and name.startswith("D refill"):
+            continue
         rs = runs(test)
-        if name.startswith("refill"):
+        if name.startswith(("refill", "D refill")):
             for s, e in rs[len(rs) // 4::max(1, len(rs) // 3)][:3]:
                 picks.append((name, s + (e - s) // 2))
         else:
@@ -737,7 +845,7 @@ def place_resets(phase_log, cached):
     return [(n, c) for n, c in picks if c > RESET_DELAY + 2]
 
 
-def reset_runs(job, d, sim, prog_dir, prog, cached, timeout):
+def reset_runs(job, d, sim, prog_dir, prog, cached, timeout, dcached=False):
     """One phase-log run and one run per placed reset -> (notes, results)."""
     os.makedirs(d, exist_ok=True)
     shutil.copy(os.path.join(prog_dir, "init.mem"), d)
@@ -746,7 +854,7 @@ def reset_runs(job, d, sim, prog_dir, prog, cached, timeout):
     notes, results = [], []
     if not os.path.exists(os.path.join(d, "phase.bin")):
         return [f"{prog}: no phase log ({base.stdout[-200:]})"], results
-    for name, cyc in place_resets(os.path.join(d, "phase.bin"), cached):
+    for name, cyc in place_resets(os.path.join(d, "phase.bin"), cached, dcached):
         rd = os.path.join(d, f"reset-{cyc}")
         os.makedirs(rd, exist_ok=True)
         shutil.copy(os.path.join(prog_dir, "init.mem"), rd)
@@ -763,7 +871,7 @@ def reset_runs(job, d, sim, prog_dir, prog, cached, timeout):
     return notes, results
 
 
-def resets_judge_factory(cached, minimum=3):
+def resets_judge_factory(cached, minimum=3, dcached=False):
     def judge(job, rc, out, d):
         notes = []
         try:
@@ -778,7 +886,8 @@ def resets_judge_factory(cached, minimum=3):
             for k, pat in RESET_TEXT.items():
                 if re.search(pat, r["reset_line"]):
                     count[k] += 1
-        need = {k: minimum for k in RESET_TEXT if cached or not k.startswith("refill")}
+        need = {k: minimum for k in RESET_TEXT if (cached or not k.startswith("refill"))
+                and (dcached or not k.startswith("D refill"))}
         for k, n in need.items():
             if count[k] < n:
                 notes.append(f"only {count[k]} reset(s) in phase '{k}' by the RESET lines (need {n})")
@@ -789,15 +898,18 @@ def resets_judge_factory(cached, minimum=3):
 
 def resets_job(leg, cache, profile, progs=("memsys/stores", "memsys/fetchredirect", "memsys/icoherence",
                                            "memsys/irqchain", "asm/ops", "asm/memirq")):
+    dcached = "-d" in cache
+    if dcached and "memsys/dcache" not in progs and progs:
+        progs = tuple(progs) + ("memsys/dcache",)
     # asm/memirq is the program of the set that accesses the test stall register (a 4-cycle wait for
     # the answer): none of the others waits for an I/O answer, so without it no reset lands in an I/O wait
     cached = cache != "standard"
 
     def cmd(d):
         return [sys.executable, os.path.abspath(__file__), "_resets", "--dir", d, "--cached", str(int(cached)),
-                "--programs", ",".join(progs), "--"] + config(cache, profile)
-    return Job(leg, cname(cache, profile), cache, profile, cmd, resets_judge_factory(cached), 5e7, cpus="dut",
-               needs_cache=cached)
+                "--dcached", str(int(dcached)), "--programs", ",".join(progs), "--"] + config(cache, profile)
+    return Job(leg, cname(cache, profile), cache, profile, cmd, resets_judge_factory(cached, dcached=dcached), 5e7,
+               cpus="dut", needs_cache=cached)
 
 
 # ---- model agreement (cachemodel.py rtlcheck; docs/CACHES.md)
@@ -810,17 +922,19 @@ MODEL_PROGRAMS = ("memsys/fetchredirect", "asm/zkt", "memsys/stores")
 
 def model_job(leg, cache, profile, burst=False, step4=False):
     """One model-agreement job: step 0 (timing independence), steps 1 to 3 (or 5 with burst: the run with
-    MEM_BEAT_LAT=0) for the programs of MODEL_PROGRAMS, and with step4 the informative step 4."""
+    MEM_BEAT_LAT=0) for the programs of MODEL_PROGRAMS (and dcache.s with a data cache), and with step4 the
+    informative step 4."""
     extra = ["MEM_BEAT_LAT=0"] if burst else []
+    programs = MODEL_PROGRAMS + (("memsys/dcache",) if "-d" in cache else ())
 
     def cmd(d):
         return [sys.executable, os.path.abspath(__file__), "_model", "--dir", d, "--programs",
-                ",".join(MODEL_PROGRAMS)] + (["--app", "minimal"] if step4 else []) + \
+                ",".join(programs)] + (["--app", "minimal"] if step4 else []) + \
             ["--"] + config(cache, profile) + extra
 
     def judge(job, rc, out, d):
         notes = []
-        for prog in MODEL_PROGRAMS:
+        for prog in programs:
             m = re.search(rf"^MODEL {re.escape(prog)}: RTLCHECK: (\S+)", out, re.M)
             if not m or m.group(1) != "AGREE":
                 notes.append(f"{prog}: {m.group(1) if m else 'no rtlcheck verdict'}")
@@ -838,11 +952,260 @@ def model_job(leg, cache, profile, burst=False, step4=False):
                lock=("trace", "minimal") if step4 else None)
 
 
+# ---- the counter presets with both caches (HPM_PRESET=H and I): the monitor's own checks
+def hpm_preset_judge(job, rc, out, d):
+    """freertos-compare with a counter preset: as for any FreeRTOS compare, and the dut's log has 'HPM_CHECK ok' and
+    'HPM_CACHE_COMPARE ok' (the counters of the cache events, those of the data cache included, equal CACHE_STATS)."""
+    verdict, notes = freertos_judge(job, rc, out, d)
+    dut_logs = [f for f in job_logs(d) if "dut" in os.path.basename(f)] or job_logs(d)
+    text = "".join(read(f) for f in dut_logs)
+    for want in ("HPM_CHECK ok", "HPM_CACHE_COMPARE ok"):
+        if want not in text:
+            notes.append(f"no '{want}' line in the dut log")
+    return ("PASS" if not notes else "FAIL"), notes
+
+
+# ---- T20: the instruction-cache-only configurations on this tree and on an earlier revision
+def regression_judge(job, rc, out, d):
+    notes = []
+    m = re.search(r"^PROGRAMS COMPARE: (\S+)\s+(\d+) runs, (\d+) differ; equal bus hashes: (\d+)(.*)$", out, re.M)
+    if not m:
+        return "FAIL", ["no PROGRAMS COMPARE line" + (f": {out.strip().splitlines()[-1][:160]}" if out.strip() else "")]
+    if m.group(1) != "SAME" or int(m.group(3)):
+        notes.append(f"PROGRAMS COMPARE: {m.group(1)}, {m.group(3)} of {m.group(2)} runs differ")
+    st = re.search(r"equal CACHE_STATS lines: (\d+)", m.group(5))
+    notes.append(f"{m.group(2)} runs compared, equal bus hashes {m.group(4)}"
+                 + (f", equal CACHE_STATS lines {st.group(1)}" if st else "") + " (recorded)")
+    if not int(m.group(4)):
+        notes.append("no bus hash was compared")
+    if not st or not int(st.group(1)):
+        notes.append("no CACHE_STATS line was compared")
+    return ("PASS" if not [n for n in notes if "recorded" not in n] and rc == 0 else "FAIL"), notes
+
+
+def regression_job(cache, profile):
+    base = os.environ.get("REGRESSION_BASE", "")
+
+    def cmd(d):
+        return [sys.executable, os.path.abspath(__file__), "_regression", "--dir", d, "--base", base, "--"] + config(cache, profile)
+    return Job("i-only-regression", cname(cache, profile), cache, profile, cmd, regression_judge, 6e7, cpus="both",
+               needs_cache=True)
+
+
+def helper_regression(a, vars_):
+    """The same programs in the same configuration on this tree and on the revision a.base (a shared clone in
+    <dir>/base): programs.py run with +bushash on both, then programs.py compare restricted to the programs whose
+    sources are the same in the two revisions (the same sources give the same images), with asm/hpm and memsys/hpmcache,
+    whose fetched words were changed on purpose, compared by their reports, and with the CACHE_STATS lines compared too."""
+    if not a.base:
+        print("REGRESSION: give the earlier revision in the environment: REGRESSION_BASE=<revision> matrix.py run ...")
+        return 2
+    base_dir = os.path.join(a.dir, "base")
+    if not os.path.isdir(base_dir):
+        subprocess.run(["git", "clone", "-q", "--shared", REPO, base_dir], check=True)
+    subprocess.run(["git", "-C", base_dir, "checkout", "-q", a.base], check=True)
+    tip = subprocess.run(["git", "-C", REPO, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    runs = {}
+    for name, root in (("A", base_dir), ("B", REPO)):
+        out = os.path.join(a.dir, f"runs-{name}")
+        r = subprocess.run([sys.executable, os.path.join(root, "test", "memsys", "programs.py"), "run"] + vars_ +
+                           ["--sim-args", "+bushash", "--jobs", "4", "--out", out], cwd=root, env=clean_env(),
+                           capture_output=True, text=True, errors="replace")
+        print(f"PROGRAMS RUN {name} ({root}): exit {r.returncode}; " + (r.stdout.strip().splitlines() or ["(no output)"])[-1][:200])
+        runs[name] = out
+    c = subprocess.run([sys.executable, os.path.join(HERE, "programs.py"), "compare", "--same-sources", a.base, tip,
+                        "--reports-only", "asm/hpm", "--reports-only", "memsys/hpmcache", "--stats", runs["A"], runs["B"]],
+                       cwd=REPO, capture_output=True, text=True, errors="replace")
+    print(c.stdout)
+    return c.returncode
+
+
+# ---- 6.8: the data cache's CPI and store stall, with the model's write buffers
+def model_trace(app, bpred, d, vars_extra, ram_kb, window, mark):
+    """The bus trace of the program at the standard memory (TICK=10000, the row's BPRED), prepared, and the cycle at which it has retired `mark`
+    instructions -> (prepared directory, window end) or (None, None)."""
+    import numpy as np
+    tdir = os.path.join(d, "trace")
+    os.makedirs(tdir, exist_ok=True)
+    binfile = os.path.join(tdir, "bustrace.bin")
+    vars_extra = [v for v in vars_extra if not v.startswith("MEM_")]       # the trace is at the standard memory
+    if app == "shell":
+        subprocess.run(make_cmd(["freertos-shell-test", "APP=shell", f"APP_CONSOLE_ARGS=+bustrace={binfile}"],
+                                ["BUSTRACE=1", "TICK=10000", f"BPRED={bpred}"] + vars_extra), capture_output=True,
+                       text=True, env=clean_env())
+    else:
+        frtos_direct(app, ["BUSTRACE=1", "TICK=10000", f"BPRED={bpred}"] + vars_extra + window, ["+bustrace=" + binfile], tdir)
+    if not os.path.exists(binfile):
+        return None, None
+    prepared = os.path.join(tdir, "prepared")
+    model_prep(binfile, prepared, ram_kb, app)
+    os.remove(binfile)
+    code = np.load(os.path.join(prepared, "code.npy"), mmap_mode="r")
+    retired = np.cumsum((np.asarray(code) >> 5) & 1)
+    if mark is None or retired[-1] < mark:
+        return None, None
+    return prepared, int(np.searchsorted(retired, mark)) + 1
+
+
+def model_d_columns(prepared, w1, seed, wr, d):
+    """The model of PD x GD on a prepared trace over w1 cycles, with write latency wr: --wbuf none, line and ideal ->
+    {wbuf: figures}."""
+    out = {}
+    for wbuf in ("none", "line", "ideal"):
+        res = model_run(prepared, ["--isize", "8192", "--dsize", "4096", "--line", "16", "--mem", "burst", "--beat-cycles", "1",
+                                   "--rd-lat", "8:24", "--wr-lat", wr, "--wbuf", wbuf], os.path.join(d, f"model-{wbuf}.jsonl"),
+                        seed=seed, w1=w1)
+        raw = res["raw"]
+        out[wbuf] = dict(cycles=res["cycles"], instructions=res["instructions"], cpi=res["cpi"], cpi_base=res["cpi_base"],
+                         i_mpki=res["i_mpki"], d_mpki=res["d_mpki"], store_stall_share=res["store_stall_share"],
+                         st_store=raw["st_store"], wait_i_for_port=raw["wait_i_for_port"],
+                         wait_d_for_port=raw["wait_d_for_port"])
+    return out
+
+
+WR_LAT = {"dram": "1:4", "dram-wr48": "4:8", "dram-wr824": "8:24"}      # the write latency of each profile
+
+
+def cpi_d_lines(prefix, name, wrname, cols, mark, model):
+    """The table of one line of a row with a data cache -> list of text lines. cols: 'baseline' (uncached), 'ionly'
+    (the instruction cache alone, P x GD) and 'pd' (PD x GD) columns; the first two only in the row at the base
+    write latency."""
+    out = []
+    head = f"{prefix}ROW {name} (write latency {WR_LAT[wrname]})"
+    pd = cols["pd"]
+    if mark is None:
+        out.append(f"{head}: no RETIRED_AT mark reached by all columns; whole runs: PD CPI "
+                   f"{pd['cycles'] / pd['instructions']:.3f}")
+        return out
+    out.append(f"{head}: compared over the first {mark} retired instructions (the largest RETIRED_AT mark of all columns)")
+    for col, label in (("baseline", "baseline (no cache)"), ("ionly", "P x GD (I-cache)"), ("pd", "PD x GD (I and D)")):
+        f = cols.get(col)
+        if not f:
+            continue
+        tick = f" tick {f['tick']}" if f.get("tick") else ""
+        out.append(f"{prefix}  {label:20s} cycles {f['marks'][mark]:>10}  instructions {mark:>8}  CPI {cpi_at(f, mark):.3f}"
+                   f"   (whole run: {f['cycles']} cycles, {f['instructions']} instructions{tick})")
+    st, n, cyc = pd["stats"], pd["instructions"], pd["cycles"]
+    if st and "dc_store_wait" in st:
+        out.append(f"{prefix}  PD x GD CACHE_STATS: I-MPKI {1000.0 * st['i_done'] / n:.2f}  D-MPKI "
+                   f"{1000.0 * st['dc_load_misses'] / n:.2f}  (dc_load_misses {st['dc_load_misses']}, dc_lookup_hits "
+                   f"{st['dc_lookup_hits']}, dc_store_hits {st['dc_store_hits']}, dc_store_misses {st['dc_store_misses']})")
+        out.append(f"{prefix}  store stall (no write buffer): dc_store_wait {st['dc_store_wait']} cycles = "
+                   f"{100.0 * st['dc_store_wait'] / cyc:.2f}% of all cycles = {st['dc_store_wait'] / n:.4f} per instruction")
+        out.append(f"{prefix}  port sharing: wait_d_for_port {st['wait_d_for_port']} cycles = {st['wait_d_for_port'] / n:.4f} per "
+                   f"instruction; wait_i_for_port {st['wait_i_for_port']} = {st['wait_i_for_port'] / n:.4f}; dc_refill_cycles "
+                   f"{st['dc_refill_cycles']}")
+    if model:
+        for wbuf in ("none", "line", "ideal"):
+            m = model[wbuf]
+            extra = ""
+            if wbuf == "none":
+                extra = (f"; store stall share {100.0 * m['store_stall_share']:.2f}% of cycles = {m['st_store'] / m['instructions']:.4f} "
+                         f"per instruction; I-MPKI {m['i_mpki']:.2f}, D-MPKI {m['d_mpki']:.2f}; wait_i_for_port "
+                         f"{m['wait_i_for_port']}, wait_d_for_port {m['wait_d_for_port']}")
+            out.append(f"{prefix}  model --wbuf {wbuf:5s} cycles {m['cycles']:>10}  instructions {m['instructions']:>8}  "
+                       f"CPI {m['cpi']:.3f}{extra}")
+        base = model["none"]["cpi"]
+        out.append(f"{prefix}  a write buffer would take the CPI from {base:.3f} to {model['line']['cpi']:.3f} (one line) or "
+                   f"{model['ideal']['cpi']:.3f} (ideal): {base - model['line']['cpi']:.3f} and {base - model['ideal']['cpi']:.3f} "
+                   f"cycles per instruction")
+    else:
+        out.append(f"{prefix}  model    not applicable (its traces are the runs at TICK=10000)")
+    return out
+
+
+def helper_cpirow_d(a, vars_):
+    """One row of the CPI measurement with a data cache (6.8): the program in PD x GD with the write latency of a.wr
+    (dram: 1:4, dram-wr48: 4:8, dram-wr824: 8:24; reads stay 8:24), at TICK=10000 and the row's branch-predictor mode,
+    and, at the base write latency (a.columns all), also in the uncached baseline and with the instruction cache alone
+    (P x GD, the earlier 'after'). The columns are compared at the largest RETIRED_AT mark that they all reached, the
+    model (--wbuf none, line, ideal, the same write latency) on the trace of the same program over the same number of
+    retired instructions. A row whose program check ends a column early is run once more with the automatic tick,
+    without the model (lines prefixed 'CPI D AUTO')."""
+    seed = int(a.seed)
+    extra = list(vars_)
+    columns = {"pd": config("i8k-d4k", a.wr)}
+    if a.columns == "all":
+        columns.update(baseline=config("standard", "dram-nobursts"), ionly=config("i8k", "dram"))
+    rows = {}
+    for line, prefix, tick in ((1, "CPI D ", ["TICK=10000"]), (2, "CPI D AUTO ", [])):
+        cols = {name: column_run(a.app, cv, os.path.join(a.dir, f"line{line}-{name}"), extra + tick, a.bpred)
+                for name, cv in columns.items()}
+        marks = sorted(set.intersection(*(set(c["marks"]) for c in cols.values())))
+        mark = marks[-1] if marks else None
+        model = None
+        if line == 1:
+            window = ["TIMEOUT=10000000"] if a.app == "full" else []
+            prepared, w1 = model_trace(a.app, a.bpred, a.dir, extra, cols["pd"]["ram_kb"], window, mark)
+            if prepared:
+                model = model_d_columns(prepared, w1, seed, WR_LAT[a.wr], a.dir)
+        for l in cpi_d_lines(prefix, a.name, a.wr, cols, mark, model):
+            print(l, flush=True)
+        rows[line] = dict(mark=mark, model=model, **{k: {kk: vv for kk, vv in v.items() if kk != "marks"} for k, v in cols.items()})
+        for name, c in cols.items():
+            print(f"{prefix}  {name}: program check {'FAILED (the run ended early)' if c['early'] else 'ok'}, "
+                  f"run {'sound' if c['sound'] else 'NOT SOUND'}", flush=True)
+        if line == 1:
+            if not any(c["early"] for c in cols.values()):
+                break
+            print("CPI D ROW MARKED: the program's own check ended a run early at TICK=10000; run once more with the "
+                  "automatic tick in every column (second line, lines prefixed 'CPI D AUTO')", flush=True)
+        if line == 2 and any(c["early"] for c in cols.values()):
+            print("CPI D ROW: a run with the automatic tick ended early as well", flush=True)
+            rows["failed"] = True
+    with open(os.path.join(a.dir, "row.json"), "w") as f:
+        json.dump(rows, f, indent=1)
+    sound = all(rows[k][c]["sound"] for k in (1, 2) if k in rows for c in columns)
+    return 0 if sound and not rows.get("failed") else 1
+
+
+def cpi_d_judge(job, rc, out, d):
+    """A CPI row with a data cache: as cpi_judge, and the row's lines (the CPI of every column, the store stall share and the
+    model's buffered CPI) recorded."""
+    verdict, notes = exit_judge(job, rc, out, d)
+    notes = [n for n in notes if not n.startswith("last line")]
+    for l in out.splitlines():
+        if l.startswith("CPI D "):
+            notes.append(f"{l[:260]} (recorded)")
+    if not any(n.startswith("CPI D ROW") for n in notes):
+        notes.append("no CPI D ROW line")
+    return ("PASS" if verdict == "PASS" and not [n for n in notes if "recorded" not in n] else "FAIL"), notes
+
+
+def cpi_d_jobs():
+    """The rows of 6.8 with both caches: minimal, stress, mzba (rv32i and rv32im_zba), full and the scripted shell session at
+    BPRED 0 and 3 (memory seed 1; seed 2 for minimal and stress), at the write latency 1:4 with all columns (the leg
+    d-cpi) and at 4:8 and 8:24 with the PD column and the model (the leg d-cpi-wr)."""
+    base, wr = [], []
+    rows = [(a_, e_, 1) for a_, e_ in (("minimal", []), ("stress", []), ("mzba", []), ("mzba", ["MARCH=rv32im_zba"]),
+                                       ("full", []), ("shell", []))] + [(a_, [], 2) for a_ in ("minimal", "stress")]
+    for app, extra, seed in rows:
+        for b in (0, 3):
+            nm = f"{app}{'-zba' if extra else ''}-bpred{b}" + ("-seed2" if seed == 2 else "")
+            vars_ = extra + (["MEM_SEED=2"] if seed == 2 else [])
+            for wrname in ("dram", "dram-wr48", "dram-wr824"):
+                full = wrname == "dram"
+                job = Job("d-cpi" if full else "d-cpi-wr", f"{nm}-{wrname}" if not full else nm, "i8k-d4k", wrname,
+                          (lambda nm, app, b, seed, vars_, wrname, full: lambda d: [
+                              sys.executable, os.path.abspath(__file__), "_cpirow_d", "--dir", d, "--app", app, "--bpred", str(b),
+                              "--seed", str(seed), "--name", nm, "--wr", wrname, "--columns", "all" if full else "pd", "--"] + vars_)(
+                              nm, app, b, seed, vars_, wrname, full),
+                          cpi_d_judge, (1e8 if app == "full" else 5e7) * (3 if full else 1), cpus="dut", lock=("trace", app),
+                          extra_vars=vars_)
+                (base if full else wr).append(job)
+    return base, wr
+
+
 # ------------------------------------------------------------------------------ the legs
-def legs():
+def base_legs(SMALL, LARGE, d_):
+    """The legs of the matrix for the small and the large configuration (d_: both are pairs of an instruction and
+    a data cache)."""
     L = {}
-    SMALL, LARGE = "i512", "i8k"
-    L["smoke"] = [programs_job("smoke", SMALL, p, only="memsys/(stores|fetchredirect|icoherence|irqchain)$|asm/(ops|fencei)$",
+    LINES = tuple(f"{SMALL}-line{n}" for n in (8, 32, 64))
+    DIRECTED = "memsys/(irqchain|fetchredirect|icoherence|stores" + ("|dcache|dcoherence" if d_ else "") + ")$"
+    SMOKE = ("memsys/(stores|dcache|dcoherence|fetchredirect|icoherence|hpmwait|hpmcache)$|asm/(ops|fencei|hpm)$" if d_ else
+             "memsys/(stores|fetchredirect|icoherence|irqchain)$|asm/(ops|fencei)$")
+    L["smoke"] = [programs_job("smoke", SMALL, p, only=SMOKE,
                                cpus="dut") for p in ("burst", "stress")] + \
                  [freertos_job("smoke", "minimal", SMALL, p, compare=False) for p in ("burst", "stress")]
     L["programs"] = [programs_job("programs", SMALL, p) for p in ("lat0", "lat2", "rand1", "rand2", "rand3", "burst", "stress")] + \
@@ -880,12 +1243,13 @@ def legs():
                                 (lambda p: lambda d: make_cmd(["freertos-stress", "SET=validate"], config(SMALL, p)))(p),
                                 stress_campaign_judge, 2e8, lock=(SMALL, p, "campaign")) for p in ("lat2", "rand1")]
     L["directed-coverage"] = [programs_job("directed-coverage", c, "lat2",
-                                           only="memsys/(irqchain|fetchredirect|icoherence|stores)$", cpus="dut",
+                                           only=DIRECTED, cpus="dut",
                                            sim_args="+ram_words=0x46000,0x46004 +cache_stats_marks", judge=coverage_judge)
                               for c in (SMALL, LARGE)]
-    L["directed-coverage"].append(programs_job("directed-coverage", "i16k", "lat2", only="memsys/irqchain$", cpus="dut",
-                                               sim_args="+ram_words=0x46000,0x46004", judge=positions_confirm_judge,
-                                               name="i16k-lat2-irqchain-positions"))
+    if not d_:
+        L["directed-coverage"].append(programs_job("directed-coverage", "i16k", "lat2", only="memsys/irqchain$", cpus="dut",
+                                                   sim_args="+ram_words=0x46000,0x46004", judge=positions_confirm_judge,
+                                                   name="i16k-lat2-irqchain-positions"))
     L["freertos-compare-large"] = [freertos_job("freertos-compare-large", a, LARGE, "lat2") for a in ("minimal", "stress")]
     L["cached-vs-golden"] = [Job("cached-vs-golden", f"{a}-{cname(SMALL, 'lat2')}", SMALL, "lat2",
                                  (lambda a: lambda d: [sys.executable, os.path.abspath(__file__), "_cached_vs_golden",
@@ -897,17 +1261,17 @@ def legs():
                             config(c, "lat0"))(c), lint_judge, 1e6) for c in (SMALL, LARGE)]
     L["minimal-stress-profile"] = [freertos_job("minimal-stress-profile", "minimal", SMALL, "stress", compare=False)]
     L["line-sizes"] = [programs_job("line-sizes", c, "lat2", cpus="dut",
-                                    only="memsys/(fetchredirect|icoherence|irqchain|stores)$|asm/(fencei|ops)$")
-                       for c in ("i512-line8", "i512-line32", "i512-line64")] + \
-                      [freertos_job("line-sizes", "minimal", c, "lat2", compare=False)
-                       for c in ("i512-line8", "i512-line32", "i512-line64")]
+                                    only="memsys/(fetchredirect|icoherence|irqchain|stores" + ("|dcache|dcoherence" if d_ else "") +
+                                         ")$|asm/(fencei|ops)$")
+                       for c in LINES] + \
+                      [freertos_job("line-sizes", "minimal", c, "lat2", compare=False) for c in LINES]
     L["resets"] = [resets_job("resets", SMALL, "lat2"), resets_job("resets", SMALL, "rand1"),
                    resets_job("resets", "standard", "lat2")]
     mini = resets_job("resets", SMALL, "lat2", progs=())
     mini.name, mini.lock = f"freertos-minimal-{cname(SMALL, 'lat2')}", (SMALL, "lat2", "minimal")
     mini.cmd = lambda d: [sys.executable, os.path.abspath(__file__), "_resets", "--dir", d, "--cached", "1",
-                          "--app", "minimal", "--"] + config(SMALL, "lat2")
-    mini.judge = resets_judge_factory(True, minimum=1)
+                          "--dcached", str(int(d_)), "--app", "minimal", "--"] + config(SMALL, "lat2")
+    mini.judge = resets_judge_factory(True, minimum=1, dcached=d_)
     L["resets"].append(mini)
     L["model-agreement"] = [model_job("model-agreement", SMALL, "lat2", step4=True),
                             model_job("model-agreement", LARGE, "lat2", step4=True),
@@ -939,6 +1303,48 @@ def legs():
                                      sim_args="+irq_latency", judge=lambda j, rc, out, d: exit_judge(j, rc, out, d))
                         for c, p in ((SMALL, "stress"), (LARGE, "dram"))]
     L["irq-latency-validation"] = [irqlat_job(p) for p in ("std", "lat1", "lat2", "lat5")]
+    if d_:
+        # the uncached jobs and the earlier CPI rows (the cache-free configurations do not depend on a data cache;
+        # the CPI rows with both caches are the legs 'd-cpi*')
+        for name in list(L):
+            L[name] = [j for j in L[name] if j.cache != "standard"]
+            if not L[name] or name in ("cpi", "irq-latency-validation"):
+                del L[name]
+    return L
+
+
+def legs():
+    L = base_legs("i512", "i8k", False)
+    for name, jobs in base_legs("i512-d512", "i8k-d4k", True).items():
+        L["d-" + name] = jobs
+    SMALL, LARGE = "i512-d512", "i8k-d4k"
+    # T19: the counter programs and the data-cache programs, with the header minima of the latter
+    hpm_only = "asm/hpm$|memsys/(hpmcache|hpmwait|hpmdcache)$"
+    d_hpm = [programs_job("d-hpm", SMALL, p, only=hpm_only, cpus="dut") for p in ("lat0", "lat2", "rand1", "burst", "stress")] + \
+            [programs_job("d-hpm", LARGE, p, only=hpm_only, cpus="dut") for p in ("lat2", "dram")]
+    d_hpm += [programs_job("d-hpm", c, p, only="memsys/(dcache|dcoherence)$", cpus="dut,golden", judge=dcache_coverage_judge,
+                           name=f"dcache-{cname(c, p)}")
+              for c, ps in ((SMALL, ("lat0", "lat2", "rand1", "burst", "stress")), (LARGE, ("lat2", "dram"))) for p in ps]
+    L["d-hpm"] = d_hpm
+    # T21: the counter presets H and I with both caches (HPM_CHECK ok and HPM_CACHE_COMPARE ok in the logs)
+    L["d-hpm-freertos"] = [freertos_job("d-hpm-freertos", "minimal", SMALL, "lat2", extra=[f"HPM_PRESET={x}"],
+                                        name=f"minimal-{cname(SMALL, 'lat2')}-preset{x}")
+                           for x in ("H", "I")] + \
+                          [freertos_job("d-hpm-freertos", "stress", SMALL, "lat2", extra=[f"HPM_PRESET={x}"],
+                                        name=f"stress-{cname(SMALL, 'lat2')}-preset{x}") for x in ("H", "I")]
+    for j in L["d-hpm-freertos"]:
+        j.judge = hpm_preset_judge
+    # the coherence tests again with both caches: icoherence (unchanged), dcoherence, fencei, fencerd, the trap sweep's
+    # ctl family and the self-modifying FreeRTOS programs (brk with BRK_FENCEI, the loader's selfmod) 
+    coh = "memsys/(icoherence|dcoherence)$|asm/(fencei|fencerd)$"
+    L["d-coherence"] = [programs_job("d-coherence", c, p, only=coh) for c, ps in ((SMALL, ("lat0", "lat2", "rand1")),
+                                                                                 (LARGE, ("lat2",))) for p in ps] + \
+                       [sweep_job("d-coherence", c, p, fam="ctl") for c, p in ((SMALL, "lat0"), (SMALL, "lat2"), (SMALL, "rand1"),
+                                                                              (LARGE, "lat2"))]
+    # T20: the instruction-cache-only configurations against an earlier revision (REGRESSION_BASE=<revision>)
+    L["i-only-regression"] = [regression_job("i512", "lat0"), regression_job("i512", "lat2"), regression_job("i8k", "lat2")]
+    # 6.8: the store stall of the data cache without a write buffer, and what the model says a buffer would save
+    L["d-cpi"], L["d-cpi-wr"] = cpi_d_jobs()
     for name, jobs in L.items():
         for j in jobs:
             j.leg = name
@@ -1003,6 +1409,7 @@ def frtos_direct(app, vars_, plusargs, d):
 
 def helper_resets(a, vars_):
     cached = a.cached == "1"
+    dcached = a.dcached == "1"
     allres = []
     if a.app:
         # a FreeRTOS program: the phase log of one run, then one run per placed reset
@@ -1010,7 +1417,7 @@ def helper_resets(a, vars_):
         os.makedirs(d, exist_ok=True)          # the phase log is opened in it before frtos_direct writes there
         frtos_direct(a.app, vars_, ["+cache_phase_log=" + os.path.join(d, "phase.bin")], d)
         _, rundir, sim, args = frtos_direct(a.app, vars_, [], os.path.join(d, "base"))
-        for name, cyc in place_resets(os.path.join(d, "phase.bin"), cached):
+        for name, cyc in place_resets(os.path.join(d, "phase.bin"), cached, dcached):
             rd = os.path.join(d, f"reset-{cyc}")
             r = subprocess.run([sim] + args + [f"+reset_at={cyc - RESET_DELAY}"], cwd=rundir, capture_output=True,
                                text=True, errors="replace")
@@ -1026,7 +1433,7 @@ def helper_resets(a, vars_):
     progs = [p for p in a.programs.split(",") if p]
     sim, dirs = run_programs(vars_, progs) if progs else (None, {})
     for prog, pd in dirs.items():
-        _, res = reset_runs(None, os.path.join(a.dir, prog.replace("/", "-")), sim, pd, prog, cached, 10_000_000)
+        _, res = reset_runs(None, os.path.join(a.dir, prog.replace("/", "-")), sim, pd, prog, cached, 10_000_000, dcached)
         allres += res
     with open(os.path.join(a.dir, "resets.json"), "w") as f:
         json.dump(allres, f, indent=1)
@@ -1085,6 +1492,8 @@ def model_step4(a, vars_):
         print(f"STEP4 {a.app}: cannot read the cached run (CACHE_STATS, RETIRED, tick, configuration)")
         return 1
     rtl = st["i_done"] * 1000.0 / int(ret.group(2))
+    dm = re.search(r"^CACHE D-cache (\d+) bytes", text, re.M)       # with a data cache the model has one as well
+    dsize = dm.group(1) if dm else "0"
     tdir = os.path.join(d, "trace")
     os.makedirs(tdir, exist_ok=True)
     binfile = os.path.join(tdir, "bustrace.bin")
@@ -1093,14 +1502,20 @@ def model_step4(a, vars_):
     os.remove(binfile)
     lat = lambda t: t.replace("..", ":")
     res = model_run(os.path.join(tdir, "prepared"),
-                    ["--isize", cm.group(1), "--dsize", "0", "--line", cm.group(2), "--mem", "beat",
+                    ["--isize", cm.group(1), "--dsize", dsize, "--line", cm.group(2), "--mem", "beat",
                      "--rd-lat", lat(sm.group(1)), "--wr-lat", lat(sm.group(2))], os.path.join(tdir, "model.jsonl"))
     mod = res["i_mpki"]
     tol = max(0.1 * mod, 0.2)
+    dtext = ""
+    if dm:
+        rtl_d = st["dc_load_misses"] * 1000.0 / int(ret.group(2))
+        mod_d = res["d_mpki"]
+        dtext = (f"; RTL D-MPKI {rtl_d:.3f} (dc_load_misses {st['dc_load_misses']}), model D-MPKI {mod_d:.3f}, "
+                 f"{'WITHIN' if abs(rtl_d - mod_d) <= max(0.1 * mod_d, 0.2) else 'BEYOND'}")
     print(f"STEP4 {a.app} (tick {tick.group(1)}): RTL I-MPKI {rtl:.3f} (i_done {st['i_done']}, {ret.group(2)} "
           f"retired instructions), model I-MPKI {mod:.3f} ({res['instructions']} instructions of the standard-memory "
           f"trace); expected agreement +-{tol:.3f}: {'WITHIN' if abs(rtl - mod) <= tol else 'BEYOND'} "
-          f"(informative; the two runs execute different program phases)")
+          f"(informative; the two runs execute different program phases)" + dtext)
     return 0
 
 
@@ -1420,8 +1835,9 @@ def helper_lint(a, vars_):
 
 
 HELPERS = {"_resets": helper_resets, "_model": helper_model, "_benches": helper_benches,
-           "_timing_benches": helper_timing_benches, "_cached_vs_golden": helper_cached_vs_golden, "_cpirow": helper_cpirow, "_irqlat_frtos": helper_irqlat_frtos,
-           "_lint": helper_lint}
+           "_timing_benches": helper_timing_benches, "_cached_vs_golden": helper_cached_vs_golden, "_cpirow": helper_cpirow,
+           "_cpirow_d": helper_cpirow_d, "_irqlat_frtos": helper_irqlat_frtos, "_lint": helper_lint,
+           "_regression": helper_regression}
 
 
 # ------------------------------------------------------------------------------ the runner
@@ -1588,6 +2004,10 @@ def main():
         ap.add_argument("--dir", required=True)
         ap.add_argument("--programs", default="")
         ap.add_argument("--cached", default="1")
+        ap.add_argument("--dcached", default="0")
+        ap.add_argument("--base", default="")
+        ap.add_argument("--wr", default="dram")
+        ap.add_argument("--columns", default="all")
         ap.add_argument("--app", default="")
         ap.add_argument("--bpred", default="0")
         ap.add_argument("--seed", default="1")
