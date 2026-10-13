@@ -446,7 +446,7 @@ generation with a message.
 | `scripts/model.py` | Copies the sources, applies a mutant, inserts and checks the include lines, runs sv2v, reads the mask and the snoop connection of `rtl/mcu.sv`, checks the base copies |
 | `scripts/ladder.sh` | The fallback ladder of one property in one configuration |
 | `scripts/control.sh` | One negative control |
-| `scripts/sim.sh`, `scripts/simtb.py` | The random simulation of the ladder's last step |
+| `scripts/sim.sh`, `scripts/simtb.py`, `scripts/fixcast.py` | The random simulation of the ladder's last step (`fixcast.py` rewrites sv2v's casts of constants, which Verilator 5.042 refuses under a generate block, as size casts before the model is built) |
 | `harness/cache_top.sv`, `cache_pair_top.sv`, `icache_top.sv`, `arbiter_top.sv`, `interconnect_top.sv` | The harnesses |
 | `harness/config.svh`, `env_common.svh`, `env_data.svh`, `env_memory.svh` | Configurations and environment |
 | `props/cache_props.vh` | The properties, covers and induction helpers of the I-cache and the arbiter |

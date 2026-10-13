@@ -25,11 +25,14 @@ esac
 D="$W/sim/${P}_$C"
 rm -rf "$D"; mkdir -p "$D"
 python3 "$HERE/simtb.py" "$W/gen/$model.v" "$top" "$D/tb.cpp" || { echo "SIM FAIL (testbench)"; exit 1; }
+# Verilator 5.042 refuses sv2v's casts of constants under generate blocks: fixcast.py writes the
+# model with those casts as size casts (the same meaning)
+python3 "$HERE/fixcast.py" "$W/gen/$model.v" "$D/model.v" > "$D/fixcast.log" 2>&1 || { echo "SIM FAIL (fixcast, $D/fixcast.log)"; exit 1; }
 (
     flock 9
     verilator --cc --exe --build -j 4 -O2 -sv --assert -Wno-fatal -Wno-lint -Wno-style \
         -DFORMAL -DFSIM $defs -I"$W/props" -I"$W/gen" --top-module "$top" --Mdir "$D/obj" \
-        "$W/gen/$model.v" "$D/tb.cpp"
+        "$D/model.v" "$D/tb.cpp"
 ) 9> "$W/sim/.lock" > "$D/build.log" 2>&1 || { echo "SIM FAIL (build, $D/build.log)"; exit 1; }
 "$D/obj/V$top" "$N" 100000 1 > "$D/run.log" 2>&1
 r=$(grep -a "^SIM " "$D/run.log" | tail -1)
