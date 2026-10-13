@@ -150,13 +150,15 @@ None of them is a DUT problem.
   question: `iss.py` models it (`instret_off=1` for `ref`), and the
   DUT-vs-golden compare uses `minstret` relative to each iteration's snapshot.
 * **No M, Zba, Zbb, Zbs, Zicond, Zbkb, Zbkx, Zknh, Zicntr or branch predictor.**
-  `iss.py` models the golden CPU without them. Families `m`, `pre`, `bp`, `ext`
-  and `crypto` and fuzz variants `m`/`bp`/`b`/`k` run on the DUT only. `pre_i` is
+  `iss.py` models the golden CPU without them. Families `m`, `pre`, `bp`, `ext`,
+  `crypto` and `hpm` and fuzz variants `m`/`bp`/`b`/`k` run on the DUT only. `pre_i` is
   the M-free subset of `pre`. `ext` (every Zbb, Zbs and Zicond form, dependent
   chains through them, their pipeline neighbours and illegal neighbours) and
   `crypto` (the same for Zbkb, Zbkx and Zknh, with crypto results as branch
   operand, store address and `jalr` base) run only when named with `--fam ext`
-  or `--fam crypto`: they are not part of `all` or of `sweep.py list`, whose
+  or `--fam crypto`; `hpm` (the performance-counter CSRs: mcountinhibit, the selectors, the
+  counters and their high halves; the standard counter configuration only) runs only when named
+  with `--fam hpm`. They are not part of `all` or of `sweep.py list`, whose
   output the trapsweep record stores. Fuzz variant `k` adds the new forms to
   variant `b`'s mix (its choices are drawn only with `--k`, so variant `b`'s
   programs are unchanged). Their results are recorded with the tests of these

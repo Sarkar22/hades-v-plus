@@ -30,8 +30,9 @@
 # | The test needs seven counters (the standard build). With fewer (make HPM_COUNTERS=<n>) it    |
 # | checks mcountinhibit and the selectors against that number, and stops. On a CPU without the  |
 # | counters (the golden CPU) it fails the first check on the selectors and stops; before that   |
-# | its accesses to 0x320 and 0x323.. show the legality of the golden decoder: they trap (the    |
-# | handler counts and skips them).                                                              |
+# | its accesses to 0x320 show the legality of the golden decoder: they trap (the handler counts |
+# | and skips them), while 0x323.. are accepted and read 0. Cases 5 and 10 assume the default    |
+# | counter width of 48 bits; in a build with another width they report failures.                |
 # |                                                                                              |
 # | Every assert is executed once, in source order, so a report's number is its position in the  |
 # | source (report 1 is the deliberate initial fail).                                            |

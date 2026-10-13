@@ -63,8 +63,8 @@ module hpm #(
     localparam int FIRST = 3;           // the first programmable counter
     localparam int LAST  = 2 + N;       // the last one (2 when N = 0: none)
     // The bits of mcountinhibit that can be written: CY, IR, the counters 3 .. 2+N and the predictor's
-    // counters 10-13 (hpm_pkg::INHIBIT_MASK for this build's N; 0x0000_3FFD with N = 7)
-    localparam bit [31:0] IMPL_MASK = 32'h0000_3C05 | (((32'd1 << N) - 32'd1) << 3);
+    // counters 10-13 (0x0000_3FFD with N = 7)
+    localparam bit [31:0] IMPL_MASK = hpm_pkg::inhibit_mask(N);
 
     // =========================================================================
     // Registers
@@ -78,6 +78,14 @@ module hpm #(
 
     logic [63:0]  cnt_64   [FIRST:9];   // cnt, zero-extended
     logic [63:0]  cnt_next [FIRST:9];   // cnt's next value (below)
+
+    // Startup values, for a bench that never toggles rst (as in the Writeback stage)
+    initial begin
+        inhibit = 32'b0;
+        trap_s1 = '0;
+        trap_s2 = '0;
+        pipe_s2 = '0;
+    end
 
     assign inh_cy = inhibit[0];
     assign inh_ir = inhibit[2];
@@ -95,7 +103,7 @@ module hpm #(
         ev[46:32]     = pipe_s2;
         ev[49:47]     = late.b1;
         ev[159:128]   = late.ext & hpm_ext_present;
-        ev[161:160]   = late.comb;
+        ev[161:160]   = late.comb;     // 160/161 can be selected only with present[0]/[1]: no mask needed
     end
 
     // =========================================================================

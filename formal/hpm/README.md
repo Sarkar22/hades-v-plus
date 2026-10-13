@@ -215,8 +215,8 @@ applied, fails the run.
 
 ## 6. Results
 
-The record of a run is `results/formal-hpm/<date>_<commit>/`. `run.sh` writes the outcome of every
-check in `SUMMARY.txt`: the proofs with their engine, mode and depth, the covers, the negative
+There is no record of a run under `results/` yet. `run.sh` writes the outcome of every
+check in `SUMMARY.txt` under `--out`: the proofs with their engine, mode and depth, the covers, the negative
 controls and the verdict.
 
 ---------------------------------------------------------------------------------------------

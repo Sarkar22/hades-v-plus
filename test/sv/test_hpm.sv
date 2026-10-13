@@ -6,7 +6,7 @@
 // The device under test is one `hpm` module, driven as Writeback drives it: an event vector, the
 // CSR address, the write strobe and the write value, the reset, and the constant mask of the
 // memory-system events that a configuration has. The reference model (class HpmRef below) was
-// written from the specification of the counters alone (the CSR rules, the three counting classes and
+// written from the documented behaviour of the counters (docs/EXTENSIONS.md) alone (the CSR rules, the three counting classes and
 // their delays, the event-code table, the half-write rule), without reading the unit's code. It
 // gets the same inputs as the unit and keeps its state in plain variables, one procedural step
 // per clock edge.
@@ -63,8 +63,8 @@
 // Configurations (N counters, W bits): N in {0, 1, 7} x W in {32, 48, 64}, and (7, 33), (3, 40),
 // (2, 63). Each configuration runs eight phases; the phases use the present masks 0, the mask of
 // the I-cache build (bits 0-11), and two random masks within bits 0-11. With +maskhi=1 the random
-// masks are 32 bits wide, which also makes codes 140-159 legal: the specification's pseudo-code
-// says so, but those codes are reserved, so this is off by default.
+// masks are 32 bits wide, which also makes codes 140-159 legal: the unit's rule (a code is kept when its bit
+// of the present mask is set) says so, but those codes are reserved, so this is off by default.
 //
 // The end of the run prints the self-test line, one line per configuration and one of:
 //     HPM BENCH: PASS (<configurations>, <cycles>, 0 mismatches)        exit status 0
@@ -75,7 +75,7 @@
 //   +cycles=<n>     random cycles per phase (default 20000; the directed sequences come on top)
 //   +maskhi=1       random present masks use all 32 bits (default: bits 0-11 only)
 //   +rstev=1        drive random events also in cycles with rst = 1 (default: 0 in those cycles,
-//                   as the specification promises)
+//                   as the unit's contract promises)
 //   +cover=0        print the coverage counts without judging them (for short runs)
 //   +only=<k>       run only configuration number k (0-11)
 //

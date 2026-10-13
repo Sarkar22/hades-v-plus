@@ -152,10 +152,11 @@ module decode_stage (
     // FORWARDING: Execute > Memory > Writeback > Register File (most recent wins).
 
     logic load_use_hazard;
-    assign load_use_hazard_out = load_use_hazard;
     logic csr_use_hazard;
     logic wb_use_hazard;
     logic pipeline_hazard;
+    // observation-only output (read by the performance counters)
+    assign load_use_hazard_out = load_use_hazard;
     logic [31:0] rs1_data;
     logic [31:0] rs2_data;
 

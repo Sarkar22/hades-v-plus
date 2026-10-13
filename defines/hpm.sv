@@ -41,9 +41,10 @@ package hpm_pkg;
 
     // The bits of mcountinhibit that can be written: CY (0), IR (2), the
     // programmable counters 3 .. 2+N, and the predictor's counters 10-13.
-    // TM (1) is read-only 0. 0x0000_3FFD with N = 7.
-    localparam bit [31:0] INHIBIT_MASK =
-        32'h0000_3C05 | (((32'd1 << COUNTERS) - 32'd1) << 3);
+    // TM (1) is read-only 0. 0x0000_3FFD with n = 7.
+    function automatic bit [31:0] inhibit_mask(int n);
+        return 32'h0000_3C05 | (((32'd1 << n) - 32'd1) << 3);
+    endfunction
 
     // --------------------------------------------------------------------------------------------
     // |                                       Event codes                                        |

@@ -383,7 +383,7 @@ help:
 	@echo "                    The scripted shell session on the DUT and on the golden CPU, compared"
 	@echo "  freertos-shell-tty-test"
 	@echo "                    The interactive console through a pseudo-terminal (keys, quitting, restore)"
-	@echo "  freertos-shell APP=loader [UPLOAD=<app>]"
+	@echo "  freertos-shell APP=loader [UPLOAD=<app>] [HPM_PERF=1: the command perf]"
 	@echo "                    The shell with the app loader: load and run programs built on the host (simulation)"
 	@echo "  freertos-app      Build an app for the loader: make freertos-app NAME=<name> [MARCH=rv32im_zba_zbb_zbs] [OPT=-Os]"
 	@echo "                    (MARCH: rv32i, rv32im, rv32i_zba, rv32im_zba, rv32im_zba_zbb_zbs, rv32im_zba_zbb_zbkb_zbkx_zbs_zknh)"
