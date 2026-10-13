@@ -366,9 +366,12 @@ module dcache #(
             if (mem.ack && mem.err)
                 $fatal(1, "dcache: ack and err together on the memory port at cycle %0d, address 0x%08x",
                        sim_cycle, mem.adr << 2);
-            if (mem.err)
-                $fatal(1, "dcache: the memory answered err to the %s of address 0x%08x at cycle %0d (the D-cache reads and writes inside the RAM window only)",
-                       mem.we ? "store" : "refill", mem.adr << 2, sim_cycle);
+            if (mem.err && mem.we)
+                $fatal(1, "dcache: the memory answered err to the store of address 0x%08x at cycle %0d (the D-cache reads and writes inside the RAM window only)",
+                       mem.adr << 2, sim_cycle);
+            if (mem.err && !mem.we)
+                $fatal(1, "dcache: the memory answered err to the refill of address 0x%08x at cycle %0d (the D-cache reads and writes inside the RAM window only)",
+                       mem.adr << 2, sim_cycle);
             if (m_held && !(mem.cyc && mem.stb && mem.adr == m_held_adr && mem.sel == m_held_sel &&
                             mem.we == m_held_we && (!m_held_we || mem.dat_mosi == m_held_dat)))
                 $fatal(1, "dcache: the memory-side request (address 0x%08x sel=%04b we=%0d data 0x%08x) changed before its answer, at cycle %0d",
