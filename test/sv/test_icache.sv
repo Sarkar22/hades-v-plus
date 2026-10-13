@@ -1581,6 +1581,7 @@ module test_icache;
         c0.report();  c1.report();  c2.report();  c3.report();  c4.report();
         c5.report();  c6.report();  c7.report();  c8.report();  c9.report();
         c10.report(); c11.report(); c12.report(); c13.report(); c14.report();
+        #1;                 // the reports set the configurations' coverage_short outputs: read them one step later
         total = 0;
         configs = 0;
         short_any = 0;
