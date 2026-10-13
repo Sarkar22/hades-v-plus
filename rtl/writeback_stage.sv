@@ -683,19 +683,19 @@ module writeback_stage (
     end
 
     hpm i_hpm (
-        .clk        (clk),
-        .rst        (rst),
-        .ev_a       (hpm_ev_a),
-        .trap_raw   (hpm_trap),
-        .late       (hpm_late_in),
-        .ext_present(hpm_ext_present_in),
-        .csr_addr   (instruction_in.csr),
-        .csr_we     (csr_counter_write),
-        .csr_wdata  (csr_write_val),
-        .rdata      (hpm_rdata),
-        .inh_cy     (inh_cy),
-        .inh_ir     (inh_ir),
-        .inh_bp     (inh_bp)
+        .clk             (clk),
+        .rst             (rst),
+        .ev_a            (hpm_ev_a),
+        .trap_raw        (hpm_trap),
+        .late            (hpm_late_in),
+        .hpm_ext_present (hpm_ext_present_in),
+        .csr_addr        (instruction_in.csr),
+        .csr_we          (csr_counter_write),
+        .csr_wdata       (csr_write_val),
+        .rdata           (hpm_rdata),
+        .inh_cy          (inh_cy),
+        .inh_ir          (inh_ir),
+        .inh_bp          (inh_bp)
     );
 
     // =========================================================================

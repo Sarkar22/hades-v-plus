@@ -46,7 +46,7 @@ module hpm #(
     input  logic [20:1]  ev_a,       // class A, codes 1-20, of this cycle
     input  logic [26:21] trap_raw,   // trap events, codes 21-26, of this cycle (class B2)
     input  hpm_pkg::late_t   late,       // from hpm_events, one cycle late
-    input  logic [31:0]  ext_present,// 1 for every memory-system bit the configuration drives
+    input  logic [31:0]  hpm_ext_present, // 1 for every memory-system bit the configuration drives
 
     // CSR access by the instruction in Writeback
     input  logic [11:0]  csr_addr,
@@ -62,6 +62,9 @@ module hpm #(
 
     localparam int FIRST = 3;           // the first programmable counter
     localparam int LAST  = 2 + N;       // the last one (2 when N = 0: none)
+    // The bits of mcountinhibit that can be written: CY, IR, the counters 3 .. 2+N and the predictor's
+    // counters 10-13 (hpm_pkg::INHIBIT_MASK for this build's N; 0x0000_3FFD with N = 7)
+    localparam bit [31:0] IMPL_MASK = 32'h0000_3C05 | (((32'd1 << N) - 32'd1) << 3);
 
     // =========================================================================
     // Registers
@@ -91,7 +94,7 @@ module hpm #(
         ev[26:21]     = trap_s2;
         ev[46:32]     = pipe_s2;
         ev[49:47]     = late.b1;
-        ev[159:128]   = late.ext & ext_present;
+        ev[159:128]   = late.ext & hpm_ext_present;
         ev[161:160]   = late.comb;
     end
 
@@ -178,13 +181,13 @@ module hpm #(
             pipe_s2 <= late.b2;
 
             if (csr_we && is_inh)
-                inhibit <= csr_wdata & hpm_pkg::INHIBIT_MASK;
+                inhibit <= csr_wdata & IMPL_MASK;
 
             for (int n = FIRST; n <= 9; n++) begin
                 if (n <= LAST) begin
                     cnt[n] <= cnt_next[n][W-1:0];
                     if (csr_we && is_evt && idx == 4'(n))
-                        sel[n] <= hpm_pkg::legal(csr_wdata, ext_present) ? csr_wdata[7:0] : 8'd0;
+                        sel[n] <= hpm_pkg::legal(csr_wdata, hpm_ext_present) ? csr_wdata[7:0] : 8'd0;
                 end else begin
                     // counters above 2 + N do not exist: read-only 0
                     cnt[n] <= '0;
@@ -207,7 +210,7 @@ module hpm #(
         if (hpm_pkg::PRESET != hpm_pkg::NO_PRESET) begin
             @(posedge clk);
             for (int n = FIRST; n <= LAST; n++) begin
-                if (!hpm_pkg::legal(32'(hpm_pkg::PRESET_CODES[n - FIRST]), ext_present))
+                if (!hpm_pkg::legal(32'(hpm_pkg::PRESET_CODES[n - FIRST]), hpm_ext_present))
                     $fatal(1, "hpm: the preset's code %0d for mhpmevent%0d is not in this build (the memory-system codes need an I-cache build)",
                            hpm_pkg::PRESET_CODES[n - FIRST], n);
             end
