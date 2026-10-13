@@ -1232,6 +1232,8 @@ module top;
 
 `ifndef USE_REF_CPU
     // ==== Performance-counter monitors (HaDes-V+ only; docs/EXTENSIONS.md, "Hardware Performance Counters") ====
+    // (the monitor's helper signals that a given configuration does not use, such as the cache's, are waived)
+    /* verilator lint_off UNUSEDSIGNAL */
     // Two passive monitors, appended after the blocks above so that their line numbers do not move.
     // They read signals inside the CPU and the counter unit, so they exist for HaDes-V+ only (the
     // golden CPU has no counters).
@@ -1655,5 +1657,6 @@ module top;
         end
     end
 `endif
+    /* verilator lint_on UNUSEDSIGNAL */
 `endif
 endmodule
