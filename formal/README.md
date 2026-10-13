@@ -30,8 +30,8 @@ make formal-ext      # the EXT unit alone (under a minute)
 `FORMAL RESULT: PASS` or `FORMAL RESULT: FAIL ...`. `make` exits with status 0 only
 for `PASS`. The tools are listed in [Tools](#tools).
 
-**The instruction cache.** The proofs of the simulation-only instruction cache, its
-memory arbiter and the interconnect's timeout exemption are in
+**The caches.** The proofs of the simulation-only instruction cache and data cache, their
+memory arbiter, the memory system with both caches and the interconnect's timeout exemption are in
 [cache/](cache/README.md); the caches exist only in the simulators, and the standard build and the
 Basys 3 bitstream have none. They run with `make formal-cache` (output in
 `$(BUILD_DIR)/formal-cache`, last line `FORMAL CACHE RESULT: PASS` or `FAIL ...`) and use
