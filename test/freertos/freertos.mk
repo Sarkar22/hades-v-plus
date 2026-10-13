@@ -208,6 +208,14 @@ FRTOS_CFLAGS_COMMON = -mabi=ilp32 $(FRTOS_OPT) -g -ffunction-sections -fdata-sec
                  -Wall -Wno-unused-function $(FRTOS_INCLUDES) $(FRTOS_KNOBS) -MMD -MP
 FRTOS_CFLAGS     = -march=$(FRTOS_MARCH) $(FRTOS_CFLAGS_COMMON)
 FRTOS_REF_CFLAGS = -march=rv32i $(FRTOS_CFLAGS_COMMON) -DFRTOS_REF_BUILD
+# The mean interval (cycles) of mzba's random external interrupt that this build uses, as the compiler
+# reads mzba/app_config.h with the program's -march, -O level and -D options (the scaled default or a
+# DEFS=-DMZBA_IRQ_MEAN=... override); it is shown in the build line and in the label of every run.
+FRTOS_NOTE :=
+ifeq ($(FRTOS_APP),mzba)
+FRTOS_NOTE := $(shell x=$$(printf '\043include "app_config.h"\nMZBA_IRQ_MEAN\n' | $(CC) -march=$(FRTOS_MARCH) $(FRTOS_OPT) \
+                 $(FRTOS_KNOBS) -I$(FRTOS_DIR)/mzba -E -P -x c - 2>/dev/null | tail -n 1); echo " irq_mean=$$(( $$x ))")
+endif
 FRTOS_LDFLAGS    = -march=$(FRTOS_MARCH) -mabi=ilp32 -nostdlib -nostartfiles \
                    -T $(FRTOS_DIR)/common/hades-freertos.ld \
                    -Wl,--defsym=__hades_ram_size=$(FRTOS_LINK_KB)K \
@@ -327,14 +335,14 @@ frtos_cfg_label = $(if $(SIM_CFG_NAME), cfg=$(SIM_CFG_NAME))
 # run.sh <simulator> <run dir> <timeout> <seed> <log name> <label> <waves>
 frtos_run_sh   = sh $(FRTOS_DIR)/run.sh $(BUILD_ABS)/frtos-model/$(1)-$(FRTOS_RAM_KB)k/top \
                  $(abspath $(FRTOS_OUT)) $(FRTOS_TIMEOUT) $(FRTOS_SEED) run-$(call frtos_cpu_name,$(1)).log \
-                 "app=$(FRTOS_APP) cpu=$(call frtos_cpu_name,$(1)) isa=$(FRTOS_MARCH) opt=$(FRTOS_OPT) tick=$(FRTOS_TICK) bpred=$(FRTOS_BPRED) seed=$(FRTOS_SEED)$(frtos_cfg_label)" \
+                 "app=$(FRTOS_APP) cpu=$(call frtos_cpu_name,$(1)) isa=$(FRTOS_MARCH) opt=$(FRTOS_OPT) tick=$(FRTOS_TICK) bpred=$(FRTOS_BPRED) seed=$(FRTOS_SEED)$(FRTOS_NOTE)$(frtos_cfg_label)" \
                  "$(WAVES)"
 # Build the program and simulator(s) $(1) quietly into build.log (VERBOSE=1 shows everything).
 # The sub-make gets the same command-line knobs, so it builds exactly this configuration.
 FRTOS_BUILD_LOG = $(abspath $(FRTOS_OUT))/build.log
 define frtos_quiet_build
 @ mkdir -p $(FRTOS_OUT)
-@ echo "build: $(FRTOS_APP) [$(FRTOS_MARCH) $(FRTOS_OPT) tick=$(FRTOS_TICK) bpred=$(FRTOS_BPRED)] and the $(2) simulator(s)$(if $(SIM_CFG_NAME), [configuration $(SIM_CFG_NAME): $(SIM_CFG_TEXT)])"
+@ echo "build: $(FRTOS_APP) [$(FRTOS_MARCH) $(FRTOS_OPT) tick=$(FRTOS_TICK) bpred=$(FRTOS_BPRED)$(FRTOS_NOTE)] and the $(2) simulator(s)$(if $(SIM_CFG_NAME), [configuration $(SIM_CFG_NAME): $(SIM_CFG_TEXT)])"
 @ echo "       (the first build of a simulator takes up to a minute; log: $(FRTOS_BUILD_LOG))"
 @ if [ -n "$(VERBOSE)" ]; then $(MAKE) --no-print-directory $(1); else \
       $(MAKE) --no-print-directory $(1) > $(FRTOS_BUILD_LOG) 2>&1 || \
@@ -442,7 +450,7 @@ $(foreach c,dut ref,$(eval $(call frtos_con_model_rules,$(c))))
 FRTOS_SHELL_TIMEOUT = $(if $(filter command line,$(origin TIMEOUT) $(origin FRTOS_TIMEOUT)),$(FRTOS_TIMEOUT),9000000000000000000)
 FRTOS_SHELL_SCRIPT  = $(abspath $(if $(FRTOS_SCRIPT),$(FRTOS_SCRIPT),$(APP_DIR)/session.txt))
 FRTOS_SHELL_DUMP    = $(if $(filter-out 0,$(WAVES)),,+nodump)
-frtos_shell_label   = app=$(FRTOS_APP) cpu=$(call frtos_cpu_name,$(1)) isa=$(FRTOS_MARCH) opt=$(FRTOS_OPT) tick=$(FRTOS_TICK) bpred=$(FRTOS_BPRED) seed=$(FRTOS_SEED)$(frtos_cfg_label)
+frtos_shell_label   = app=$(FRTOS_APP) cpu=$(call frtos_cpu_name,$(1)) isa=$(FRTOS_MARCH) opt=$(FRTOS_OPT) tick=$(FRTOS_TICK) bpred=$(FRTOS_BPRED) seed=$(FRTOS_SEED)$(FRTOS_NOTE)$(frtos_cfg_label)
 # What a console run builds (quietly): the program, the simulator(s) $(1), and the goals of
 # the program's APP_CONSOLE_DEPS.
 frtos_con_goals     = FRTOS_APP=$(FRTOS_APP) frtos-elf $(1) $(APP_CONSOLE_DEPS)
