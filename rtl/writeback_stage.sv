@@ -102,7 +102,8 @@ module writeback_stage (
     // MEPC, MCAUSE, MSCRATCH
     logic [31:0] mepc, mcause, mscratch;
 
-    // MCYCLE/MCYCLEH: 64-bit cycle counter (counts every cycle including reset)
+    // MCYCLE/MCYCLEH: 64-bit cycle counter (counts every cycle: always during reset, otherwise
+    // unless mcountinhibit.CY is set)
     logic [63:0] mcycle;
 
     // MINSTRET/MINSTRETH: 64-bit retired-instruction counter
@@ -556,8 +557,10 @@ module writeback_stage (
     // are written by a retiring CSRRW or CSRRWI, and by a retiring CSRRS, CSRRC,
     // CSRRSI or CSRRCI whose rs1 field (the uimm field of the immediate forms) is
     // non-zero, even if the value in rs1 is 0 (Zicsr: with rs1 = x0 these "will
-    // not write to the CSR at all"). A write discards the written half's
-    // increment of the same cycle.
+    // not write to the CSR at all"). A write replaces the half it names; the other
+    // half keeps the incremented value. The predictor's mode register mhpmevent10
+    // (0x32A) keeps its old rule: any retiring CSR instruction on it writes it (a read
+    // writes the old value back).
 
     logic retire;               // minstret counts this instruction
     logic csr_counter_write;    // the write test above, for the addressed CSR
@@ -704,9 +707,10 @@ module writeback_stage (
     // When int_jump_reg=1, the instruction is stale (from before the interrupt
     // flush). Its MRET and trap effects are suppressed; its CSR write and
     // minstret increment are suppressed only when it is replayed (stale_replay),
-    // otherwise it retires normally. MCYCLE always counts.
+    // otherwise it retires normally. MCYCLE counts every cycle unless mcountinhibit.CY is set
+    // (and always during reset).
 
-    // MCYCLE counts every cycle including reset — use initial for startup value.
+    // MCYCLE counts during reset too — use initial for its startup value.
     // mstatus_mpie also initialised here: if the test harness instantiates this
     // module and applies stimulus without ever toggling `rst`, Verilator's 2-state
     // default would otherwise leave MPIE=0 and break the MRET-with-pending-int path.
@@ -751,9 +755,9 @@ module writeback_stage (
             mip_mtip_reg <= timer_interrupt_in;
 
             // ---- MCYCLE: "increment first, then write" ----
-            // The counter always increments; a CSR write overrides only the
-            // targeted half, while the other half reflects the incremented value
-            // (preserving carry across the 32-bit boundary).
+            // The counter increments unless CY is set; a CSR write overrides only the
+            // targeted half, while the other half takes the incremented value
+            // (carry across the 32-bit boundary).
             if (csr_writes_mcycle_lo)
                 mcycle <= {mcycle_inc[63:32], csr_write_val};
             else if (csr_writes_mcycle_hi)

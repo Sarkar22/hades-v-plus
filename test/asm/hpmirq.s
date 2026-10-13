@@ -37,6 +37,9 @@
 # |      events after it: counter 3 - counter 4 = V - O - 1, with O the old value that csrrw     |
 # |      returned (counter 4 counted the writing instruction, counter 3 did not)                 |
 # |                                                                                              |
+# | The test needs the standard build (seven counters, counters 3-9); with fewer (make           |
+# | HPM_COUNTERS=<n>) it reports failures instead of stopping.                                   |
+# |                                                                                              |
 # | Register allocation:                                                                         |
 # |     x5  (t0):   reserved for macro use         x6 (t1): 1        x7 (t2): probe number        |
 # |     x28 (t3):   test peripheral address        t4, t5: scratch of the checks                 |

@@ -44,7 +44,7 @@ a miter of the instruction decoder against the previous one on all 2^32 words (t
 changes only at 0x320), and a miter of the Writeback stage against the previous one, which shows
 that the trap and interrupt behaviour is unchanged. They run with `make formal-hpm` (output in
 `$(BUILD_DIR)/formal-hpm`, last line `FORMAL HPM RESULT: PASS` or `FAIL ...`), use the same tools
-and have their own record; they change none of the inputs of `make formal`, which does not run them.
+and have no record under `results/` yet; they change none of the inputs of `make formal`, which does not run them.
 
 Contents:
 

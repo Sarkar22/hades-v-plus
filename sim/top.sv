@@ -1237,10 +1237,14 @@ module top;
     // Two passive monitors, appended after the blocks above so that their line numbers do not move.
     // They read signals inside the CPU and the counter unit, so they exist for HaDes-V+ only (the
     // golden CPU has no counters).
-    //   +hpm_stats    at the end, one HPM line with the total of every event of the counter unit,
-    //                 counted from the last reset, the events still in the unit's delay registers
-    //                 included, so that the totals cover every cycle up to the last one. Off by
-    //                 default; on by default in an HPM_PRESET simulator (+nohpm_stats: off).
+    //   +hpm_stats    at the end, one HPM line with the totals of this testbench's own model (the
+    //                 one +hpm_check uses, below), not of the counter unit: for every event code of
+    //                 this build except the raw memory-system codes 128-159, the number of times the
+    //                 model saw the event's condition on the CPU's wires since the last reset. The
+    //                 model counts an event in the cycle of its condition, without the unit's delays,
+    //                 so the totals cover every cycle up to the last one. A fault in rtl/hpm_events.sv
+    //                 or rtl/hpm.sv does not change them; +hpm_check finds it. Off by default; on by
+    //                 default in an HPM_PRESET simulator (+nohpm_stats: off).
     //   +hpm_check    a model of the counter unit written for this testbench, cycle by cycle, from
     //                 the CPU's own wires (the stages' backwards status, the fetch and data buses,
     //                 Writeback's instruction and trap signals) and the design of docs/EXTENSIONS.md,
@@ -1251,7 +1255,7 @@ module top;
     //                 the operation, the source and its own read value; it does not take csr_write_val).
     //                 Off by default; on by default in an HPM_PRESET simulator (+nohpm_check: off).
     // A simulator for a counter preset (make HPM_PRESET=<A..I>) resets the selectors of the seven
-    // counters to the codes of the preset; the table below is the one of docs/EXTENSIONS.md, and
+    // counters to the codes of the preset; the table below is the one of defines/hpm.sv (preset_codes), and
     // the simulator stops at the first clock edge if a code of the preset is not in this build.
     // With an instruction cache, an HPM_PRESET simulator with the preset H or I also compares, at
     // the end of the run, each counter that counts a cache event (plus the event still in the delay
@@ -1263,7 +1267,7 @@ module top;
     //
     // The names of the RTL that the monitors read, besides the CPU's wires that top.sv already
     // uses, are the three functions hm_r_cnt, hm_r_sel and hm_r_inh and the vector mcu.hpm_ext.
-    // They are the contract of the counter unit (docs/EXTENSIONS.md): change them there only.
+    // They are the contract between this monitor and rtl/hpm.sv (cnt, sel, inhibit): change them there only.
 
     localparam int HM_N = hpm_pkg::COUNTERS;               // programmable counters 3 .. 2+N
     localparam int HM_W = hpm_pkg::WIDTH;                  // their width
@@ -1326,7 +1330,7 @@ module top;
         endcase
     endfunction
 
-    // ---- the presets of docs/EXTENSIONS.md (make HPM_PRESET=<A..I>: the letter as 0..8) ----
+    // ---- the presets of defines/hpm.sv (make HPM_PRESET=<A..I>: the letter as 0..8) ----
     localparam int HM_PRESET = (hpm_pkg::PRESET == hpm_pkg::NO_PRESET) ? -1 : hpm_pkg::PRESET - 1;
     function automatic int hm_preset_code(int p, int k);
         case (p)
@@ -1414,7 +1418,7 @@ module top;
         for (int k = 0; k < HM_N; k++) begin
             if (a == 12'h323 + 12'(k)) return {24'd0, hm_sel[k]};
             if (a == 12'hB03 + 12'(k)) return hm_cnt[k][31:0];
-            if (a == 12'hB83 + 12'(k)) return 32'(hm_cnt[k][HM_W-1:32]);
+            if (a == 12'hB83 + 12'(k)) return (HM_W > 32) ? 32'(hm_cnt[k] >> 32) : 32'd0;
         end
         if (a == 12'hB02) return hm_minstret[31:0];
         if (a == 12'hB82) return hm_minstret[63:32];
@@ -1618,7 +1622,7 @@ module top;
             $display("%s", line);
         end
         if (hm_check_en && hm_armed)
-            $display("HPM_CHECK ok: %0d comparisons of 7 counters, 7 selectors, mcountinhibit, minstret and mcycle", hm_checks);
+            $display("HPM_CHECK ok: %0d comparisons of %0d counters, %0d selectors, mcountinhibit, minstret and mcycle", hm_checks, HM_N, HM_N);
     end
 
 `ifdef HADES_ICACHE_BYTES

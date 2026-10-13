@@ -212,7 +212,7 @@ i_beats          = (words per line) * i_done + i_inflight_beats
 
 and `i_hits`, `d_loads` and `d_stores` equal the fetches, loads and stores of the `SCOREBOARD` line, and `cycles` equals the cycles of the `RETIRED` line.
 
-**Interpretation.** `i_hits` counts every cycle in which the cache acknowledged a fetch, and the pipeline does not use all of them: Fetch repeats a lookup in `STALL` cycles and discards the answer in `JUMP` cycles. So `i_hits` over-counts the fetches that the pipeline consumed, and it is not a hit rate. The miss rate of the instruction side is taken as `i_done` per 1000 retired instructions (the `RETIRED` line), from a run without a reset. Not counted, because Fetch's status is inside the CPU: the cause of a refill (sequential, stalled, jump, flushed). The CPU's own events (stalls, flushes, branch outcomes) belong to the counter work.
+**Interpretation.** `i_hits` counts every cycle in which the cache acknowledged a fetch, and the pipeline does not use all of them: Fetch repeats a lookup in `STALL` cycles and discards the answer in `JUMP` cycles. So `i_hits` over-counts the fetches that the pipeline consumed, and it is not a hit rate. The miss rate of the instruction side is taken as `i_done` per 1000 retired instructions (the `RETIRED` line), from a run without a reset. Not counted, because Fetch's status is inside the CPU: the cause of a refill (sequential, stalled, jump, flushed). The CPU's own events (stalls, flushes, branch outcomes) are counted by the performance counters ([EXTENSIONS.md](EXTENSIONS.md#hardware-performance-counters)).
 
 ### Testbench options
 
@@ -252,7 +252,7 @@ The cache and the arbiter expose thirteen one-bit **event** outputs. Each is 1 e
 
 `wait_i`, `wait_d`, `grant_i`, `grant_d` and `i_refill` are cycle events: they are 1 in every cycle their condition holds, not once per transfer. The rows are in the order in which the names are declared in `rtl/mcu.sv`, which is the order in which a counter unit would wire the first twelve; `cache_ev_i_refill` comes last, and its count equals the sum of the counts of `cache_ev_wait_i` and `cache_ev_grant_i` (`i_refill_cycles = wait_i_for_port + port_irefill`). The two data events count answers on the memory port; a data cache, when there is one, will not send its hits there, so it will need events of its own.
 
-**For the counter work.** The signals are declared only in the cached branch; without a cache the names do not exist, and a counter unit that reads them must tie its inputs to 0 itself. The cache and the arbiter build no event vector and never drive a counter unit's inputs; which signal is counted under which code, the vector's bit order and its mask belong to the counter work, which reads the signals by name. The events of the pipeline itself (stalls, flushes, branch outcomes) are inside the CPU and are not provided here, since reading them needs CPU changes.
+**For the performance counters.** The signals are declared only in the cached branch; without a cache the names do not exist, and a counter unit that reads them must tie its inputs to 0 itself. The cache and the arbiter build no event vector; `rtl/mcu.sv` wires them to bits 0-11 of `hpm_ext`, event codes 128-139 of the [performance counters](EXTENSIONS.md#hardware-performance-counters) (`cache_ev_i_refill` is not wired). The events of the pipeline itself (stalls, flushes, branch outcomes) are inside the CPU and are not provided here, since reading them needs CPU changes.
 
 ## Legality Checks and Run-Time Assertions
 
@@ -313,7 +313,7 @@ The evidence has six parts, each with a different weakness, so that no part is t
 | Early restart, critical word first | They need a bypass multiplexer on the predictor path and bring back the risk of answering for a stale address |
 | Hit under miss, several misses in flight | The CPU cannot use them |
 | Prefetching, a victim buffer | Excluded; they would be modelled before they are built |
-| Software-visible counters (CSRs or memory-mapped), a shell `cache` command | Separate work: the counter design. The events above are what it reads |
+| Software-visible counters (CSRs or memory-mapped), a shell `cache` command | Done for the instruction cache: [Hardware Performance Counters](EXTENSIONS.md#hardware-performance-counters); a shell `cache` command is not provided |
 | An invalidate port for `FENCE.I`, memory-mapped invalidate-all, `Zicbom` | Snooping keeps the cache coherent |
 | A run-time enable, flush or bypass switch | The cache is a compile-time choice |
 | Refill error paths | The refill cannot get `err` from this memory; if it does, the simulation stops |

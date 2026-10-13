@@ -30,7 +30,8 @@
  *    M unit and of the data bus, traps) fall exactly in program order.
  *  - A 64-bit counter is read in two halves. Freeze it first, or use hpm_read(), which reads the
  *    high half, the low half and the high half again until the high half is stable.
- *  - A counter is `HPM_WIDTH` bits wide in the CPU (48 by default); the bits above read 0.
+ *  - A counter is 48 bits wide in the CPU by default (the build parameter HADES_HPM_WIDTH, 32 to
+ *    64); the bits above read 0.
  *  - hpm_freeze() and hpm_thaw() touch bits 3..13 of mcountinhibit only, so they can never stop
  *    mcycle or minstret by accident. hpm_freeze_cycle_instret() and hpm_thaw_cycle_instret() are
  *    the only functions that touch those two. The FreeRTOS shell's `stats` command uses mcycle as
@@ -68,7 +69,8 @@
 
 /* ---------------------------------------------------------------------- event codes -- */
 
-/* architectural events: counted at the end of the cycle in which the instruction is in Writeback */
+/* architectural events: codes 1-20 are counted at the end of the cycle in which the instruction is
+ * in Writeback; the trap events 21-26 two cycles after the trap decision */
 #define HPM_EV_NONE             0u     /* counts nothing */
 #define HPM_EV_CYCLE            1u
 #define HPM_EV_INSTRET          2u
@@ -152,7 +154,8 @@ static inline uint32_t hpm_inhibit_read( void )
 }
 
 /* Stop the counters in mask (bits 3..13 only); the others keep running. Returns when the
- * csrrs has retired: events of the instructions before it are counted, those after it are not. */
+ * csrrs has retired: events of the instructions before it, and its own, are counted; those after it
+ * are not. (A thaw is the mirror image: the csrrc itself is not counted.) */
 static inline void hpm_freeze( uint32_t ulMask )
 {
     ulMask &= HPM_INH_USER;

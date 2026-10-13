@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: MIT
 """identities.py -- the identity gate of the hardware performance counters.
 
-Reads the output of simulator runs made with +hpm_stats (the HPM line: the total of every event of the
-counter unit from the last reset, with the events still in its delay registers) and, where the run
+Reads the output of simulator runs made with +hpm_stats (the HPM line: the totals of the event model in
+sim/top.sv, each event counted in the cycle of its condition since the last reset; the counter unit is
+not read, so this gate checks the model and the programs, and +hpm_check ties the model to the RTL) and, where the run
 printed them, the RETIRED line (+retired, or any slow-memory or cached run) and the CACHE_STATS line
 (a run with an instruction cache), and checks the identities that hold in every run without a reset
 in the middle:

@@ -1,6 +1,6 @@
 # session-perf.txt -- the scripted session of the shell command perf (the loader built with HPM_PERF=1):
 #
-#   make freertos-shell-test APP=loader HPM_PERF=1 FRTOS_SCRIPT=test/freertos/loader/session-perf.txt
+#   make freertos-shell-test APP=loader HPM_PERF=1 SCRIPT=test/freertos/loader/session-perf.txt
 #
 # The format is that of session.txt. The counters exist on HaDes-V+ and not on the golden CPU, which prints
 # "perf: no performance counters on this CPU" for every perf command (#?dut / #?golden lines).
