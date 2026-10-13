@@ -1519,10 +1519,11 @@ module top;
             39: return "MSTALL_MUL";      40: return "MSTALL_DIV";      41: return "MEMWAIT_LOAD";
             42: return "MEMWAIT_STORE";   43: return "MEMWAIT_IO";      44: return "REDIRECT_BRANCH";
             45: return "REDIRECT_JUMP";   46: return "REDIRECT_WB";     47: return "FETCH_DELIVER";
-            48: return "FETCH_DISCARD";   49: return "IO_ACCESS";       160: return "IC_HIT_USED";
-            161: return "IC_MISS_JUMP";   140: return "DC_LOOKUP_HIT";  141: return "DC_LOAD_MISS";
-            142: return "DC_BEAT";        143: return "DC_FILL";        144: return "DC_STORE_HIT";
-            145: return "DC_STORE_MISS";  146: return "DC_STORE_WAIT";  147: return "DC_REFILL_CYCLE";
+            48: return "FETCH_DISCARD";   49: return "IO_ACCESS";       140: return "DC_LOOKUP_HIT";
+            141: return "DC_LOAD_MISS";   142: return "DC_BEAT";        143: return "DC_FILL";
+            144: return "DC_STORE_HIT";   145: return "DC_STORE_MISS";  146: return "DC_STORE_WAIT";
+            147: return "DC_REFILL_CYCLE";                              160: return "IC_HIT_USED";
+            161: return "IC_MISS_JUMP";
             default: return $sformatf("CODE%0d", c);
         endcase
     endfunction
