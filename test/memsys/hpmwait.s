@@ -27,6 +27,13 @@
 # |   4  when the fetch does not wait (the nops take 33 cycles), the loads of window 3 cost      |
 # |      mcycle as much as MEMWAIT_LOAD says: the difference between the time of the 8 loads     |
 # |      and the nops, in cycles, is MEMWAIT_LOAD of window 3                         (fixed)   |
+# |   5  4 multiplications and 4 divisions, each followed by a nop: the six classes add          |
+# |      up to CYCLE, and MSTALL_ANY is not 0                                       (always)     |
+# |      The M unit holds Execute while Decode holds a bubble and Fetch still waits for          |
+# |      its port (Decode then tells Fetch READY). That cycle is MSTALL_ANY and must not be      |
+# |      FETCH_WAIT too, which needs Execute to be ready. A block of nops or of loads does       |
+# |      not make it: with one latency for both ports the next word arrives just when a          |
+# |      load enters Memory.                                                                     |
 # | All of them also hold, trivially or for real, with no wait states.                           |
 # |                                                                                              |
 # | Register allocation:                                                                         |
@@ -36,6 +43,8 @@
 # |     ra: return address of the window functions    a0-a7, s3, s4, s7-s10: the checks          |
 # |                                                                                              |
 # ------------------------------------------------------------------------------------------------
+
+.option arch, +m                 # window 5 multiplies and divides
 
 .equ INH_ALL,        0x3FFD
 .equ EV_CYCLE,       1
@@ -261,6 +270,34 @@ __reset:
     sub  t4, s10, s9              # cycles of the 8 loads beyond those of 16 nops: 8 times the wait of a load
     assert_equal_ff t4, s7
 
+    # ---- 5: the M unit stalls Execute while Fetch waits: the classes must not overlap ----
+    li   t2, 6
+    csrw mcountinhibit, s11
+    selc 3, EV_FETCH_WAIT
+    selc 4, EV_FRONT_OK
+    selc 5, EV_HAZARD
+    selc 6, EV_MSTALL_ANY
+    selc 7, EV_MEMWAIT_ANY
+    selc 8, EV_REDIRECT_ANY
+    selc 9, EV_CYCLE
+    clear_all
+    jal  ra, window_muldiv
+    rdc  3, a1
+    rdc  4, a2
+    rdc  5, a3
+    rdc  6, a4
+    rdc  7, a5
+    rdc  8, a6
+    rdc  9, a7
+    add  t4, a1, a2
+    add  t4, t4, a3
+    add  t4, t4, a4
+    add  t4, t4, a5
+    add  t4, t4, a6
+    assert_equal t4, a7
+    seqz t0, a4                   # the M unit did stall Execute
+    sw   t0, 0(t3)
+
 finish:
     csrw mcountinhibit, zero
 nocounters:                   # (a CPU without mcountinhibit would trap on the csrw above)
@@ -329,6 +366,20 @@ window_loads16:
     csrw mcountinhibit, zero
     .rept 16
     lw   a0, 0(t6)
+    nop
+    .endr
+    pad
+    csrw mcountinhibit, s11
+    ret
+
+.balign 16
+window_muldiv:
+    pad
+    csrw mcountinhibit, zero
+    .rept 4
+    mul  a0, t6, t1
+    nop
+    div  a0, t6, t1
     nop
     .endr
     pad
