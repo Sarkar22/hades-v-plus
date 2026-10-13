@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: MIT
+# The performance-counter unit (harness/unit_top.sv, props/unit_props.vh): one task per property,
+# each an unbounded proof by k-induction (mode prove), and the covers. run.sh makes a copy per
+# configuration (the model unit_<configuration>.v in place of unit_model.v) and per engine.
+[tasks]
+increment      prove p_increment
+write_rule     prove p_write_rule
+event_timing   prove p_event_timing
+selector_warl  prove p_selector_warl
+inhibit        prove p_inhibit
+isolation      prove p_isolation
+read_value     prove p_read_value
+reset_state    prove p_reset_state
+covers         cov
+
+[options]
+prove: mode prove
+prove: depth 5
+cov: mode cover
+cov: depth 12
+
+[engines]
+smtbmc bitwuzla
+
+[script]
+p_increment:     verilog_defaults -add -DCHECK_INCREMENT
+p_write_rule:    verilog_defaults -add -DCHECK_WRITE_RULE
+p_event_timing:  verilog_defaults -add -DCHECK_EVENT_TIMING
+p_selector_warl: verilog_defaults -add -DCHECK_SELECTOR_WARL
+p_inhibit:       verilog_defaults -add -DCHECK_INHIBIT
+p_isolation:     verilog_defaults -add -DCHECK_ISOLATION
+p_read_value:    verilog_defaults -add -DCHECK_READ_VALUE
+p_reset_state:   verilog_defaults -add -DCHECK_RESET_STATE
+cov:             verilog_defaults -add -DCOVERS
+read_verilog -sv -formal unit_model.v
+hierarchy -top unit_top
+proc -norom
+flatten
+prep -top unit_top
+
+[files]
+../gen/unit_model.v
+../props/unit_props.vh

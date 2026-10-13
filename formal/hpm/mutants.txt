@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: MIT
+# The negative controls of formal/hpm: one source change each, with the properties that must FAIL
+# on it. run.sh runs each property on the mutated model where it was proved (the first
+# configuration of --configs, the same engine), as a bounded check from reset to the depth of
+# --bmc-depth (default 20): a control must give a concrete counterexample.
+#
+# name | properties that must fail | file (repository path) | exact original text (must occur
+# exactly once in the file) | replacement | description
+#
+# In both texts \n stands for a newline, \t for a tab and \| for |. A row whose original text is
+# empty takes its change from the repository's counter mutation campaign: run.sh applies the patch
+# of test/hpm/mutants.py under the same name (mutants.py apply --src <tree> <name> <dir>), so that
+# each mutant is written in one place only; run.sh --mutant-cmd takes those mutants from a command
+# instead. A row that gives a text uses that text.
+#
+# ---- the counter unit (rtl/hpm.sv, rtl/hpm_events.sv) ----
+increment-by-two | increment | rtl/hpm.sv | | | a counter adds 2 instead of 1 for its event
+inhibit-ignored-hpm5 | increment | rtl/hpm.sv | | | mcountinhibit bit 5 does not stop counter 5
+increment-beats-write | write_rule | rtl/hpm.sv | | | a counter write in the same cycle as the counter's event is overridden by the increment
+b2-event-one-cycle-early | event_timing | rtl/hpm.sv | | | the class-B2 pipeline events are counted from the first register stage (one cycle after their condition, not two)
+selector-not-legalised | selector_warl | rtl/hpm.sv | | | a selector stores the written code even when this build does not have it
+tm-writable | inhibit | rtl/hpm.sv | | | bit 1 (TM) of mcountinhibit is writable
+selector-write-aliased | isolation | rtl/hpm.sv | | | a write to the selector of counter 4 also writes the selector of counter 3
+selector-read-off-by-one | read_value | rtl/hpm.sv | | | a read of mhpmevent(3+k) returns the selector of counter 4+k
+reset-keeps-selector | reset_state | rtl/hpm.sv | | | a reset clears the counters but not the selectors
+#
+# ---- the decoder ----
+decoder-accepts-0x321 | decoder_miter decoder_legal | rtl/instruction_decoder.sv | 12'h310,                  // MSTATUSH | 12'h310, 12'h321,         // MSTATUSH | the decoder also accepts the CSR address 0x321
+decoder-rejects-0x320 | decoder_miter decoder_legal | rtl/instruction_decoder.sv | 3'b001: instruction_out.op = (!valid_csr \|\| | 3'b001: instruction_out.op = (!valid_csr \|\| instruction_in[31:20] == 12'h320 \|\| | csrrw at 0x320 decodes as ILLEGAL
+#
+# ---- the Writeback stage ----
+writeback-ext-cause | writeback_miter | rtl/writeback_stage.sv | trap_cause = 32'h8000000B; | trap_cause = 32'h8000000A; | the external interrupt's mcause is 0x8000000A
+mstatus-enable-csrrc-or | writeback_miter | rtl/writeback_stage.sv | | | the interrupt logic's MSTATUS.MIE value for CSRRC and CSRRCI, computed from the registers, uses OR instead of AND-NOT
+int-timer-ext-swapped | writeback_events | rtl/writeback_stage.sv | | | the trap events INT_TIMER and INT_EXT are swapped

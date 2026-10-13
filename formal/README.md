@@ -37,6 +37,15 @@ Basys 3 bitstream have none. They run with `make formal-cache` (output in
 `$(BUILD_DIR)/formal-cache`, last line `FORMAL CACHE RESULT: PASS` or `FAIL ...`) and use
 the same tools; `make formal`, `make formal-full` and `make formal-ext` do not run them.
 
+**The hardware performance counters.** The proofs of the counters are in [hpm/](hpm/README.md):
+the counter unit (`rtl/hpm_events.sv` with `rtl/hpm.sv`: increments, the write rule, the timing of
+each event class, the WARL selectors and `mcountinhibit`, reads and reset, in five configurations),
+a miter of the instruction decoder against the previous one on all 2^32 words (the legal CSR set
+changes only at 0x320), and a miter of the Writeback stage against the previous one, which shows
+that the trap and interrupt behaviour is unchanged. They run with `make formal-hpm` (output in
+`$(BUILD_DIR)/formal-hpm`, last line `FORMAL HPM RESULT: PASS` or `FAIL ...`), use the same tools
+and have their own record; they change none of the inputs of `make formal`, which does not run them.
+
 Contents:
 
 1. [What is proven](#1-what-is-proven): [the M unit](#the-m-unit), [the EXT unit](#the-ext-unit-zbb-zbs-zicond-zbkb-zbkx-zknh)

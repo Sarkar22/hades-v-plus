@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: MIT
+# The instruction decoder (harness/decoder_top.sv, props/decoder_props.vh): combinational, the
+# instruction word is free, so each proof covers all 2^32 words.
+[tasks]
+decoder_miter  prove p_miter
+decoder_legal  prove p_legal
+covers         cov
+
+[options]
+prove: mode prove
+prove: depth 1
+cov: mode cover
+cov: depth 1
+
+[engines]
+smtbmc bitwuzla
+
+[script]
+p_miter: verilog_defaults -add -DCHECK_DECODER_MITER
+p_legal: verilog_defaults -add -DCHECK_DECODER_LEGAL
+cov:     verilog_defaults -add -DCOVERS
+read_verilog -sv -formal decoder.v
+hierarchy -top decoder_top
+proc -norom
+flatten
+prep -top decoder_top
+
+[files]
+../gen/decoder.v
+../props/decoder_props.vh
