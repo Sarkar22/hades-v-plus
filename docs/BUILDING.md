@@ -1,4 +1,4 @@
-[HaDes-V+](../README.md) · [Docs](README.md) · **Building** · [FreeRTOS](FREERTOS.md) · [Shell](SHELL.md) · [Apps](APPS.md) · [Architecture](ARCHITECTURE.md) · [Extensions](EXTENSIONS.md) · [Verification](VERIFICATION.md)
+[HaDes-V+](../README.md) · [Docs](README.md) · **Building** · [FreeRTOS](FREERTOS.md) · [Shell](SHELL.md) · [Apps](APPS.md) · [Architecture](ARCHITECTURE.md) · [Extensions](EXTENSIONS.md) · [Verification](VERIFICATION.md) · [Caches](CACHES.md)
 
 # Building and Running
 
@@ -57,6 +57,8 @@ make ext-exhaustive      # the same with the 15 one-operand instructions over al
 make check-results       # re-run the repeatable records of results/ and compare (results/README.md)
 ```
 
+Simulator targets also take options that change what the simulator is built from, without changing the design or the standard simulators: wait states for the RAM (`MEM_LAT=...`, [test/memsys/README.md](../test/memsys/README.md#simulator-configurations)) and an instruction cache (`ICACHE=<bytes>`, `LINE=<bytes>`, [CACHES.md](CACHES.md)). They apply to the simulators only; `make synthesis` refuses to run together with any of them, and the Basys3 bitstream has no cache. `make help` lists them.
+
 All build output goes to `build/` inside the repository unless `BUILD_DIR=/abs/path` is given on the command line or `HADES_BUILD_DIR` is set in the environment; every target follows it. This is how to work from a checkout on a disk that cannot execute programs (such as an NTFS data disk): the simulators are built and run from the build directory, and the golden-model libraries are copied there.
 
 The simulator is [Verilator][verilator]; synthesis uses [Vivado][vivado], tested with 2024.2 (how to give its path: [Synthesis and FPGA Timing](#synthesis-and-fpga-timing)). Each assembly and C test writes its waveform, `sim.fst`, to its own directory in the build directory, and so does each SystemVerilog bench (`<bench>.fst`) except `test_zba_encoding_sweep` and `test_execute_bpred_nextpc`, which write none; a FreeRTOS run (`make freertos` and the shell targets) writes one only when `WAVES=1` is given ([settings](FREERTOS.md#11-settings-reference)). `make show` opens in [GTKWave][gtkwave] the waveform of the assembly or C test that ran last, with the signal layout [`saves/pipeline.gtkw`](../saves/pipeline.gtkw), or of the SystemVerilog bench that was built last (no signal layout is provided for the benches), whichever of the two came later.
@@ -87,14 +89,14 @@ The output is kept as the terminal showed it: the script removes only the lines 
 - [`docs/`](../docs): User guides, listed in [README.md](README.md); [FREERTOS.md](FREERTOS.md) covers running FreeRTOS on the core, [SHELL.md](SHELL.md) its interactive shell and [APPS.md](APPS.md) the programs that the shell loads and runs. [ARCHITECTURE.md](ARCHITECTURE.md), [EXTENSIONS.md](EXTENSIONS.md), [VERIFICATION.md](VERIFICATION.md) and [BUILDING.md](BUILDING.md) describe the core, its extensions, its verification and its build; [`img/`](img) holds the screenshots and [`tools/`](tools) the script that records them.
 - [`lib/`](../lib): Peripheral modules (e.g., UART, timer).
 - [`ref/`](../ref): Precompiled reference libraries.
-- [`formal/`](../formal): Formal proofs of the multiply/divide unit and of the Zbb, Zbs, Zicond, Zbkb, Zbkx and Zknh unit (SymbiYosys, k-induction); see [formal/README.md](../formal/README.md).
+- [`formal/`](../formal): Formal proofs of the multiply/divide unit and of the Zbb, Zbs, Zicond, Zbkb, Zbkx and Zknh unit (SymbiYosys, k-induction); see [formal/README.md](../formal/README.md). The subdirectory [`cache/`](../formal/cache/README.md) holds the proofs of the simulation-only caches (`make formal-cache`).
 - [`results/`](../results/README.md): The records of the figures that the documentation quotes: the command, the inputs, the output as printed, and whether it can be re-run; `make check-results` re-runs the repeatable ones and compares the output with the stored values.
-- [`rtl/`](../rtl): The processor implementation — pipeline stages, register file, instruction decoder, and branch predictor.
+- [`rtl/`](../rtl): The processor implementation — pipeline stages, register file, instruction decoder, and branch predictor. The subdirectory [`rtl/cache/`](../rtl/cache) holds the instruction cache, its array wrapper and the memory-port arbiter that the simulators can be built with (`ICACHE=<bytes>`, [CACHES.md](CACHES.md)); it is for simulation only, is not read by synthesis (`synth/synth.tcl` reads `rtl/*.sv` without descending), and the standard build and the Basys3 bitstream have no cache.
 - [`saves/`](../saves): GTKWave signal layouts for `make show`.
 - [`sim/`](../sim): The simulation top level with the test device and the console bridge, and the Verilator file lists.
 - [`std/`](../std): The bare-metal C runtime: linker script, start-up code, bootloader and peripheral headers.
 - [`synth/`](../synth): Synthesis scripts and FPGA configuration files.
-- [`test/`](../test): Test files in assembly (`asm`), C (`c`), and SystemVerilog (`sv`); FreeRTOS programs and the differential campaign (`freertos`), among them the shell's app loader (`freertos/loader`) and the SDK for the programs it runs, with example apps (`freertos/sdk`); the interrupt-offset sweeps with their independent ISA model (`trapsweep`); the measurement programs behind the Zba, Zbb, SHA-256, M-unit and `FENCE.I` figures, run by `make bench` (`bench`, see [test/bench/README.md](../test/bench/README.md)).
+- [`test/`](../test): Test files in assembly (`asm`), C (`c`), and SystemVerilog (`sv`); the memory-system checks (`memsys`: a slow memory, the scoreboard, the instruction cache's matrix, mutants and warm-cache variants, see [test/memsys/README.md](../test/memsys/README.md)); FreeRTOS programs and the differential campaign (`freertos`), among them the shell's app loader (`freertos/loader`) and the SDK for the programs it runs, with example apps (`freertos/sdk`); the interrupt-offset sweeps with their independent ISA model (`trapsweep`); the measurement programs behind the Zba, Zbb, SHA-256, M-unit and `FENCE.I` figures, run by `make bench` (`bench`, see [test/bench/README.md](../test/bench/README.md)).
 - [`third_party/`](../third_party): Third-party sources, included unmodified: the FreeRTOS kernel, its RISC-V port, the FreeRTOS standard demo tasks and FreeRTOS+CLI, at pinned upstream commits (MIT); see [third_party/freertos/README.md](../third_party/freertos/README.md).
 - [`.vscode/`](../.vscode): Configuration files for Visual Studio Code.
 

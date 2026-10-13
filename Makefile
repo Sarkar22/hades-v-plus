@@ -412,6 +412,7 @@ help:
 	@echo "                              for python3 test/memsys/cachemodel.py)"
 	@echo "  e.g. make test/asm/ops MEM_LAT=2    make freertos APP=stress MEM_LAT=1:8    make freertos-stress MEM_LAT=2"
 	@echo "       make test/memsys/stores ICACHE=512 MEM_LAT=2    make freertos APP=minimal ICACHE=8192 MEM_LAT=1:8"
+	@echo "       make test/sv/test_icache [SIM_ARGS='+seed=2']   (the I-cache bench; checks of the caches: docs/CACHES.md)"
 	@echo "  sim-config        Print the configuration, its build directory and the environment for scripts"
 	@echo "  lint-loops        List the combinational loops of the configuration (Verilator, no UNOPTFLAT waiver)"
 	@echo "  SIM_ARGS='<opts>' Run-time options for the simulator of test/asm/*, test/c/*, test/memsys/*"

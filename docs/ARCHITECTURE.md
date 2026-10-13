@@ -1,4 +1,4 @@
-[HaDes-V+](../README.md) · [Docs](README.md) · [Building](BUILDING.md) · [FreeRTOS](FREERTOS.md) · [Shell](SHELL.md) · [Apps](APPS.md) · **Architecture** · [Extensions](EXTENSIONS.md) · [Verification](VERIFICATION.md)
+[HaDes-V+](../README.md) · [Docs](README.md) · [Building](BUILDING.md) · [FreeRTOS](FREERTOS.md) · [Shell](SHELL.md) · [Apps](APPS.md) · **Architecture** · [Extensions](EXTENSIONS.md) · [Verification](VERIFICATION.md) · [Caches](CACHES.md)
 
 # Architecture
 
@@ -7,7 +7,7 @@ This document describes the HaDes-V+ core and the microcontroller built around i
 **Contents**
 
 1. [The HaDes-V Core](#the-hades-v-core): [Instruction Set](#instruction-set), [Pipeline](#pipeline), [Hazards](#hazards-and-how-theyre-handled)
-2. [System Architecture](#system-architecture): [Memory Subsystem](#memory-subsystem), [Memory Map](#system-level-memory-map), [Wishbone Fabric](#the-wishbone-fabric), [Peripherals](#peripherals), [Clocks & Reset](#clocks--reset)
+2. [System Architecture](#system-architecture): [Memory Subsystem](#memory-subsystem), [Caches](#caches-simulation-only), [Memory Map](#system-level-memory-map), [Wishbone Fabric](#the-wishbone-fabric), [Peripherals](#peripherals), [Clocks & Reset](#clocks--reset)
 3. [Software Runtime](#software-runtime): [FreeRTOS](#freertos), [Linker Script](#linker-script--memory-layout), [C Startup](#c-startup), [Headers](#peripheral--helper-headers)
 4. [Reference-Library ("Jigsaw Puzzle") Flow](#reference-library-jigsaw-puzzle-flow)
 5. [Upstream Course Material](#upstream-course-material)
@@ -87,6 +87,12 @@ The core has **two completely independent memory ports** — an instruction-side
 - Because the fetch and data buses never share a master, there is **no structural contention** between the pipeline's fetch stream and its load/store traffic — the only stall the bus can introduce on HaDes-V is a slow-ack from a peripheral, which propagates through Memory's `STALL`.
 - Writes are byte-enabled: the 4-bit `sel` strobe on Wishbone is driven by Memory to match SB / SH / SW widths, and the RAM honours each lane individually.
 - Reset vector is derived from the RAM base in [defines/constants.sv](../defines/constants.sv): `RESET_ADDRESS = MEMORY_START << 2 = 0x0004_0000` (byte address). Fetch powers up on that PC.
+
+### Caches (Simulation Only)
+
+The memory subsystem described above is the whole of the standard build and of the Basys 3 bitstream: there are no caches in either. The simulators can be built with an instruction cache (`make ... ICACHE=<bytes>`); it exists only in the simulators, is not read by synthesis, and changes neither CPU.
+
+In that configuration the cache sits outside both CPUs, on the fetch bus, and snoops the stores that the data-bus interconnect acknowledges for the RAM window, so it stays coherent without any change to `FENCE.I`. The RAM keeps one memory port, which an arbiter shares between the cache's refills and the data side (data side first, a grant never taken away), behind the slow-memory wrapper of the simulators; the second RAM port is idle. The data side passes through uncached. Because a RAM access can then wait behind a refill, the interconnect's 255-cycle timeout is switched off for the RAM window (its `TIMEOUT_EXEMPT` parameter, all zeros by default, which is the interconnect described above) and every I/O slave keeps it. The design, the options, what the simulator prints and how the cache is checked are in [CACHES.md](CACHES.md).
 
 ### System-Level Memory Map
 

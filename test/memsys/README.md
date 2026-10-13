@@ -2,9 +2,11 @@
 
 Simulation tools for the memory system: a RAM that answers late, an oracle that checks every
 answer of the RAM, and a trace-driven model of L1 caches. They test the memory system and
-size caches between the CPU and the RAM. The design and synthesis do not change, and the
-standard simulators behave as before: every option below builds its own simulators, in
-`build/cfg-<name>`.
+size caches between the CPU and the RAM, and they check the instruction cache that the
+simulators can be built with ([docs/CACHES.md](../../docs/CACHES.md)). The design and synthesis
+do not change, and the standard simulators behave as before: every option below builds its own
+simulators, in `build/cfg-<name>`. The caches exist only in the simulators; the standard build
+and the Basys 3 bitstream have none.
 
 | Piece | Where | What it does |
 |---|---|---|
@@ -30,8 +32,10 @@ Options of any make target that builds a simulator (`make help` lists them):
 | `MEM_LAT=<n>` or `<min>:<max>` | wait states of every RAM read and write, fixed or drawn per transfer (0 to 1023; at most 254 on the data port, see below) |
 | `MEM_WR_LAT=...` | wait states of every RAM write (default: `MEM_LAT`) |
 | `MEM_BEAT_LAT=<n>` | burst timing: a further transfer to the next word while `cyc` stays high waits n cycles; on the data port an access to another slave (I/O) ends the burst |
-| `MEM_ONLY=fetch\|data` | the wait states apply to that RAM port only; the other one behaves as the standard RAM |
-| `MEM_SEED=<n>` | seed of the latency generator (default 1); each port has its own sequence |
+| `MEM_ONLY=fetch\|data` | the wait states apply to that RAM port only; the other one behaves as the standard RAM (refused with `ICACHE`: the cached configuration has one memory port) |
+| `MEM_SEED=<n>` | seed of the latency generator (default 1); each port has its own sequence; with `ICACHE` it also seeds the random initial contents of the cache's arrays |
+| `ICACHE=<bytes>` | an instruction cache of that size (a decimal power of two of at least two lines; 0 or unset: none), direct-mapped, and one memory port that its refills share with the data side, with the latencies above (latency 0 if none is given). The RAM is then exempt from the interconnect timeout, so the 254-cycle limit below does not apply |
+| `LINE=8\|16\|32\|64` | the cache's line size in bytes (default 16); only with a non-zero `ICACHE` |
 | `SCOREBOARD=0\|1` | the scoreboard (default: on with a slow memory, off otherwise) |
 | `BUSHASH=0\|1` | the bus hash |
 | `BUSTRACE=0\|1` | the bus trace (HaDes-V+ only) |
@@ -40,6 +44,8 @@ Options of any make target that builds a simulator (`make help` lists them):
 make test/asm/ops MEM_LAT=2
 make test/memsys/stores MEM_LAT=1:8 MEM_SEED=3
 make freertos APP=minimal MEM_LAT=2
+make test/memsys/stores ICACHE=512 MEM_LAT=2          # with an instruction cache
+make freertos APP=minimal ICACHE=8192 MEM_LAT=1:8
 make sim-config MEM_LAT=1:8          # name, build directory and environment of a configuration
 make lint-loops MEM_LAT=2            # combinational loops, without the UNOPTFLAT waiver
 ```
@@ -47,7 +53,9 @@ make lint-loops MEM_LAT=2            # combinational loops, without the UNOPTFLA
 The options are compiled in as the simulator's defaults; run-time options override them:
 `+mem_lat`, `+mem_rd_lat`, `+mem_wr_lat`, `+mem_beat_lat`, `+mem_only`, `+mem_seed`,
 `+scoreboard` / `+noscoreboard`, `+bushash` / `+nobushash`, `+retired` / `+noretired`,
-`+bustrace=<file>`.
+`+bustrace=<file>`. A cached simulator adds `+cache_stats` / `+nocache_stats` (the
+`CACHE_STATS` line, on by default), and every slow-memory simulator takes the testbench options
+below.
 
 Wait states make a program up to 1 + the longest wait times slower. Without `+timeout`, a
 simulator with a slow memory therefore multiplies the default cycle limit (100000) by 1 + the
@@ -55,10 +63,37 @@ longest read, write or beat wait of the two ports, and prints the limit in a `SL
 limit` line; at `MEM_LAT=1:8` it is 900000 cycles. `SIM_ARGS=+timeout=<cycles>` sets the limit
 of a single run. `programs.py` scales its limit the same way.
 
-The data port waits at most 254 cycles: the interconnect ends a data access that has had no
-answer for 255 cycles with `err` ([wishbone_interconnect.sv](../../lib/wishbone/wishbone_interconnect.sv)).
+With an instruction cache the default limit is 100000 times 1 + max(R, D), with R the
+cycles of the longest refill and D those of the longest data transfer of the one memory port
+(`R = (RD + 1) + (words per line - 1) * (B + 1)` and `D = max(RD, WR) + 1`, with RD and WR the
+longest read and write wait and B the beat wait in burst mode, else RD), and the limit is
+printed in the same `SLOW MEMORY cycle limit` line; `make help` states the rule.
+
+The configuration of a cached simulator has the parts `i<size>` and `l<line>` after the memory
+parts of its name (`mem2-i512-l16` for `ICACHE=512 MEM_LAT=2`; `mem1_8-seed2-i8k-l32` for
+`ICACHE=8192 LINE=32 MEM_LAT=1:8 MEM_SEED=2`), and prints a `CACHE` line and a `SLOW MEMORY
+memory port` line at time 0 ([docs/CACHES.md](../../docs/CACHES.md#what-the-simulator-prints)).
+`DCACHE` is refused (there is no data cache), and so is `make synthesis` with any of these options.
+
+The data port waits at most 254 cycles (without a cache): the interconnect ends a data access
+that has had no answer for 255 cycles with `err` ([wishbone_interconnect.sv](../../lib/wishbone/wishbone_interconnect.sv)).
 The Makefile and `sim/slow_memory.sv` refuse a longer read, write or beat latency on the data
-port; the fetch port takes up to 1023 (`MEM_ONLY=fetch` for longer fetch waits alone).
+port; the fetch port takes up to 1023 (`MEM_ONLY=fetch` for longer fetch waits alone). With an
+instruction cache the RAM is exempt from that timeout and the one memory port takes up to 1023.
+
+### Testbench options
+
+Run-time options of [sim/top.sv](../../sim/top.sv), for placing events and reading results
+(`SIM_ARGS='+...'` through make). Details, line formats and the reasons are in
+[docs/CACHES.md](../../docs/CACHES.md#testbench-options).
+
+| Option | Meaning |
+|---|---|
+| `+reset_at=<cycle>[,<cycle>...]` | A one-cycle reset three cycles after each listed cycle (decimal, at least 1, strictly ascending, at least 2 apart). Prints `RESET at cycle <n> (+reset_at=<c>): I-cache <phase>, data side <phase>` in the reset cycle. Every slow-memory simulator, both CPUs. `RETIRED` and `BUSHASH` keep counting through a reset; `CACHE_STATS` restarts |
+| `+cache_phase_log=<file>` | One byte per cycle: the cache and the data side's phases, to choose the cycle of a reset (a reset wanted in cycle `t` is requested with `+reset_at=<t-3>`) |
+| `+ram_words=<byte address>[,...]` | At the end, a `RAM_WORDS` line with these RAM words (word-aligned, inside the RAM) |
+| `+retired_every=<n>` | A `RETIRED_AT instructions=<i> cycles=<c>` line each time HaDes-V+ has retired another n instructions |
+| `+irq_latency` | An `IRQLAT interrupts=<n> max=<cycles> mean=<cycles>` line at the end: the cycles from an interrupt pending in Writeback to the first fetch answer after its jump. HaDes-V+ only; in every simulator |
 
 ## Programs Under Wait States
 
@@ -184,14 +219,20 @@ own line and the target is looked up while that line is valid.
 ## FreeRTOS Under Wait States
 
 The FreeRTOS programs keep their tick in clock cycles, so wait states make every task slower
-against the tick. `minimal` and the shell pass unchanged; `stress`, `mzba` and `full` check
-their own progress in real time and fail on both CPUs alike unless the tick is scaled by about
-1 + the mean wait, for example `TICK=30000` at `MEM_LAT=2` and `TICK=60000` at `MEM_LAT=1:8`.
-The `rv32i` build of `mzba` also needs its test-device interrupt interval, which is set in
-cycles, scaled: `DEFS=-DMZBA_IRQ_MEAN=18000` (latency 2) or `36000` (1 to 8). The console
+against the tick. `stress`, `mzba`, `full` and `brk` check their own progress in real time and
+fail on both CPUs alike unless the tick is scaled by about 1 + the mean wait. In every
+configuration with a slow memory the tick is therefore set automatically, unless `TICK=` is
+given: `10000 * F` cycles, `F = 1 + ceil(the larger of the mean read and mean write wait)`, plus
+1 with an instruction cache (`TICK=30000` at `MEM_LAT=2`, `TICK=40000` with `ICACHE=512` as
+well). The programs get `-DFRTOS_SLOW_SCALE=F`: `mzba` scales its test-device interrupt
+intervals by it and `brk` its interrupt intervals and sleep period, and the default cycle limit
+of a program grows with the tick; the stress campaign passes its own tick and stays unscaled.
+An explicit `TICK=` or `DEFS=-DMZBA_IRQ_MEAN=...` overrides
+([docs/FREERTOS.md](../../docs/FREERTOS.md#slow-memory-and-cached-configurations)). The console
 lengthens its pauses between typed characters by the factor `+console_pace=<n>` (1 to 32767;
-default with a slow memory: 1 + its longest read, write or beat wait), so the scripted shell
-session passes at every latency.
+default with a slow memory: 1 + its longest read, write or beat wait; with an instruction cache
+2 + the longest wait of the one memory port), so the scripted shell session passes at every
+latency.
 
 ## Cache Model
 
@@ -240,6 +281,12 @@ model's approximation that the whole core waits during a miss. Use programs whos
 instructions do not depend on timing (no interrupts, no polling).
 
 ## Verification of the Instruction Cache
+
+Besides the tools below, the cache is checked by the bench [test/sv/test_icache.sv](../sv/test_icache.sv)
+(`make test/sv/test_icache`, options through `SIM_ARGS`; the cache and the arbiter against a
+reference model, every output and event in every cycle) and by the proofs of
+[formal/cache/](../../formal/cache/README.md) (`make formal-cache`); both are described in
+[docs/CACHES.md](../../docs/CACHES.md#verification-and-how-to-re-run-it).
 
 ```bash
 python3 test/memsys/matrix.py list                       # legs, jobs, estimated cycles
