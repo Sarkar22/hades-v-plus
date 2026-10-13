@@ -70,6 +70,7 @@ Every suite runs from the repository root. The results below are what the comman
 | Zicntr | `make test/asm/zicntr` | the same |
 | Zifencei and FENCE | `make test/asm/fencei`, `make test/asm/fencerd` | the same, each |
 | Branch predictor | `make test/asm/bpred` | three `Test pass!` lines, then `Inital test failed! (# Errors: 0)`; see [The Testbench's Verdict Line](#the-testbenchs-verdict-line) |
+| Performance counters: every event provoked a known number of times; the counters at every position of an interrupt; branches squashed by traps; stall and cache events with a slow memory and an instruction cache | `make test/asm/hpm`, `make test/asm/hpmirq`, `make test/asm/bpsquash`, `make test/memsys/hpmwait MEM_LAT=2`, `make test/memsys/hpmcache ICACHE=512 MEM_LAT=2` | the same, each ([Hardware Performance Counters](EXTENSIONS.md#hardware-performance-counters)) |
 | Interrupts next to predicted branches | `make test/asm/bpirq`, `make test/asm/bpirq2`, `make test/asm/bpirq3` | `All tests passed! (# Errors: 1 = initial test)`, each |
 | M against libgcc | `make test/c/m_extension` | `M-EXT checks=200 errors=0`, `M-EXT PASS`, then `Inital test failed! (# Errors: 0)`; see [The Testbench's Verdict Line](#the-testbenchs-verdict-line) |
 | Bootloader | `make test/c/bootloader` | `INFO: Bootloader started!`; the bootloader then waits for a program on the UART until the simulation's cycle limit (`Simulation timeout!`) |
@@ -87,6 +88,7 @@ Every suite runs from the repository root. The results below are what the comman
 | Next PC with a branch prediction applied | `make test/sv/test_execute_bpred_nextpc` | `All 40000 branch-prediction next-PC checks passed` |
 | Execute stage against the golden stage | `make test/sv/test_execute_compare` | `Tests: 142 Errors: 30` (baseline) |
 | Memory stage against the golden stage | `make test/sv/test_memory_compare` | `Tests: 98 Errors: 6` (baseline) |
+| The performance-counter unit against an independent model, every cycle, for 0 to 7 counters of 32 to 64 bits | `make test/sv/test_hpm` (options through `SIM_ARGS`) | `HPM BENCH: PASS` |
 | Writeback stage against the golden stage | `make test/sv/test_writeback_compare` | `Tests: 111 Errors: 7` (baseline) |
 | Writeback: traps that coincide with interrupts | `make test/sv/test_writeback_special_irq` | `Tests: 51 Errors: 24` (baseline) |
 | The simulation-only instruction cache and its memory-port arbiter, against an independent reference model, every output and event in every cycle | `make test/sv/test_icache` (options through `SIM_ARGS`, for example `SIM_ARGS='+seed=2 +mem_seed=2'`) | `ICACHE BENCH: PASS (<configurations>, <cycles>, 0 mismatches)`, exit status 0; see [CACHES.md](CACHES.md#verification-and-how-to-re-run-it). Not run by the generic bench rule, and no recorded result yet |
@@ -258,6 +260,13 @@ It uses the same tools and ends with `FORMAL CACHE RESULT: PASS` or `FORMAL CACH
 What it proves, the environment it assumes, the depths and the fallback used for each property
 and the outcome of a run (section 7) are in [formal/cache/README.md](../formal/cache/README.md); there is no
 record of it under `results/` yet. The proofs concern the cache and the arbiter, which exist only in the simulators.
+
+The hardware performance counters (the counter unit for every input sequence, the decoder change over all 2^32 instruction words, and the Writeback stage against its previous version) have a separate target and guide as well, [formal/hpm/README.md](../formal/hpm/README.md):
+
+```bash
+make formal-hpm     # counter unit, decoder miter, Writeback miter, covers, negative controls
+```
+
 
 ### The M unit
 

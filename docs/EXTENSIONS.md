@@ -19,6 +19,7 @@ With them the core implements `rv32imb_zicntr_zicond_zicsr_zifencei_zihintntl_zi
 9. [Zbkb, Zbkx and Zknh — Scalar Cryptography](#zbkb-zbkx-and-zknh--scalar-cryptography)
 10. [Hints, Zmmul and Zkt](#hints-zmmul-and-zkt)
 11. [Caches (Simulation Only)](#caches-simulation-only)
+12. [Hardware Performance Counters](#hardware-performance-counters)
 
 ## What HaDes-V+ Adds
 
@@ -32,6 +33,7 @@ With them the core implements `rv32imb_zicntr_zicond_zicsr_zifencei_zihintntl_zi
 | **Zicond** — conditional zero | `czero.eqz` and `czero.nez`, a branch-free select; usable from C through [std/include/zicond.h](../std/include/zicond.h) | [§](#zicond--conditional-zero) |
 | **Zbkb**, **Zbkx**, **Zknh** — scalar cryptography | The 17 RV32 instructions of these extensions that Zbb does not already provide: `pack`, `packh`, `brev8`, `zip`, `unzip`, the crossbar permutations `xperm4` and `xperm8`, and the SHA-256 and SHA-512 functions; single-cycle, in a second half of the same unit; SHA-256 at 49.8 cycles per byte instead of 63.4 with Zbb alone (`make bench-sha256`, [record](../results/sha256/2026-10-02_bd800d8/RECORD.md)) | [§](#zbkb-zbkx-and-zknh--scalar-cryptography) |
 | **Zihintpause**, **Zihintntl**, **Zmmul**, **Zkt** — claims | No new hardware: the hints execute as one-cycle no-ops, M includes Zmmul, and every implemented instruction of the Zkt list has a latency that does not depend on the data; each claim with its evidence | [§](#hints-zmmul-and-zkt) |
+| **Hardware performance counters** | Seven programmable machine-mode counters `mhpmcounter3-9` (48 bits) with event selectors `mhpmevent3-9` and `mcountinhibit`: 58 events (retired instruction classes, the six-way cycle breakdown, traps, branch outcomes, instruction-cache events); the branch predictor's counters 10-13 now count retired branches exactly. Zero extra cycles | [§](#hardware-performance-counters) |
 | **Branch predictor** | Four run-time selectable algorithms — never-taken (the reset default), always-taken, backward-taken and bimodal 2-bit counters — with four outcome counters as CSRs; a correctly predicted branch causes no pipeline flush | [§](#branch-predictor-extension) |
 | **FreeRTOS** | The official RISC-V port boots unmodified; one-command build and run, a differential stress campaign against the golden CPU, a template for your own programs, and an interactive command shell (FreeRTOS+CLI) you type into from your terminal. In simulation, the shell can also receive programs compiled on the host over the UART and run them as a task (`make freertos-shell APP=loader UPLOAD=hello`, then `load` and `run`); an app that raises an exception is stopped and reported while the shell carries on, as far as machine mode without memory protection allows ([guide](APPS.md)) | [§](FREERTOS.md) |
 
@@ -176,7 +178,7 @@ make test/asm/zicntr
 ### Implementation Notes
 
 - **Do not add `_zicntr` to `-march`.** binutils 2.39 rejects the token outright (`unknown prefixed ISA extension 'zicntr'`). None is needed: the stock default `-march=rv32i` already accepts all six CSRs by name, so `csrr t0, cycle` assembles as-is and no Makefile change is required.
-- **`mcounteren` stays hardwired to zero.** It gates counter access from privilege modes below M, and this core is M-mode only. Reading zero is legal WARL; implementing a register that reads back nonzero would imply gating the hardware cannot perform. If U-mode is ever added, `mcounteren` must be implemented for real.
+- **`mcounteren` stays hardwired to zero.** It gates counter access from privilege modes below M, and this core is M-mode only. Reading zero is legal WARL; the privileged specification says that in a hart without U-mode the register should not exist, and the decoder keeps accepting its address for compatibility with software that reads it. If U-mode is ever added, `mcounteren` must be implemented for real.
 - **`time` ticks at the core clock.** `mtime` increments once per `clk`, the same clock driving `mcycle`, so on this platform the two advance at the same rate and differ only by an offset (`mcycle` counts during reset; `mtime` is software-writable). That is a legal fixed-frequency clock, not an independent oscillator.
 - **Reading a 64-bit counter on RV32** needs the standard retry loop — read the high half, read the low half, read the high half again, and repeat if it changed — because the two halves cannot be sampled atomically.
 - **Golden-model note.** `writeback_stage` gained an `mtime_in` port that the frozen reference does not have; the DUT-vs-REF testbenches simply leave it unconnected, exactly as they already do for the branch predictor's ports. To run a test on the golden CPU, append a `+define+USE_REF_CPU` line to [sim/files.txt](../sim/files.txt) and rebuild — the guard in [rtl/mcu.sv](../rtl/mcu.sv) then instantiates `ref_cpu` with the `mtime_in` pin excluded, and the simulation prints `REFERENCE IMPLEMENTATION OF "cpu.sv" USED!`.
@@ -326,6 +328,8 @@ Five new CSRs are implemented in [rtl/writeback_stage.sv](../rtl/writeback_stage
 | `MHPMCOUNTER11` | `0xB0B` | **NT** — count of branches where prediction = *not-taken* **but** actual = *taken* (misprediction — predictor too conservative). |
 | `MHPMCOUNTER12` | `0xB0C` | **TN** — count of branches where prediction = *taken* **but** actual = *not-taken* (misprediction — over-predicted; expected once per loop at the exit). |
 | `MHPMCOUNTER13` | `0xB0D` | **TT** — count of branches where prediction = *taken* **and** actual = *taken* (correct prediction). |
+
+The four counters count retired conditional branches only, each once, and `mcountinhibit` bits 10-13 stop them; `MHPMEVENT11-13` read the constants 18, 19, 20 ([Hardware Performance Counters](#hardware-performance-counters)).
 
 A correct predictor on a tight loop of *N* iterations produces `TT = N−1`, `TN = 1`, `NT = 0`, `NN = 0`. Accuracy = `(NN + TT) / (NN + NT + TN + TT)`.
 
@@ -660,3 +664,66 @@ What Zkt does not give: a program built from these instructions is constant-time
 ## Caches (Simulation Only)
 
 The core has no cache, and neither has the Basys 3 bitstream. The simulators can be built with an instruction cache outside both CPUs (`make ... ICACHE=<bytes>`), which exists only in simulation and changes no instruction, CSR or CPU file. It matters here for two reasons: it must stay transparent to every extension above, and it must not change what `FENCE.I` means. It snoops the stores that the data-bus interconnect acknowledges for the RAM and invalidates the line it holds of the stored-to word, so a store is never missed and `FENCE.I` stays the pipeline flush that [Zifencei](#zifencei--instruction-fetch-synchronisation) describes; `FENCE` stays a no-op. The staleness window of three instruction slots can only shrink with the cache, because a slot whose word is fetched after the store, as its line missed, runs the new word; `make bench-fencei-window` is judged against that bound in cached builds. The cached configurations run the assembly and C programs, the FreeRTOS programs and the trap sweeps and compare them with the standard build; the checks that time their own instructions with `mcycle` have warm-cache variants. The design, the options and the checks are described in [CACHES.md](CACHES.md).
+
+## Hardware Performance Counters
+
+The core counts what its pipeline, its branch predictor and (in simulation) its instruction cache do, in machine-mode CSRs at the standard addresses of the privileged specification. The counters only observe: they add no cycle to any instruction, so a program takes the same number of cycles with and without them (the bus hashes of every program in the suites are equal to those of the core without counters). The golden CPU in `ref/` has none of this.
+
+| CSR | Address | Description |
+|---|---|---|
+| `mcountinhibit` | `0x320` | One bit stops one counter: bit 0 `mcycle`, bit 2 `minstret`, bits 3-9 `mhpmcounter3-9`, bits 10-13 `mhpmcounter10-13`. Bit 1 (time) and the others read 0. Resets to 0. Writable mask `0x3FFD`. |
+| `mhpmevent3-9` | `0x323-0x329` | The event of the counter, in bits 7:0; bits 31:8 read 0. WARL: a code that this build does not have reads back 0, which is how software finds out what exists. |
+| `mhpmevent10` | `0x32A` | The branch predictor's mode register (unchanged). |
+| `mhpmevent11-13` | `0x32B-0x32D` | Read-only constants 18, 19, 20 (`BP_NT`, `BP_TN`, `BP_TT`); counter 10 counts `BP_NN` (17). |
+| `mhpmcounter3-9`, `mhpmcounter3h-9h` | `0xB03-0xB09`, `0xB83-0xB89` | The counters, 48 bits wide (the width is a build parameter, 32 to 64; bits above it read 0 and ignore writes). The high half is read through the `h` register. |
+| `mhpmcounter10-13` | `0xB0A-0xB0D` | The predictor's four counters, 32 bits, now counting retired conditional branches only (a branch squashed by a trap or an older redirect counts once or not at all, never twice). |
+
+Counters above `2 + N` read 0, where N is the number of counters of the build (`HPM_COUNTERS`, default 7). The other addresses (`0x7C0`, `0xB01`, the unprivileged `hpmcounter` shadows, `0x321`, `0x322`, `0x721-0x73F`) still raise an illegal-instruction exception; the unprivileged shadows and Sscofpmf are not implemented, and no ISA-string entry is claimed.
+
+**Reads and writes.** A read returns the value before the reading instruction's own write and increment. `csrrw` and `csrrwi` always write; `csrrs`, `csrrc`, `csrrsi` and `csrrci` write only when the `rs1` field (the immediate field of the immediate forms) is non-zero, even if the register holds 0 (as `csrrs rd, csr, x0` must not write); this holds for `mcycle` and `minstret` too, which accept all six forms now. A write and an increment in the same cycle: the counter takes its own increment first, then the written half takes the written value and the other half keeps the incremented value (the rule `mcycle` and `minstret` always had). A counter write discards that counter's events of the same cycle. A sequential interrupt's stale instruction that writes a counter retires and writes; a replayed one writes nothing.
+
+**When an event counts.** Class A events (the retirement events 1-20, and `CYCLE`) count at the end of the cycle in which their instruction is in Writeback, like `minstret`. Class B1 events (a memory access's acknowledge cycle, fetch occurrences, all memory-system codes) count one cycle after the condition; class B2 events (Execute events, traps, the cycle classes) two. Events then fall in program order relative to counter writes and `mcountinhibit` changes. The front-end events (`FETCH_WAIT`, `FRONT_OK`, `HAZARD`, `HAZARD_LOAD`, `FETCH_DELIVER`, `FETCH_DISCARD` and the instruction-cache events) happen while the writing instruction is still between Fetch and Memory and can fall up to about three instructions to either side of a window edge; for exact front-end counts put the window edges in straight-line, warm code, as the tests and `std/include/hpm.h` do. Freeze a counter before changing its selector: an event still on its way is counted under the new selector.
+
+### Events
+
+Codes are 8-bit and never renumbered or reused; new events take the next free code.
+
+| Codes | Events |
+|---|---|
+| 0 | none |
+| 1-15 | `CYCLE`, `INSTRET`, `LOAD`, `STORE`, `BRANCH`, `BRANCH_TAKEN`, `JUMP`, `MUL`, `DIV`, `CSR`, `BITMANIP` (Zba, Zbb, Zbs, Zicond, the Zbkb forms Zbb shares), `CRYPTO` (the rest of Zbkb, Zbkx, Zknh), `MRET`, `FENCE_I`, `REPLAY` (a stale instruction of an interrupt that is replayed rather than retired). The retirement events count retired instructions only. |
+| 16-20 | `BR_MISPREDICT`, `BP_NN`, `BP_NT`, `BP_TN`, `BP_TT`: retired conditional branches by predicted and actual direction. |
+| 21-26 | `EXCEPTION`, `EXC_ECALL`, `EXC_OTHER`, `INTERRUPT`, `INT_TIMER`, `INT_EXT`: trap entries. |
+| 32-37 | The cycle breakdown: `FETCH_WAIT`, `FRONT_OK`, `HAZARD`, `MSTALL_ANY`, `MEMWAIT_ANY`, `REDIRECT_ANY`. Every cycle belongs to exactly one, chosen by the oldest stage that holds the pipeline (Memory waiting for the bus, else Execute waiting for the M unit, else a redirect, else Decode holding for a hazard, else Fetch waiting, else Fetch taking a word), so over any window without a counter write they add up to `CYCLE`. |
+| 38-46 | `HAZARD_LOAD` (the load-use part of `HAZARD`), `MSTALL_MUL`, `MSTALL_DIV`, `MEMWAIT_LOAD`, `MEMWAIT_STORE`, `MEMWAIT_IO`, `REDIRECT_BRANCH`, `REDIRECT_JUMP`, `REDIRECT_WB`: the parts of the classes above. |
+| 47-49 | `FETCH_DELIVER` (a fetched word goes to Decode), `FETCH_DISCARD` (an answer thrown away in a stall or jump cycle), `IO_ACCESS` (a data access outside the RAM starts). |
+| 128-139 | The instruction cache and its memory port (builds with `ICACHE=<bytes>` only, otherwise they read back 0): `IC_LOOKUP_HIT`, `IC_MISS`, `IC_BEAT`, `IC_FILL`, `IC_ABANDON`, `IC_SNOOP_INVAL`, `PORT_WAIT_I`, `PORT_WAIT_D`, `PORT_GRANT_I`, `PORT_GRANT_D`, `PORT_LOAD`, `PORT_STORE`. Each counts exactly what the key of the same meaning in the `CACHE_STATS` line counts. The last two count loads and stores that reach the memory port, not data-cache hits (there is no data cache yet; codes from 140 are reserved for one). |
+| 160-161 | `IC_HIT_USED` (a lookup hit whose word Decode takes), `IC_MISS_JUMP` (a miss while Fetch is being redirected). Cache builds only. |
+
+The vector of the memory-system events is `hpm_ext` in `rtl/mcu.sv`: bit k is code 128 + k, `hpm_ext_present` has a 1 for every bit the configuration drives (the cache's thirteenth signal, `cache_ev_i_refill`, is not wired: it equals `PORT_WAIT_I + PORT_GRANT_I`).
+
+**Identities** that hold in every run without a reset in the middle, checked by `test/hpm/identities.py` on the totals of `+hpm_stats`: the six cycle classes add up to `CYCLE`; `MSTALL_MUL + MSTALL_DIV = MSTALL_ANY`, `MEMWAIT_LOAD + MEMWAIT_STORE = MEMWAIT_ANY`, the three redirect kinds add up to `REDIRECT_ANY`; `EXC_ECALL + EXC_OTHER = EXCEPTION`, `INT_TIMER + INT_EXT = INTERRUPT`; the four prediction outcomes add up to `BRANCH`; `INSTRET` and `CYCLE` equal the `RETIRED` line; and the exact Writeback redirect balance (`REDIRECT_WB + p = EXCEPTION + INTERRUPT + MRET + FENCE_I - q - r`, with the simulation-only terms p: an interrupt decided but not yet jumped, q: an `mret` that took an interrupt at once, r: a `fence.i` that retired as the stale instruction). With an instruction cache `i_hits = FETCH_DELIVER + FETCH_DISCARD` and the other bounds between the counters and `CACHE_STATS`.
+
+### Recipes
+
+Seven programmable counters plus `mcycle` and `minstret` answer the usual questions: *where do the cycles go* (codes 32-37 and 16, each class as a share of `mcycle`); *instruction-cache misses* (`IC_HIT_USED`, `IC_MISS`, `IC_ABANDON`, `IC_FILL`: miss rate `(IC_MISS - IC_ABANDON) / IC_HIT_USED`); *branch mispredictions* (`BRANCH`, `BR_MISPREDICT`, `BRANCH_TAKEN`); *exceptions and interrupts* (codes 21-26 and `MRET`); *load and store waits* (`MEMWAIT_LOAD`, `MEMWAIT_STORE`, `MEMWAIT_IO`); *memory-port contention* (codes 134-137).
+
+### Software
+
+[std/include/hpm.h](../std/include/hpm.h) has the codes, `hpm_counters()` (finds the counters by selector read-back and never writes `mcountinhibit`), `hpm_select`, `hpm_read` (high, low, high until stable), `hpm_write`, and `hpm_freeze`/`hpm_thaw`, which touch bits 3-13 only and so cannot stop `mcycle` or `minstret` by accident; only `hpm_freeze_cycle_instret` and `hpm_thaw_cycle_instret` touch those two (FreeRTOS's `stats` uses `mcycle` as its clock). Counts are global: every task, handler, the shell and the loader count too.
+
+The loader's shell has a command `perf` (`perf`, `perf preset <cpi|mix|branch|traps|mem|icache|port>`, `perf add <event>`, `perf list`, `perf clear|start|stop`, `perf run`) when it is built with `HPM_PERF=1`, for example `make freertos-shell APP=loader HPM_PERF=1`; the default shell and loader are unchanged byte for byte. It never touches `mcycle` or `minstret`, and on the golden CPU it prints `perf: no performance counters on this CPU`.
+
+### Build options (simulation)
+
+`HPM_COUNTERS=<0..7>` builds a simulator with fewer counters (`cfg-hpm<n>`; the width is `HADES_HPM_WIDTH`, 32 to 64, default 48). `HPM_PRESET=<A..I>` builds one whose selectors reset to a set of seven event codes (A: cycle classes, B and C: instruction mix, D: traps, E: predictor, F: stalls, G: fetch, H: instruction cache, I: memory port; the last two need `ICACHE`), with `+hpm_check` and `+hpm_stats` on by default. Together the nine presets cover every code. `make hpm-codes` compares the codes of `hpm.h`, the monitor and `defines/hpm.sv`. The counters are in every build, including the synthesised design; their cost on the FPGA has not been measured.
+
+### Verification
+
+- `make test/sv/test_hpm`: the counter unit against a model in the bench, every cycle, for 0, 1, 7 and other numbers of counters and widths of 32 to 64 bits, with random CSR traffic, events, inhibit values and resets, and every selector code.
+- `make formal-hpm`: proofs by k-induction of the counter unit (increment, write rule, event timing, selector WARL, inhibit, isolation, read value, reset), a miter of the new decoder against the previous one over all 2^32 instruction words and against the CSR table of the trap-sweep model, and a miter of the new Writeback stage against the previous one; each has a negative control (`formal/hpm/README.md`). `make formal` and its record are untouched.
+- `make csr-legal-check`: the decoders' CSR legality maps against the model's. The golden decoder traps on every access to `0x320` and accepts `0x323-0x33F`.
+- Directed tests with exact counts: [hpm.s](../test/asm/hpm.s), [hpmirq.s](../test/asm/hpmirq.s) (an interrupt at every cycle offset of seven probes), [bpsquash.s](../test/asm/bpsquash.s) (branches squashed by traps count once), [hpmwait.s](../test/memsys/hpmwait.s) and [hpmcache.s](../test/memsys/hpmcache.s); `programs.py` runs them in every configuration.
+- `+hpm_check`: an independent model in `sim/top.sv` compared with the unit after every edge, on every program; `+hpm_stats` and `test/hpm/identities.py`; the counters of the cache events against `CACHE_STATS` (presets H and I).
+- The trap sweep's optional family `hpm` (`python3 test/trapsweep/sweep.py run --fam hpm`, standard counter configuration only) and the model's `--csr-map`.
+- A mutation campaign, `python3 test/hpm/mutants.py` (27 mutants of the counter unit, the events, Writeback, the decoder and the monitors, each with the checks that must catch it).
