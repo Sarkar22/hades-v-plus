@@ -101,7 +101,7 @@ TIMEOUT = 100000            # sim/top.sv's default cycle limit, as for make test
 # "- S i m u l a t i o n   R e p o r t ...", "- Verilator: ..."); compare checks the bus
 # hashes separately
 CONFIG_LINE = re.compile(r"^(SLOW MEMORY |SCOREBOARD|BUSHASH |RETIRED |CACHE |CACHE_STATS |CACHE_STATS_MARK |RESET |IRQLAT |RAM_WORDS |"
-                         r"RETIRED_AT |- \S+:\d+: Verilog |- S i m u l a t i o n |- Verilator: )")
+                         r"RETIRED_AT |HPM |HPM_CHECK |HPM_CACHE_COMPARE |- \S+:\d+: Verilog |- S i m u l a t i o n |- Verilator: )")
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 REPORT = re.compile(r"Test (pass|fail)!")
 VERDICT = re.compile(r"\s*(All tests passed|Some test\(s\) failed|Inital test failed)")

@@ -1229,4 +1229,438 @@ module top;
         end
     end
 `endif
+
+`ifndef USE_REF_CPU
+`ifdef HADES_HPM_UNIT
+    // ==== Performance-counter monitors (HaDes-V+ only; docs/EXTENSIONS.md, "Hardware Performance Counters") ====
+    // Compiled where the counter unit exists: defines/hpm.sv defines HADES_HPM_UNIT (a tree without the unit
+    // simulates as before, and the options below are then unknown to the simulator).
+    // Two passive monitors, appended after the blocks above so that their line numbers do not move.
+    // They read signals inside the CPU and the counter unit, so they exist for HaDes-V+ only (the
+    // golden CPU has no counters).
+    //   +hpm_stats    at the end, one HPM line with the total of every event of the counter unit,
+    //                 counted from the last reset, the events still in the unit's delay registers
+    //                 included, so that the totals cover every cycle up to the last one. Off by
+    //                 default; on by default in an HPM_PRESET simulator (+nohpm_stats: off).
+    //   +hpm_check    a model of the counter unit written for this testbench, cycle by cycle, from
+    //                 the CPU's own wires (the stages' backwards status, the fetch and data buses,
+    //                 Writeback's instruction and trap signals) and the design of docs/EXTENSIONS.md,
+    //                 not from rtl/hpm_events.sv and rtl/hpm.sv. After every edge it compares every
+    //                 counter, selector and inhibit bit of the unit, and minstret and mcycle, with
+    //                 its own and stops ($fatal) at the first difference. It decides itself whether
+    //                 a CSR instruction writes (the rs1 field, not its value) and what it writes (from
+    //                 the operation, the source and its own read value; it does not take csr_write_val).
+    //                 Off by default; on by default in an HPM_PRESET simulator (+nohpm_check: off).
+    // A simulator for a counter preset (make HPM_PRESET=<A..I>) resets the selectors of the seven
+    // counters to the codes of the preset; the table below is the one of docs/EXTENSIONS.md, and
+    // the simulator stops at the first clock edge if a code of the preset is not in this build.
+    // With an instruction cache, an HPM_PRESET simulator with the preset H or I also compares, at
+    // the end of the run, each counter that counts a cache event (plus the event still in the delay
+    // register) with the key of the CACHE_STATS line that counts the same: both restart at a reset.
+    // The comparison is skipped, with a note, in a run whose program writes an HPM CSR.
+    // The unit's delays: class A (retirement, CYCLE, predictor events) none, class B1 (the
+    // memory-side events, fetch occurrences, all memory-system codes) one cycle, class B2 (the
+    // trap events, the six cycle classes with their sub-events, redirects, M-unit stalls) two.
+    //
+    // The names of the RTL that the monitors read, besides the CPU's wires that top.sv already
+    // uses, are the three functions hm_r_cnt, hm_r_sel and hm_r_inh and the vector mcu.hpm_ext.
+    // They are the contract of the counter unit (docs/EXTENSIONS.md): change them there only.
+
+    localparam int HM_N = 7;                               // programmable counters 3..9
+    localparam int HM_W = 48;                              // their width
+    localparam bit [63:0] HM_MASK = (64'd1 << HM_W) - 64'd1;
+    localparam bit [31:0] HM_INH_MASK = 32'h0000_3C05 | (((32'd1 << HM_N) - 32'd1) << 3);   // CY, IR, counters, 10..13
+
+    // ---- the counter unit of the RTL: the only names of it that the monitors use ----
+    function automatic bit [63:0] hm_r_cnt(int n);
+        return 64'(mcu.cpu.i_writeback.i_hpm.cnt[n]);
+    endfunction
+    function automatic bit [7:0] hm_r_sel(int n);
+        return 8'(mcu.cpu.i_writeback.i_hpm.sel[n]);
+    endfunction
+    function automatic bit [31:0] hm_r_inh();
+        return 32'(mcu.cpu.i_writeback.i_hpm.inh);
+    endfunction
+    function automatic bit [31:0] hm_r_ext();
+        return 32'(mcu.hpm_ext);
+    endfunction
+
+    // ---- the codes of this build ----
+    function automatic bit hm_cache_code(int c);
+`ifdef HADES_ICACHE_BYTES
+        return (c >= 128 && c <= 139) || c == 160 || c == 161;
+`else
+        return 0;
+`endif
+    endfunction
+
+    function automatic bit hm_implemented(int c);
+        return (c >= 1 && c <= 26) || (c >= 32 && c <= 49) || hm_cache_code(c);
+    endfunction
+
+    // 0: counted at the end of the cycle of the event (class A), 1: one cycle later (B1), 2: two (B2)
+    function automatic int hm_class(int c);
+        if (c >= 1 && c <= 20) return 0;
+        if ((c >= 21 && c <= 26) || (c >= 32 && c <= 46)) return 2;
+        return 1;
+    endfunction
+
+    function automatic string hm_name(int c);
+        case (c)
+            1: return "CYCLE";            2: return "INSTRET";          3: return "LOAD";
+            4: return "STORE";            5: return "BRANCH";           6: return "BRANCH_TAKEN";
+            7: return "JUMP";             8: return "MUL";              9: return "DIV";
+            10: return "CSR";             11: return "BITMANIP";        12: return "CRYPTO";
+            13: return "MRET";            14: return "FENCE_I";         15: return "REPLAY";
+            16: return "BR_MISPREDICT";   17: return "BP_NN";           18: return "BP_NT";
+            19: return "BP_TN";           20: return "BP_TT";           21: return "EXCEPTION";
+            22: return "EXC_ECALL";       23: return "EXC_OTHER";       24: return "INTERRUPT";
+            25: return "INT_TIMER";       26: return "INT_EXT";         32: return "FETCH_WAIT";
+            33: return "FRONT_OK";        34: return "HAZARD";          35: return "MSTALL_ANY";
+            36: return "MEMWAIT_ANY";     37: return "REDIRECT_ANY";    38: return "HAZARD_LOAD";
+            39: return "MSTALL_MUL";      40: return "MSTALL_DIV";      41: return "MEMWAIT_LOAD";
+            42: return "MEMWAIT_STORE";   43: return "MEMWAIT_IO";      44: return "REDIRECT_BRANCH";
+            45: return "REDIRECT_JUMP";   46: return "REDIRECT_WB";     47: return "FETCH_DELIVER";
+            48: return "FETCH_DISCARD";   49: return "IO_ACCESS";       160: return "IC_HIT_USED";
+            161: return "IC_MISS_JUMP";   default: return $sformatf("CODE%0d", c);
+        endcase
+    endfunction
+
+    // ---- the presets of docs/EXTENSIONS.md (make HPM_PRESET=<A..I>: the letter as 0..8) ----
+`ifdef HADES_HPM_PRESET
+    localparam int HM_PRESET = `HADES_HPM_PRESET;
+`else
+    localparam int HM_PRESET = -1;
+`endif
+    function automatic int hm_preset_code(int p, int k);
+        case (p)
+            0: case (k) 0: return 32; 1: return 33; 2: return 34; 3: return 35; 4: return 36; 5: return 37; default: return 16; endcase
+            1: case (k) 0: return 2;  1: return 3;  2: return 4;  3: return 5;  4: return 7;  5: return 8;  default: return 9;  endcase
+            2: case (k) 0: return 1;  1: return 6;  2: return 10; 3: return 11; 4: return 12; 5: return 13; default: return 14; endcase
+            3: case (k) 0: return 15; 1: return 21; 2: return 22; 3: return 23; 4: return 24; 5: return 25; default: return 26; endcase
+            4: case (k) 0: return 17; 1: return 18; 2: return 19; 3: return 20; 4: return 44; 5: return 45; default: return 46; endcase
+            5: case (k) 0: return 38; 1: return 39; 2: return 40; 3: return 41; 4: return 42; 5: return 43; default: return 49; endcase
+            6: case (k) 0: return 47; 1: return 48; 2: return 32; 3: return 33; 4: return 1;  5: return 2;  default: return 16; endcase
+            7: case (k) 0: return 160; 1: return 128; 2: return 129; 3: return 130; 4: return 131; 5: return 132; default: return 161; endcase
+            8: case (k) 0: return 133; 1: return 134; 2: return 135; 3: return 136; 4: return 137; 5: return 138; default: return 139; endcase
+            default: return 0;
+        endcase
+    endfunction
+
+    initial begin
+        if (HM_PRESET >= 0) begin
+            for (int k = 0; k < HM_N; k++)
+                if (!hm_implemented(hm_preset_code(HM_PRESET, k)))
+                    $fatal(1, "HPM_PRESET %0d: counter %0d would count event code %0d, which this build does not have",
+                           HM_PRESET, 3 + k, hm_preset_code(HM_PRESET, k));
+        end
+    end
+
+    // ---- options ----
+    bit hm_stats_en, hm_check_en;
+    initial begin
+        hm_stats_en = (HM_PRESET >= 0);
+        hm_check_en = (HM_PRESET >= 0);
+        if ($test$plusargs("hpm_stats"))   hm_stats_en = 1;
+        if ($test$plusargs("nohpm_stats")) hm_stats_en = 0;
+        if ($test$plusargs("hpm_check"))   hm_check_en = 1;
+        if ($test$plusargs("nohpm_check")) hm_check_en = 0;
+    end
+
+    // ---- the CPU's wires, as the monitors read them ----
+    // (aliases of existing signals; nothing here is new RTL)
+    function automatic bit hm_is_load(op::t o);
+        return o == op::LB || o == op::LH || o == op::LW || o == op::LBU || o == op::LHU;
+    endfunction
+    function automatic bit hm_is_store(op::t o);
+        return o == op::SB || o == op::SH || o == op::SW;
+    endfunction
+    function automatic bit hm_is_branch(op::t o);
+        return o == op::BEQ || o == op::BNE || o == op::BLT || o == op::BGE || o == op::BLTU || o == op::BGEU;
+    endfunction
+    function automatic bit hm_is_mul(op::t o);
+        return o == op::MUL || o == op::MULH || o == op::MULHSU || o == op::MULHU;
+    endfunction
+    function automatic bit hm_is_div(op::t o);
+        return o == op::DIV || o == op::DIVU || o == op::REM || o == op::REMU;
+    endfunction
+    function automatic bit hm_is_csr(op::t o);
+        return o == op::CSRRW || o == op::CSRRS || o == op::CSRRC || o == op::CSRRWI || o == op::CSRRSI || o == op::CSRRCI;
+    endfunction
+    function automatic bit hm_in_ram(bit [31:0] word_adr);
+        return word_adr - constants::MEMORY_START < constants::MEMORY_SIZE;
+    endfunction
+
+    // ---- the model ----
+    bit              hm_ev     [256];     // the events of this cycle
+    bit              hm_s1     [256];     // ... of the cycle before
+    bit              hm_s2     [256];     // ... of the cycle before that
+    bit       [63:0] hm_cnt    [HM_N];
+    bit        [7:0] hm_sel    [HM_N];
+    bit       [31:0] hm_inh;
+    bit       [63:0] hm_minstret, hm_mcycle;
+    bpredict::bp_data_t hm_bp1, hm_bp2;   // Execute's branch record, delayed one and two cycles
+    longint unsigned hm_total  [256];     // +hpm_stats: the total of every event since the last reset
+    longint unsigned hm_x_mret_irq, hm_x_fencei_j;
+    bit              hm_armed;            // the model has been through a reset
+    bit              hm_prog_wrote;       // the program wrote an HPM CSR (the CACHE_STATS comparison is skipped)
+    bit       [31:0] hm_last_ext;         // hpm_ext in the last cycle (its event is in the delay register at the end)
+    longint unsigned hm_checks;           // comparisons made
+
+    function automatic bit hm_legal_sel(bit [31:0] v);
+        return v[31:8] == 24'd0 && hm_implemented(int'(v[7:0]));
+    endfunction
+
+    // the value of a CSR as the model holds it; ok = 0 for a CSR that it does not model
+    function automatic bit [31:0] hm_read(bit [11:0] a, output bit ok);
+        ok = 1;
+        if (a == 12'h320) return hm_inh;
+        for (int k = 0; k < HM_N; k++) begin
+            if (a == 12'h323 + 12'(k)) return {24'd0, hm_sel[k]};
+            if (a == 12'hB03 + 12'(k)) return hm_cnt[k][31:0];
+            if (a == 12'hB83 + 12'(k)) return 32'(hm_cnt[k][HM_W-1:32]);
+        end
+        if (a == 12'hB02) return hm_minstret[31:0];
+        if (a == 12'hB82) return hm_minstret[63:32];
+        if (a == 12'hB00) return hm_mcycle[31:0];
+        if (a == 12'hB80) return hm_mcycle[63:32];
+        ok = 0;
+        return 32'd0;
+    endfunction
+
+    /* verilator lint_off BLKSEQ */
+    always @(posedge clk) begin
+        bit        rst_now, retire, wr, ok, ext_pend, ack, errv, in_ram, io_start;
+        op::t      o, od, oe;
+        bit [11:0] a;
+        bit [31:0] old, src, wval, ext;
+        bit [63:0] nxt, mi_inc, mc_inc;
+        bit        counted [HM_N];
+        int        code, cls;
+        pipeline_status::backwards_t sd, se, sm, sw;
+
+        rst_now = mcu.rst;
+        // 1. compare the model (the state after the last edge) with the RTL's
+        if (hm_check_en && hm_armed && !rst_now) begin
+            hm_checks++;
+            for (int k = 0; k < HM_N; k++) begin
+                if (hm_r_cnt(k) !== hm_cnt[k])
+                    $fatal(1, "HPM CHECK: cycle %0d: counter %0d = 0x%0x, the model says 0x%0x (selector %0d)",
+                           trace_cycle, 3 + k, hm_r_cnt(k), hm_cnt[k], hm_sel[k]);
+                if (hm_r_sel(k) !== hm_sel[k])
+                    $fatal(1, "HPM CHECK: cycle %0d: selector %0d = %0d, the model says %0d", trace_cycle, 3 + k, hm_r_sel(k), hm_sel[k]);
+            end
+            if (hm_r_inh() !== hm_inh)
+                $fatal(1, "HPM CHECK: cycle %0d: mcountinhibit = 0x%0x, the model says 0x%0x", trace_cycle, hm_r_inh(), hm_inh);
+            if (mcu.cpu.i_writeback.minstret !== hm_minstret)
+                $fatal(1, "HPM CHECK: cycle %0d: minstret = %0d, the model says %0d", trace_cycle, mcu.cpu.i_writeback.minstret, hm_minstret);
+            if (mcu.cpu.i_writeback.mcycle !== hm_mcycle)
+                $fatal(1, "HPM CHECK: cycle %0d: mcycle = %0d, the model says %0d", trace_cycle, mcu.cpu.i_writeback.mcycle, hm_mcycle);
+        end
+
+        if (rst_now) begin
+            // 2a. reset: everything 0 (the selectors the preset's codes), no events; mcycle follows the RTL
+            for (int c = 0; c < 256; c++) begin
+                hm_ev[c] = 0;  hm_s1[c] = 0;  hm_s2[c] = 0;  hm_total[c] = 0;
+            end
+            for (int k = 0; k < HM_N; k++) begin
+                hm_cnt[k] = 64'd0;
+                hm_sel[k] = (HM_PRESET >= 0) ? 8'(hm_preset_code(HM_PRESET, k)) : 8'd0;
+            end
+            hm_inh = 32'd0;
+            hm_minstret = 64'd0;
+            hm_mcycle = mcu.cpu.i_writeback.mcycle + 64'd1;      // counts during reset, from wherever it stood
+            hm_bp1 = '0;  hm_bp2 = '0;
+            hm_x_mret_irq = 0;  hm_x_fencei_j = 0;
+            hm_prog_wrote = 0;  hm_last_ext = 32'd0;
+            hm_armed = 1;
+        end
+        else if (hm_armed && (hm_check_en || hm_stats_en)) begin
+            // 2b. the events of this cycle, from the wires
+            o      = mcu.cpu.i_writeback.instruction_in.op;
+            od     = mcu.cpu.inst_d.op;
+            oe     = mcu.cpu.inst_e.op;
+            sd     = mcu.cpu.bwd_status_d;
+            se     = mcu.cpu.bwd_status_e;
+            sm     = mcu.cpu.bwd_status_m;
+            sw     = mcu.cpu.bwd_status_wb;
+            ack    = mcu.fetch_bus.ack;
+            errv   = mcu.fetch_bus.err;
+            ext    = hm_r_ext();
+            retire = mcu.cpu.i_writeback.is_valid && !mcu.cpu.i_writeback.stale_replay;
+            in_ram = hm_in_ram(mcu.mem_bus.adr);
+            for (int c = 0; c < 256; c++) hm_ev[c] = 0;
+            hm_ev[1]  = 1;
+            hm_ev[2]  = retire;
+            hm_ev[3]  = retire && hm_is_load(o);
+            hm_ev[4]  = retire && hm_is_store(o);
+            hm_ev[5]  = retire && hm_is_branch(o);
+            hm_ev[6]  = hm_ev[5] && mcu.cpu.i_writeback.rd_data_in[0];
+            hm_ev[7]  = retire && (o == op::JAL || o == op::JALR);
+            hm_ev[8]  = retire && hm_is_mul(o);
+            hm_ev[9]  = retire && hm_is_div(o);
+            hm_ev[10] = retire && hm_is_csr(o);
+            hm_ev[11] = retire && (o == op::SH1ADD || o == op::SH2ADD || o == op::SH3ADD ||
+                                   (o == op::EXT && !mcu.cpu.i_writeback.instruction_in.immediate[11]));
+            hm_ev[12] = retire && o == op::EXT && mcu.cpu.i_writeback.instruction_in.immediate[11];
+            hm_ev[13] = retire && o == op::MRET;
+            hm_ev[14] = retire && o == op::FENCE_I;
+            hm_ev[15] = mcu.cpu.i_writeback.stale_replay;
+            // the predictor's record: Execute's, two cycles later, in the branch's own Writeback cycle
+            if (hm_ev[5]) begin
+                if (!hm_bp2.valid)
+                    $fatal(1, "HPM CHECK: cycle %0d: a conditional branch retires and finds no predictor record two cycles after Execute", trace_cycle);
+                hm_ev[16] = hm_bp2.predicted_taken != hm_bp2.was_taken;
+                hm_ev[17] = !hm_bp2.predicted_taken && !hm_bp2.was_taken;
+                hm_ev[18] = !hm_bp2.predicted_taken &&  hm_bp2.was_taken;
+                hm_ev[19] =  hm_bp2.predicted_taken && !hm_bp2.was_taken;
+                hm_ev[20] =  hm_bp2.predicted_taken &&  hm_bp2.was_taken;
+            end
+            // traps (Writeback's trap block)
+            ext_pend = mcu.cpu.i_writeback.ext_int_pending;
+            hm_ev[21] = mcu.cpu.i_writeback.is_exception && !mcu.cpu.i_writeback.int_jump_reg && !mcu.cpu.i_writeback.imm_jump_reg;
+            hm_ev[22] = hm_ev[21] && mcu.cpu.i_writeback.status_forwards_in == pipeline_status::ECALL;
+            hm_ev[23] = hm_ev[21] && !hm_ev[22];
+            hm_ev[24] = mcu.cpu.i_writeback.is_interrupt_seq ||
+                        (mcu.cpu.i_writeback.is_interrupt_imm && !mcu.cpu.i_writeback.imm_jump_reg);
+            hm_ev[25] = hm_ev[24] && !ext_pend;
+            hm_ev[26] = hm_ev[24] &&  ext_pend;
+            // the cycle partition and its parts
+            hm_ev[32] = se == pipeline_status::READY && sd == pipeline_status::READY && !ack && !errv;
+            hm_ev[33] = se == pipeline_status::READY && sd == pipeline_status::READY && (ack || errv);
+            hm_ev[34] = se == pipeline_status::READY && sd == pipeline_status::STALL;
+            hm_ev[35] = se == pipeline_status::STALL && sm != pipeline_status::STALL;
+            hm_ev[36] = sm == pipeline_status::STALL;
+            hm_ev[37] = se == pipeline_status::JUMP;
+            hm_ev[38] = hm_ev[34] && mcu.cpu.i_decode.load_use_hazard && hm_is_load(od);
+            hm_ev[39] = hm_ev[35] && hm_is_mul(od);
+            hm_ev[40] = hm_ev[35] && hm_is_div(od);
+            hm_ev[41] = hm_ev[36] && hm_is_load(oe);
+            hm_ev[42] = hm_ev[36] && hm_is_store(oe);
+            hm_ev[43] = hm_ev[36] && !in_ram;
+            hm_ev[44] = se == pipeline_status::JUMP && sm == pipeline_status::READY && hm_is_branch(od);
+            hm_ev[45] = se == pipeline_status::JUMP && sm == pipeline_status::READY && (od == op::JAL || od == op::JALR);
+            hm_ev[46] = sw == pipeline_status::JUMP;
+            hm_ev[47] = ack && sd == pipeline_status::READY;
+            hm_ev[48] = ack && sd != pipeline_status::READY;
+            io_start  = mcu.mem_bus.cyc && !mcu.cpu.mem_bus_pending && !in_ram;
+            hm_ev[49] = io_start;
+            // the memory system (hpm_ext): bit k is code 128 + k
+            for (int k = 0; k < 12; k++) hm_ev[128 + k] = hm_cache_code(128 + k) && ext[k];
+            hm_ev[160] = hm_cache_code(160) && ext[0] && sd == pipeline_status::READY;
+            hm_ev[161] = hm_cache_code(161) && ext[1] && sd == pipeline_status::JUMP;
+
+            // +hpm_stats: the totals, and the terms that balance the redirects of Writeback (x_mret_irq, x_fencei_j)
+            for (int c = 0; c < 256; c++) if (hm_ev[c]) hm_total[c]++;
+            if (mcu.cpu.i_writeback.is_mret && mcu.cpu.i_writeback.is_interrupt_imm && !mcu.cpu.i_writeback.imm_jump_reg)
+                hm_x_mret_irq++;
+            if (mcu.cpu.i_writeback.int_jump_fire && mcu.cpu.i_writeback.is_fence_i)
+                hm_x_fencei_j++;
+
+            // 2c. the counters and the CSR instruction in Writeback
+            for (int k = 0; k < HM_N; k++) begin
+                code = int'(hm_sel[k]);
+                cls  = hm_class(code);
+                counted[k] = (code != 0) && !hm_inh[3 + k] &&
+                             (cls == 0 ? hm_ev[code] : cls == 1 ? hm_s1[code] : hm_s2[code]);
+            end
+            mi_inc = hm_minstret + ((retire && !hm_inh[2]) ? 64'd1 : 64'd0);
+            mc_inc = hm_mcycle + (hm_inh[0] ? 64'd0 : 64'd1);
+            // does this CSR instruction write? (retired; csrrw/csrrwi always, the others if the rs1 field is not 0)
+            a   = 12'(mcu.cpu.i_writeback.instruction_in.csr);
+            src = mcu.cpu.i_writeback.source_data_in;
+            wr  = retire && hm_is_csr(o) && (o == op::CSRRW || o == op::CSRRWI || mcu.cpu.i_writeback.instruction_in.rs1_address != 5'd0);
+            old = hm_read(a, ok);
+            case (o)
+                op::CSRRW, op::CSRRWI: wval = src;
+                op::CSRRS, op::CSRRSI: wval = old | src;
+                default:               wval = old & ~src;
+            endcase
+            for (int k = 0; k < HM_N; k++) begin
+                nxt = (hm_cnt[k] + (counted[k] ? 64'd1 : 64'd0)) & HM_MASK;
+                if (wr && a == 12'hB03 + 12'(k))
+                    nxt = {nxt[63:32], wval};
+                else if (wr && a == 12'hB83 + 12'(k) && HM_W > 32)
+                    nxt = (({32'd0, wval} << 32) | {32'd0, nxt[31:0]}) & HM_MASK;
+                hm_cnt[k] = nxt;
+                if (wr && a == 12'h323 + 12'(k)) hm_sel[k] = hm_legal_sel(wval) ? wval[7:0] : 8'd0;
+            end
+            if (wr && a == 12'h320) hm_inh = wval & HM_INH_MASK;
+            if (wr && (a == 12'h320 || (a >= 12'h323 && a < 12'h323 + 12'(HM_N)) ||
+                       (a >= 12'hB03 && a < 12'hB03 + 12'(HM_N)) || (a >= 12'hB83 && a < 12'hB83 + 12'(HM_N))))
+                hm_prog_wrote = 1;
+            // minstret and mcycle: the same rule (all six write forms), the inhibit bits IR and CY
+            hm_minstret = mi_inc;
+            hm_mcycle   = mc_inc;
+            if (wr && a == 12'hB02) hm_minstret = {mi_inc[63:32], wval};
+            if (wr && a == 12'hB82) hm_minstret = {wval, mi_inc[31:0]};
+            if (wr && a == 12'hB00) hm_mcycle   = {mc_inc[63:32], wval};
+            if (wr && a == 12'hB80) hm_mcycle   = {wval, mc_inc[31:0]};
+
+            // 2d. the delay registers
+            for (int c = 0; c < 256; c++) begin
+                hm_s2[c] = hm_s1[c];
+                hm_s1[c] = hm_ev[c];
+            end
+            hm_bp2 = hm_bp1;
+            hm_bp1 = mcu.cpu.bp_feedback;
+            hm_last_ext = ext;
+        end
+    end
+    /* verilator lint_on BLKSEQ */
+
+    // ---- the end of the run ----
+    final begin
+        string line;
+        if (hm_stats_en && hm_armed) begin
+            line = "HPM";
+            for (int c = 1; c < 256; c++)
+                if (hm_implemented(c) && !(c >= 128 && c <= 159))
+                    line = {line, $sformatf(" %s=%0d", hm_name(c), hm_total[c])};
+            line = {line, $sformatf(" x_irq_pending=%0d x_mret_irq=%0d x_fencei_j=%0d",
+                                    mcu.cpu.i_writeback.int_jump_reg ? 1 : 0, hm_x_mret_irq, hm_x_fencei_j)};
+            $display("%s", line);
+        end
+        if (hm_check_en && hm_armed)
+            $display("HPM_CHECK ok: %0d comparisons of 7 counters, 7 selectors, mcountinhibit, minstret and mcycle", hm_checks);
+    end
+
+`ifdef HADES_ICACHE_BYTES
+    // ---- The cache events against CACHE_STATS (the preset H and I simulators) ----
+    // The counter that counts code 128 + k, plus its event still in the delay register, equals the key
+    // of the CACHE_STATS line that counts the same (both restart at a reset). Bit k of hpm_ext is the
+    // k-th signal of the cache, so the comparison also finds a wrong bit order in the wiring.
+    final begin
+        bit    skipped;
+        longint unsigned want, have;
+        int code;
+        if (HM_PRESET >= 7 && hm_armed && cs_en && hm_check_en) begin
+            if (hm_prog_wrote) begin
+                $display("HPM_CACHE_COMPARE skipped: the program wrote an HPM CSR");
+            end
+            else begin
+                for (int k = 0; k < HM_N; k++) begin
+                    code = hm_preset_code(HM_PRESET, k);
+                    skipped = 0;
+                    case (code)
+                        128: want = cs_i_hits;       129: want = cs_i_refills;   130: want = cs_i_beats;
+                        131: want = cs_i_done;       132: want = cs_i_abandoned; 133: want = cs_snoop_inval;
+                        134: want = cs_wait_i;       135: want = cs_wait_d;      136: want = cs_port_irefill;
+                        137: want = cs_port_data;    138: want = cs_d_loads;      139: want = cs_d_stores;
+                        default: skipped = 1;       // 160 and 161 are combined codes: no CACHE_STATS key
+                    endcase
+                    if (!skipped) begin
+                        have = hm_cnt[k] + ((!hm_inh[3 + k] && hm_last_ext[code - 128]) ? 1 : 0);
+                        if (have != want)
+                            $fatal(1, "HPM CACHE COMPARE: counter %0d (code %0d): %0d (with the event in the delay register), CACHE_STATS says %0d",
+                                   3 + k, code, have, want);
+                    end
+                end
+                $display("HPM_CACHE_COMPARE ok: the counters of the cache events equal CACHE_STATS");
+            end
+        end
+    end
+`endif
+`endif
+`endif
 endmodule
