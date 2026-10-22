@@ -52,6 +52,7 @@ make clean               # wipe build artefacts
 make freertos APP=<name> # build and run a FreeRTOS program (make freertos-list, docs/FREERTOS.md)
 make bench               # the measurement programs behind the Zba, Zbb, SHA-256, M-unit and FENCE.I figures (test/bench/README.md)
 make bench-sha256        # SHA-256 for rv32i, with Zbb and with Zknh: NIST examples, cycles per byte [OPT=-O2]
+make coremark            # CoreMark with its CRC checks: cycles, CPI, CoreMark/MHz estimate [ITERATIONS=10] [MARCH=rv32im] [CPU=golden] (test/coremark/README.md)
 make ext-check           # Zbb, Zbs, Zicond, Zbkb, Zbkx, Zknh: the RTL against a C model of the ISA texts (test/ext/README.md)
 make ext-exhaustive      # the same with the 15 one-operand instructions over all 2^32 inputs (under an hour)
 make check-results       # re-run the repeatable records of results/ and compare (results/README.md)
@@ -96,8 +97,8 @@ The output is kept as the terminal showed it: the script removes only the lines 
 - [`sim/`](../sim): The simulation top level with the test device and the console bridge, and the Verilator file lists.
 - [`std/`](../std): The bare-metal C runtime: linker script, start-up code, bootloader and peripheral headers.
 - [`synth/`](../synth): Synthesis scripts and FPGA configuration files.
-- [`test/`](../test): Test files in assembly (`asm`), C (`c`), and SystemVerilog (`sv`); the memory-system checks (`memsys`: a slow memory, the scoreboard, the caches' matrix, mutants and warm-cache variants, see [test/memsys/README.md](../test/memsys/README.md)); FreeRTOS programs and the differential campaign (`freertos`), among them the shell's app loader (`freertos/loader`) and the SDK for the programs it runs, with example apps (`freertos/sdk`); the interrupt-offset sweeps with their independent ISA model (`trapsweep`); the measurement programs behind the Zba, Zbb, SHA-256, M-unit and `FENCE.I` figures, run by `make bench` (`bench`, see [test/bench/README.md](../test/bench/README.md)).
-- [`third_party/`](../third_party): Third-party sources, included unmodified: the FreeRTOS kernel, its RISC-V port, the FreeRTOS standard demo tasks and FreeRTOS+CLI, at pinned upstream commits (MIT); see [third_party/freertos/README.md](../third_party/freertos/README.md).
+- [`test/`](../test): Test files in assembly (`asm`), C (`c`), and SystemVerilog (`sv`); the memory-system checks (`memsys`: a slow memory, the scoreboard, the caches' matrix, mutants and warm-cache variants, see [test/memsys/README.md](../test/memsys/README.md)); FreeRTOS programs and the differential campaign (`freertos`), among them the shell's app loader (`freertos/loader`) and the SDK for the programs it runs, with example apps (`freertos/sdk`); the interrupt-offset sweeps with their independent ISA model (`trapsweep`); the measurement programs behind the Zba, Zbb, SHA-256, M-unit and `FENCE.I` figures, run by `make bench` (`bench`, see [test/bench/README.md](../test/bench/README.md)); the CoreMark port, run by `make coremark` (`coremark`, see [test/coremark/README.md](../test/coremark/README.md)).
+- [`third_party/`](../third_party): Third-party sources, included unmodified: the FreeRTOS kernel, its RISC-V port, the FreeRTOS standard demo tasks and FreeRTOS+CLI, at pinned upstream commits (MIT); see [third_party/freertos/README.md](../third_party/freertos/README.md); and the CoreMark benchmark, at a pinned upstream commit (Apache-2.0); see [third_party/coremark/README.md](../third_party/coremark/README.md).
 - [`.vscode/`](../.vscode): Configuration files for Visual Studio Code.
 
 Refer to the [Instruction Guide][instrguide] for a detailed project structure.

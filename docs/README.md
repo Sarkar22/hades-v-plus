@@ -55,6 +55,7 @@ make help                            # the main targets and their settings
 | [test/freertos/loader/SPEC.md](../test/freertos/loader/SPEC.md) | The specification of the app loader: image format, load protocol, console pacing, run semantics, test plan |
 | [test/freertos/README.md](../test/freertos/README.md) | The FreeRTOS programs and the differential campaign in depth |
 | [third_party/freertos/README.md](../third_party/freertos/README.md) | Provenance and licence of the vendored FreeRTOS sources |
+| [third_party/coremark/README.md](../third_party/coremark/README.md) | Provenance, licence and trademark terms of the vendored CoreMark sources |
 
 ## Check the Evidence
 
@@ -66,4 +67,5 @@ make help                            # the main targets and their settings
 | [test/memsys/README.md](../test/memsys/README.md) | The memory-system checks: a slow RAM, the scoreboard, the programs under wait states, the caches' matrix, mutants and warm-cache variants, and the trace-driven cache model |
 | [test/trapsweep/README.md](../test/trapsweep/README.md) | The interrupt-offset sweeps and the independent ISA model |
 | [test/bench/README.md](../test/bench/README.md) | The measurement programs behind the Zba, Zbb, SHA-256, M-unit and `FENCE.I` figures |
+| [test/coremark/README.md](../test/coremark/README.md) | CoreMark on the simulator (`make coremark`): the port, the clock assumption, validation, the cycle breakdown, the figures measured so far |
 | [test/ext/README.md](../test/ext/README.md) | The reference models of Zbb, Zbs, Zicond, Zbkb, Zbkx and Zknh and the check of the RTL against them (`make ext-check`, `make ext-exhaustive`) |

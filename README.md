@@ -123,6 +123,8 @@ The following are original contributions by **Emon Sarkar**, added after complet
 
 **Third-party component: FreeRTOS.** The directory [`third_party/freertos/`](third_party/freertos/README.md) contains unmodified sources of [FreeRTOS](https://www.freertos.org) — the FreeRTOS kernel with its RISC-V port, the FreeRTOS standard demo tasks, and FreeRTOS+CLI — taken from the [FreeRTOS-Kernel](https://github.com/FreeRTOS/FreeRTOS-Kernel) and [FreeRTOS](https://github.com/FreeRTOS/FreeRTOS) repositories at pinned commits. FreeRTOS is Copyright (C) Amazon.com, Inc. or its affiliates and is distributed under the MIT licence; it is neither part of the upstream HaDes-V work nor among the original contributions listed above. Its licence texts, the exact upstream commits and the complete list of vendored files are given in [third_party/freertos/README.md](third_party/freertos/README.md).
 
+**Third-party component: CoreMark.** The directory [`third_party/coremark/`](third_party/coremark/README.md) contains unmodified sources of the CPU benchmark [CoreMark](https://www.eembc.org/coremark/) of the Embedded Microprocessor Benchmark Consortium (EEMBC), taken from [eembc/coremark](https://github.com/eembc/coremark) at a pinned commit, with the port for HaDes-V+ in [`test/coremark/`](test/coremark/README.md) (`make coremark`). CoreMark is Copyright EEMBC and is distributed under the Apache License 2.0; the licence text, the upstream commit and the terms of the CoreMark trademark are given in [third_party/coremark/README.md](third_party/coremark/README.md). A simulation cannot meet CoreMark's run rules, so the figures are CoreMark/MHz estimates, not CoreMark scores.
+
 ## License
 
 This OER and all of its creative material (text, logos, etc.) is licensed under the **CC BY 4.0 International License**, allowing you to share and adapt the resource, provided appropriate credit is given. See the full license details [here](https://creativecommons.org/licenses/by/4.0/).
@@ -131,7 +133,7 @@ This OER and all of its creative material (text, logos, etc.) is licensed under 
 >Tobias Scheipel, David Beikircher, Florian Riedl\
 >TU Graz 2024
 
-All the software files included in the repository are licensed under the **MIT License**. See the [LICENSE](./LICENSE) file for details. The third-party FreeRTOS code in [`third_party/freertos/`](third_party/freertos/README.md) is likewise MIT-licensed, but under its own licence and copyright (Amazon.com, Inc. or its affiliates); its licence texts are included in that directory.
+All the software files included in the repository are licensed under the **MIT License**. See the [LICENSE](./LICENSE) file for details. The third-party FreeRTOS code in [`third_party/freertos/`](third_party/freertos/README.md) is likewise MIT-licensed, but under its own licence and copyright (Amazon.com, Inc. or its affiliates); its licence texts are included in that directory. The third-party CoreMark code in [`third_party/coremark/`](third_party/coremark/README.md) is licensed under the Apache License 2.0 (EEMBC), likewise under its own licence.
 
 Contributions to this OER are welcome and encouraged! The LaTeX sources for the [Instruction Guide][instrguide] can be requested as well. For more OERs, visit [https://www.scheipel.com/oer](https://www.scheipel.com/oer).
 

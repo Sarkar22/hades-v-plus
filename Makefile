@@ -436,6 +436,9 @@ help:
 	@echo "  bench-fencei-window"
 	@echo "                    Instructions that still run stale after a store patches them (no FENCE.I)"
 	@echo "  bench             All five"
+	@echo "  coremark          CoreMark (third_party/coremark) with its CRC checks, cycles and CoreMark/MHz estimate"
+	@echo "                    [ITERATIONS=10] [MARCH=rv32im] [OPT=-O2] [CPU=golden] [RUN=validation] [BPRED=0..3] [TIMEOUT=<cycles>]"
+	@echo "                    (guide: test/coremark/README.md; a simulation cannot meet CoreMark's 10-second rule)"
 	@echo ""
 	@echo "Zbb, Zbs, Zicond, Zbkb, Zbkx and Zknh (guide: test/ext/README.md):"
 	@echo "  ext-check         The RTL's results against the C reference model, quick vector set (about a minute) [JOBS=4]"
@@ -764,6 +767,14 @@ include $(TEST_DIR)/freertos/freertos.mk
 # (make bench-zba, bench-mcost, bench-fencei-window, bench): guide test/bench/README.md,
 # recorded results in results/
 include $(TEST_DIR)/bench/bench.mk
+
+################################################################################
+#                                   CoreMark                                   #
+################################################################################
+
+# CoreMark (third_party/coremark, unmodified) with a HaDes-V+ port, run on the simulator
+# (make coremark): guide test/coremark/README.md
+include $(TEST_DIR)/coremark/coremark.mk
 
 ################################################################################
 #                       Zbb, Zbs and Zicond: value checks                      #
