@@ -363,12 +363,24 @@ $(BUILD_DIR)/ref/%.so: $(REF_DIR)/%.so
 	cp $< $@
 endif
 
+# BUILD_JOBS limits the parallel jobs of a Verilator build: Verilator's own threads (-j, otherwise
+# one per hardware thread) and the compile of a bench of test/sv/ (make -j, otherwise without a
+# limit). Empty, the default, leaves both as before. A machine with little memory needs a limit:
+#     make BUILD_JOBS=4 <target>
+# (JOBS remains the number of parallel runs of the campaigns, see test/freertos and test/ext.)
+BUILD_JOBS ?=
+ifneq ($(BUILD_JOBS),)
+ifeq ($(shell echo '$(BUILD_JOBS)' | grep -Ex '[1-9][0-9]*'),)
+$(error BUILD_JOBS must be a positive number, not '$(BUILD_JOBS)')
+endif
+endif
+
 # Verilator Flags
 VERILATOR_FLAGS =
 VERILATOR_FLAGS += -cc
 VERILATOR_FLAGS += -Wall -Wno-fatal
 VERILATOR_FLAGS += -f $(SIM_DIR)/files.txt
-VERILATOR_FLAGS += $(REF_SO) -j
+VERILATOR_FLAGS += $(REF_SO) -j $(BUILD_JOBS)
 ifneq ($(SIM_CFG_DEFS),)
 VERILATOR_FLAGS += $(SIM_CFG_DEFS)
 endif
@@ -494,6 +506,7 @@ help:
 	@echo "  make test/memsys/<name>     an assembly program of the memory-system checks (test/memsys/*.s)"
 	@echo ""
 	@echo "Build directory: $(BUILD_DIR)  (relocate with BUILD_DIR=/abs/path or HADES_BUILD_DIR)"
+	@echo "Build jobs: $(or $(BUILD_JOBS),Verilator one per hardware thread and test/sv benches without a limit)  (limit both with BUILD_JOBS=N)"
 
 
 ################################################################################
@@ -697,7 +710,7 @@ $(SV_TEST_NAMES): $(SV_DIR)/%: $(BUILD_DIR)/$(SV_DIR)/%/top
 
 # Build system verilog executable
 $(BUILD_DIR)/$(SV_DIR)/%/top: $(BUILD_DIR)/$(SV_DIR)/%/top.mk
-	$(MAKE) -j -C $(BUILD_DIR)/$(SV_DIR)/$* -f top.mk
+	$(MAKE) -j$(BUILD_JOBS) -C $(BUILD_DIR)/$(SV_DIR)/$* -f top.mk
 
 # Verilate system verilog testbench
 $(BUILD_DIR)/$(SV_DIR)/%/top.mk: $(REF_SO_DEPS)

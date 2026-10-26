@@ -62,6 +62,8 @@ Simulator targets also take options that change what the simulator is built from
 
 All build output goes to `build/` inside the repository unless `BUILD_DIR=/abs/path` is given on the command line or `HADES_BUILD_DIR` is set in the environment; every target follows it. This is how to work from a checkout on a disk that cannot execute programs (such as an NTFS data disk): the simulators are built and run from the build directory, and the golden-model libraries are copied there.
 
+Verilator runs with `-j`, one job per hardware thread, and the benches of `test/sv/` are compiled with `make -j`, without a limit; the other simulators are compiled by a `make` without `-j`. `BUILD_JOBS=N` limits both to `N` jobs, which a machine with little memory needs (for example `make BUILD_JOBS=4 <target>`). `JOBS` stays the number of parallel runs of the campaigns.
+
 The simulator is [Verilator][verilator]; synthesis uses [Vivado][vivado], tested with 2024.2 (how to give its path: [Synthesis and FPGA Timing](#synthesis-and-fpga-timing)). Each assembly and C test writes its waveform, `sim.fst`, to its own directory in the build directory, and so does each SystemVerilog bench (`<bench>.fst`) except `test_zba_encoding_sweep` and `test_execute_bpred_nextpc`, which write none; a FreeRTOS run (`make freertos` and the shell targets) writes one only when `WAVES=1` is given ([settings](FREERTOS.md#11-settings-reference)). `make show` opens in [GTKWave][gtkwave] the waveform of the assembly or C test that ran last, with the signal layout [`saves/pipeline.gtkw`](../saves/pipeline.gtkw), or of the SystemVerilog bench that was built last (no signal layout is provided for the benches), whichever of the two came later.
 
 ## Synthesis and FPGA Timing
