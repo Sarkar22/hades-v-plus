@@ -164,11 +164,11 @@ typedef struct
 
 static snapshot_t snap_start, snap_stop;
 
-static void take(snapshot_t *s, int last)
+static void take(snapshot_t *s, int start)
 {
-    /* the counters are read in an order that keeps the reads inside the window: at the start
-     * mcycle last, at the stop mcycle first */
-    if (last)
+    /* mcycle is read first at the start and last at the stop, so that the reads of the other
+     * counters fall inside the cycle window */
+    if (start)
         s->cycle = CSR_READ(0xB00);
 #if HADES_HPM
     s->hpm[0] = CSR_READ(0xB03);
@@ -182,7 +182,7 @@ static void take(snapshot_t *s, int last)
 #if HADES_INSTRET
     s->instret = CSR_READ(0xB02);
 #endif
-    if (!last)
+    if (!start)
         s->cycle = CSR_READ(0xB00);
 }
 
