@@ -1,0 +1,7 @@
+<program>: memlat.o *** SUCCESS *** (tohost = 0) after 367148 cycles
+MEMLAT dside_miss_chase loads=4096 cycles=32774 per_load_x100=800
+MEMLAT dside_hit_chase loads=4096 cycles=16400 per_load_x100=400
+MEMLAT iside_miss_nops nops=8192 lines16=2048 cycles=16621 per_line_x100=811
+MEMLAT iside_hit_nops nops=8192 lines16=2048 cycles=8466 per_line_x100=413
+MEMLAT end 0
+*** [rvfi_tracer] INFO: Simulation terminated after     367136 cycles!

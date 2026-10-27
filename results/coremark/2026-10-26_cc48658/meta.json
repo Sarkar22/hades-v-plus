@@ -1,0 +1,1511 @@
+{
+ "record": "results/coremark/2026-10-26_cc48658",
+ "topic": "coremark",
+ "status": "repeatable",
+ "date": "2026-10-26",
+ "base_commit": "cc48658cb9c0c4640d8236341c3c429715a753b2",
+ "figures": [
+  {
+   "figure": "rv32im, standard RAM: 4,217,860 cycles, 3,081,452 instructions, CPI 1.369, 421,786 per iteration, 2.371 CoreMark/MHz",
+   "value": "run std-rv32im, its RESULT line",
+   "quoted_in": [
+    "test/coremark/README.md:80"
+   ]
+  },
+  {
+   "figure": "rv32im_zba_zbb_zbs, standard RAM: 4,131,302 cycles, 2,986,224 instructions, CPI 1.383, 413,130 per iteration, 2.421 CoreMark/MHz",
+   "value": "run std-zb, its RESULT line",
+   "quoted_in": [
+    "test/coremark/README.md:81"
+   ]
+  },
+  {
+   "figure": "rv32i, standard RAM: 10,702,860 cycles, 7,414,012 instructions, CPI 1.444, 1,070,286 per iteration, 0.934 CoreMark/MHz",
+   "value": "run std-rv32i, its RESULT line",
+   "quoted_in": [
+    "test/coremark/README.md:82"
+   ]
+  },
+  {
+   "figure": "rv32i, golden CPU, standard RAM: 10,702,662 cycles, n/a instructions, CPI n/a, 1,070,266 per iteration, 0.934 CoreMark/MHz",
+   "value": "run golden, its RESULT line",
+   "quoted_in": [
+    "test/coremark/README.md:83"
+   ]
+  },
+  {
+   "figure": "rv32im, I+D caches, writes 1:4: 4,626,853 cycles, 3,081,452 instructions, CPI 1.502, 462,685 per iteration, 2.161 CoreMark/MHz",
+   "value": "run c14-rv32im, its RESULT line",
+   "quoted_in": [
+    "test/coremark/README.md:84"
+   ]
+  },
+  {
+   "figure": "rv32im, I+D caches, writes 4:8: 5,153,890 cycles, 3,081,452 instructions, CPI 1.673, 515,389 per iteration, 1.940 CoreMark/MHz",
+   "value": "run c48-rv32im, its RESULT line",
+   "quoted_in": [
+    "test/coremark/README.md:85"
+   ]
+  },
+  {
+   "figure": "rv32im, I+D caches, writes 8:24: 6,653,779 cycles, 3,081,452 instructions, CPI 2.159, 665,378 per iteration, 1.503 CoreMark/MHz",
+   "value": "run c824-rv32im, its RESULT line",
+   "quoted_in": [
+    "test/coremark/README.md:86"
+   ]
+  },
+  {
+   "figure": "rv32im_zba_zbb_zbs, I+D caches, writes 1:4: 4,571,378 cycles, 2,986,224 instructions, CPI 1.531, 457,138 per iteration, 2.188 CoreMark/MHz",
+   "value": "run c14-zb, its RESULT line",
+   "quoted_in": [
+    "test/coremark/README.md:87"
+   ]
+  },
+  {
+   "figure": "rv32im_zba_zbb_zbs, I+D caches, writes 4:8: 5,098,327 cycles, 2,986,224 instructions, CPI 1.707, 509,833 per iteration, 1.961 CoreMark/MHz",
+   "value": "run c48-zb, its RESULT line",
+   "quoted_in": [
+    "test/coremark/README.md:88"
+   ]
+  },
+  {
+   "figure": "rv32im_zba_zbb_zbs, I+D caches, writes 8:24: 6,598,106 cycles, 2,986,224 instructions, CPI 2.210, 659,811 per iteration, 1.516 CoreMark/MHz",
+   "value": "run c824-zb, its RESULT line",
+   "quoted_in": [
+    "test/coremark/README.md:89"
+   ]
+  },
+  {
+   "figure": "rv32im, I-cache only, writes 1:4: 13,393,282 cycles, 3,081,452 instructions, CPI 4.346, 1,339,328 per iteration, 0.747 CoreMark/MHz",
+   "value": "run ionly14-rv32im, its RESULT line",
+   "quoted_in": [
+    "test/coremark/README.md:90"
+   ]
+  },
+  {
+   "figure": "rv32im, no caches, reads and writes 8:24: 54,182,889 cycles, 3,081,452 instructions, CPI 17.584, 5,418,289 per iteration, 0.185 CoreMark/MHz",
+   "value": "run nocache824-rv32im, its RESULT line",
+   "quoted_in": [
+    "test/coremark/README.md:91"
+   ]
+  },
+  {
+   "figure": "rv32im_zba_zbb_zbs, no caches, reads and writes 8:24: 52,553,197 cycles, 2,986,224 instructions, CPI 17.599, 5,255,320 per iteration, 0.190 CoreMark/MHz",
+   "value": "run nocache824-zb, its RESULT line",
+   "quoted_in": [
+    "test/coremark/README.md:92"
+   ]
+  },
+  {
+   "figure": "The two rv32i rows differ by 198 cycles (0.002 %)",
+   "value": "std-rv32i 10,702,860 - golden 10,702,662 = 198",
+   "quoted_in": [
+    "test/coremark/README.md:94"
+   ]
+  },
+  {
+   "figure": "A single iteration costs 521,381 cycles in the 4:8 cached configuration against 515,028 per iteration over 20; with 10 iterations the average is about 0.1 % above the steady state",
+   "value": "c48-rv32im-i1 521,381 cycles; c48-rv32im-i20 10,300,555 / 20 = 515,028; 515,389 / 515,028 - 1 = 0.07 %",
+   "quoted_in": [
+    "test/coremark/README.md:94"
+   ]
+  },
+  {
+   "figure": "The cycle classes of the timed window (preset A), six memories",
+   "value": "hpmA-std-rv32im: FRONT_OK 83.00 % FETCH_WAIT 0.00 % HAZARD 4.82 % MSTALL_ANY 2.23 % MEMWAIT_ANY 0.00 % REDIRECT_ANY 9.95 %; hpmA-c14-rv32im: FRONT_OK 75.65 % FETCH_WAIT 0.12 % HAZARD 4.40 % MSTALL_ANY 2.03 % MEMWAIT_ANY 8.73 % REDIRECT_ANY 9.07 %; hpmA-c48-rv32im: FRONT_OK 67.92 % FETCH_WAIT 0.11 % HAZARD 3.95 % MSTALL_ANY 1.82 % MEMWAIT_ANY 18.06 % REDIRECT_ANY 8.14 %; hpmA-c824-rv32im: FRONT_OK 52.61 % FETCH_WAIT 0.09 % HAZARD 3.06 % MSTALL_ANY 1.41 % MEMWAIT_ANY 36.53 % REDIRECT_ANY 6.30 %; hpmA-ionly14-rv32im: FRONT_OK 26.15 % FETCH_WAIT 0.04 % HAZARD 1.52 % MSTALL_ANY 0.70 % MEMWAIT_ANY 68.46 % REDIRECT_ANY 3.13 %; hpmA-nocache824-rv32im: FRONT_OK 4.89 % FETCH_WAIT 73.49 % HAZARD 0.00 % MSTALL_ANY 0.17 % MEMWAIT_ANY 20.67 % REDIRECT_ANY 0.77 %",
+   "quoted_in": [
+    "test/coremark/README.md:100",
+    "test/coremark/README.md:101",
+    "test/coremark/README.md:105"
+   ]
+  },
+  {
+   "figure": "The six classes add up to the window's cycles within a few hundred cycles; the counters' window differs from mcycle's by a few tens of cycles at each end",
+   "value": "hpmA-std-rv32im: 4,217,880 of 4,217,916 (-36); hpmA-c14-rv32im: 4,627,518 of 4,627,642 (-124); hpmA-c48-rv32im: 5,154,399 of 5,154,558 (-159); hpmA-c824-rv32im: 6,654,396 of 6,654,634 (-238); hpmA-ionly14-rv32im: 13,389,369 of 13,389,518 (-149); hpmA-nocache824-rv32im: 54,180,765 of 54,181,122 (-357)",
+   "quoted_in": [
+    "test/coremark/README.md:59",
+    "test/coremark/README.md:46"
+   ]
+  },
+  {
+   "figure": "Memory wait by kind (preset F): store 8.1 %, 17.5 % and 36.1 %, load 0.6 %, 0.5 % and 0.4 %",
+   "value": "hpmF-c14-rv32im: MEMWAIT_STORE 8.12 %, MEMWAIT_LOAD 0.61 %; hpmF-c48-rv32im: MEMWAIT_STORE 17.51 %, MEMWAIT_LOAD 0.55 %; hpmF-c824-rv32im: MEMWAIT_STORE 36.11 %, MEMWAIT_LOAD 0.42 %",
+   "quoted_in": [
+    "test/coremark/README.md:107"
+   ]
+  },
+  {
+   "figure": "152,008 stores in 3.15 million instructions (4.8 %), 97.8 % of them D-cache hits; 1,438 load misses; 538 refills; whole-run store waits 7.95 %, 17.20 % and 35.61 %",
+   "value": "CACHE_STATS of c14-rv32im, c48-rv32im and c824-rv32im: caches, whole run (CACHE_STATS): instruction refills 538, load misses 1438, stores 152008 (hits 148651, misses 3357) store wait 380223 cycles = 7.95 % of the run | caches, whole run (CACHE_STATS): instruction refills 538, load misses 1438, stores 152008 (hits 148651, misses 3357) store wait 913670 cycles = 17.20 % of the run | caches, whole run (CACHE_STATS): instruction refills 538, load misses 1438, stores 152008 (hits 148651, misses 3357) store wait 2431891 cycles = 35.61 % of the run",
+   "quoted_in": [
+    "test/coremark/README.md:107"
+   ]
+  },
+  {
+   "figure": "Without the D-cache the loads wait for the memory: 65.6 % of the cycles",
+   "value": "hpmF-ionly14-rv32im: MEMWAIT_LOAD 65.65 %",
+   "quoted_in": [
+    "test/coremark/README.md:107"
+   ]
+  },
+  {
+   "figure": "The standard-memory trace: 4,361,915 cycles, 3,150,817 instructions",
+   "value": "model-rv32im-prep: cycles 4,361,915, retired 3,150,817",
+   "quoted_in": [
+    "test/coremark/README.md:109"
+   ]
+  },
+  {
+   "figure": "RTL and model cycles at writes 1:4, 4:8, 8:24 and their differences (rv32im), and the differences with Zba, Zbb and Zbs (+0.07 %, +0.06 %, +0.12 %)",
+   "value": "rv32im 1:4: RETIRED 4,779,798, model 4,783,137, +0.07 %; rv32im 4:8: RETIRED 5,312,021, model 5,315,537, +0.07 %; rv32im 8:24: RETIRED 6,828,286, model 6,835,776, +0.11 %; zb 1:4: RETIRED 4,725,400, model 4,728,865, +0.07 %; zb 4:8: RETIRED 5,257,691, model 5,260,614, +0.06 %; zb 8:24: RETIRED 6,773,629, model 6,781,476, +0.12 %",
+   "quoted_in": [
+    "test/coremark/README.md:113",
+    "test/coremark/README.md:115",
+    "test/coremark/README.md:117"
+   ]
+  },
+  {
+   "figure": "RTLCHECK: AGREE; the counts of refills, load misses and stores are equal",
+   "value": "6 of 6 rtlcheck commands: RTLCHECK: AGREE",
+   "quoted_in": [
+    "test/coremark/README.md:72"
+   ]
+  },
+  {
+   "figure": "BPRED=2 gives 3,820,054 cycles (2.618), BPRED=3 3,735,652 (2.677); cached with writes 4:8, 4,755,979 and 4,671,532 instead of 5,153,890",
+   "value": "std-rv32im-bp2 3,820,054, std-rv32im-bp3 3,735,652, c48-rv32im-bp2 4,755,979, c48-rv32im-bp3 4,671,532, c48-rv32im 5,153,890",
+   "quoted_in": [
+    "test/coremark/README.md:123"
+   ]
+  },
+  {
+   "figure": "About 9 KiB of code, 1.8 KiB of read-only data and 2.1 KiB of .bss; the program 9 KiB",
+   "value": "std-rv32im: text 9120, rodata 1760, data 12, bss 2084 bytes",
+   "quoted_in": [
+    "test/coremark/README.md:48",
+    "test/coremark/README.md:124"
+   ]
+  },
+  {
+   "figure": "The 16 HaDes-V+ rows of the table: cycles and CoreMark/MHz with -O2 and with CVA6's CI flags, and the HaDes-V+ bars of docs/img/coremark-cva6.svg",
+   "value": "std-rv32im 4,217,860, ci-std-rv32im 3,518,733; std-rv32im-bp3 3,735,652, ci-std-rv32im-bp3 3,336,029; std-zb 4,131,302, ci-std-zb 3,443,113; std-zb-bp3 3,642,478, ci-std-zb-bp3 3,257,719; c48-rv32im 5,153,890, ci-c48-rv32im 4,680,761; c48-rv32im-bp3 4,671,532, ci-c48-rv32im-bp3 4,495,884; c48-zb 5,098,327, ci-c48-zb 4,723,826; c48-zb-bp3 4,630,376, ci-c48-zb-bp3 4,545,221",
+   "quoted_in": [
+    "docs/PERFORMANCE.md:27",
+    "docs/PERFORMANCE.md:28",
+    "docs/PERFORMANCE.md:29",
+    "docs/PERFORMANCE.md:30",
+    "docs/PERFORMANCE.md:37",
+    "docs/PERFORMANCE.md:38",
+    "docs/PERFORMANCE.md:39",
+    "docs/PERFORMANCE.md:40",
+    "docs/PERFORMANCE.md:21"
+   ]
+  },
+  {
+   "figure": "Instructions of the timed window: 3,081,452 (rv32im, -O2), 2,719,460 (CI flags), 2,986,224 (Zba, Zbb, Zbs)",
+   "value": "std-rv32im 3,081,452, ci-std-rv32im 2,719,460, std-zb 2,986,224",
+   "quoted_in": [
+    "docs/PERFORMANCE.md:46"
+   ]
+  },
+  {
+   "figure": "The single-issue bounds and the share of the bound that HaDes-V+ reaches",
+   "value": "10^7 / 3,081,452 = 3.245; 10^7 / 2,719,460 = 3.677; 2.677 / 3.245 = 82.5 %",
+   "quoted_in": [
+    "docs/PERFORMANCE.md:50"
+   ]
+  },
+  {
+   "figure": "The cycles of the timed window by class (never taken, 2-bit counters)",
+   "value": "hpmA-std-rv32im: FRONT_OK 3,500,970, REDIRECT_ANY 419,503, HAZARD 203,447, MSTALL_ANY 93,960, FETCH_WAIT 0, MEMWAIT_ANY 0, instructions 3,081,467, 4,217,880 of 4,217,916 (-36); hpmA-std-rv32im-bp3: FRONT_OK 3,259,866, REDIRECT_ANY 178,399, HAZARD 203,447, MSTALL_ANY 93,960, FETCH_WAIT 0, MEMWAIT_ANY 0, instructions 3,081,467, 3,735,672 of 3,735,708 (-36)",
+   "quoted_in": [
+    "docs/PERFORMANCE.md:56",
+    "docs/PERFORMANCE.md:61"
+   ]
+  },
+  {
+   "figure": "Of the redirects with the 2-bit counters, the mispredicted branches and the jumps",
+   "value": "hpmA-std-rv32im-bp3: REDIRECT_ANY 178,399, BR_MISPREDICT 80,861, the rest 97,538; hpmA-std-rv32im: 419,503 - 321,965 = 97,538",
+   "quoted_in": [
+    "docs/PERFORMANCE.md:63"
+   ]
+  },
+  {
+   "figure": "Zba, Zbb and Zbs remove 3.1 % of the instructions; HaDes-V+ gains 2.6 % with the 2-bit predictor",
+   "value": "1 - 2,986,224 / 3,081,452; 3,735,652 / 3,642,478 - 1",
+   "quoted_in": [
+    "docs/PERFORMANCE.md:67"
+   ]
+  },
+  {
+   "figure": "The CI flags remove 11.7 % of the rv32im instructions; HaDes-V+ gains 19.9 % without prediction and 12.0 % with the 2-bit predictor",
+   "value": "1 - 2,719,460 / 3,081,452; 4,217,860 / 3,518,733 - 1; 3,735,652 / 3,336,029 - 1",
+   "quoted_in": [
+    "docs/PERFORMANCE.md:69"
+   ]
+  },
+  {
+   "figure": "The cached rows lose 18.2 to 21.3 % at -O2 and 24.8 to 28.3 % with the CI flags; 13,906 instruction refills instead of 538",
+   "value": "CoreMark/MHz of c48-* against std-* and of ci-c48-* against ci-std-* (results.csv); CACHE_STATS: ci-c48-rv32im 13906, c48-rv32im 538 instruction refills",
+   "quoted_in": [
+    "docs/PERFORMANCE.md:71"
+   ]
+  }
+ ],
+ "commands": [
+  "make coremark",
+  "make coremark MARCH=rv32im_zba_zbb_zbs",
+  "make coremark MARCH=rv32i",
+  "make coremark CPU=golden",
+  "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=1:4",
+  "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=4:8",
+  "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=8:24",
+  "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=1:4 MARCH=rv32im_zba_zbb_zbs",
+  "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=4:8 MARCH=rv32im_zba_zbb_zbs",
+  "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=8:24 MARCH=rv32im_zba_zbb_zbs",
+  "make coremark ICACHE=8192 MEM_LAT=8:24 MEM_WR_LAT=1:4 MEM_BEAT_LAT=0",
+  "make coremark MEM_LAT=8:24 MEM_WR_LAT=8:24",
+  "make coremark MEM_LAT=8:24 MEM_WR_LAT=8:24 MARCH=rv32im_zba_zbb_zbs",
+  "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=4:8 ITERATIONS=1",
+  "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=4:8 ITERATIONS=20",
+  "make coremark HPM_PRESET=A",
+  "make coremark HPM_PRESET=A BPRED=3",
+  "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=1:4 HPM_PRESET=A",
+  "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=4:8 HPM_PRESET=A",
+  "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=8:24 HPM_PRESET=A",
+  "make coremark ICACHE=8192 MEM_LAT=8:24 MEM_WR_LAT=1:4 MEM_BEAT_LAT=0 HPM_PRESET=A",
+  "make coremark MEM_LAT=8:24 MEM_WR_LAT=8:24 HPM_PRESET=A",
+  "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=1:4 HPM_PRESET=F",
+  "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=4:8 HPM_PRESET=F",
+  "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=8:24 HPM_PRESET=F",
+  "make coremark ICACHE=8192 MEM_LAT=8:24 MEM_WR_LAT=1:4 MEM_BEAT_LAT=0 HPM_PRESET=F",
+  "make coremark BPRED=2",
+  "make coremark BPRED=3",
+  "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=4:8 BPRED=2",
+  "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=4:8 BPRED=3",
+  "make coremark MARCH=rv32im_zba_zbb_zbs BPRED=3",
+  "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=4:8 MARCH=rv32im_zba_zbb_zbs BPRED=3",
+  "make coremark OPT=-O3 \"CM_FLAGS=-O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-sections -falign-jumps=4 -falign-functions=16 -march=rv32im -mabi=ilp32\"",
+  "make coremark OPT=-O3 \"CM_FLAGS=-O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-sections -falign-jumps=4 -falign-functions=16 -march=rv32im -mabi=ilp32\" BPRED=3",
+  "make coremark OPT=-O3 \"CM_FLAGS=-O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-sections -falign-jumps=4 -falign-functions=16 -march=rv32im_zba_zbb_zbs -mabi=ilp32\" MARCH=rv32im_zba_zbb_zbs",
+  "make coremark OPT=-O3 \"CM_FLAGS=-O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-sections -falign-jumps=4 -falign-functions=16 -march=rv32im_zba_zbb_zbs -mabi=ilp32\" MARCH=rv32im_zba_zbb_zbs BPRED=3",
+  "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=4:8 OPT=-O3 \"CM_FLAGS=-O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-sections -falign-jumps=4 -falign-functions=16 -march=rv32im -mabi=ilp32\"",
+  "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=4:8 BPRED=3 OPT=-O3 \"CM_FLAGS=-O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-sections -falign-jumps=4 -falign-functions=16 -march=rv32im -mabi=ilp32\"",
+  "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=4:8 MARCH=rv32im_zba_zbb_zbs OPT=-O3 \"CM_FLAGS=-O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-sections -falign-jumps=4 -falign-functions=16 -march=rv32im_zba_zbb_zbs -mabi=ilp32\"",
+  "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=4:8 MARCH=rv32im_zba_zbb_zbs BPRED=3 OPT=-O3 \"CM_FLAGS=-O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-sections -falign-jumps=4 -falign-functions=16 -march=rv32im_zba_zbb_zbs -mabi=ilp32\"",
+  "make coremark BUSTRACE=1",
+  "make coremark BUSTRACE=1 MARCH=rv32im_zba_zbb_zbs",
+  "python3 test/memsys/cachemodel.py prep build/cfg-trace/test/coremark/dut-rv32im-O2-performance-i10/bustrace.bin build/coremark-trace/rv32im --ram-kb 32",
+  "python3 test/memsys/cachemodel.py run build/coremark-trace/rv32im --isize 8192 --dsize 4096 --line 16 --mem burst --rd-lat 8:24 --wr-lat 1:4 --wbuf none",
+  "python3 test/memsys/cachemodel.py rtlcheck build/coremark-trace/rv32im build/cfg-mem8_24-wr1_4-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i10/run.log",
+  "python3 test/memsys/cachemodel.py run build/coremark-trace/rv32im --isize 8192 --dsize 4096 --line 16 --mem burst --rd-lat 8:24 --wr-lat 4:8 --wbuf none",
+  "python3 test/memsys/cachemodel.py rtlcheck build/coremark-trace/rv32im build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i10/run.log",
+  "python3 test/memsys/cachemodel.py run build/coremark-trace/rv32im --isize 8192 --dsize 4096 --line 16 --mem burst --rd-lat 8:24 --wr-lat 8:24 --wbuf none",
+  "python3 test/memsys/cachemodel.py rtlcheck build/coremark-trace/rv32im build/cfg-mem8_24-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i10/run.log",
+  "python3 test/memsys/cachemodel.py prep build/cfg-trace/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/bustrace.bin build/coremark-trace/zb --ram-kb 32",
+  "python3 test/memsys/cachemodel.py run build/coremark-trace/zb --isize 8192 --dsize 4096 --line 16 --mem burst --rd-lat 8:24 --wr-lat 1:4 --wbuf none",
+  "python3 test/memsys/cachemodel.py rtlcheck build/coremark-trace/zb build/cfg-mem8_24-wr1_4-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/run.log",
+  "python3 test/memsys/cachemodel.py run build/coremark-trace/zb --isize 8192 --dsize 4096 --line 16 --mem burst --rd-lat 8:24 --wr-lat 4:8 --wbuf none",
+  "python3 test/memsys/cachemodel.py rtlcheck build/coremark-trace/zb build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/run.log",
+  "python3 test/memsys/cachemodel.py run build/coremark-trace/zb --isize 8192 --dsize 4096 --line 16 --mem burst --rd-lat 8:24 --wr-lat 8:24 --wbuf none",
+  "python3 test/memsys/cachemodel.py rtlcheck build/coremark-trace/zb build/cfg-mem8_24-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/run.log"
+ ],
+ "inputs": {
+  "base_commit_trees": {
+   "rtl": "7b099d1ec97726cd36514947fb7288dfefde88b9",
+   "lib": "b167910d69bd83c6482eda1c956d1433efce2636",
+   "defines": "d8fe3bade3185674f484b29d6505599545cf18d0",
+   "sim": "e1de1adc2afa75addf2a8630666d5f0d06a178c7",
+   "std": "aed86f8aaf0a453ae361b10b343403107b0fd97d",
+   "ref": "b1cd1eebbcd4c675f36085ebfc96416192423721",
+   "test/coremark": "5c1b318de419702d57f9a795284c2fb2890b5b7c",
+   "test/memsys": "884e1a271d2d8f382522f1312e1db1d77d8cc931",
+   "third_party/coremark": "06f9560f3380ebb54ed047fceeb271ff9c94d84d"
+  },
+  "files_sha256": {
+   "Makefile": "f741ec700f5a3764dce6561086a75d144b7eff16718c237ff81427b773d869ee",
+   "test/coremark/coremark.mk": "a5e074bb7aad9f3a32efe977a3cd441de9265b41772d3c0ef80d43a9f130810e",
+   "test/coremark/coremark.py": "54c15957c248d83bf4c91b51689b78921eedd3951611e8dbffa46b24ad424032",
+   "test/coremark/core_portme.c": "f574d461919ab9a2f7e2d508e6123f68c01328d77f1a176480b9229a97c433b5",
+   "test/coremark/core_portme.h": "49e5d0c9e00880e45fddb7973cce33bd62619312b5e6d04e995830bc2b3b52e1",
+   "test/memsys/cachemodel.py": "68063d807efa9f08ade2fd02b2b46d208eb458d68731f63e44ba48482ba8da06",
+   "std/hades-v.ld": "181294f638622d5a60290b2bf86ca199e817dcf9b1ea5e184229f59733f181d2",
+   "third_party/coremark/core_list_join.c": "ca00e4e010ece47d7f040cb92aa50a95345a00d3171b59d088f6b243be06ce7b",
+   "third_party/coremark/core_main.c": "17884c93c5b94378eb0ff02b4df3725756cf2addb9b8cbcaa6200a4649ff5ca7",
+   "third_party/coremark/core_matrix.c": "ecdff717b5a5c4907d221a606760e25499899cbf617582c05d40db71c91351e4",
+   "third_party/coremark/core_state.c": "f4b84bb0a3452c45a4daa664ab502bfdccbd31cb57d93e9ac490c60937717a4e",
+   "third_party/coremark/core_util.c": "a3fbfcb9bb943b638624b8ece01c5836dd56a96d7bcde2697b248d077447327f",
+   "third_party/coremark/coremark.h": "42642b9a06c7ed2b3bd9eda971b7c3868c4f5d27bf7ef6c4bba11291a0c2598a"
+  }
+ },
+ "host": {
+  "cpu": "Intel Core Ultra 7 165H",
+  "threads": 22,
+  "os": "Linux"
+ },
+ "tools": {
+  "verilator": "Verilator 5.042 2025-11-02 rev v5.042",
+  "gcc": "riscv32-unknown-elf-gcc () 12.2.0",
+  "binutils": "GNU assembler (GNU Binutils) 2.39",
+  "python": "Python 3.12.3",
+  "make": "GNU Make 4.3"
+ },
+ "workers": 1,
+ "wall_time_s": {
+  "42 make coremark runs and 14 cache-model commands, one at a time, from an empty build directory with the compiler cache warm": 590.6
+ },
+ "runs": [
+  {
+   "id": "std-rv32im",
+   "argv": [
+    "make",
+    "coremark"
+   ],
+   "command": "make coremark",
+   "tag": "dut-rv32im-O2-performance-i10",
+   "configuration": null,
+   "dir": "build/test/coremark/dut-rv32im-O2-performance-i10",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im-O2-performance-i10\n  Compiler flags   : -O2 -march=rv32im -mabi=ilp32\n  image: text 9120, rodata 1760, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 4217860\n    instructions           3081452\n    CPI                    1.369\n    cycles per iteration   421786\n    CoreMark/MHz estimate  2.371   (= iterations * 1000000 / cycles)\n    at 50 MHz              118.5 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\nRESULT dut-rv32im-O2-performance-i10 cycles=4217860 instructions=3081452 cpi=1.369 cycles_per_iteration=421786 coremark_per_mhz=2.371\n\nCOREMARK dut-rv32im-O2-performance-i10: PASS\n",
+   "run_log": "logs/std-rv32im.run.log",
+   "outputs_sha256": {
+    "build/test/coremark/dut-rv32im-O2-performance-i10/init.mem": "76ad1d13e0b3e86aefecae0820abcecc95eb293cdf6480c8f2ee86924f231385",
+    "build/test/coremark/dut-rv32im-O2-performance-i10/out.elf": "25628445b0009d54ce76d84904ef8891a4ec9df4d7688482dfe69a701664a76a"
+   }
+  },
+  {
+   "id": "std-zb",
+   "argv": [
+    "make",
+    "coremark",
+    "MARCH=rv32im_zba_zbb_zbs"
+   ],
+   "command": "make coremark MARCH=rv32im_zba_zbb_zbs",
+   "tag": "dut-rv32im_zba_zbb_zbs-O2-performance-i10",
+   "configuration": null,
+   "dir": "build/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im_zba_zbb_zbs-O2-performance-i10\n  Compiler flags   : -O2 -march=rv32im_zba_zbb_zbs -mabi=ilp32\n  image: text 8732, rodata 1772, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 4131302\n    instructions           2986224\n    CPI                    1.383\n    cycles per iteration   413130\n    CoreMark/MHz estimate  2.421   (= iterations * 1000000 / cycles)\n    at 50 MHz              121.0 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\nRESULT dut-rv32im_zba_zbb_zbs-O2-performance-i10 cycles=4131302 instructions=2986224 cpi=1.383 cycles_per_iteration=413130 coremark_per_mhz=2.421\n\nCOREMARK dut-rv32im_zba_zbb_zbs-O2-performance-i10: PASS\n",
+   "run_log": "logs/std-zb.run.log",
+   "outputs_sha256": {
+    "build/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/init.mem": "8a2396c6571561817d656e7a5e0153d93fd3d95f2b0480fa8a452bfe419a6f1e",
+    "build/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/out.elf": "0826f2c8a84f4ddd5fb26208cde50cff8326ff32c06a6b62dbbafddaa58af519"
+   }
+  },
+  {
+   "id": "std-rv32i",
+   "argv": [
+    "make",
+    "coremark",
+    "MARCH=rv32i"
+   ],
+   "command": "make coremark MARCH=rv32i",
+   "tag": "dut-rv32i-O2-performance-i10",
+   "configuration": null,
+   "dir": "build/test/coremark/dut-rv32i-O2-performance-i10",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32i-O2-performance-i10\n  Compiler flags   : -O2 -march=rv32i -mabi=ilp32\n  image: text 10092, rodata 1760, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 10702860\n    instructions           7414012\n    CPI                    1.444\n    cycles per iteration   1070286\n    CoreMark/MHz estimate  0.934   (= iterations * 1000000 / cycles)\n    at 50 MHz              46.7 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\nRESULT dut-rv32i-O2-performance-i10 cycles=10702860 instructions=7414012 cpi=1.444 cycles_per_iteration=1070286 coremark_per_mhz=0.934\n\nCOREMARK dut-rv32i-O2-performance-i10: PASS\n",
+   "run_log": "logs/std-rv32i.run.log",
+   "outputs_sha256": {
+    "build/test/coremark/dut-rv32i-O2-performance-i10/init.mem": "f09936b39f873cce1f77360c0806e9469e83b9cd0e7cb4169909b55a106c622a",
+    "build/test/coremark/dut-rv32i-O2-performance-i10/out.elf": "2c8ffc2d1f6b19bb38d606276aeed289724335490d04badfc8a6ceb4edc24414"
+   }
+  },
+  {
+   "id": "golden",
+   "argv": [
+    "make",
+    "coremark",
+    "CPU=golden"
+   ],
+   "command": "make coremark CPU=golden",
+   "tag": "golden-rv32i-O2-performance-i10",
+   "configuration": null,
+   "dir": "build/test/coremark/golden-rv32i-O2-performance-i10",
+   "summary": "CoreMark on HaDes-V+ (golden), golden-rv32i-O2-performance-i10\n  Compiler flags   : -O2 -march=rv32i -mabi=ilp32\n  image: text 10032, rodata 1736, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 10702662\n    cycles per iteration   1070266\n    CoreMark/MHz estimate  0.934   (= iterations * 1000000 / cycles)\n    at 50 MHz              46.7 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\nRESULT golden-rv32i-O2-performance-i10 cycles=10702662 instructions=n/a cycles_per_iteration=1070266 coremark_per_mhz=0.934\n\nCOREMARK golden-rv32i-O2-performance-i10: PASS\n",
+   "run_log": "logs/golden.run.log",
+   "outputs_sha256": {
+    "build/test/coremark/golden-rv32i-O2-performance-i10/init.mem": "769cadabcf12ea66a0a7cb02d03038e7cfcbce6312cf456a8a11578a68a36503",
+    "build/test/coremark/golden-rv32i-O2-performance-i10/out.elf": "a8829235c6a42135c619680ade252cb407805494b7c2a4e95115109296838090"
+   }
+  },
+  {
+   "id": "c14-rv32im",
+   "argv": [
+    "make",
+    "coremark",
+    "ICACHE=8192",
+    "DCACHE=4096",
+    "MEM_LAT=8:24",
+    "MEM_BEAT_LAT=0",
+    "MEM_WR_LAT=1:4"
+   ],
+   "command": "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=1:4",
+   "tag": "dut-rv32im-O2-performance-i10",
+   "configuration": "mem8_24-wr1_4-beat0-i8k-d4k-l16",
+   "dir": "build/cfg-mem8_24-wr1_4-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i10",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im-O2-performance-i10 cfg=mem8_24-wr1_4-beat0-i8k-d4k-l16\n  CACHE I-cache 8192 bytes, 16-byte lines, 512 sets, direct-mapped; tag adr[29:11], index adr[10:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1; one memory port, data sid\n  CACHE D-cache 4096 bytes, 16-byte lines, 256 sets, direct-mapped, write-through, no write-allocate; tag adr[29:10], index adr[9:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays,\n  SLOW MEMORY memory port: read latency 8..24, write latency 1..4, burst beats 0 (cache refill blocks only), seed 1\n  Compiler flags   : -O2 -march=rv32im -mabi=ilp32\n  image: text 9120, rodata 1760, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 4626853\n    instructions           3081452\n    CPI                    1.502\n    cycles per iteration   462685\n    CoreMark/MHz estimate  2.161   (= iterations * 1000000 / cycles)\n    at 50 MHz              108.1 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n  whole run (reset to halt, also the start code, the report on the UART and the halt):\n    cycles 4779798  instructions 3149560  CPI 1.518\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\n  caches, whole run (CACHE_STATS): instruction refills 538, load misses 1438, stores 152008 (hits 148651, misses 3357)\n    store wait 380223 cycles = 7.95 % of the run; waiting for the port: instruction side 567, data side 642\n\nRESULT dut-rv32im-O2-performance-i10 cfg=mem8_24-wr1_4-beat0-i8k-d4k-l16 cycles=4626853 instructions=3081452 cpi=1.502 cycles_per_iteration=462685 coremark_per_mhz=2.161\n\nCOREMARK dut-rv32im-O2-performance-i10 cfg=mem8_24-wr1_4-beat0-i8k-d4k-l16: PASS\n",
+   "run_log": "logs/c14-rv32im.run.log",
+   "outputs_sha256": {
+    "build/cfg-mem8_24-wr1_4-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i10/init.mem": "76ad1d13e0b3e86aefecae0820abcecc95eb293cdf6480c8f2ee86924f231385",
+    "build/cfg-mem8_24-wr1_4-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i10/out.elf": "25628445b0009d54ce76d84904ef8891a4ec9df4d7688482dfe69a701664a76a"
+   }
+  },
+  {
+   "id": "c48-rv32im",
+   "argv": [
+    "make",
+    "coremark",
+    "ICACHE=8192",
+    "DCACHE=4096",
+    "MEM_LAT=8:24",
+    "MEM_BEAT_LAT=0",
+    "MEM_WR_LAT=4:8"
+   ],
+   "command": "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=4:8",
+   "tag": "dut-rv32im-O2-performance-i10",
+   "configuration": "mem8_24-wr4_8-beat0-i8k-d4k-l16",
+   "dir": "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i10",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im-O2-performance-i10 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16\n  CACHE I-cache 8192 bytes, 16-byte lines, 512 sets, direct-mapped; tag adr[29:11], index adr[10:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1; one memory port, data sid\n  CACHE D-cache 4096 bytes, 16-byte lines, 256 sets, direct-mapped, write-through, no write-allocate; tag adr[29:10], index adr[9:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays,\n  SLOW MEMORY memory port: read latency 8..24, write latency 4..8, burst beats 0 (cache refill blocks only), seed 1\n  Compiler flags   : -O2 -march=rv32im -mabi=ilp32\n  image: text 9120, rodata 1760, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 5153890\n    instructions           3081452\n    CPI                    1.673\n    cycles per iteration   515389\n    CoreMark/MHz estimate  1.940   (= iterations * 1000000 / cycles)\n    at 50 MHz              97.0 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n  whole run (reset to halt, also the start code, the report on the UART and the halt):\n    cycles 5312021  instructions 3149146  CPI 1.687\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\n  caches, whole run (CACHE_STATS): instruction refills 538, load misses 1438, stores 152008 (hits 148651, misses 3357)\n    store wait 913670 cycles = 17.20 % of the run; waiting for the port: instruction side 1028, data side 642\n\nRESULT dut-rv32im-O2-performance-i10 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16 cycles=5153890 instructions=3081452 cpi=1.673 cycles_per_iteration=515389 coremark_per_mhz=1.940\n\nCOREMARK dut-rv32im-O2-performance-i10 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16: PASS\n",
+   "run_log": "logs/c48-rv32im.run.log",
+   "outputs_sha256": {
+    "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i10/init.mem": "76ad1d13e0b3e86aefecae0820abcecc95eb293cdf6480c8f2ee86924f231385",
+    "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i10/out.elf": "25628445b0009d54ce76d84904ef8891a4ec9df4d7688482dfe69a701664a76a"
+   }
+  },
+  {
+   "id": "c824-rv32im",
+   "argv": [
+    "make",
+    "coremark",
+    "ICACHE=8192",
+    "DCACHE=4096",
+    "MEM_LAT=8:24",
+    "MEM_BEAT_LAT=0",
+    "MEM_WR_LAT=8:24"
+   ],
+   "command": "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=8:24",
+   "tag": "dut-rv32im-O2-performance-i10",
+   "configuration": "mem8_24-beat0-i8k-d4k-l16",
+   "dir": "build/cfg-mem8_24-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i10",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im-O2-performance-i10 cfg=mem8_24-beat0-i8k-d4k-l16\n  CACHE I-cache 8192 bytes, 16-byte lines, 512 sets, direct-mapped; tag adr[29:11], index adr[10:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1; one memory port, data sid\n  CACHE D-cache 4096 bytes, 16-byte lines, 256 sets, direct-mapped, write-through, no write-allocate; tag adr[29:10], index adr[9:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays,\n  SLOW MEMORY memory port: read latency 8..24, write latency 8..24, burst beats 0 (cache refill blocks only), seed 1\n  Compiler flags   : -O2 -march=rv32im -mabi=ilp32\n  image: text 9120, rodata 1760, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 6653779\n    instructions           3081452\n    CPI                    2.159\n    cycles per iteration   665378\n    CoreMark/MHz estimate  1.503   (= iterations * 1000000 / cycles)\n    at 50 MHz              75.1 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n  whole run (reset to halt, also the start code, the report on the UART and the halt):\n    cycles 6828286  instructions 3148597  CPI 2.169\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\n  caches, whole run (CACHE_STATS): instruction refills 538, load misses 1438, stores 152008 (hits 148651, misses 3357)\n    store wait 2431891 cycles = 35.61 % of the run; waiting for the port: instruction side 2407, data side 642\n\nRESULT dut-rv32im-O2-performance-i10 cfg=mem8_24-beat0-i8k-d4k-l16 cycles=6653779 instructions=3081452 cpi=2.159 cycles_per_iteration=665378 coremark_per_mhz=1.503\n\nCOREMARK dut-rv32im-O2-performance-i10 cfg=mem8_24-beat0-i8k-d4k-l16: PASS\n",
+   "run_log": "logs/c824-rv32im.run.log",
+   "outputs_sha256": {
+    "build/cfg-mem8_24-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i10/init.mem": "76ad1d13e0b3e86aefecae0820abcecc95eb293cdf6480c8f2ee86924f231385",
+    "build/cfg-mem8_24-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i10/out.elf": "25628445b0009d54ce76d84904ef8891a4ec9df4d7688482dfe69a701664a76a"
+   }
+  },
+  {
+   "id": "c14-zb",
+   "argv": [
+    "make",
+    "coremark",
+    "ICACHE=8192",
+    "DCACHE=4096",
+    "MEM_LAT=8:24",
+    "MEM_BEAT_LAT=0",
+    "MEM_WR_LAT=1:4",
+    "MARCH=rv32im_zba_zbb_zbs"
+   ],
+   "command": "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=1:4 MARCH=rv32im_zba_zbb_zbs",
+   "tag": "dut-rv32im_zba_zbb_zbs-O2-performance-i10",
+   "configuration": "mem8_24-wr1_4-beat0-i8k-d4k-l16",
+   "dir": "build/cfg-mem8_24-wr1_4-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im_zba_zbb_zbs-O2-performance-i10 cfg=mem8_24-wr1_4-beat0-i8k-d4k-l16\n  CACHE I-cache 8192 bytes, 16-byte lines, 512 sets, direct-mapped; tag adr[29:11], index adr[10:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1; one memory port, data sid\n  CACHE D-cache 4096 bytes, 16-byte lines, 256 sets, direct-mapped, write-through, no write-allocate; tag adr[29:10], index adr[9:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays,\n  SLOW MEMORY memory port: read latency 8..24, write latency 1..4, burst beats 0 (cache refill blocks only), seed 1\n  Compiler flags   : -O2 -march=rv32im_zba_zbb_zbs -mabi=ilp32\n  image: text 8732, rodata 1772, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 4571378\n    instructions           2986224\n    CPI                    1.531\n    cycles per iteration   457138\n    CoreMark/MHz estimate  2.188   (= iterations * 1000000 / cycles)\n    at 50 MHz              109.4 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n  whole run (reset to halt, also the start code, the report on the UART and the halt):\n    cycles 4725400  instructions 3054347  CPI 1.547\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\n  caches, whole run (CACHE_STATS): instruction refills 522, load misses 2928, stores 152008 (hits 150595, misses 1413)\n    store wait 380444 cycles = 8.05 % of the run; waiting for the port: instruction side 695, data side 866\n\nRESULT dut-rv32im_zba_zbb_zbs-O2-performance-i10 cfg=mem8_24-wr1_4-beat0-i8k-d4k-l16 cycles=4571378 instructions=2986224 cpi=1.531 cycles_per_iteration=457138 coremark_per_mhz=2.188\n\nCOREMARK dut-rv32im_zba_zbb_zbs-O2-performance-i10 cfg=mem8_24-wr1_4-beat0-i8k-d4k-l16: PASS\n",
+   "run_log": "logs/c14-zb.run.log",
+   "outputs_sha256": {
+    "build/cfg-mem8_24-wr1_4-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/init.mem": "8a2396c6571561817d656e7a5e0153d93fd3d95f2b0480fa8a452bfe419a6f1e",
+    "build/cfg-mem8_24-wr1_4-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/out.elf": "0826f2c8a84f4ddd5fb26208cde50cff8326ff32c06a6b62dbbafddaa58af519"
+   }
+  },
+  {
+   "id": "c48-zb",
+   "argv": [
+    "make",
+    "coremark",
+    "ICACHE=8192",
+    "DCACHE=4096",
+    "MEM_LAT=8:24",
+    "MEM_BEAT_LAT=0",
+    "MEM_WR_LAT=4:8",
+    "MARCH=rv32im_zba_zbb_zbs"
+   ],
+   "command": "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=4:8 MARCH=rv32im_zba_zbb_zbs",
+   "tag": "dut-rv32im_zba_zbb_zbs-O2-performance-i10",
+   "configuration": "mem8_24-wr4_8-beat0-i8k-d4k-l16",
+   "dir": "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im_zba_zbb_zbs-O2-performance-i10 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16\n  CACHE I-cache 8192 bytes, 16-byte lines, 512 sets, direct-mapped; tag adr[29:11], index adr[10:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1; one memory port, data sid\n  CACHE D-cache 4096 bytes, 16-byte lines, 256 sets, direct-mapped, write-through, no write-allocate; tag adr[29:10], index adr[9:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays,\n  SLOW MEMORY memory port: read latency 8..24, write latency 4..8, burst beats 0 (cache refill blocks only), seed 1\n  Compiler flags   : -O2 -march=rv32im_zba_zbb_zbs -mabi=ilp32\n  image: text 8732, rodata 1772, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 5098327\n    instructions           2986224\n    CPI                    1.707\n    cycles per iteration   509833\n    CoreMark/MHz estimate  1.961   (= iterations * 1000000 / cycles)\n    at 50 MHz              98.1 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n  whole run (reset to halt, also the start code, the report on the UART and the halt):\n    cycles 5257691  instructions 3053963  CPI 1.722\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\n  caches, whole run (CACHE_STATS): instruction refills 522, load misses 2928, stores 152008 (hits 150595, misses 1413)\n    store wait 913867 cycles = 17.38 % of the run; waiting for the port: instruction side 1161, data side 866\n\nRESULT dut-rv32im_zba_zbb_zbs-O2-performance-i10 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16 cycles=5098327 instructions=2986224 cpi=1.707 cycles_per_iteration=509833 coremark_per_mhz=1.961\n\nCOREMARK dut-rv32im_zba_zbb_zbs-O2-performance-i10 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16: PASS\n",
+   "run_log": "logs/c48-zb.run.log",
+   "outputs_sha256": {
+    "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/init.mem": "8a2396c6571561817d656e7a5e0153d93fd3d95f2b0480fa8a452bfe419a6f1e",
+    "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/out.elf": "0826f2c8a84f4ddd5fb26208cde50cff8326ff32c06a6b62dbbafddaa58af519"
+   }
+  },
+  {
+   "id": "c824-zb",
+   "argv": [
+    "make",
+    "coremark",
+    "ICACHE=8192",
+    "DCACHE=4096",
+    "MEM_LAT=8:24",
+    "MEM_BEAT_LAT=0",
+    "MEM_WR_LAT=8:24",
+    "MARCH=rv32im_zba_zbb_zbs"
+   ],
+   "command": "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=8:24 MARCH=rv32im_zba_zbb_zbs",
+   "tag": "dut-rv32im_zba_zbb_zbs-O2-performance-i10",
+   "configuration": "mem8_24-beat0-i8k-d4k-l16",
+   "dir": "build/cfg-mem8_24-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im_zba_zbb_zbs-O2-performance-i10 cfg=mem8_24-beat0-i8k-d4k-l16\n  CACHE I-cache 8192 bytes, 16-byte lines, 512 sets, direct-mapped; tag adr[29:11], index adr[10:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1; one memory port, data sid\n  CACHE D-cache 4096 bytes, 16-byte lines, 256 sets, direct-mapped, write-through, no write-allocate; tag adr[29:10], index adr[9:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays,\n  SLOW MEMORY memory port: read latency 8..24, write latency 8..24, burst beats 0 (cache refill blocks only), seed 1\n  Compiler flags   : -O2 -march=rv32im_zba_zbb_zbs -mabi=ilp32\n  image: text 8732, rodata 1772, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 6598106\n    instructions           2986224\n    CPI                    2.210\n    cycles per iteration   659811\n    CoreMark/MHz estimate  1.516   (= iterations * 1000000 / cycles)\n    at 50 MHz              75.8 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n  whole run (reset to halt, also the start code, the report on the UART and the halt):\n    cycles 6773629  instructions 3053372  CPI 2.218\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\n  caches, whole run (CACHE_STATS): instruction refills 522, load misses 2928, stores 152008 (hits 150595, misses 1413)\n    store wait 2431847 cycles = 35.90 % of the run; waiting for the port: instruction side 2532, data side 866\n\nRESULT dut-rv32im_zba_zbb_zbs-O2-performance-i10 cfg=mem8_24-beat0-i8k-d4k-l16 cycles=6598106 instructions=2986224 cpi=2.210 cycles_per_iteration=659811 coremark_per_mhz=1.516\n\nCOREMARK dut-rv32im_zba_zbb_zbs-O2-performance-i10 cfg=mem8_24-beat0-i8k-d4k-l16: PASS\n",
+   "run_log": "logs/c824-zb.run.log",
+   "outputs_sha256": {
+    "build/cfg-mem8_24-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/init.mem": "8a2396c6571561817d656e7a5e0153d93fd3d95f2b0480fa8a452bfe419a6f1e",
+    "build/cfg-mem8_24-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/out.elf": "0826f2c8a84f4ddd5fb26208cde50cff8326ff32c06a6b62dbbafddaa58af519"
+   }
+  },
+  {
+   "id": "ionly14-rv32im",
+   "argv": [
+    "make",
+    "coremark",
+    "ICACHE=8192",
+    "MEM_LAT=8:24",
+    "MEM_WR_LAT=1:4",
+    "MEM_BEAT_LAT=0"
+   ],
+   "command": "make coremark ICACHE=8192 MEM_LAT=8:24 MEM_WR_LAT=1:4 MEM_BEAT_LAT=0",
+   "tag": "dut-rv32im-O2-performance-i10",
+   "configuration": "mem8_24-wr1_4-beat0-i8k-l16",
+   "dir": "build/cfg-mem8_24-wr1_4-beat0-i8k-l16/test/coremark/dut-rv32im-O2-performance-i10",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im-O2-performance-i10 cfg=mem8_24-wr1_4-beat0-i8k-l16\n  CACHE I-cache 8192 bytes, 16-byte lines, 512 sets, direct-mapped; tag adr[29:11], index adr[10:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1; one memory port, data sid\n  SLOW MEMORY memory port: read latency 8..24, write latency 1..4, burst beats 0 (cache refill blocks only), seed 1\n  Compiler flags   : -O2 -march=rv32im -mabi=ilp32\n  image: text 9120, rodata 1760, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 13393282\n    instructions           3081452\n    CPI                    4.346\n    cycles per iteration   1339328\n    CoreMark/MHz estimate  0.747   (= iterations * 1000000 / cycles)\n    at 50 MHz              37.3 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n  whole run (reset to halt, also the start code, the report on the UART and the halt):\n    cycles 13575738  instructions 3144082  CPI 4.318\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\n  caches, whole run (CACHE_STATS): instruction refills 538, load misses n/a, stores 152010 (hits n/a, misses n/a)\n\nRESULT dut-rv32im-O2-performance-i10 cfg=mem8_24-wr1_4-beat0-i8k-l16 cycles=13393282 instructions=3081452 cpi=4.346 cycles_per_iteration=1339328 coremark_per_mhz=0.747\n\nCOREMARK dut-rv32im-O2-performance-i10 cfg=mem8_24-wr1_4-beat0-i8k-l16: PASS\n",
+   "run_log": "logs/ionly14-rv32im.run.log",
+   "outputs_sha256": {
+    "build/cfg-mem8_24-wr1_4-beat0-i8k-l16/test/coremark/dut-rv32im-O2-performance-i10/init.mem": "76ad1d13e0b3e86aefecae0820abcecc95eb293cdf6480c8f2ee86924f231385",
+    "build/cfg-mem8_24-wr1_4-beat0-i8k-l16/test/coremark/dut-rv32im-O2-performance-i10/out.elf": "25628445b0009d54ce76d84904ef8891a4ec9df4d7688482dfe69a701664a76a"
+   }
+  },
+  {
+   "id": "nocache824-rv32im",
+   "argv": [
+    "make",
+    "coremark",
+    "MEM_LAT=8:24",
+    "MEM_WR_LAT=8:24"
+   ],
+   "command": "make coremark MEM_LAT=8:24 MEM_WR_LAT=8:24",
+   "tag": "dut-rv32im-O2-performance-i10",
+   "configuration": "mem8_24",
+   "dir": "build/cfg-mem8_24/test/coremark/dut-rv32im-O2-performance-i10",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im-O2-performance-i10 cfg=mem8_24\n  SLOW MEMORY fetch port: read latency 8..24, write latency 8..24, burst beats off, seed 1\n  SLOW MEMORY data  port: read latency 8..24, write latency 8..24, burst beats off, seed 1\n  Compiler flags   : -O2 -march=rv32im -mabi=ilp32\n  image: text 9120, rodata 1760, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 54182889\n    instructions           3081452\n    CPI                    17.584\n    cycles per iteration   5418289\n    CoreMark/MHz estimate  0.185   (= iterations * 1000000 / cycles)\n    at 50 MHz              9.2 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n  whole run (reset to halt, also the start code, the report on the UART and the halt):\n    cycles 54622381  instructions 3106353  CPI 17.584\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\nRESULT dut-rv32im-O2-performance-i10 cfg=mem8_24 cycles=54182889 instructions=3081452 cpi=17.584 cycles_per_iteration=5418289 coremark_per_mhz=0.185\n\nCOREMARK dut-rv32im-O2-performance-i10 cfg=mem8_24: PASS\n",
+   "run_log": "logs/nocache824-rv32im.run.log",
+   "outputs_sha256": {
+    "build/cfg-mem8_24/test/coremark/dut-rv32im-O2-performance-i10/init.mem": "76ad1d13e0b3e86aefecae0820abcecc95eb293cdf6480c8f2ee86924f231385",
+    "build/cfg-mem8_24/test/coremark/dut-rv32im-O2-performance-i10/out.elf": "25628445b0009d54ce76d84904ef8891a4ec9df4d7688482dfe69a701664a76a"
+   }
+  },
+  {
+   "id": "nocache824-zb",
+   "argv": [
+    "make",
+    "coremark",
+    "MEM_LAT=8:24",
+    "MEM_WR_LAT=8:24",
+    "MARCH=rv32im_zba_zbb_zbs"
+   ],
+   "command": "make coremark MEM_LAT=8:24 MEM_WR_LAT=8:24 MARCH=rv32im_zba_zbb_zbs",
+   "tag": "dut-rv32im_zba_zbb_zbs-O2-performance-i10",
+   "configuration": "mem8_24",
+   "dir": "build/cfg-mem8_24/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im_zba_zbb_zbs-O2-performance-i10 cfg=mem8_24\n  SLOW MEMORY fetch port: read latency 8..24, write latency 8..24, burst beats off, seed 1\n  SLOW MEMORY data  port: read latency 8..24, write latency 8..24, burst beats off, seed 1\n  Compiler flags   : -O2 -march=rv32im_zba_zbb_zbs -mabi=ilp32\n  image: text 8732, rodata 1772, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 52553197\n    instructions           2986224\n    CPI                    17.599\n    cycles per iteration   5255320\n    CoreMark/MHz estimate  0.190   (= iterations * 1000000 / cycles)\n    at 50 MHz              9.5 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n  whole run (reset to halt, also the start code, the report on the UART and the halt):\n    cycles 52979814  instructions 3010403  CPI 17.599\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\nRESULT dut-rv32im_zba_zbb_zbs-O2-performance-i10 cfg=mem8_24 cycles=52553197 instructions=2986224 cpi=17.599 cycles_per_iteration=5255320 coremark_per_mhz=0.190\n\nCOREMARK dut-rv32im_zba_zbb_zbs-O2-performance-i10 cfg=mem8_24: PASS\n",
+   "run_log": "logs/nocache824-zb.run.log",
+   "outputs_sha256": {
+    "build/cfg-mem8_24/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/init.mem": "8a2396c6571561817d656e7a5e0153d93fd3d95f2b0480fa8a452bfe419a6f1e",
+    "build/cfg-mem8_24/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/out.elf": "0826f2c8a84f4ddd5fb26208cde50cff8326ff32c06a6b62dbbafddaa58af519"
+   }
+  },
+  {
+   "id": "c48-rv32im-i1",
+   "argv": [
+    "make",
+    "coremark",
+    "ICACHE=8192",
+    "DCACHE=4096",
+    "MEM_LAT=8:24",
+    "MEM_BEAT_LAT=0",
+    "MEM_WR_LAT=4:8",
+    "ITERATIONS=1"
+   ],
+   "command": "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=4:8 ITERATIONS=1",
+   "tag": "dut-rv32im-O2-performance-i1",
+   "configuration": "mem8_24-wr4_8-beat0-i8k-d4k-l16",
+   "dir": "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i1",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im-O2-performance-i1 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16\n  CACHE I-cache 8192 bytes, 16-byte lines, 512 sets, direct-mapped; tag adr[29:11], index adr[10:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1; one memory port, data sid\n  CACHE D-cache 4096 bytes, 16-byte lines, 256 sets, direct-mapped, write-through, no write-allocate; tag adr[29:10], index adr[9:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays,\n  SLOW MEMORY memory port: read latency 8..24, write latency 4..8, burst beats 0 (cache refill blocks only), seed 1\n  Compiler flags   : -O2 -march=rv32im -mabi=ilp32\n  image: text 9120, rodata 1760, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 1 iterations):\n    cycles                 521381\n    instructions           308100\n    CPI                    1.692\n    cycles per iteration   521381\n    CoreMark/MHz estimate  1.918   (= iterations * 1000000 / cycles)\n    at 50 MHz              95.9 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n  whole run (reset to halt, also the start code, the report on the UART and the halt):\n    cycles 678171  instructions 375404  CPI 1.807\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xe714  (depends on the iterations)\n\n  caches, whole run (CACHE_STATS): instruction refills 538, load misses 304, stores 16816 (hits 15529, misses 1287)\n    store wait 101045 cycles = 14.90 % of the run; waiting for the port: instruction side 1034, data side 639\n\nRESULT dut-rv32im-O2-performance-i1 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16 cycles=521381 instructions=308100 cpi=1.692 cycles_per_iteration=521381 coremark_per_mhz=1.918\n\nCOREMARK dut-rv32im-O2-performance-i1 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16: PASS\n",
+   "run_log": "logs/c48-rv32im-i1.run.log",
+   "outputs_sha256": {
+    "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i1/init.mem": "e94ae115c0475d9b8932a3043506a10cdf69b1610ff58af755a772f4f3a82879",
+    "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i1/out.elf": "ff429c7b11ce71a08ec2955020700d342c283adaf17e06a8ff011c2bed76db53"
+   }
+  },
+  {
+   "id": "c48-rv32im-i20",
+   "argv": [
+    "make",
+    "coremark",
+    "ICACHE=8192",
+    "DCACHE=4096",
+    "MEM_LAT=8:24",
+    "MEM_BEAT_LAT=0",
+    "MEM_WR_LAT=4:8",
+    "ITERATIONS=20"
+   ],
+   "command": "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=4:8 ITERATIONS=20",
+   "tag": "dut-rv32im-O2-performance-i20",
+   "configuration": "mem8_24-wr4_8-beat0-i8k-d4k-l16",
+   "dir": "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i20",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im-O2-performance-i20 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16\n  CACHE I-cache 8192 bytes, 16-byte lines, 512 sets, direct-mapped; tag adr[29:11], index adr[10:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1; one memory port, data sid\n  CACHE D-cache 4096 bytes, 16-byte lines, 256 sets, direct-mapped, write-through, no write-allocate; tag adr[29:10], index adr[9:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays,\n  SLOW MEMORY memory port: read latency 8..24, write latency 4..8, burst beats 0 (cache refill blocks only), seed 1\n  Compiler flags   : -O2 -march=rv32im -mabi=ilp32\n  image: text 9120, rodata 1760, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 20 iterations):\n    cycles                 10300555\n    instructions           6163471\n    CPI                    1.671\n    cycles per iteration   515028\n    CoreMark/MHz estimate  1.942   (= iterations * 1000000 / cycles)\n    at 50 MHz              97.1 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n  whole run (reset to halt, also the start code, the report on the UART and the halt):\n    cycles 10459198  instructions 6231361  CPI 1.678\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0x4983  (depends on the iterations)\n\n  caches, whole run (CACHE_STATS): instruction refills 538, load misses 2698, stores 302252 (hits 296595, misses 5657)\n    store wait 1815535 cycles = 17.36 % of the run; waiting for the port: instruction side 1017, data side 640\n\nRESULT dut-rv32im-O2-performance-i20 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16 cycles=10300555 instructions=6163471 cpi=1.671 cycles_per_iteration=515028 coremark_per_mhz=1.942\n\nCOREMARK dut-rv32im-O2-performance-i20 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16: PASS\n",
+   "run_log": "logs/c48-rv32im-i20.run.log",
+   "outputs_sha256": {
+    "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i20/init.mem": "e8954c74e347802e07099f953050e81190a2a750eb08876bfae48448e88018a3",
+    "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i20/out.elf": "43c302874fb705d4b3fe72809def1b09e3558a15a0c6c0050bf92245318327f8"
+   }
+  },
+  {
+   "id": "hpmA-std-rv32im",
+   "argv": [
+    "make",
+    "coremark",
+    "HPM_PRESET=A"
+   ],
+   "command": "make coremark HPM_PRESET=A",
+   "tag": "dut-rv32im-O2-performance-i10-hpm",
+   "configuration": "presetA",
+   "dir": "build/cfg-presetA/test/coremark/dut-rv32im-O2-performance-i10-hpm",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im-O2-performance-i10-hpm cfg=presetA\n  Compiler flags   : -O2 -march=rv32im -mabi=ilp32\n  image: text 9312, rodata 1780, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 4217916\n    instructions           3081467\n    CPI                    1.369\n    cycles per iteration   421792\n    CoreMark/MHz estimate  2.371   (= iterations * 1000000 / cycles)\n    at 50 MHz              118.5 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\n  counters of the timed window, preset A (mhpmcounter3-9, read around the window):\n    mhpmcounter3  FETCH_WAIT (32)             0    0.00 % of the window's cycles\n    mhpmcounter4  FRONT_OK (33)         3500970   83.00 % of the window's cycles\n    mhpmcounter5  HAZARD (34)            203447    4.82 % of the window's cycles\n    mhpmcounter6  MSTALL_ANY (35)         93960    2.23 % of the window's cycles\n    mhpmcounter7  MEMWAIT_ANY (36)            0    0.00 % of the window's cycles\n    mhpmcounter8  REDIRECT_ANY (37)      419503    9.95 % of the window's cycles\n    mhpmcounter9  BR_MISPREDICT (16)     321965    7.63 % of the window's cycles\n    the six cycle classes add up to 4217880 of 4217916 cycles (-36; the counters are read a few instructions away from mcycle)\n\nRESULT dut-rv32im-O2-performance-i10-hpm cfg=presetA cycles=4217916 instructions=3081467 cpi=1.369 cycles_per_iteration=421792 coremark_per_mhz=2.371\n\nCOREMARK dut-rv32im-O2-performance-i10-hpm cfg=presetA: PASS\n",
+   "run_log": "logs/hpmA-std-rv32im.run.log",
+   "outputs_sha256": {
+    "build/cfg-presetA/test/coremark/dut-rv32im-O2-performance-i10-hpm/init.mem": "2c1bda224c0922743ab911553126597367aa4dfa229f644909d63593c6778790",
+    "build/cfg-presetA/test/coremark/dut-rv32im-O2-performance-i10-hpm/out.elf": "1ec9f7539f38c79a2104a50b09697a8358ee0b03726cd8ec37c8b9ab53c97902"
+   }
+  },
+  {
+   "id": "hpmA-std-rv32im-bp3",
+   "argv": [
+    "make",
+    "coremark",
+    "HPM_PRESET=A",
+    "BPRED=3"
+   ],
+   "command": "make coremark HPM_PRESET=A BPRED=3",
+   "tag": "dut-rv32im-O2-performance-i10-bp3-hpm",
+   "configuration": "presetA",
+   "dir": "build/cfg-presetA/test/coremark/dut-rv32im-O2-performance-i10-bp3-hpm",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im-O2-performance-i10-bp3-hpm cfg=presetA\n  Compiler flags   : -O2 -march=rv32im -mabi=ilp32\n  image: text 9320, rodata 1780, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 3735708\n    instructions           3081467\n    CPI                    1.212\n    cycles per iteration   373571\n    CoreMark/MHz estimate  2.677   (= iterations * 1000000 / cycles)\n    at 50 MHz              133.8 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\n  counters of the timed window, preset A (mhpmcounter3-9, read around the window):\n    mhpmcounter3  FETCH_WAIT (32)             0    0.00 % of the window's cycles\n    mhpmcounter4  FRONT_OK (33)         3259866   87.26 % of the window's cycles\n    mhpmcounter5  HAZARD (34)            203447    5.45 % of the window's cycles\n    mhpmcounter6  MSTALL_ANY (35)         93960    2.52 % of the window's cycles\n    mhpmcounter7  MEMWAIT_ANY (36)            0    0.00 % of the window's cycles\n    mhpmcounter8  REDIRECT_ANY (37)      178399    4.78 % of the window's cycles\n    mhpmcounter9  BR_MISPREDICT (16)      80861    2.16 % of the window's cycles\n    the six cycle classes add up to 3735672 of 3735708 cycles (-36; the counters are read a few instructions away from mcycle)\n\nRESULT dut-rv32im-O2-performance-i10-bp3-hpm cfg=presetA cycles=3735708 instructions=3081467 cpi=1.212 cycles_per_iteration=373571 coremark_per_mhz=2.677\n\nCOREMARK dut-rv32im-O2-performance-i10-bp3-hpm cfg=presetA: PASS\n",
+   "run_log": "logs/hpmA-std-rv32im-bp3.run.log",
+   "outputs_sha256": {
+    "build/cfg-presetA/test/coremark/dut-rv32im-O2-performance-i10-bp3-hpm/init.mem": "8851c2944cef76889bf836f9e9e14544251c9b8aedca8b5d1ddd6abf0b982e9b",
+    "build/cfg-presetA/test/coremark/dut-rv32im-O2-performance-i10-bp3-hpm/out.elf": "0266a69d5164550a3f59e58726b7782d8420788a44822b838d6e6a4708923acb"
+   }
+  },
+  {
+   "id": "hpmA-c14-rv32im",
+   "argv": [
+    "make",
+    "coremark",
+    "ICACHE=8192",
+    "DCACHE=4096",
+    "MEM_LAT=8:24",
+    "MEM_BEAT_LAT=0",
+    "MEM_WR_LAT=1:4",
+    "HPM_PRESET=A"
+   ],
+   "command": "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=1:4 HPM_PRESET=A",
+   "tag": "dut-rv32im-O2-performance-i10-hpm",
+   "configuration": "mem8_24-wr1_4-beat0-i8k-d4k-l16-presetA",
+   "dir": "build/cfg-mem8_24-wr1_4-beat0-i8k-d4k-l16-presetA/test/coremark/dut-rv32im-O2-performance-i10-hpm",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im-O2-performance-i10-hpm cfg=mem8_24-wr1_4-beat0-i8k-d4k-l16-presetA\n  CACHE I-cache 8192 bytes, 16-byte lines, 512 sets, direct-mapped; tag adr[29:11], index adr[10:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1; one memory port, data sid\n  CACHE D-cache 4096 bytes, 16-byte lines, 256 sets, direct-mapped, write-through, no write-allocate; tag adr[29:10], index adr[9:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays,\n  SLOW MEMORY memory port: read latency 8..24, write latency 1..4, burst beats 0 (cache refill blocks only), seed 1\n  Compiler flags   : -O2 -march=rv32im -mabi=ilp32\n  image: text 9312, rodata 1780, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 4627642\n    instructions           3081467\n    CPI                    1.502\n    cycles per iteration   462764\n    CoreMark/MHz estimate  2.161   (= iterations * 1000000 / cycles)\n    at 50 MHz              108.0 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n  whole run (reset to halt, also the start code, the report on the UART and the halt):\n    cycles 4803529  instructions 3159052  CPI 1.521\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\n  counters of the timed window, preset A (mhpmcounter3-9, read around the window):\n    mhpmcounter3  FETCH_WAIT (32)          5680    0.12 % of the window's cycles\n    mhpmcounter4  FRONT_OK (33)         3500927   75.65 % of the window's cycles\n    mhpmcounter5  HAZARD (34)            203431    4.40 % of the window's cycles\n    mhpmcounter6  MSTALL_ANY (35)         93960    2.03 % of the window's cycles\n    mhpmcounter7  MEMWAIT_ANY (36)       404017    8.73 % of the window's cycles\n    mhpmcounter8  REDIRECT_ANY (37)      419503    9.07 % of the window's cycles\n    mhpmcounter9  BR_MISPREDICT (16)     321965    6.96 % of the window's cycles\n    the six cycle classes add up to 4627518 of 4627642 cycles (-124; the counters are read a few instructions away from mcycle)\n\n  caches, whole run (CACHE_STATS): instruction refills 554, load misses 1441, stores 152198 (hits 150283, misses 1915)\n    store wait 380803 cycles = 7.93 % of the run; waiting for the port: instruction side 616, data side 629\n\nRESULT dut-rv32im-O2-performance-i10-hpm cfg=mem8_24-wr1_4-beat0-i8k-d4k-l16-presetA cycles=4627642 instructions=3081467 cpi=1.502 cycles_per_iteration=462764 coremark_per_mhz=2.161\n\nCOREMARK dut-rv32im-O2-performance-i10-hpm cfg=mem8_24-wr1_4-beat0-i8k-d4k-l16-presetA: PASS\n",
+   "run_log": "logs/hpmA-c14-rv32im.run.log",
+   "outputs_sha256": {
+    "build/cfg-mem8_24-wr1_4-beat0-i8k-d4k-l16-presetA/test/coremark/dut-rv32im-O2-performance-i10-hpm/init.mem": "2c1bda224c0922743ab911553126597367aa4dfa229f644909d63593c6778790",
+    "build/cfg-mem8_24-wr1_4-beat0-i8k-d4k-l16-presetA/test/coremark/dut-rv32im-O2-performance-i10-hpm/out.elf": "1ec9f7539f38c79a2104a50b09697a8358ee0b03726cd8ec37c8b9ab53c97902"
+   }
+  },
+  {
+   "id": "hpmA-c48-rv32im",
+   "argv": [
+    "make",
+    "coremark",
+    "ICACHE=8192",
+    "DCACHE=4096",
+    "MEM_LAT=8:24",
+    "MEM_BEAT_LAT=0",
+    "MEM_WR_LAT=4:8",
+    "HPM_PRESET=A"
+   ],
+   "command": "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=4:8 HPM_PRESET=A",
+   "tag": "dut-rv32im-O2-performance-i10-hpm",
+   "configuration": "mem8_24-wr4_8-beat0-i8k-d4k-l16-presetA",
+   "dir": "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16-presetA/test/coremark/dut-rv32im-O2-performance-i10-hpm",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im-O2-performance-i10-hpm cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16-presetA\n  CACHE I-cache 8192 bytes, 16-byte lines, 512 sets, direct-mapped; tag adr[29:11], index adr[10:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1; one memory port, data sid\n  CACHE D-cache 4096 bytes, 16-byte lines, 256 sets, direct-mapped, write-through, no write-allocate; tag adr[29:10], index adr[9:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays,\n  SLOW MEMORY memory port: read latency 8..24, write latency 4..8, burst beats 0 (cache refill blocks only), seed 1\n  Compiler flags   : -O2 -march=rv32im -mabi=ilp32\n  image: text 9312, rodata 1780, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 5154558\n    instructions           3081467\n    CPI                    1.673\n    cycles per iteration   515456\n    CoreMark/MHz estimate  1.940   (= iterations * 1000000 / cycles)\n    at 50 MHz              97.0 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n  whole run (reset to halt, also the start code, the report on the UART and the halt):\n    cycles 5335764  instructions 3158488  CPI 1.689\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\n  counters of the timed window, preset A (mhpmcounter3-9, read around the window):\n    mhpmcounter3  FETCH_WAIT (32)          5680    0.11 % of the window's cycles\n    mhpmcounter4  FRONT_OK (33)         3500927   67.92 % of the window's cycles\n    mhpmcounter5  HAZARD (34)            203431    3.95 % of the window's cycles\n    mhpmcounter6  MSTALL_ANY (35)         93960    1.82 % of the window's cycles\n    mhpmcounter7  MEMWAIT_ANY (36)       930898   18.06 % of the window's cycles\n    mhpmcounter8  REDIRECT_ANY (37)      419503    8.14 % of the window's cycles\n    mhpmcounter9  BR_MISPREDICT (16)     321965    6.25 % of the window's cycles\n    the six cycle classes add up to 5154399 of 5154558 cycles (-159; the counters are read a few instructions away from mcycle)\n\n  caches, whole run (CACHE_STATS): instruction refills 554, load misses 1441, stores 152198 (hits 150283, misses 1915)\n    store wait 914748 cycles = 17.14 % of the run; waiting for the port: instruction side 1133, data side 629\n\nRESULT dut-rv32im-O2-performance-i10-hpm cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16-presetA cycles=5154558 instructions=3081467 cpi=1.673 cycles_per_iteration=515456 coremark_per_mhz=1.940\n\nCOREMARK dut-rv32im-O2-performance-i10-hpm cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16-presetA: PASS\n",
+   "run_log": "logs/hpmA-c48-rv32im.run.log",
+   "outputs_sha256": {
+    "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16-presetA/test/coremark/dut-rv32im-O2-performance-i10-hpm/init.mem": "2c1bda224c0922743ab911553126597367aa4dfa229f644909d63593c6778790",
+    "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16-presetA/test/coremark/dut-rv32im-O2-performance-i10-hpm/out.elf": "1ec9f7539f38c79a2104a50b09697a8358ee0b03726cd8ec37c8b9ab53c97902"
+   }
+  },
+  {
+   "id": "hpmA-c824-rv32im",
+   "argv": [
+    "make",
+    "coremark",
+    "ICACHE=8192",
+    "DCACHE=4096",
+    "MEM_LAT=8:24",
+    "MEM_BEAT_LAT=0",
+    "MEM_WR_LAT=8:24",
+    "HPM_PRESET=A"
+   ],
+   "command": "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=8:24 HPM_PRESET=A",
+   "tag": "dut-rv32im-O2-performance-i10-hpm",
+   "configuration": "mem8_24-beat0-i8k-d4k-l16-presetA",
+   "dir": "build/cfg-mem8_24-beat0-i8k-d4k-l16-presetA/test/coremark/dut-rv32im-O2-performance-i10-hpm",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im-O2-performance-i10-hpm cfg=mem8_24-beat0-i8k-d4k-l16-presetA\n  CACHE I-cache 8192 bytes, 16-byte lines, 512 sets, direct-mapped; tag adr[29:11], index adr[10:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1; one memory port, data sid\n  CACHE D-cache 4096 bytes, 16-byte lines, 256 sets, direct-mapped, write-through, no write-allocate; tag adr[29:10], index adr[9:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays,\n  SLOW MEMORY memory port: read latency 8..24, write latency 8..24, burst beats 0 (cache refill blocks only), seed 1\n  Compiler flags   : -O2 -march=rv32im -mabi=ilp32\n  image: text 9312, rodata 1780, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 6654634\n    instructions           3081467\n    CPI                    2.160\n    cycles per iteration   665463\n    CoreMark/MHz estimate  1.503   (= iterations * 1000000 / cycles)\n    at 50 MHz              75.1 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n  whole run (reset to halt, also the start code, the report on the UART and the halt):\n    cycles 6852656  instructions 3157630  CPI 2.170\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\n  counters of the timed window, preset A (mhpmcounter3-9, read around the window):\n    mhpmcounter3  FETCH_WAIT (32)          5680    0.09 % of the window's cycles\n    mhpmcounter4  FRONT_OK (33)         3500927   52.61 % of the window's cycles\n    mhpmcounter5  HAZARD (34)            203431    3.06 % of the window's cycles\n    mhpmcounter6  MSTALL_ANY (35)         93960    1.41 % of the window's cycles\n    mhpmcounter7  MEMWAIT_ANY (36)      2430895   36.53 % of the window's cycles\n    mhpmcounter8  REDIRECT_ANY (37)      419503    6.30 % of the window's cycles\n    mhpmcounter9  BR_MISPREDICT (16)     321965    4.84 % of the window's cycles\n    the six cycle classes add up to 6654396 of 6654634 cycles (-238; the counters are read a few instructions away from mcycle)\n\n  caches, whole run (CACHE_STATS): instruction refills 554, load misses 1441, stores 152199 (hits 150284, misses 1915)\n    store wait 2434914 cycles = 35.53 % of the run; waiting for the port: instruction side 2537, data side 611\n\nRESULT dut-rv32im-O2-performance-i10-hpm cfg=mem8_24-beat0-i8k-d4k-l16-presetA cycles=6654634 instructions=3081467 cpi=2.160 cycles_per_iteration=665463 coremark_per_mhz=1.503\n\nCOREMARK dut-rv32im-O2-performance-i10-hpm cfg=mem8_24-beat0-i8k-d4k-l16-presetA: PASS\n",
+   "run_log": "logs/hpmA-c824-rv32im.run.log",
+   "outputs_sha256": {
+    "build/cfg-mem8_24-beat0-i8k-d4k-l16-presetA/test/coremark/dut-rv32im-O2-performance-i10-hpm/init.mem": "2c1bda224c0922743ab911553126597367aa4dfa229f644909d63593c6778790",
+    "build/cfg-mem8_24-beat0-i8k-d4k-l16-presetA/test/coremark/dut-rv32im-O2-performance-i10-hpm/out.elf": "1ec9f7539f38c79a2104a50b09697a8358ee0b03726cd8ec37c8b9ab53c97902"
+   }
+  },
+  {
+   "id": "hpmA-ionly14-rv32im",
+   "argv": [
+    "make",
+    "coremark",
+    "ICACHE=8192",
+    "MEM_LAT=8:24",
+    "MEM_WR_LAT=1:4",
+    "MEM_BEAT_LAT=0",
+    "HPM_PRESET=A"
+   ],
+   "command": "make coremark ICACHE=8192 MEM_LAT=8:24 MEM_WR_LAT=1:4 MEM_BEAT_LAT=0 HPM_PRESET=A",
+   "tag": "dut-rv32im-O2-performance-i10-hpm",
+   "configuration": "mem8_24-wr1_4-beat0-i8k-l16-presetA",
+   "dir": "build/cfg-mem8_24-wr1_4-beat0-i8k-l16-presetA/test/coremark/dut-rv32im-O2-performance-i10-hpm",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im-O2-performance-i10-hpm cfg=mem8_24-wr1_4-beat0-i8k-l16-presetA\n  CACHE I-cache 8192 bytes, 16-byte lines, 512 sets, direct-mapped; tag adr[29:11], index adr[10:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1; one memory port, data sid\n  SLOW MEMORY memory port: read latency 8..24, write latency 1..4, burst beats 0 (cache refill blocks only), seed 1\n  Compiler flags   : -O2 -march=rv32im -mabi=ilp32\n  image: text 9312, rodata 1780, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 13389518\n    instructions           3081467\n    CPI                    4.345\n    cycles per iteration   1338952\n    CoreMark/MHz estimate  0.747   (= iterations * 1000000 / cycles)\n    at 50 MHz              37.3 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n  whole run (reset to halt, also the start code, the report on the UART and the halt):\n    cycles 13595958  instructions 3152050  CPI 4.313\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\n  counters of the timed window, preset A (mhpmcounter3-9, read around the window):\n    mhpmcounter3  FETCH_WAIT (32)          5352    0.04 % of the window's cycles\n    mhpmcounter4  FRONT_OK (33)         3500913   26.15 % of the window's cycles\n    mhpmcounter5  HAZARD (34)            203431    1.52 % of the window's cycles\n    mhpmcounter6  MSTALL_ANY (35)         93960    0.70 % of the window's cycles\n    mhpmcounter7  MEMWAIT_ANY (36)      9166210   68.46 % of the window's cycles\n    mhpmcounter8  REDIRECT_ANY (37)      419503    3.13 % of the window's cycles\n    mhpmcounter9  BR_MISPREDICT (16)     321965    2.40 % of the window's cycles\n    the six cycle classes add up to 13389369 of 13389518 cycles (-149; the counters are read a few instructions away from mcycle)\n\n  caches, whole run (CACHE_STATS): instruction refills 554, load misses n/a, stores 152201 (hits n/a, misses n/a)\n\nRESULT dut-rv32im-O2-performance-i10-hpm cfg=mem8_24-wr1_4-beat0-i8k-l16-presetA cycles=13389518 instructions=3081467 cpi=4.345 cycles_per_iteration=1338952 coremark_per_mhz=0.747\n\nCOREMARK dut-rv32im-O2-performance-i10-hpm cfg=mem8_24-wr1_4-beat0-i8k-l16-presetA: PASS\n",
+   "run_log": "logs/hpmA-ionly14-rv32im.run.log",
+   "outputs_sha256": {
+    "build/cfg-mem8_24-wr1_4-beat0-i8k-l16-presetA/test/coremark/dut-rv32im-O2-performance-i10-hpm/init.mem": "2c1bda224c0922743ab911553126597367aa4dfa229f644909d63593c6778790",
+    "build/cfg-mem8_24-wr1_4-beat0-i8k-l16-presetA/test/coremark/dut-rv32im-O2-performance-i10-hpm/out.elf": "1ec9f7539f38c79a2104a50b09697a8358ee0b03726cd8ec37c8b9ab53c97902"
+   }
+  },
+  {
+   "id": "hpmA-nocache824-rv32im",
+   "argv": [
+    "make",
+    "coremark",
+    "MEM_LAT=8:24",
+    "MEM_WR_LAT=8:24",
+    "HPM_PRESET=A"
+   ],
+   "command": "make coremark MEM_LAT=8:24 MEM_WR_LAT=8:24 HPM_PRESET=A",
+   "tag": "dut-rv32im-O2-performance-i10-hpm",
+   "configuration": "mem8_24-presetA",
+   "dir": "build/cfg-mem8_24-presetA/test/coremark/dut-rv32im-O2-performance-i10-hpm",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im-O2-performance-i10-hpm cfg=mem8_24-presetA\n  SLOW MEMORY fetch port: read latency 8..24, write latency 8..24, burst beats off, seed 1\n  SLOW MEMORY data  port: read latency 8..24, write latency 8..24, burst beats off, seed 1\n  Compiler flags   : -O2 -march=rv32im -mabi=ilp32\n  image: text 9312, rodata 1780, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 54181122\n    instructions           3081467\n    CPI                    17.583\n    cycles per iteration   5418112\n    CoreMark/MHz estimate  0.185   (= iterations * 1000000 / cycles)\n    at 50 MHz              9.2 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n  whole run (reset to halt, also the start code, the report on the UART and the halt):\n    cycles 54674440  instructions 3109446  CPI 17.583\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\n  counters of the timed window, preset A (mhpmcounter3-9, read around the window):\n    mhpmcounter3  FETCH_WAIT (32)      39816935   73.49 % of the window's cycles\n    mhpmcounter4  FRONT_OK (33)         2648490    4.89 % of the window's cycles\n    mhpmcounter5  HAZARD (34)               809    0.00 % of the window's cycles\n    mhpmcounter6  MSTALL_ANY (35)         93960    0.17 % of the window's cycles\n    mhpmcounter7  MEMWAIT_ANY (36)     11201068   20.67 % of the window's cycles\n    mhpmcounter8  REDIRECT_ANY (37)      419503    0.77 % of the window's cycles\n    mhpmcounter9  BR_MISPREDICT (16)     321965    0.59 % of the window's cycles\n    the six cycle classes add up to 54180765 of 54181122 cycles (-357; the counters are read a few instructions away from mcycle)\n\nRESULT dut-rv32im-O2-performance-i10-hpm cfg=mem8_24-presetA cycles=54181122 instructions=3081467 cpi=17.583 cycles_per_iteration=5418112 coremark_per_mhz=0.185\n\nCOREMARK dut-rv32im-O2-performance-i10-hpm cfg=mem8_24-presetA: PASS\n",
+   "run_log": "logs/hpmA-nocache824-rv32im.run.log",
+   "outputs_sha256": {
+    "build/cfg-mem8_24-presetA/test/coremark/dut-rv32im-O2-performance-i10-hpm/init.mem": "2c1bda224c0922743ab911553126597367aa4dfa229f644909d63593c6778790",
+    "build/cfg-mem8_24-presetA/test/coremark/dut-rv32im-O2-performance-i10-hpm/out.elf": "1ec9f7539f38c79a2104a50b09697a8358ee0b03726cd8ec37c8b9ab53c97902"
+   }
+  },
+  {
+   "id": "hpmF-c14-rv32im",
+   "argv": [
+    "make",
+    "coremark",
+    "ICACHE=8192",
+    "DCACHE=4096",
+    "MEM_LAT=8:24",
+    "MEM_BEAT_LAT=0",
+    "MEM_WR_LAT=1:4",
+    "HPM_PRESET=F"
+   ],
+   "command": "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=1:4 HPM_PRESET=F",
+   "tag": "dut-rv32im-O2-performance-i10-hpm",
+   "configuration": "mem8_24-wr1_4-beat0-i8k-d4k-l16-presetF",
+   "dir": "build/cfg-mem8_24-wr1_4-beat0-i8k-d4k-l16-presetF/test/coremark/dut-rv32im-O2-performance-i10-hpm",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im-O2-performance-i10-hpm cfg=mem8_24-wr1_4-beat0-i8k-d4k-l16-presetF\n  CACHE I-cache 8192 bytes, 16-byte lines, 512 sets, direct-mapped; tag adr[29:11], index adr[10:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1; one memory port, data sid\n  CACHE D-cache 4096 bytes, 16-byte lines, 256 sets, direct-mapped, write-through, no write-allocate; tag adr[29:10], index adr[9:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays,\n  SLOW MEMORY memory port: read latency 8..24, write latency 1..4, burst beats 0 (cache refill blocks only), seed 1\n  Compiler flags   : -O2 -march=rv32im -mabi=ilp32\n  image: text 9312, rodata 1780, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 4627642\n    instructions           3081467\n    CPI                    1.502\n    cycles per iteration   462764\n    CoreMark/MHz estimate  2.161   (= iterations * 1000000 / cycles)\n    at 50 MHz              108.0 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n  whole run (reset to halt, also the start code, the report on the UART and the halt):\n    cycles 4800353  instructions 3157960  CPI 1.520\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\n  counters of the timed window, preset F (mhpmcounter3-9, read around the window):\n    mhpmcounter3  HAZARD_LOAD (38)       203424    4.40 % of the window's cycles\n    mhpmcounter4  MSTALL_MUL (39)         93960    2.03 % of the window's cycles\n    mhpmcounter5  MSTALL_DIV (40)             0    0.00 % of the window's cycles\n    mhpmcounter6  MEMWAIT_LOAD (41)       28174    0.61 % of the window's cycles\n    mhpmcounter7  MEMWAIT_STORE (42)     375843    8.12 % of the window's cycles\n    mhpmcounter8  MEMWAIT_IO (43)             0    0.00 % of the window's cycles\n    mhpmcounter9  IO_ACCESS (49)              0    0.00 % of the window's cycles\n\n  caches, whole run (CACHE_STATS): instruction refills 554, load misses 1441, stores 152183 (hits 150268, misses 1915)\n    store wait 380782 cycles = 7.93 % of the run; waiting for the port: instruction side 616, data side 624\n\nRESULT dut-rv32im-O2-performance-i10-hpm cfg=mem8_24-wr1_4-beat0-i8k-d4k-l16-presetF cycles=4627642 instructions=3081467 cpi=1.502 cycles_per_iteration=462764 coremark_per_mhz=2.161\n\nCOREMARK dut-rv32im-O2-performance-i10-hpm cfg=mem8_24-wr1_4-beat0-i8k-d4k-l16-presetF: PASS\n",
+   "run_log": "logs/hpmF-c14-rv32im.run.log",
+   "outputs_sha256": {
+    "build/cfg-mem8_24-wr1_4-beat0-i8k-d4k-l16-presetF/test/coremark/dut-rv32im-O2-performance-i10-hpm/init.mem": "2c1bda224c0922743ab911553126597367aa4dfa229f644909d63593c6778790",
+    "build/cfg-mem8_24-wr1_4-beat0-i8k-d4k-l16-presetF/test/coremark/dut-rv32im-O2-performance-i10-hpm/out.elf": "1ec9f7539f38c79a2104a50b09697a8358ee0b03726cd8ec37c8b9ab53c97902"
+   }
+  },
+  {
+   "id": "hpmF-c48-rv32im",
+   "argv": [
+    "make",
+    "coremark",
+    "ICACHE=8192",
+    "DCACHE=4096",
+    "MEM_LAT=8:24",
+    "MEM_BEAT_LAT=0",
+    "MEM_WR_LAT=4:8",
+    "HPM_PRESET=F"
+   ],
+   "command": "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=4:8 HPM_PRESET=F",
+   "tag": "dut-rv32im-O2-performance-i10-hpm",
+   "configuration": "mem8_24-wr4_8-beat0-i8k-d4k-l16-presetF",
+   "dir": "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16-presetF/test/coremark/dut-rv32im-O2-performance-i10-hpm",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im-O2-performance-i10-hpm cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16-presetF\n  CACHE I-cache 8192 bytes, 16-byte lines, 512 sets, direct-mapped; tag adr[29:11], index adr[10:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1; one memory port, data sid\n  CACHE D-cache 4096 bytes, 16-byte lines, 256 sets, direct-mapped, write-through, no write-allocate; tag adr[29:10], index adr[9:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays,\n  SLOW MEMORY memory port: read latency 8..24, write latency 4..8, burst beats 0 (cache refill blocks only), seed 1\n  Compiler flags   : -O2 -march=rv32im -mabi=ilp32\n  image: text 9312, rodata 1780, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 5154558\n    instructions           3081467\n    CPI                    1.673\n    cycles per iteration   515456\n    CoreMark/MHz estimate  1.940   (= iterations * 1000000 / cycles)\n    at 50 MHz              97.0 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n  whole run (reset to halt, also the start code, the report on the UART and the halt):\n    cycles 5332570  instructions 3157399  CPI 1.689\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\n  counters of the timed window, preset F (mhpmcounter3-9, read around the window):\n    mhpmcounter3  HAZARD_LOAD (38)       203424    3.95 % of the window's cycles\n    mhpmcounter4  MSTALL_MUL (39)         93960    1.82 % of the window's cycles\n    mhpmcounter5  MSTALL_DIV (40)             0    0.00 % of the window's cycles\n    mhpmcounter6  MEMWAIT_LOAD (41)       28174    0.55 % of the window's cycles\n    mhpmcounter7  MEMWAIT_STORE (42)     902724   17.51 % of the window's cycles\n    mhpmcounter8  MEMWAIT_IO (43)             0    0.00 % of the window's cycles\n    mhpmcounter9  IO_ACCESS (49)              0    0.00 % of the window's cycles\n\n  caches, whole run (CACHE_STATS): instruction refills 554, load misses 1441, stores 152183 (hits 150268, misses 1915)\n    store wait 914663 cycles = 17.15 % of the run; waiting for the port: instruction side 1133, data side 624\n\nRESULT dut-rv32im-O2-performance-i10-hpm cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16-presetF cycles=5154558 instructions=3081467 cpi=1.673 cycles_per_iteration=515456 coremark_per_mhz=1.940\n\nCOREMARK dut-rv32im-O2-performance-i10-hpm cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16-presetF: PASS\n",
+   "run_log": "logs/hpmF-c48-rv32im.run.log",
+   "outputs_sha256": {
+    "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16-presetF/test/coremark/dut-rv32im-O2-performance-i10-hpm/init.mem": "2c1bda224c0922743ab911553126597367aa4dfa229f644909d63593c6778790",
+    "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16-presetF/test/coremark/dut-rv32im-O2-performance-i10-hpm/out.elf": "1ec9f7539f38c79a2104a50b09697a8358ee0b03726cd8ec37c8b9ab53c97902"
+   }
+  },
+  {
+   "id": "hpmF-c824-rv32im",
+   "argv": [
+    "make",
+    "coremark",
+    "ICACHE=8192",
+    "DCACHE=4096",
+    "MEM_LAT=8:24",
+    "MEM_BEAT_LAT=0",
+    "MEM_WR_LAT=8:24",
+    "HPM_PRESET=F"
+   ],
+   "command": "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=8:24 HPM_PRESET=F",
+   "tag": "dut-rv32im-O2-performance-i10-hpm",
+   "configuration": "mem8_24-beat0-i8k-d4k-l16-presetF",
+   "dir": "build/cfg-mem8_24-beat0-i8k-d4k-l16-presetF/test/coremark/dut-rv32im-O2-performance-i10-hpm",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im-O2-performance-i10-hpm cfg=mem8_24-beat0-i8k-d4k-l16-presetF\n  CACHE I-cache 8192 bytes, 16-byte lines, 512 sets, direct-mapped; tag adr[29:11], index adr[10:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1; one memory port, data sid\n  CACHE D-cache 4096 bytes, 16-byte lines, 256 sets, direct-mapped, write-through, no write-allocate; tag adr[29:10], index adr[9:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays,\n  SLOW MEMORY memory port: read latency 8..24, write latency 8..24, burst beats 0 (cache refill blocks only), seed 1\n  Compiler flags   : -O2 -march=rv32im -mabi=ilp32\n  image: text 9312, rodata 1780, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 6654634\n    instructions           3081467\n    CPI                    2.160\n    cycles per iteration   665463\n    CoreMark/MHz estimate  1.503   (= iterations * 1000000 / cycles)\n    at 50 MHz              75.1 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n  whole run (reset to halt, also the start code, the report on the UART and the halt):\n    cycles 6849477  instructions 3156541  CPI 2.170\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\n  counters of the timed window, preset F (mhpmcounter3-9, read around the window):\n    mhpmcounter3  HAZARD_LOAD (38)       203424    3.06 % of the window's cycles\n    mhpmcounter4  MSTALL_MUL (39)         93960    1.41 % of the window's cycles\n    mhpmcounter5  MSTALL_DIV (40)             0    0.00 % of the window's cycles\n    mhpmcounter6  MEMWAIT_LOAD (41)       28174    0.42 % of the window's cycles\n    mhpmcounter7  MEMWAIT_STORE (42)    2402721   36.11 % of the window's cycles\n    mhpmcounter8  MEMWAIT_IO (43)             0    0.00 % of the window's cycles\n    mhpmcounter9  IO_ACCESS (49)              0    0.00 % of the window's cycles\n\n  caches, whole run (CACHE_STATS): instruction refills 554, load misses 1441, stores 152184 (hits 150269, misses 1915)\n    store wait 2434691 cycles = 35.55 % of the run; waiting for the port: instruction side 2537, data side 611\n\nRESULT dut-rv32im-O2-performance-i10-hpm cfg=mem8_24-beat0-i8k-d4k-l16-presetF cycles=6654634 instructions=3081467 cpi=2.160 cycles_per_iteration=665463 coremark_per_mhz=1.503\n\nCOREMARK dut-rv32im-O2-performance-i10-hpm cfg=mem8_24-beat0-i8k-d4k-l16-presetF: PASS\n",
+   "run_log": "logs/hpmF-c824-rv32im.run.log",
+   "outputs_sha256": {
+    "build/cfg-mem8_24-beat0-i8k-d4k-l16-presetF/test/coremark/dut-rv32im-O2-performance-i10-hpm/init.mem": "2c1bda224c0922743ab911553126597367aa4dfa229f644909d63593c6778790",
+    "build/cfg-mem8_24-beat0-i8k-d4k-l16-presetF/test/coremark/dut-rv32im-O2-performance-i10-hpm/out.elf": "1ec9f7539f38c79a2104a50b09697a8358ee0b03726cd8ec37c8b9ab53c97902"
+   }
+  },
+  {
+   "id": "hpmF-ionly14-rv32im",
+   "argv": [
+    "make",
+    "coremark",
+    "ICACHE=8192",
+    "MEM_LAT=8:24",
+    "MEM_WR_LAT=1:4",
+    "MEM_BEAT_LAT=0",
+    "HPM_PRESET=F"
+   ],
+   "command": "make coremark ICACHE=8192 MEM_LAT=8:24 MEM_WR_LAT=1:4 MEM_BEAT_LAT=0 HPM_PRESET=F",
+   "tag": "dut-rv32im-O2-performance-i10-hpm",
+   "configuration": "mem8_24-wr1_4-beat0-i8k-l16-presetF",
+   "dir": "build/cfg-mem8_24-wr1_4-beat0-i8k-l16-presetF/test/coremark/dut-rv32im-O2-performance-i10-hpm",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im-O2-performance-i10-hpm cfg=mem8_24-wr1_4-beat0-i8k-l16-presetF\n  CACHE I-cache 8192 bytes, 16-byte lines, 512 sets, direct-mapped; tag adr[29:11], index adr[10:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1; one memory port, data sid\n  SLOW MEMORY memory port: read latency 8..24, write latency 1..4, burst beats 0 (cache refill blocks only), seed 1\n  Compiler flags   : -O2 -march=rv32im -mabi=ilp32\n  image: text 9312, rodata 1780, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 13389518\n    instructions           3081467\n    CPI                    4.345\n    cycles per iteration   1338952\n    CoreMark/MHz estimate  0.747   (= iterations * 1000000 / cycles)\n    at 50 MHz              37.3 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n  whole run (reset to halt, also the start code, the report on the UART and the halt):\n    cycles 13592729  instructions 3151012  CPI 4.314\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\n  counters of the timed window, preset F (mhpmcounter3-9, read around the window):\n    mhpmcounter3  HAZARD_LOAD (38)       203424    1.52 % of the window's cycles\n    mhpmcounter4  MSTALL_MUL (39)         93960    0.70 % of the window's cycles\n    mhpmcounter5  MSTALL_DIV (40)             0    0.00 % of the window's cycles\n    mhpmcounter6  MEMWAIT_LOAD (41)     8790024   65.65 % of the window's cycles\n    mhpmcounter7  MEMWAIT_STORE (42)     376186    2.81 % of the window's cycles\n    mhpmcounter8  MEMWAIT_IO (43)             0    0.00 % of the window's cycles\n    mhpmcounter9  IO_ACCESS (49)              0    0.00 % of the window's cycles\n\n  caches, whole run (CACHE_STATS): instruction refills 554, load misses n/a, stores 152187 (hits n/a, misses n/a)\n\nRESULT dut-rv32im-O2-performance-i10-hpm cfg=mem8_24-wr1_4-beat0-i8k-l16-presetF cycles=13389518 instructions=3081467 cpi=4.345 cycles_per_iteration=1338952 coremark_per_mhz=0.747\n\nCOREMARK dut-rv32im-O2-performance-i10-hpm cfg=mem8_24-wr1_4-beat0-i8k-l16-presetF: PASS\n",
+   "run_log": "logs/hpmF-ionly14-rv32im.run.log",
+   "outputs_sha256": {
+    "build/cfg-mem8_24-wr1_4-beat0-i8k-l16-presetF/test/coremark/dut-rv32im-O2-performance-i10-hpm/init.mem": "2c1bda224c0922743ab911553126597367aa4dfa229f644909d63593c6778790",
+    "build/cfg-mem8_24-wr1_4-beat0-i8k-l16-presetF/test/coremark/dut-rv32im-O2-performance-i10-hpm/out.elf": "1ec9f7539f38c79a2104a50b09697a8358ee0b03726cd8ec37c8b9ab53c97902"
+   }
+  },
+  {
+   "id": "std-rv32im-bp2",
+   "argv": [
+    "make",
+    "coremark",
+    "BPRED=2"
+   ],
+   "command": "make coremark BPRED=2",
+   "tag": "dut-rv32im-O2-performance-i10-bp2",
+   "configuration": null,
+   "dir": "build/test/coremark/dut-rv32im-O2-performance-i10-bp2",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im-O2-performance-i10-bp2\n  Compiler flags   : -O2 -march=rv32im -mabi=ilp32\n  image: text 9128, rodata 1760, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 3820054\n    instructions           3081452\n    CPI                    1.240\n    cycles per iteration   382005\n    CoreMark/MHz estimate  2.618   (= iterations * 1000000 / cycles)\n    at 50 MHz              130.9 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\nRESULT dut-rv32im-O2-performance-i10-bp2 cycles=3820054 instructions=3081452 cpi=1.240 cycles_per_iteration=382005 coremark_per_mhz=2.618\n\nCOREMARK dut-rv32im-O2-performance-i10-bp2: PASS\n",
+   "run_log": "logs/std-rv32im-bp2.run.log",
+   "outputs_sha256": {
+    "build/test/coremark/dut-rv32im-O2-performance-i10-bp2/init.mem": "dcdc52b12b5197b0d405ff97f08dc4b5434eed3fe2d2ef61b1e0340ad5f614d7",
+    "build/test/coremark/dut-rv32im-O2-performance-i10-bp2/out.elf": "7d950a265a4ac1a1a2543227f873ca6f0f7a79ca28f898cf3101e08846dcee90"
+   }
+  },
+  {
+   "id": "std-rv32im-bp3",
+   "argv": [
+    "make",
+    "coremark",
+    "BPRED=3"
+   ],
+   "command": "make coremark BPRED=3",
+   "tag": "dut-rv32im-O2-performance-i10-bp3",
+   "configuration": null,
+   "dir": "build/test/coremark/dut-rv32im-O2-performance-i10-bp3",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im-O2-performance-i10-bp3\n  Compiler flags   : -O2 -march=rv32im -mabi=ilp32\n  image: text 9128, rodata 1760, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 3735652\n    instructions           3081452\n    CPI                    1.212\n    cycles per iteration   373565\n    CoreMark/MHz estimate  2.677   (= iterations * 1000000 / cycles)\n    at 50 MHz              133.8 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\nRESULT dut-rv32im-O2-performance-i10-bp3 cycles=3735652 instructions=3081452 cpi=1.212 cycles_per_iteration=373565 coremark_per_mhz=2.677\n\nCOREMARK dut-rv32im-O2-performance-i10-bp3: PASS\n",
+   "run_log": "logs/std-rv32im-bp3.run.log",
+   "outputs_sha256": {
+    "build/test/coremark/dut-rv32im-O2-performance-i10-bp3/init.mem": "36dfe20f78b93dd613de81e1437eac292be59aa70b0d51740ba7366a1daf97b9",
+    "build/test/coremark/dut-rv32im-O2-performance-i10-bp3/out.elf": "57ba498fc5ab5d0a33bb20847c23dc06e08173b1bc34bde832ee653311628c3e"
+   }
+  },
+  {
+   "id": "c48-rv32im-bp2",
+   "argv": [
+    "make",
+    "coremark",
+    "ICACHE=8192",
+    "DCACHE=4096",
+    "MEM_LAT=8:24",
+    "MEM_BEAT_LAT=0",
+    "MEM_WR_LAT=4:8",
+    "BPRED=2"
+   ],
+   "command": "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=4:8 BPRED=2",
+   "tag": "dut-rv32im-O2-performance-i10-bp2",
+   "configuration": "mem8_24-wr4_8-beat0-i8k-d4k-l16",
+   "dir": "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i10-bp2",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im-O2-performance-i10-bp2 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16\n  CACHE I-cache 8192 bytes, 16-byte lines, 512 sets, direct-mapped; tag adr[29:11], index adr[10:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1; one memory port, data sid\n  CACHE D-cache 4096 bytes, 16-byte lines, 256 sets, direct-mapped, write-through, no write-allocate; tag adr[29:10], index adr[9:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays,\n  SLOW MEMORY memory port: read latency 8..24, write latency 4..8, burst beats 0 (cache refill blocks only), seed 1\n  Compiler flags   : -O2 -march=rv32im -mabi=ilp32\n  image: text 9128, rodata 1760, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 4755979\n    instructions           3081452\n    CPI                    1.543\n    cycles per iteration   475598\n    CoreMark/MHz estimate  2.103   (= iterations * 1000000 / cycles)\n    at 50 MHz              105.1 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n  whole run (reset to halt, also the start code, the report on the UART and the halt):\n    cycles 4912817  instructions 3166395  CPI 1.552\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\n  caches, whole run (CACHE_STATS): instruction refills 538, load misses 1439, stores 152008 (hits 148617, misses 3391)\n    store wait 913679 cycles = 18.60 % of the run; waiting for the port: instruction side 1010, data side 704\n\nRESULT dut-rv32im-O2-performance-i10-bp2 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16 cycles=4755979 instructions=3081452 cpi=1.543 cycles_per_iteration=475598 coremark_per_mhz=2.103\n\nCOREMARK dut-rv32im-O2-performance-i10-bp2 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16: PASS\n",
+   "run_log": "logs/c48-rv32im-bp2.run.log",
+   "outputs_sha256": {
+    "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i10-bp2/init.mem": "dcdc52b12b5197b0d405ff97f08dc4b5434eed3fe2d2ef61b1e0340ad5f614d7",
+    "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i10-bp2/out.elf": "7d950a265a4ac1a1a2543227f873ca6f0f7a79ca28f898cf3101e08846dcee90"
+   }
+  },
+  {
+   "id": "c48-rv32im-bp3",
+   "argv": [
+    "make",
+    "coremark",
+    "ICACHE=8192",
+    "DCACHE=4096",
+    "MEM_LAT=8:24",
+    "MEM_BEAT_LAT=0",
+    "MEM_WR_LAT=4:8",
+    "BPRED=3"
+   ],
+   "command": "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=4:8 BPRED=3",
+   "tag": "dut-rv32im-O2-performance-i10-bp3",
+   "configuration": "mem8_24-wr4_8-beat0-i8k-d4k-l16",
+   "dir": "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i10-bp3",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im-O2-performance-i10-bp3 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16\n  CACHE I-cache 8192 bytes, 16-byte lines, 512 sets, direct-mapped; tag adr[29:11], index adr[10:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1; one memory port, data sid\n  CACHE D-cache 4096 bytes, 16-byte lines, 256 sets, direct-mapped, write-through, no write-allocate; tag adr[29:10], index adr[9:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays,\n  SLOW MEMORY memory port: read latency 8..24, write latency 4..8, burst beats 0 (cache refill blocks only), seed 1\n  Compiler flags   : -O2 -march=rv32im -mabi=ilp32\n  image: text 9128, rodata 1760, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 4671532\n    instructions           3081452\n    CPI                    1.516\n    cycles per iteration   467153\n    CoreMark/MHz estimate  2.141   (= iterations * 1000000 / cycles)\n    at 50 MHz              107.0 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n  whole run (reset to halt, also the start code, the report on the UART and the halt):\n    cycles 4827763  instructions 3167148  CPI 1.524\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\n  caches, whole run (CACHE_STATS): instruction refills 544, load misses 1439, stores 152008 (hits 148617, misses 3391)\n    store wait 913601 cycles = 18.92 % of the run; waiting for the port: instruction side 1009, data side 742\n\nRESULT dut-rv32im-O2-performance-i10-bp3 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16 cycles=4671532 instructions=3081452 cpi=1.516 cycles_per_iteration=467153 coremark_per_mhz=2.141\n\nCOREMARK dut-rv32im-O2-performance-i10-bp3 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16: PASS\n",
+   "run_log": "logs/c48-rv32im-bp3.run.log",
+   "outputs_sha256": {
+    "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i10-bp3/init.mem": "36dfe20f78b93dd613de81e1437eac292be59aa70b0d51740ba7366a1daf97b9",
+    "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i10-bp3/out.elf": "57ba498fc5ab5d0a33bb20847c23dc06e08173b1bc34bde832ee653311628c3e"
+   }
+  },
+  {
+   "id": "std-zb-bp3",
+   "argv": [
+    "make",
+    "coremark",
+    "MARCH=rv32im_zba_zbb_zbs",
+    "BPRED=3"
+   ],
+   "command": "make coremark MARCH=rv32im_zba_zbb_zbs BPRED=3",
+   "tag": "dut-rv32im_zba_zbb_zbs-O2-performance-i10-bp3",
+   "configuration": null,
+   "dir": "build/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10-bp3",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im_zba_zbb_zbs-O2-performance-i10-bp3\n  Compiler flags   : -O2 -march=rv32im_zba_zbb_zbs -mabi=ilp32\n  image: text 8740, rodata 1772, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 3642478\n    instructions           2986224\n    CPI                    1.220\n    cycles per iteration   364248\n    CoreMark/MHz estimate  2.745   (= iterations * 1000000 / cycles)\n    at 50 MHz              137.3 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\nRESULT dut-rv32im_zba_zbb_zbs-O2-performance-i10-bp3 cycles=3642478 instructions=2986224 cpi=1.220 cycles_per_iteration=364248 coremark_per_mhz=2.745\n\nCOREMARK dut-rv32im_zba_zbb_zbs-O2-performance-i10-bp3: PASS\n",
+   "run_log": "logs/std-zb-bp3.run.log",
+   "outputs_sha256": {
+    "build/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10-bp3/init.mem": "4104d128390f4a843711977c4b6632613d744cd73bfb5e68356f5ebdb1b2e66d",
+    "build/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10-bp3/out.elf": "b565221ef196eb57d11e4c62221b4674efe56b16ff510358f4fa942b7fa4726b"
+   }
+  },
+  {
+   "id": "c48-zb-bp3",
+   "argv": [
+    "make",
+    "coremark",
+    "ICACHE=8192",
+    "DCACHE=4096",
+    "MEM_LAT=8:24",
+    "MEM_BEAT_LAT=0",
+    "MEM_WR_LAT=4:8",
+    "MARCH=rv32im_zba_zbb_zbs",
+    "BPRED=3"
+   ],
+   "command": "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=4:8 MARCH=rv32im_zba_zbb_zbs BPRED=3",
+   "tag": "dut-rv32im_zba_zbb_zbs-O2-performance-i10-bp3",
+   "configuration": "mem8_24-wr4_8-beat0-i8k-d4k-l16",
+   "dir": "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10-bp3",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im_zba_zbb_zbs-O2-performance-i10-bp3 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16\n  CACHE I-cache 8192 bytes, 16-byte lines, 512 sets, direct-mapped; tag adr[29:11], index adr[10:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1; one memory port, data sid\n  CACHE D-cache 4096 bytes, 16-byte lines, 256 sets, direct-mapped, write-through, no write-allocate; tag adr[29:10], index adr[9:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays,\n  SLOW MEMORY memory port: read latency 8..24, write latency 4..8, burst beats 0 (cache refill blocks only), seed 1\n  Compiler flags   : -O2 -march=rv32im_zba_zbb_zbs -mabi=ilp32\n  image: text 8740, rodata 1772, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 4630376\n    instructions           2986224\n    CPI                    1.551\n    cycles per iteration   463038\n    CoreMark/MHz estimate  2.160   (= iterations * 1000000 / cycles)\n    at 50 MHz              108.0 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n  whole run (reset to halt, also the start code, the report on the UART and the halt):\n    cycles 4787956  instructions 3072316  CPI 1.558\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\n  caches, whole run (CACHE_STATS): instruction refills 524, load misses 3887, stores 152008 (hits 150388, misses 1620)\n    store wait 914064 cycles = 19.09 % of the run; waiting for the port: instruction side 1135, data side 969\n\nRESULT dut-rv32im_zba_zbb_zbs-O2-performance-i10-bp3 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16 cycles=4630376 instructions=2986224 cpi=1.551 cycles_per_iteration=463038 coremark_per_mhz=2.160\n\nCOREMARK dut-rv32im_zba_zbb_zbs-O2-performance-i10-bp3 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16: PASS\n",
+   "run_log": "logs/c48-zb-bp3.run.log",
+   "outputs_sha256": {
+    "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10-bp3/init.mem": "4104d128390f4a843711977c4b6632613d744cd73bfb5e68356f5ebdb1b2e66d",
+    "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10-bp3/out.elf": "b565221ef196eb57d11e4c62221b4674efe56b16ff510358f4fa942b7fa4726b"
+   }
+  },
+  {
+   "id": "ci-std-rv32im",
+   "argv": [
+    "make",
+    "coremark",
+    "OPT=-O3",
+    "CM_FLAGS=-O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-sections -falign-jumps=4 -falign-functions=16 -march=rv32im -mabi=ilp32"
+   ],
+   "command": "make coremark OPT=-O3 \"CM_FLAGS=-O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-sections -falign-jumps=4 -falign-functions=16 -march=rv32im -mabi=ilp32\"",
+   "tag": "dut-rv32im-O3-performance-i10",
+   "configuration": null,
+   "dir": "build/test/coremark/dut-rv32im-O3-performance-i10",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im-O3-performance-i10\n  Compiler flags   : -O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-se\n  image: text 23568, rodata 1944, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 3518733\n    instructions           2719460\n    CPI                    1.294\n    cycles per iteration   351873\n    CoreMark/MHz estimate  2.842   (= iterations * 1000000 / cycles)\n    at 50 MHz              142.1 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\nRESULT dut-rv32im-O3-performance-i10 cycles=3518733 instructions=2719460 cpi=1.294 cycles_per_iteration=351873 coremark_per_mhz=2.842\n\nCOREMARK dut-rv32im-O3-performance-i10: PASS\n",
+   "run_log": "logs/ci-std-rv32im.run.log",
+   "outputs_sha256": {
+    "build/test/coremark/dut-rv32im-O3-performance-i10/init.mem": "1b5bfa673d8aeb6e6d8859830d768644aa46a863ed62e9fd6018a33833c1b1a9",
+    "build/test/coremark/dut-rv32im-O3-performance-i10/out.elf": "4ca11c5b233a487e8f030ae59f71617df5b9987eb8e582223f76eec14b95947d"
+   }
+  },
+  {
+   "id": "ci-std-rv32im-bp3",
+   "argv": [
+    "make",
+    "coremark",
+    "OPT=-O3",
+    "CM_FLAGS=-O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-sections -falign-jumps=4 -falign-functions=16 -march=rv32im -mabi=ilp32",
+    "BPRED=3"
+   ],
+   "command": "make coremark OPT=-O3 \"CM_FLAGS=-O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-sections -falign-jumps=4 -falign-functions=16 -march=rv32im -mabi=ilp32\" BPRED=3",
+   "tag": "dut-rv32im-O3-performance-i10-bp3",
+   "configuration": null,
+   "dir": "build/test/coremark/dut-rv32im-O3-performance-i10-bp3",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im-O3-performance-i10-bp3\n  Compiler flags   : -O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-se\n  image: text 23568, rodata 1944, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 3336029\n    instructions           2719460\n    CPI                    1.227\n    cycles per iteration   333603\n    CoreMark/MHz estimate  2.998   (= iterations * 1000000 / cycles)\n    at 50 MHz              149.9 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\nRESULT dut-rv32im-O3-performance-i10-bp3 cycles=3336029 instructions=2719460 cpi=1.227 cycles_per_iteration=333603 coremark_per_mhz=2.998\n\nCOREMARK dut-rv32im-O3-performance-i10-bp3: PASS\n",
+   "run_log": "logs/ci-std-rv32im-bp3.run.log",
+   "outputs_sha256": {
+    "build/test/coremark/dut-rv32im-O3-performance-i10-bp3/init.mem": "3043fe70285eb4e3da3e10f84d2efb4d4d10ab079daa11ef29832f368c719f39",
+    "build/test/coremark/dut-rv32im-O3-performance-i10-bp3/out.elf": "59e80ee9a2ef94bc0dad2a1c6119c5199064c677da9da5da87d2e316acb8c635"
+   }
+  },
+  {
+   "id": "ci-std-zb",
+   "argv": [
+    "make",
+    "coremark",
+    "OPT=-O3",
+    "CM_FLAGS=-O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-sections -falign-jumps=4 -falign-functions=16 -march=rv32im_zba_zbb_zbs -mabi=ilp32",
+    "MARCH=rv32im_zba_zbb_zbs"
+   ],
+   "command": "make coremark OPT=-O3 \"CM_FLAGS=-O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-sections -falign-jumps=4 -falign-functions=16 -march=rv32im_zba_zbb_zbs -mabi=ilp32\" MARCH=rv32im_zba_zbb_zbs",
+   "tag": "dut-rv32im_zba_zbb_zbs-O3-performance-i10",
+   "configuration": null,
+   "dir": "build/test/coremark/dut-rv32im_zba_zbb_zbs-O3-performance-i10",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im_zba_zbb_zbs-O3-performance-i10\n  Compiler flags   : -O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-se\n  image: text 22288, rodata 1956, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 3443113\n    instructions           2641900\n    CPI                    1.303\n    cycles per iteration   344311\n    CoreMark/MHz estimate  2.904   (= iterations * 1000000 / cycles)\n    at 50 MHz              145.2 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\nRESULT dut-rv32im_zba_zbb_zbs-O3-performance-i10 cycles=3443113 instructions=2641900 cpi=1.303 cycles_per_iteration=344311 coremark_per_mhz=2.904\n\nCOREMARK dut-rv32im_zba_zbb_zbs-O3-performance-i10: PASS\n",
+   "run_log": "logs/ci-std-zb.run.log",
+   "outputs_sha256": {
+    "build/test/coremark/dut-rv32im_zba_zbb_zbs-O3-performance-i10/init.mem": "7ae68b7d5b5fea1c6f9f463408f48da21dfba12dd146191265390ede8cb71029",
+    "build/test/coremark/dut-rv32im_zba_zbb_zbs-O3-performance-i10/out.elf": "14cd4ed810bdb4b4251bc8f79156fb64789b7acf571f193318eb2d1e0dc1fc6a"
+   }
+  },
+  {
+   "id": "ci-std-zb-bp3",
+   "argv": [
+    "make",
+    "coremark",
+    "OPT=-O3",
+    "CM_FLAGS=-O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-sections -falign-jumps=4 -falign-functions=16 -march=rv32im_zba_zbb_zbs -mabi=ilp32",
+    "MARCH=rv32im_zba_zbb_zbs",
+    "BPRED=3"
+   ],
+   "command": "make coremark OPT=-O3 \"CM_FLAGS=-O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-sections -falign-jumps=4 -falign-functions=16 -march=rv32im_zba_zbb_zbs -mabi=ilp32\" MARCH=rv32im_zba_zbb_zbs BPRED=3",
+   "tag": "dut-rv32im_zba_zbb_zbs-O3-performance-i10-bp3",
+   "configuration": null,
+   "dir": "build/test/coremark/dut-rv32im_zba_zbb_zbs-O3-performance-i10-bp3",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im_zba_zbb_zbs-O3-performance-i10-bp3\n  Compiler flags   : -O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-se\n  image: text 22288, rodata 1956, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 3257719\n    instructions           2641900\n    CPI                    1.233\n    cycles per iteration   325772\n    CoreMark/MHz estimate  3.070   (= iterations * 1000000 / cycles)\n    at 50 MHz              153.5 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\nRESULT dut-rv32im_zba_zbb_zbs-O3-performance-i10-bp3 cycles=3257719 instructions=2641900 cpi=1.233 cycles_per_iteration=325772 coremark_per_mhz=3.070\n\nCOREMARK dut-rv32im_zba_zbb_zbs-O3-performance-i10-bp3: PASS\n",
+   "run_log": "logs/ci-std-zb-bp3.run.log",
+   "outputs_sha256": {
+    "build/test/coremark/dut-rv32im_zba_zbb_zbs-O3-performance-i10-bp3/init.mem": "f88ac8f8c35a9f5d867c04c406ddd0423ae1d29984d7a702fc2b2147cf3f78d1",
+    "build/test/coremark/dut-rv32im_zba_zbb_zbs-O3-performance-i10-bp3/out.elf": "860d17bffc28adf3020f1997d4494dc6b105c957a53dbfa07a66480ac6ca3d00"
+   }
+  },
+  {
+   "id": "ci-c48-rv32im",
+   "argv": [
+    "make",
+    "coremark",
+    "ICACHE=8192",
+    "DCACHE=4096",
+    "MEM_LAT=8:24",
+    "MEM_BEAT_LAT=0",
+    "MEM_WR_LAT=4:8",
+    "OPT=-O3",
+    "CM_FLAGS=-O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-sections -falign-jumps=4 -falign-functions=16 -march=rv32im -mabi=ilp32"
+   ],
+   "command": "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=4:8 OPT=-O3 \"CM_FLAGS=-O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-sections -falign-jumps=4 -falign-functions=16 -march=rv32im -mabi=ilp32\"",
+   "tag": "dut-rv32im-O3-performance-i10",
+   "configuration": "mem8_24-wr4_8-beat0-i8k-d4k-l16",
+   "dir": "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O3-performance-i10",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im-O3-performance-i10 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16\n  CACHE I-cache 8192 bytes, 16-byte lines, 512 sets, direct-mapped; tag adr[29:11], index adr[10:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1; one memory port, data sid\n  CACHE D-cache 4096 bytes, 16-byte lines, 256 sets, direct-mapped, write-through, no write-allocate; tag adr[29:10], index adr[9:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays,\n  SLOW MEMORY memory port: read latency 8..24, write latency 4..8, burst beats 0 (cache refill blocks only), seed 1\n  Compiler flags   : -O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-se\n  image: text 23568, rodata 1944, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 4680761\n    instructions           2719460\n    CPI                    1.721\n    cycles per iteration   468076\n    CoreMark/MHz estimate  2.136   (= iterations * 1000000 / cycles)\n    at 50 MHz              106.8 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n  whole run (reset to halt, also the start code, the report on the UART and the halt):\n    cycles 4871514  instructions 2818435  CPI 1.728\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\n  caches, whole run (CACHE_STATS): instruction refills 13906, load misses 228, stores 148536 (hits 147435, misses 1101)\n    store wait 898371 cycles = 18.44 % of the run; waiting for the port: instruction side 8635, data side 6837\n\nRESULT dut-rv32im-O3-performance-i10 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16 cycles=4680761 instructions=2719460 cpi=1.721 cycles_per_iteration=468076 coremark_per_mhz=2.136\n\nCOREMARK dut-rv32im-O3-performance-i10 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16: PASS\n",
+   "run_log": "logs/ci-c48-rv32im.run.log",
+   "outputs_sha256": {
+    "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O3-performance-i10/init.mem": "1b5bfa673d8aeb6e6d8859830d768644aa46a863ed62e9fd6018a33833c1b1a9",
+    "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O3-performance-i10/out.elf": "4ca11c5b233a487e8f030ae59f71617df5b9987eb8e582223f76eec14b95947d"
+   }
+  },
+  {
+   "id": "ci-c48-rv32im-bp3",
+   "argv": [
+    "make",
+    "coremark",
+    "ICACHE=8192",
+    "DCACHE=4096",
+    "MEM_LAT=8:24",
+    "MEM_BEAT_LAT=0",
+    "MEM_WR_LAT=4:8",
+    "BPRED=3",
+    "OPT=-O3",
+    "CM_FLAGS=-O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-sections -falign-jumps=4 -falign-functions=16 -march=rv32im -mabi=ilp32"
+   ],
+   "command": "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=4:8 BPRED=3 OPT=-O3 \"CM_FLAGS=-O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-sections -falign-jumps=4 -falign-functions=16 -march=rv32im -mabi=ilp32\"",
+   "tag": "dut-rv32im-O3-performance-i10-bp3",
+   "configuration": "mem8_24-wr4_8-beat0-i8k-d4k-l16",
+   "dir": "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O3-performance-i10-bp3",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im-O3-performance-i10-bp3 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16\n  CACHE I-cache 8192 bytes, 16-byte lines, 512 sets, direct-mapped; tag adr[29:11], index adr[10:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1; one memory port, data sid\n  CACHE D-cache 4096 bytes, 16-byte lines, 256 sets, direct-mapped, write-through, no write-allocate; tag adr[29:10], index adr[9:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays,\n  SLOW MEMORY memory port: read latency 8..24, write latency 4..8, burst beats 0 (cache refill blocks only), seed 1\n  Compiler flags   : -O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-se\n  image: text 23568, rodata 1944, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 4495884\n    instructions           2719460\n    CPI                    1.653\n    cycles per iteration   449588\n    CoreMark/MHz estimate  2.224   (= iterations * 1000000 / cycles)\n    at 50 MHz              111.2 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n  whole run (reset to halt, also the start code, the report on the UART and the halt):\n    cycles 4685948  instructions 2822220  CPI 1.660\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\n  caches, whole run (CACHE_STATS): instruction refills 13854, load misses 228, stores 148536 (hits 147435, misses 1101)\n    store wait 898087 cycles = 19.17 % of the run; waiting for the port: instruction side 8412, data side 6716\n\nRESULT dut-rv32im-O3-performance-i10-bp3 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16 cycles=4495884 instructions=2719460 cpi=1.653 cycles_per_iteration=449588 coremark_per_mhz=2.224\n\nCOREMARK dut-rv32im-O3-performance-i10-bp3 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16: PASS\n",
+   "run_log": "logs/ci-c48-rv32im-bp3.run.log",
+   "outputs_sha256": {
+    "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O3-performance-i10-bp3/init.mem": "3043fe70285eb4e3da3e10f84d2efb4d4d10ab079daa11ef29832f368c719f39",
+    "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O3-performance-i10-bp3/out.elf": "59e80ee9a2ef94bc0dad2a1c6119c5199064c677da9da5da87d2e316acb8c635"
+   }
+  },
+  {
+   "id": "ci-c48-zb",
+   "argv": [
+    "make",
+    "coremark",
+    "ICACHE=8192",
+    "DCACHE=4096",
+    "MEM_LAT=8:24",
+    "MEM_BEAT_LAT=0",
+    "MEM_WR_LAT=4:8",
+    "MARCH=rv32im_zba_zbb_zbs",
+    "OPT=-O3",
+    "CM_FLAGS=-O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-sections -falign-jumps=4 -falign-functions=16 -march=rv32im_zba_zbb_zbs -mabi=ilp32"
+   ],
+   "command": "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=4:8 MARCH=rv32im_zba_zbb_zbs OPT=-O3 \"CM_FLAGS=-O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-sections -falign-jumps=4 -falign-functions=16 -march=rv32im_zba_zbb_zbs -mabi=ilp32\"",
+   "tag": "dut-rv32im_zba_zbb_zbs-O3-performance-i10",
+   "configuration": "mem8_24-wr4_8-beat0-i8k-d4k-l16",
+   "dir": "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O3-performance-i10",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im_zba_zbb_zbs-O3-performance-i10 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16\n  CACHE I-cache 8192 bytes, 16-byte lines, 512 sets, direct-mapped; tag adr[29:11], index adr[10:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1; one memory port, data sid\n  CACHE D-cache 4096 bytes, 16-byte lines, 256 sets, direct-mapped, write-through, no write-allocate; tag adr[29:10], index adr[9:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays,\n  SLOW MEMORY memory port: read latency 8..24, write latency 4..8, burst beats 0 (cache refill blocks only), seed 1\n  Compiler flags   : -O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-se\n  image: text 22288, rodata 1956, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 4723826\n    instructions           2641900\n    CPI                    1.788\n    cycles per iteration   472383\n    CoreMark/MHz estimate  2.117   (= iterations * 1000000 / cycles)\n    at 50 MHz              105.8 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n  whole run (reset to halt, also the start code, the report on the UART and the halt):\n    cycles 4915451  instructions 2740935  CPI 1.793\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\n  caches, whole run (CACHE_STATS): instruction refills 17983, load misses 1880, stores 148535 (hits 145497, misses 3038)\n    store wait 896620 cycles = 18.24 % of the run; waiting for the port: instruction side 13380, data side 7990\n\nRESULT dut-rv32im_zba_zbb_zbs-O3-performance-i10 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16 cycles=4723826 instructions=2641900 cpi=1.788 cycles_per_iteration=472383 coremark_per_mhz=2.117\n\nCOREMARK dut-rv32im_zba_zbb_zbs-O3-performance-i10 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16: PASS\n",
+   "run_log": "logs/ci-c48-zb.run.log",
+   "outputs_sha256": {
+    "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O3-performance-i10/init.mem": "7ae68b7d5b5fea1c6f9f463408f48da21dfba12dd146191265390ede8cb71029",
+    "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O3-performance-i10/out.elf": "14cd4ed810bdb4b4251bc8f79156fb64789b7acf571f193318eb2d1e0dc1fc6a"
+   }
+  },
+  {
+   "id": "ci-c48-zb-bp3",
+   "argv": [
+    "make",
+    "coremark",
+    "ICACHE=8192",
+    "DCACHE=4096",
+    "MEM_LAT=8:24",
+    "MEM_BEAT_LAT=0",
+    "MEM_WR_LAT=4:8",
+    "MARCH=rv32im_zba_zbb_zbs",
+    "BPRED=3",
+    "OPT=-O3",
+    "CM_FLAGS=-O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-sections -falign-jumps=4 -falign-functions=16 -march=rv32im_zba_zbb_zbs -mabi=ilp32"
+   ],
+   "command": "make coremark ICACHE=8192 DCACHE=4096 MEM_LAT=8:24 MEM_BEAT_LAT=0 MEM_WR_LAT=4:8 MARCH=rv32im_zba_zbb_zbs BPRED=3 OPT=-O3 \"CM_FLAGS=-O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-sections -falign-jumps=4 -falign-functions=16 -march=rv32im_zba_zbb_zbs -mabi=ilp32\"",
+   "tag": "dut-rv32im_zba_zbb_zbs-O3-performance-i10-bp3",
+   "configuration": "mem8_24-wr4_8-beat0-i8k-d4k-l16",
+   "dir": "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O3-performance-i10-bp3",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im_zba_zbb_zbs-O3-performance-i10-bp3 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16\n  CACHE I-cache 8192 bytes, 16-byte lines, 512 sets, direct-mapped; tag adr[29:11], index adr[10:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1; one memory port, data sid\n  CACHE D-cache 4096 bytes, 16-byte lines, 256 sets, direct-mapped, write-through, no write-allocate; tag adr[29:10], index adr[9:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays,\n  SLOW MEMORY memory port: read latency 8..24, write latency 4..8, burst beats 0 (cache refill blocks only), seed 1\n  Compiler flags   : -O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-se\n  image: text 22288, rodata 1956, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 4545221\n    instructions           2641900\n    CPI                    1.720\n    cycles per iteration   454522\n    CoreMark/MHz estimate  2.200   (= iterations * 1000000 / cycles)\n    at 50 MHz              110.0 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n  whole run (reset to halt, also the start code, the report on the UART and the halt):\n    cycles 4735989  instructions 2745401  CPI 1.725\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\n  caches, whole run (CACHE_STATS): instruction refills 18329, load misses 1880, stores 148535 (hits 145497, misses 3038)\n    store wait 896903 cycles = 18.94 % of the run; waiting for the port: instruction side 13302, data side 8034\n\nRESULT dut-rv32im_zba_zbb_zbs-O3-performance-i10-bp3 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16 cycles=4545221 instructions=2641900 cpi=1.720 cycles_per_iteration=454522 coremark_per_mhz=2.200\n\nCOREMARK dut-rv32im_zba_zbb_zbs-O3-performance-i10-bp3 cfg=mem8_24-wr4_8-beat0-i8k-d4k-l16: PASS\n",
+   "run_log": "logs/ci-c48-zb-bp3.run.log",
+   "outputs_sha256": {
+    "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O3-performance-i10-bp3/init.mem": "f88ac8f8c35a9f5d867c04c406ddd0423ae1d29984d7a702fc2b2147cf3f78d1",
+    "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O3-performance-i10-bp3/out.elf": "860d17bffc28adf3020f1997d4494dc6b105c957a53dbfa07a66480ac6ca3d00"
+   }
+  },
+  {
+   "id": "trace-rv32im",
+   "argv": [
+    "make",
+    "coremark",
+    "BUSTRACE=1"
+   ],
+   "command": "make coremark BUSTRACE=1",
+   "tag": "dut-rv32im-O2-performance-i10",
+   "configuration": "trace",
+   "dir": "build/cfg-trace/test/coremark/dut-rv32im-O2-performance-i10",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im-O2-performance-i10 cfg=trace\n  Compiler flags   : -O2 -march=rv32im -mabi=ilp32\n  image: text 9120, rodata 1760, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 4217860\n    instructions           3081452\n    CPI                    1.369\n    cycles per iteration   421786\n    CoreMark/MHz estimate  2.371   (= iterations * 1000000 / cycles)\n    at 50 MHz              118.5 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\nRESULT dut-rv32im-O2-performance-i10 cfg=trace cycles=4217860 instructions=3081452 cpi=1.369 cycles_per_iteration=421786 coremark_per_mhz=2.371\n\nCOREMARK dut-rv32im-O2-performance-i10 cfg=trace: PASS\n",
+   "run_log": "logs/trace-rv32im.run.log",
+   "outputs_sha256": {
+    "build/cfg-trace/test/coremark/dut-rv32im-O2-performance-i10/init.mem": "76ad1d13e0b3e86aefecae0820abcecc95eb293cdf6480c8f2ee86924f231385",
+    "build/cfg-trace/test/coremark/dut-rv32im-O2-performance-i10/out.elf": "25628445b0009d54ce76d84904ef8891a4ec9df4d7688482dfe69a701664a76a"
+   }
+  },
+  {
+   "id": "trace-zb",
+   "argv": [
+    "make",
+    "coremark",
+    "BUSTRACE=1",
+    "MARCH=rv32im_zba_zbb_zbs"
+   ],
+   "command": "make coremark BUSTRACE=1 MARCH=rv32im_zba_zbb_zbs",
+   "tag": "dut-rv32im_zba_zbb_zbs-O2-performance-i10",
+   "configuration": "trace",
+   "dir": "build/cfg-trace/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10",
+   "summary": "CoreMark on HaDes-V+ (dut), dut-rv32im_zba_zbb_zbs-O2-performance-i10 cfg=trace\n  Compiler flags   : -O2 -march=rv32im_zba_zbb_zbs -mabi=ilp32\n  image: text 8732, rodata 1772, data 12, bss 2084 bytes (RAM 32768, the top 4096 are the stack)\n\n  timed window (CoreMark's start_time to stop_time, 10 iterations):\n    cycles                 4131302\n    instructions           2986224\n    CPI                    1.383\n    cycles per iteration   413130\n    CoreMark/MHz estimate  2.421   (= iterations * 1000000 / cycles)\n    at 50 MHz              121.0 iterations/s   (an estimate of the CoreMark score; not valid for reporting)\n\n  CoreMark's own validation (CRCs after the first iteration, seedcrc 0xe9f5):\n    crclist    0xe714  expected 0xe714  ok\n    crcmatrix  0x1fd7  expected 0x1fd7  ok\n    crcstate   0x8e3a  expected 0x8e3a  ok\n    crcfinal   0xfcaf  (depends on the iterations)\n\nRESULT dut-rv32im_zba_zbb_zbs-O2-performance-i10 cfg=trace cycles=4131302 instructions=2986224 cpi=1.383 cycles_per_iteration=413130 coremark_per_mhz=2.421\n\nCOREMARK dut-rv32im_zba_zbb_zbs-O2-performance-i10 cfg=trace: PASS\n",
+   "run_log": "logs/trace-zb.run.log",
+   "outputs_sha256": {
+    "build/cfg-trace/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/init.mem": "8a2396c6571561817d656e7a5e0153d93fd3d95f2b0480fa8a452bfe419a6f1e",
+    "build/cfg-trace/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/out.elf": "0826f2c8a84f4ddd5fb26208cde50cff8326ff32c06a6b62dbbafddaa58af519"
+   }
+  }
+ ],
+ "model": [
+  {
+   "id": "model-rv32im-prep",
+   "argv": [
+    "python3",
+    "test/memsys/cachemodel.py",
+    "prep",
+    "build/cfg-trace/test/coremark/dut-rv32im-O2-performance-i10/bustrace.bin",
+    "build/coremark-trace/rv32im",
+    "--ram-kb",
+    "32"
+   ],
+   "command": "python3 test/memsys/cachemodel.py prep build/cfg-trace/test/coremark/dut-rv32im-O2-performance-i10/bustrace.bin build/coremark-trace/rv32im --ram-kb 32",
+   "output": "{\n \"name\": \"rv32im\",\n \"trace\": \"build/cfg-trace/test/coremark/dut-rv32im-O2-performance-i10/bustrace.bin\",\n \"ram_kb\": 32,\n \"ram_start\": 65536,\n \"ram_end\": 73728,\n \"cycles\": 4361915,\n \"reset_cycles_skipped\": 1,\n \"retired\": 3150817,\n \"wb_nonbubble\": 3150817,\n \"consumed\": 3588772,\n \"consumed_reaching_wb\": 3150817,\n \"wb_unmatched\": 0,\n \"wb_lookahead_failed\": 0,\n \"wb_rule_broken\": 0,\n \"fetch_err\": 0,\n \"ram_loads\": 552369,\n \"ram_stores\": 152008,\n \"io_accesses\": 16543,\n \"io_cycles\": 33085,\n \"data_err\": 0,\n \"ram_multicycle\": 0,\n \"reset_later\": 0\n}\n"
+  },
+  {
+   "id": "model-rv32im-run-1_4",
+   "argv": [
+    "python3",
+    "test/memsys/cachemodel.py",
+    "run",
+    "build/coremark-trace/rv32im",
+    "--isize",
+    "8192",
+    "--dsize",
+    "4096",
+    "--line",
+    "16",
+    "--mem",
+    "burst",
+    "--rd-lat",
+    "8:24",
+    "--wr-lat",
+    "1:4",
+    "--wbuf",
+    "none"
+   ],
+   "command": "python3 test/memsys/cachemodel.py run build/coremark-trace/rv32im --isize 8192 --dsize 4096 --line 16 --mem burst --rd-lat 8:24 --wr-lat 1:4 --wbuf none",
+   "output": "{\"trace\": \"rv32im\", \"window\": [0, 4361915], \"cfg\": {\"ibytes\": 8192, \"dbytes\": 4096, \"line\": 16, \"iways\": 1, \"dways\": 1, \"mem\": \"burst\", \"rd_lat\": [8, 24], \"wr_lat\": [1, 4], \"beat_cycles\": 1, \"abort\": false, \"evict\": \"miss\", \"wbuf\": \"none\", \"wait_flushed\": false, \"seed\": 1}, \"instructions\": 3150817, \"cycles_base\": 4361915, \"cpi_base\": 1.3843758618796331, \"cycles\": 4783137, \"cpi\": 1.5180624580862678, \"wall_s\": #, \"i_mpki\": 0.1707493643712091, \"i_refills_started_pki\": 0.1710667423718991, \"i_refills_by_cause_pki\": {\"ready\": 0.12092101826288229, \"stall\": 0.005712804012419636, \"jump\": 0.010156096022079352, \"dwait\": 0.017773168038638865, \"flushed\": 0.016503656035878948}, \"i_wasted_pki\": 0.002856402006209818, \"i_aborted_pki\": 0.0, \"d_mpki\": 0.4563895649921909, \"store_stall_share\": 0.07947817509722176, \"stall_share\": {\"fetch\": 0.0023120809627656495, \"load\": 0.006273706983513121, \"store\": 0.07947817509722176}, \"port_share\": 0.11948204703315, \"raw\": {\"i_refills\": [381, 18, 32, 56, 52], \"i_done\": 538, \"i_abort_wait\": [0, 0, 0, 0, 0], \"i_abort_run\": [0, 0, 0, 0, 0], \"i_fate\": [[0, 0, 381], [0, 0, 18], [0, 1, 31], [1, 0, 55], [3, 4, 44]], \"i_left\": 88, \"snoop_inval\": 0, \"d_loads\": 552369, \"d_load_misses\": 1438, \"d_stores\": 152008, \"d_store_hits\": 148651, \"st_fetch\": 11059, \"st_load\": 30008, \"st_store\": 380155, \"port_irefill\": 10837, \"port_drefill\": 28499, \"port_store\": 532163, \"port_abort_tail\": 0, \"wait_i_for_port\": 339, \"wait_d_for_port\": 71, \"flushed_unanswered\": 59, \"hold_conflict\": 0, \"wb_accepts\": 0, \"wb_merges\": 0, \"wb_drains\": 0, \"wb_drain_words\": 0, \"cycles\": 4783137, \"cycles_total\": 4783137}}\n"
+  },
+  {
+   "id": "model-rv32im-rtlcheck-1_4",
+   "argv": [
+    "python3",
+    "test/memsys/cachemodel.py",
+    "rtlcheck",
+    "build/coremark-trace/rv32im",
+    "build/cfg-mem8_24-wr1_4-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i10/run.log"
+   ],
+   "command": "python3 test/memsys/cachemodel.py rtlcheck build/coremark-trace/rv32im build/cfg-mem8_24-wr1_4-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i10/run.log",
+   "output": "RTLCHECK build/cfg-mem8_24-wr1_4-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i10/run.log\n  against the trace rv32im (4361915 cycles, 3150817 instructions), model --isize 8192 --dsize 4096 --line 16 --mem burst --beat-cycles 1 --rd-lat 8:24 --wr-lat 1:4 (# s)\n  model: a refill was running or waiting at the end of the trace and was completed (running); RTL: i_inflight=1 d_inflight=0\n  field                                                   rtl      model  verdict\n  refills started (i_refills / model)                     539        539  equal\n  refills completed (i_done + i_inflight / model)         539        539  equal\n  snoop_inval                                               0          0  equal\n  dc_lookup_hits (model: d_loads)                      552369     552369  equal\n  dc_load_misses (model: d_load_misses)                  1438       1438  equal\n  dc_store_hits (model: d_store_hits)                  148651     148651  equal\n  dc_store_misses (model: d_stores - d_store_hits)       3357       3357  equal\n  d_stores                                             152008     152008  equal\n  i_refills = i_done + i_inflight                         539        539  equal\n  i_beats = 4 * i_done + i_inflight_beats                2152       2152  equal\n  i_refill_cycles = wait_i_for_port + port_irefill      11202      11202  equal\n  dc_load_misses = dc_done + dc_inflight                 1438       1438  equal\n  dc_beats = 4 * dc_done + dc_inflight_beats             5752       5752  equal\n  d_loads = dc_beats                                     5752       5752  equal\n  dc_store_hits + dc_store_misses = d_stores           152008     152008  equal\n  cycles = RETIRED cycles                             4779798    4779798  equal\n  cycles (model: the cycles of the trace replay)      4779798    4783137  reported\n  wait_i_for_port                                         567        339  reported\n  wait_d_for_port                                         642         71  reported\n  i_abandoned (model: i_left)                              88         88  reported\n  port_irefill                                          10635      10837  reported\n  port_data (model: port_store + port_drefill)         560635     560662  reported\n  instructions (RETIRED / trace)                      3149560    3150817  reported\n  (random latencies: the simulator and the model draw them from different generators, so the model fields are informative only)\nRTLCHECK: AGREE (random latencies: informative only)\n"
+  },
+  {
+   "id": "model-rv32im-run-4_8",
+   "argv": [
+    "python3",
+    "test/memsys/cachemodel.py",
+    "run",
+    "build/coremark-trace/rv32im",
+    "--isize",
+    "8192",
+    "--dsize",
+    "4096",
+    "--line",
+    "16",
+    "--mem",
+    "burst",
+    "--rd-lat",
+    "8:24",
+    "--wr-lat",
+    "4:8",
+    "--wbuf",
+    "none"
+   ],
+   "command": "python3 test/memsys/cachemodel.py run build/coremark-trace/rv32im --isize 8192 --dsize 4096 --line 16 --mem burst --rd-lat 8:24 --wr-lat 4:8 --wbuf none",
+   "output": "{\"trace\": \"rv32im\", \"window\": [0, 4361915], \"cfg\": {\"ibytes\": 8192, \"dbytes\": 4096, \"line\": 16, \"iways\": 1, \"dways\": 1, \"mem\": \"burst\", \"rd_lat\": [8, 24], \"wr_lat\": [4, 8], \"beat_cycles\": 1, \"abort\": false, \"evict\": \"miss\", \"wbuf\": \"none\", \"wait_flushed\": false, \"seed\": 1}, \"instructions\": 3150817, \"cycles_base\": 4361915, \"cpi_base\": 1.3843758618796331, \"cycles\": 5315537, \"cpi\": 1.6870345056536131, \"wall_s\": #, \"i_mpki\": 0.1707493643712091, \"i_refills_started_pki\": 0.1710667423718991, \"i_refills_by_cause_pki\": {\"ready\": 0.12092101826288229, \"stall\": 0.005712804012419636, \"jump\": 0.010156096022079352, \"dwait\": 0.017773168038638865, \"flushed\": 0.016503656035878948}, \"i_wasted_pki\": 0.002856402006209818, \"i_aborted_pki\": 0.0, \"d_mpki\": 0.4563895649921909, \"store_stall_share\": 0.17157871349592713, \"stall_share\": {\"fetch\": 0.002094426207549679, \"load\": 0.005729618663175518, \"store\": 0.17157871349592713}, \"port_share\": 0.20767403180525318, \"raw\": {\"i_refills\": [381, 18, 32, 56, 52], \"i_done\": 538, \"i_abort_wait\": [0, 0, 0, 0, 0], \"i_abort_run\": [0, 0, 0, 0, 0], \"i_fate\": [[0, 0, 381], [0, 0, 18], [0, 1, 31], [1, 0, 55], [3, 4, 44]], \"i_left\": 88, \"snoop_inval\": 0, \"d_loads\": 552369, \"d_load_misses\": 1438, \"d_stores\": 152008, \"d_store_hits\": 148651, \"st_fetch\": 11133, \"st_load\": 30456, \"st_store\": 912033, \"port_irefill\": 10901, \"port_drefill\": 28957, \"port_store\": 1064041, \"port_abort_tail\": 0, \"wait_i_for_port\": 561, \"wait_d_for_port\": 61, \"flushed_unanswered\": 59, \"hold_conflict\": 0, \"wb_accepts\": 0, \"wb_merges\": 0, \"wb_drains\": 0, \"wb_drain_words\": 0, \"cycles\": 5315537, \"cycles_total\": 5315537}}\n"
+  },
+  {
+   "id": "model-rv32im-rtlcheck-4_8",
+   "argv": [
+    "python3",
+    "test/memsys/cachemodel.py",
+    "rtlcheck",
+    "build/coremark-trace/rv32im",
+    "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i10/run.log"
+   ],
+   "command": "python3 test/memsys/cachemodel.py rtlcheck build/coremark-trace/rv32im build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i10/run.log",
+   "output": "RTLCHECK build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i10/run.log\n  against the trace rv32im (4361915 cycles, 3150817 instructions), model --isize 8192 --dsize 4096 --line 16 --mem burst --beat-cycles 1 --rd-lat 8:24 --wr-lat 4:8 (# s)\n  model: a refill was running or waiting at the end of the trace and was completed (running); RTL: i_inflight=1 d_inflight=0\n  field                                                   rtl      model  verdict\n  refills started (i_refills / model)                     539        539  equal\n  refills completed (i_done + i_inflight / model)         539        539  equal\n  snoop_inval                                               0          0  equal\n  dc_lookup_hits (model: d_loads)                      552369     552369  equal\n  dc_load_misses (model: d_load_misses)                  1438       1438  equal\n  dc_store_hits (model: d_store_hits)                  148651     148651  equal\n  dc_store_misses (model: d_stores - d_store_hits)       3357       3357  equal\n  d_stores                                             152008     152008  equal\n  i_refills = i_done + i_inflight                         539        539  equal\n  i_beats = 4 * i_done + i_inflight_beats                2152       2152  equal\n  i_refill_cycles = wait_i_for_port + port_irefill      11663      11663  equal\n  dc_load_misses = dc_done + dc_inflight                 1438       1438  equal\n  dc_beats = 4 * dc_done + dc_inflight_beats             5752       5752  equal\n  d_loads = dc_beats                                     5752       5752  equal\n  dc_store_hits + dc_store_misses = d_stores           152008     152008  equal\n  cycles = RETIRED cycles                             5312021    5312021  equal\n  cycles (model: the cycles of the trace replay)      5312021    5315537  reported\n  wait_i_for_port                                        1028        561  reported\n  wait_d_for_port                                         642         61  reported\n  i_abandoned (model: i_left)                              88         88  reported\n  port_irefill                                          10635      10901  reported\n  port_data (model: port_store + port_drefill)        1094082    1092998  reported\n  instructions (RETIRED / trace)                      3149146    3150817  reported\n  (random latencies: the simulator and the model draw them from different generators, so the model fields are informative only)\nRTLCHECK: AGREE (random latencies: informative only)\n"
+  },
+  {
+   "id": "model-rv32im-run-8_24",
+   "argv": [
+    "python3",
+    "test/memsys/cachemodel.py",
+    "run",
+    "build/coremark-trace/rv32im",
+    "--isize",
+    "8192",
+    "--dsize",
+    "4096",
+    "--line",
+    "16",
+    "--mem",
+    "burst",
+    "--rd-lat",
+    "8:24",
+    "--wr-lat",
+    "8:24",
+    "--wbuf",
+    "none"
+   ],
+   "command": "python3 test/memsys/cachemodel.py run build/coremark-trace/rv32im --isize 8192 --dsize 4096 --line 16 --mem burst --rd-lat 8:24 --wr-lat 8:24 --wbuf none",
+   "output": "{\"trace\": \"rv32im\", \"window\": [0, 4361915], \"cfg\": {\"ibytes\": 8192, \"dbytes\": 4096, \"line\": 16, \"iways\": 1, \"dways\": 1, \"mem\": \"burst\", \"rd_lat\": [8, 24], \"wr_lat\": [8, 24], \"beat_cycles\": 1, \"abort\": false, \"evict\": \"miss\", \"wbuf\": \"none\", \"wait_flushed\": false, \"seed\": 1}, \"instructions\": 3150817, \"cycles_base\": 4361915, \"cpi_base\": 1.3843758618796331, \"cycles\": 6835776, \"cpi\": 2.1695249200445472, \"wall_s\": #, \"i_mpki\": 0.1707493643712091, \"i_refills_started_pki\": 0.1710667423718991, \"i_refills_by_cause_pki\": {\"ready\": 0.12092101826288229, \"stall\": 0.005712804012419636, \"jump\": 0.010156096022079352, \"dwait\": 0.017773168038638865, \"flushed\": 0.016503656035878948}, \"i_wasted_pki\": 0.002856402006209818, \"i_aborted_pki\": 0.0, \"d_mpki\": 0.4563895649921909, \"store_stall_share\": 0.3558590860788885, \"stall_share\": {\"fetch\": 0.001617080489471861, \"load\": 0.004422906777518748, \"store\": 0.3558590860788885}, \"port_share\": 0.38388019151007874, \"raw\": {\"i_refills\": [381, 18, 32, 56, 52], \"i_done\": 538, \"i_abort_wait\": [0, 0, 0, 0, 0], \"i_abort_run\": [0, 0, 0, 0, 0], \"i_fate\": [[0, 0, 381], [0, 0, 18], [0, 1, 31], [1, 0, 55], [3, 4, 44]], \"i_left\": 88, \"snoop_inval\": 0, \"d_loads\": 552369, \"d_load_misses\": 1438, \"d_stores\": 152008, \"d_store_hits\": 148651, \"st_fetch\": 11054, \"st_load\": 30234, \"st_store\": 2432573, \"port_irefill\": 10794, \"port_drefill\": 28744, \"port_store\": 2584581, \"port_abort_tail\": 0, \"wait_i_for_port\": 1137, \"wait_d_for_port\": 52, \"flushed_unanswered\": 59, \"hold_conflict\": 0, \"wb_accepts\": 0, \"wb_merges\": 0, \"wb_drains\": 0, \"wb_drain_words\": 0, \"cycles\": 6835776, \"cycles_total\": 6835776}}\n"
+  },
+  {
+   "id": "model-rv32im-rtlcheck-8_24",
+   "argv": [
+    "python3",
+    "test/memsys/cachemodel.py",
+    "rtlcheck",
+    "build/coremark-trace/rv32im",
+    "build/cfg-mem8_24-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i10/run.log"
+   ],
+   "command": "python3 test/memsys/cachemodel.py rtlcheck build/coremark-trace/rv32im build/cfg-mem8_24-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i10/run.log",
+   "output": "RTLCHECK build/cfg-mem8_24-beat0-i8k-d4k-l16/test/coremark/dut-rv32im-O2-performance-i10/run.log\n  against the trace rv32im (4361915 cycles, 3150817 instructions), model --isize 8192 --dsize 4096 --line 16 --mem burst --beat-cycles 1 --rd-lat 8:24 --wr-lat 8:24 (# s)\n  model: a refill was running or waiting at the end of the trace and was completed (running); RTL: i_inflight=1 d_inflight=0\n  field                                                   rtl      model  verdict\n  refills started (i_refills / model)                     539        539  equal\n  refills completed (i_done + i_inflight / model)         539        539  equal\n  snoop_inval                                               0          0  equal\n  dc_lookup_hits (model: d_loads)                      552369     552369  equal\n  dc_load_misses (model: d_load_misses)                  1438       1438  equal\n  dc_store_hits (model: d_store_hits)                  148651     148651  equal\n  dc_store_misses (model: d_stores - d_store_hits)       3357       3357  equal\n  d_stores                                             152008     152008  equal\n  i_refills = i_done + i_inflight                         539        539  equal\n  i_beats = 4 * i_done + i_inflight_beats                2152       2152  equal\n  i_refill_cycles = wait_i_for_port + port_irefill      13042      13042  equal\n  dc_load_misses = dc_done + dc_inflight                 1438       1438  equal\n  dc_beats = 4 * dc_done + dc_inflight_beats             5752       5752  equal\n  d_loads = dc_beats                                     5752       5752  equal\n  dc_store_hits + dc_store_misses = d_stores           152008     152008  equal\n  cycles = RETIRED cycles                             6828286    6828286  equal\n  cycles (model: the cycles of the trace replay)      6828286    6835776  reported\n  wait_i_for_port                                        2407       1137  reported\n  wait_d_for_port                                         642         52  reported\n  i_abandoned (model: i_left)                              88         88  reported\n  port_irefill                                          10635      10794  reported\n  port_data (model: port_store + port_drefill)        2612303    2613325  reported\n  instructions (RETIRED / trace)                      3148597    3150817  reported\n  (random latencies: the simulator and the model draw them from different generators, so the model fields are informative only)\nRTLCHECK: AGREE (random latencies: informative only)\n"
+  },
+  {
+   "id": "model-zb-prep",
+   "argv": [
+    "python3",
+    "test/memsys/cachemodel.py",
+    "prep",
+    "build/cfg-trace/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/bustrace.bin",
+    "build/coremark-trace/zb",
+    "--ram-kb",
+    "32"
+   ],
+   "command": "python3 test/memsys/cachemodel.py prep build/cfg-trace/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/bustrace.bin build/coremark-trace/zb --ram-kb 32",
+   "output": "{\n \"name\": \"zb\",\n \"trace\": \"build/cfg-trace/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/bustrace.bin\",\n \"ram_kb\": 32,\n \"ram_start\": 65536,\n \"ram_end\": 73728,\n \"cycles\": 4276502,\n \"reset_cycles_skipped\": 1,\n \"retired\": 3055622,\n \"wb_nonbubble\": 3055622,\n \"consumed\": 3497268,\n \"consumed_reaching_wb\": 3055622,\n \"wb_unmatched\": 0,\n \"wb_lookahead_failed\": 0,\n \"wb_rule_broken\": 0,\n \"fetch_err\": 0,\n \"ram_loads\": 552381,\n \"ram_stores\": 152008,\n \"io_accesses\": 16828,\n \"io_cycles\": 33655,\n \"data_err\": 0,\n \"ram_multicycle\": 0,\n \"reset_later\": 0\n}\n"
+  },
+  {
+   "id": "model-zb-run-1_4",
+   "argv": [
+    "python3",
+    "test/memsys/cachemodel.py",
+    "run",
+    "build/coremark-trace/zb",
+    "--isize",
+    "8192",
+    "--dsize",
+    "4096",
+    "--line",
+    "16",
+    "--mem",
+    "burst",
+    "--rd-lat",
+    "8:24",
+    "--wr-lat",
+    "1:4",
+    "--wbuf",
+    "none"
+   ],
+   "command": "python3 test/memsys/cachemodel.py run build/coremark-trace/zb --isize 8192 --dsize 4096 --line 16 --mem burst --rd-lat 8:24 --wr-lat 1:4 --wbuf none",
+   "output": "{\"trace\": \"zb\", \"window\": [0, 4276502], \"cfg\": {\"ibytes\": 8192, \"dbytes\": 4096, \"line\": 16, \"iways\": 1, \"dways\": 1, \"mem\": \"burst\", \"rd_lat\": [8, 24], \"wr_lat\": [1, 4], \"beat_cycles\": 1, \"abort\": false, \"evict\": \"miss\", \"wbuf\": \"none\", \"wait_flushed\": false, \"seed\": 1}, \"instructions\": 3055622, \"cycles_base\": 4276502, \"cpi_base\": 1.3995520388320284, \"cycles\": 4728865, \"cpi\": 1.5475948923001601, \"wall_s\": #, \"i_mpki\": 0.17083264880276422, \"i_refills_started_pki\": 0.17115991441349748, \"i_refills_by_cause_pki\": {\"ready\": 0.11748835425324206, \"stall\": 0.0039271873287991775, \"jump\": 0.01505421809373018, \"dwait\": 0.021599530308395475, \"flushed\": 0.01309062442933059}, \"i_wasted_pki\": 0.0039271873287991775, \"i_aborted_pki\": 0.0, \"d_mpki\": 0.9582337082269993, \"store_stall_share\": 0.08036664188975579, \"stall_share\": {\"fetch\": 0.002267986081226679, \"load\": 0.013025324258569445, \"store\": 0.08036664188975579}, \"port_share\": 0.12712247019105008, \"raw\": {\"i_refills\": [359, 12, 46, 66, 40], \"i_done\": 522, \"i_abort_wait\": [0, 0, 0, 0, 0], \"i_abort_run\": [0, 0, 0, 0, 0], \"i_fate\": [[0, 0, 359], [0, 0, 12], [4, 0, 41], [2, 1, 63], [2, 3, 35]], \"i_left\": 86, \"snoop_inval\": 0, \"d_loads\": 552381, \"d_load_misses\": 2928, \"d_stores\": 152008, \"d_store_hits\": 150595, \"st_fetch\": 10725, \"st_load\": 61595, \"st_store\": 380043, \"port_irefill\": 10482, \"port_drefill\": 58612, \"port_store\": 532051, \"port_abort_tail\": 0, \"wait_i_for_port\": 428, \"wait_d_for_port\": 55, \"flushed_unanswered\": 42, \"hold_conflict\": 0, \"wb_accepts\": 0, \"wb_merges\": 0, \"wb_drains\": 0, \"wb_drain_words\": 0, \"cycles\": 4728865, \"cycles_total\": 4728865}}\n"
+  },
+  {
+   "id": "model-zb-rtlcheck-1_4",
+   "argv": [
+    "python3",
+    "test/memsys/cachemodel.py",
+    "rtlcheck",
+    "build/coremark-trace/zb",
+    "build/cfg-mem8_24-wr1_4-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/run.log"
+   ],
+   "command": "python3 test/memsys/cachemodel.py rtlcheck build/coremark-trace/zb build/cfg-mem8_24-wr1_4-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/run.log",
+   "output": "RTLCHECK build/cfg-mem8_24-wr1_4-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/run.log\n  against the trace zb (4276502 cycles, 3055622 instructions), model --isize 8192 --dsize 4096 --line 16 --mem burst --beat-cycles 1 --rd-lat 8:24 --wr-lat 1:4 (# s)\n  model: a refill was running or waiting at the end of the trace and was completed (running); RTL: i_inflight=1 d_inflight=0\n  field                                                   rtl      model  verdict\n  refills started (i_refills / model)                     523        523  equal\n  refills completed (i_done + i_inflight / model)         523        523  equal\n  snoop_inval                                               0          0  equal\n  dc_lookup_hits (model: d_loads)                      552381     552381  equal\n  dc_load_misses (model: d_load_misses)                  2928       2928  equal\n  dc_store_hits (model: d_store_hits)                  150595     150595  equal\n  dc_store_misses (model: d_stores - d_store_hits)       1413       1413  equal\n  d_stores                                             152008     152008  equal\n  i_refills = i_done + i_inflight                         523        523  equal\n  i_beats = 4 * i_done + i_inflight_beats                2088       2088  equal\n  i_refill_cycles = wait_i_for_port + port_irefill      11074      11074  equal\n  dc_load_misses = dc_done + dc_inflight                 2928       2928  equal\n  dc_beats = 4 * dc_done + dc_inflight_beats            11712      11712  equal\n  d_loads = dc_beats                                    11712      11712  equal\n  dc_store_hits + dc_store_misses = d_stores           152008     152008  equal\n  cycles = RETIRED cycles                             4725400    4725400  equal\n  cycles (model: the cycles of the trace replay)      4725400    4728865  reported\n  wait_i_for_port                                         695        428  reported\n  wait_d_for_port                                         866         55  reported\n  i_abandoned (model: i_left)                              86         86  reported\n  port_irefill                                          10379      10482  reported\n  port_data (model: port_store + port_drefill)         590442     590663  reported\n  instructions (RETIRED / trace)                      3054347    3055622  reported\n  (random latencies: the simulator and the model draw them from different generators, so the model fields are informative only)\nRTLCHECK: AGREE (random latencies: informative only)\n"
+  },
+  {
+   "id": "model-zb-run-4_8",
+   "argv": [
+    "python3",
+    "test/memsys/cachemodel.py",
+    "run",
+    "build/coremark-trace/zb",
+    "--isize",
+    "8192",
+    "--dsize",
+    "4096",
+    "--line",
+    "16",
+    "--mem",
+    "burst",
+    "--rd-lat",
+    "8:24",
+    "--wr-lat",
+    "4:8",
+    "--wbuf",
+    "none"
+   ],
+   "command": "python3 test/memsys/cachemodel.py run build/coremark-trace/zb --isize 8192 --dsize 4096 --line 16 --mem burst --rd-lat 8:24 --wr-lat 4:8 --wbuf none",
+   "output": "{\"trace\": \"zb\", \"window\": [0, 4276502], \"cfg\": {\"ibytes\": 8192, \"dbytes\": 4096, \"line\": 16, \"iways\": 1, \"dways\": 1, \"mem\": \"burst\", \"rd_lat\": [8, 24], \"wr_lat\": [4, 8], \"beat_cycles\": 1, \"abort\": false, \"evict\": \"miss\", \"wbuf\": \"none\", \"wait_flushed\": false, \"seed\": 1}, \"instructions\": 3055622, \"cycles_base\": 4276502, \"cpi_base\": 1.3995520388320284, \"cycles\": 5260614, \"cpi\": 1.721618053541963, \"wall_s\": #, \"i_mpki\": 0.17083264880276422, \"i_refills_started_pki\": 0.17115991441349748, \"i_refills_by_cause_pki\": {\"ready\": 0.11748835425324206, \"stall\": 0.0039271873287991775, \"jump\": 0.01505421809373018, \"dwait\": 0.021599530308395475, \"flushed\": 0.01309062442933059}, \"i_wasted_pki\": 0.0039271873287991775, \"i_aborted_pki\": 0.0, \"d_mpki\": 0.9582337082269993, \"store_stall_share\": 0.17336056209408254, \"stall_share\": {\"fetch\": 0.002027519981507862, \"load\": 0.011683617159517882, \"store\": 0.17336056209408254}, \"port_share\": 0.21535508972906964, \"raw\": {\"i_refills\": [359, 12, 46, 66, 40], \"i_done\": 522, \"i_abort_wait\": [0, 0, 0, 0, 0], \"i_abort_run\": [0, 0, 0, 0, 0], \"i_fate\": [[0, 0, 359], [0, 0, 12], [4, 0, 41], [2, 1, 63], [2, 3, 35]], \"i_left\": 86, \"snoop_inval\": 0, \"d_loads\": 552381, \"d_load_misses\": 2928, \"d_stores\": 152008, \"d_store_hits\": 150595, \"st_fetch\": 10666, \"st_load\": 61463, \"st_store\": 911983, \"port_irefill\": 10439, \"port_drefill\": 58470, \"port_store\": 1063991, \"port_abort_tail\": 0, \"wait_i_for_port\": 642, \"wait_d_for_port\": 65, \"flushed_unanswered\": 42, \"hold_conflict\": 0, \"wb_accepts\": 0, \"wb_merges\": 0, \"wb_drains\": 0, \"wb_drain_words\": 0, \"cycles\": 5260614, \"cycles_total\": 5260614}}\n"
+  },
+  {
+   "id": "model-zb-rtlcheck-4_8",
+   "argv": [
+    "python3",
+    "test/memsys/cachemodel.py",
+    "rtlcheck",
+    "build/coremark-trace/zb",
+    "build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/run.log"
+   ],
+   "command": "python3 test/memsys/cachemodel.py rtlcheck build/coremark-trace/zb build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/run.log",
+   "output": "RTLCHECK build/cfg-mem8_24-wr4_8-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/run.log\n  against the trace zb (4276502 cycles, 3055622 instructions), model --isize 8192 --dsize 4096 --line 16 --mem burst --beat-cycles 1 --rd-lat 8:24 --wr-lat 4:8 (# s)\n  model: a refill was running or waiting at the end of the trace and was completed (running); RTL: i_inflight=1 d_inflight=0\n  field                                                   rtl      model  verdict\n  refills started (i_refills / model)                     523        523  equal\n  refills completed (i_done + i_inflight / model)         523        523  equal\n  snoop_inval                                               0          0  equal\n  dc_lookup_hits (model: d_loads)                      552381     552381  equal\n  dc_load_misses (model: d_load_misses)                  2928       2928  equal\n  dc_store_hits (model: d_store_hits)                  150595     150595  equal\n  dc_store_misses (model: d_stores - d_store_hits)       1413       1413  equal\n  d_stores                                             152008     152008  equal\n  i_refills = i_done + i_inflight                         523        523  equal\n  i_beats = 4 * i_done + i_inflight_beats                2088       2088  equal\n  i_refill_cycles = wait_i_for_port + port_irefill      11540      11540  equal\n  dc_load_misses = dc_done + dc_inflight                 2928       2928  equal\n  dc_beats = 4 * dc_done + dc_inflight_beats            11712      11712  equal\n  d_loads = dc_beats                                    11712      11712  equal\n  dc_store_hits + dc_store_misses = d_stores           152008     152008  equal\n  cycles = RETIRED cycles                             5257691    5257691  equal\n  cycles (model: the cycles of the trace replay)      5257691    5260614  reported\n  wait_i_for_port                                        1161        642  reported\n  wait_d_for_port                                         866         65  reported\n  i_abandoned (model: i_left)                              86         86  reported\n  port_irefill                                          10379      10439  reported\n  port_data (model: port_store + port_drefill)        1123865    1122461  reported\n  instructions (RETIRED / trace)                      3053963    3055622  reported\n  (random latencies: the simulator and the model draw them from different generators, so the model fields are informative only)\nRTLCHECK: AGREE (random latencies: informative only)\n"
+  },
+  {
+   "id": "model-zb-run-8_24",
+   "argv": [
+    "python3",
+    "test/memsys/cachemodel.py",
+    "run",
+    "build/coremark-trace/zb",
+    "--isize",
+    "8192",
+    "--dsize",
+    "4096",
+    "--line",
+    "16",
+    "--mem",
+    "burst",
+    "--rd-lat",
+    "8:24",
+    "--wr-lat",
+    "8:24",
+    "--wbuf",
+    "none"
+   ],
+   "command": "python3 test/memsys/cachemodel.py run build/coremark-trace/zb --isize 8192 --dsize 4096 --line 16 --mem burst --rd-lat 8:24 --wr-lat 8:24 --wbuf none",
+   "output": "{\"trace\": \"zb\", \"window\": [0, 4276502], \"cfg\": {\"ibytes\": 8192, \"dbytes\": 4096, \"line\": 16, \"iways\": 1, \"dways\": 1, \"mem\": \"burst\", \"rd_lat\": [8, 24], \"wr_lat\": [8, 24], \"beat_cycles\": 1, \"abort\": false, \"evict\": \"miss\", \"wbuf\": \"none\", \"wait_flushed\": false, \"seed\": 1}, \"instructions\": 3055622, \"cycles_base\": 4276502, \"cpi_base\": 1.3995520388320284, \"cycles\": 6781476, \"cpi\": 2.2193438848129774, \"wall_s\": #, \"i_mpki\": 0.17083264880276422, \"i_refills_started_pki\": 0.17115991441349748, \"i_refills_by_cause_pki\": {\"ready\": 0.11748835425324206, \"stall\": 0.0039271873287991775, \"jump\": 0.01505421809373018, \"dwait\": 0.021599530308395475, \"flushed\": 0.01309062442933059}, \"i_wasted_pki\": 0.0039271873287991775, \"i_aborted_pki\": 0.0, \"d_mpki\": 0.9582337082269993, \"store_stall_share\": 0.35869964001937044, \"stall_share\": {\"fetch\": 0.0015645561526723682, \"load\": 0.009120580829306186, \"store\": 0.35869964001937044}, \"port_share\": 0.39132498588802794, \"raw\": {\"i_refills\": [359, 12, 46, 66, 40], \"i_done\": 522, \"i_abort_wait\": [0, 0, 0, 0, 0], \"i_abort_run\": [0, 0, 0, 0, 0], \"i_fate\": [[0, 0, 359], [0, 0, 12], [4, 0, 41], [2, 1, 63], [2, 3, 35]], \"i_left\": 86, \"snoop_inval\": 0, \"d_loads\": 552381, \"d_load_misses\": 2928, \"d_stores\": 152008, \"d_store_hits\": 150595, \"st_fetch\": 10610, \"st_load\": 61851, \"st_store\": 2432513, \"port_irefill\": 10384, \"port_drefill\": 58856, \"port_store\": 2584521, \"port_abort_tail\": 0, \"wait_i_for_port\": 1240, \"wait_d_for_port\": 67, \"flushed_unanswered\": 42, \"hold_conflict\": 0, \"wb_accepts\": 0, \"wb_merges\": 0, \"wb_drains\": 0, \"wb_drain_words\": 0, \"cycles\": 6781476, \"cycles_total\": 6781476}}\n"
+  },
+  {
+   "id": "model-zb-rtlcheck-8_24",
+   "argv": [
+    "python3",
+    "test/memsys/cachemodel.py",
+    "rtlcheck",
+    "build/coremark-trace/zb",
+    "build/cfg-mem8_24-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/run.log"
+   ],
+   "command": "python3 test/memsys/cachemodel.py rtlcheck build/coremark-trace/zb build/cfg-mem8_24-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/run.log",
+   "output": "RTLCHECK build/cfg-mem8_24-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/run.log\n  against the trace zb (4276502 cycles, 3055622 instructions), model --isize 8192 --dsize 4096 --line 16 --mem burst --beat-cycles 1 --rd-lat 8:24 --wr-lat 8:24 (# s)\n  model: a refill was running or waiting at the end of the trace and was completed (running); RTL: i_inflight=1 d_inflight=0\n  field                                                   rtl      model  verdict\n  refills started (i_refills / model)                     523        523  equal\n  refills completed (i_done + i_inflight / model)         523        523  equal\n  snoop_inval                                               0          0  equal\n  dc_lookup_hits (model: d_loads)                      552381     552381  equal\n  dc_load_misses (model: d_load_misses)                  2928       2928  equal\n  dc_store_hits (model: d_store_hits)                  150595     150595  equal\n  dc_store_misses (model: d_stores - d_store_hits)       1413       1413  equal\n  d_stores                                             152008     152008  equal\n  i_refills = i_done + i_inflight                         523        523  equal\n  i_beats = 4 * i_done + i_inflight_beats                2088       2088  equal\n  i_refill_cycles = wait_i_for_port + port_irefill      12911      12911  equal\n  dc_load_misses = dc_done + dc_inflight                 2928       2928  equal\n  dc_beats = 4 * dc_done + dc_inflight_beats            11712      11712  equal\n  d_loads = dc_beats                                    11712      11712  equal\n  dc_store_hits + dc_store_misses = d_stores           152008     152008  equal\n  cycles = RETIRED cycles                             6773629    6773629  equal\n  cycles (model: the cycles of the trace replay)      6773629    6781476  reported\n  wait_i_for_port                                        2532       1240  reported\n  wait_d_for_port                                         866         67  reported\n  i_abandoned (model: i_left)                              86         86  reported\n  port_irefill                                          10379      10384  reported\n  port_data (model: port_store + port_drefill)        2641845    2643377  reported\n  instructions (RETIRED / trace)                      3053372    3055622  reported\n  (random latencies: the simulator and the model draw them from different generators, so the model fields are informative only)\nRTLCHECK: AGREE (random latencies: informative only)\n"
+  }
+ ],
+ "caveats": [
+  "Cycles are those of the Verilator model of the RTL at the base commit. CoreMark/MHz is iterations x 10^6 / cycles of CoreMark's timed window: an estimate, not a CoreMark score (CoreMark's rules require a run of at least 10 seconds).",
+  "The slow-memory and cached simulators draw their waits from the generator of sim/slow_memory.sv with seed 1 (MEM_SEED); other seeds give slightly different cycles.",
+  "The cache model draws its latencies from a generator of its own: its cycles agree with the RTL's as one sample, not as an identity; its counts of refills, load misses and stores are equal (RTLCHECK: AGREE).",
+  "The runs with CVA6's CI flags pass them through OPT=-O3 and CM_FLAGS; the start code of std/ stays rv32i as for every CoreMark build.",
+  "The runs were made with BUILD_JOBS=4, which limits the parallel jobs of the Verilator builds and changes no output."
+ ]
+}

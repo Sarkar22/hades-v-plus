@@ -1,0 +1,44 @@
+SCOREBOARD on: every answer from the RAM, addresses 0x00040000-0x00047fff, is checked
+CACHE I-cache 8192 bytes, 16-byte lines, 512 sets, direct-mapped; tag adr[29:11], index adr[10:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1; one memory port, data side first; RAM exempt from the interconnect timeout
+CACHE D-cache 4096 bytes, 16-byte lines, 256 sets, direct-mapped, write-through, no write-allocate; tag adr[29:10], index adr[9:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1
+SLOW MEMORY memory port: read latency 8..24, write latency 1..4, burst beats 0 (cache refill blocks only), seed 1
+2K performance run parameters for coremark.
+CoreMark Size    : 666
+Total ticks      : 4627642
+Total time (secs): 0
+ERROR! Must execute for at least 10 secs for a valid result!
+Iterations       : 10
+Compiler version : GCC12.2.0
+Compiler flags   : -O2 -march=rv32im -mabi=ilp32
+Memory location  : Static data in RAM (.bss)
+seedcrc          : 0xe9f5
+[0]crclist       : 0xe714
+[0]crcmatrix     : 0x1fd7
+[0]crcstate      : 0x8e3a
+[0]crcfinal      : 0xfcaf
+Errors detected
+HADES port: iterations=10 cycles=4627642 clock_hz=50000000
+HADES instret: window=3081467 start=12751 stop=3094218
+HADES hpm3: 5680
+HADES hpm4: 3500927
+HADES hpm5: 203431
+HADES hpm6: 93960
+HADES hpm7: 404017
+HADES hpm8: 419503
+HADES hpm9: 321965
+HADES note: simulation, not a CoreMark score. The 10 s rule is not met (the ERROR and Errors detected lines above say so); CoreMark/MHz is an estimate: iterations * 1000000 / cycles.
+- sim/top.sv:131: Verilog $finish
+[0;33m
+Inital test failed! (# Errors: 0)
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!! TEST DONE !!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[0m
+SCOREBOARD: PASS  4791123 fetches, 552664 loads, 152198 stores checked; the RAM equals the copy at the end
+RETIRED cycles=4803529 instructions=3159052 cpi=1.521
+CACHE_STATS cycles=4803529 i_hits=4791123 i_refills=555 i_done=554 i_beats=2216 i_abandoned=90 snoop_inval=0 i_refill_cycles=11851 wait_i_for_port=616 wait_d_for_port=629 port_irefill=11235 port_data=561577 d_loads=5764 d_stores=152198 i_inflight=1 i_inflight_beats=0 i_inflight_port=2 d_inflight=0 d_inflight_port=0 dc_lookup_hits=552664 dc_load_misses=1441 dc_done=1441 dc_beats=5764 dc_store_hits=150283 dc_store_misses=1915 dc_store_wait=380803 dc_refill_cycles=29205 dc_inflight=0 dc_inflight_beats=0 dc_inflight_port=0
+HPM CYCLE=4803529 INSTRET=3159052 LOAD=570323 STORE=153094 BRANCH=646451 BRANCH_TAKEN=341968 JUMP=98121 MUL=94056 DIV=246 CSR=18 BITMANIP=0 CRYPTO=0 MRET=0 FENCE_I=0 REPLAY=0 BR_MISPREDICT=341968 BP_NN=304483 BP_NT=341968 BP_TN=0 BP_TT=0 EXCEPTION=0 EXC_ECALL=0 EXC_OTHER=0 INTERRUPT=0 INT_TIMER=0 INT_EXT=0 FETCH_WAIT=11025 FRONT_OK=3599053 HAZARD=221492 MSTALL_ANY=101866 MEMWAIT_ANY=430003 REDIRECT_ANY=440090 HAZARD_LOAD=221474 MSTALL_MUL=94056 MSTALL_DIV=7810 MEMWAIT_LOAD=48305 MEMWAIT_STORE=381698 MEMWAIT_IO=18554 REDIRECT_BRANCH=341968 REDIRECT_JUMP=98122 REDIRECT_WB=0 FETCH_DELIVER=3599083 FETCH_DISCARD=1192040 IO_ACCESS=18555 IC_HIT_USED=3599083 IC_MISS_JUMP=32 x_irq_pending=0 x_mret_irq=0 x_fencei_j=0
+HPM_CHECK ok: 4803529 comparisons of 7 counters, 7 selectors, mcountinhibit, minstret and mcycle
+- S i m u l a t i o n   R e p o r t: Verilator 5.042 2025-11-02
+- Verilator: $finish at 96us; walltime 8.562 s; speed 11.222 us/s
+- Verilator: cpu 8.561 s on 1 threads; alloced 176 MB

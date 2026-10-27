@@ -1,4 +1,4 @@
-[HaDes-V+](../README.md) · [Docs](README.md) · [Building](BUILDING.md) · [FreeRTOS](FREERTOS.md) · [Shell](SHELL.md) · [Apps](APPS.md) · [Architecture](ARCHITECTURE.md) · **Extensions** · [Verification](VERIFICATION.md) · [Caches](CACHES.md)
+[HaDes-V+](../README.md) · [Docs](README.md) · [Building](BUILDING.md) · [FreeRTOS](FREERTOS.md) · [Shell](SHELL.md) · [Apps](APPS.md) · [Architecture](ARCHITECTURE.md) · **Extensions** · [Verification](VERIFICATION.md) · [Caches](CACHES.md) · [Performance](PERFORMANCE.md)
 
 # Extensions
 

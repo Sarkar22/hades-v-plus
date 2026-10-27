@@ -1,0 +1,13 @@
+window instructions 2719467, compressed 0.0 %, taken control transfers 250863 (9.2 %)
+  beq             347322   12.8 %
+  lw              277641   10.2 %
+  addi            261281    9.6 %
+  andi            189384    7.0 %
+  li              168145    6.2 %
+  lh              167580    6.2 %
+  add             154650    5.7 %
+  mv              147610    5.4 %
+  srli            143986    5.3 %
+  sw              134756    5.0 %
+  mul              93960    3.5 %
+  lbu              92320    3.4 %

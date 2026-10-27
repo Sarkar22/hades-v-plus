@@ -26,6 +26,9 @@
 #                      the app sha256 in the loader's
 #                      session-crypto.txt and the forms in its
 #                      two builds
+#   coremark           only when named: make coremark in the 42      results/coremark/
+#                      configurations of its record and the cache
+#                      model on its two bus traces (about 10 minutes)
 #   bitmanip-long      only when named: make ext-exhaustive and the  results/bitmanip/
 #                      campaign set bitmanip (about an hour)
 #   freertos-campaign  only with --campaign: the 794-run suite       results/freertos-campaign/
@@ -308,6 +311,75 @@ def check_zbb(c):
 def check_sha256(c):
     check_bench(c, [(["make", "bench-sha256"], "-O2"), (["make", "bench-sha256", "OPT=-Os"], "-Os"),
                     (["make", "bench-sha256", "OPT=-O0"], "-O0")], "sha256")
+
+
+# ---- coremark: make coremark in the configurations of its record ---------------------------------
+
+def coremark_summary(out):
+    """The summary that test/coremark/coremark.py printed: from 'CoreMark on HaDes-V+' to the line
+    'COREMARK <label>: PASS' or 'FAIL'"""
+    lines = [l.rstrip() for l in out.splitlines()]
+    starts = [i for i, l in enumerate(lines) if l.startswith("CoreMark on HaDes-V+")]
+    block = []
+    for l in lines[starts[-1]:] if starts else []:
+        block.append(l)
+        if l.startswith("COREMARK "):
+            break
+    return block
+
+
+def built_args(argv):
+    """A record's command with its 'build/...' arguments in the build directory in use"""
+    return [built(a) if a.startswith("build/") else a for a in argv]
+
+
+# the cache model prints its wall time and the paths of its inputs; the record keeps them as # and build/
+MODEL_TIME = re.compile(r'("wall_s": )[0-9.]+|\([0-9.]+ s\)')
+
+
+def model_lines(text):
+    text = text.replace(BUILD + os.sep, "build/")
+    return [MODEL_TIME.sub(lambda m: m.group(1) + "#" if m.group(1) else "(# s)", l).rstrip()
+            for l in text.strip("\n").splitlines()]
+
+
+def check_coremark(c):
+    meta = c.meta()
+    logs = images = images_ok = 0
+    for r in meta["runs"]:
+        rc, out, dt = c.run(r["argv"], r["id"])
+        want = r["summary"].strip("\n").splitlines()
+        got = coremark_summary(out)
+        if got != want:
+            c.problem("the summary of '%s' differs from the record" % show(r["argv"]), diff_lines(want, got))
+        stored = os.path.join(c.record, "logs", r["id"] + ".run.log")
+        fresh = os.path.join(built(r["dir"]), "run.log")
+        want = log_lines(read(stored))
+        got = log_lines(read(fresh)) if os.path.exists(fresh) else ["(no run log)"]
+        if want == got:
+            logs += 1
+        else:
+            c.problem("run log %s differs from %s" % (rel(fresh), rel(stored)), diff_lines(want, got))
+        for path, h in sorted(r["outputs_sha256"].items()):
+            images += 1
+            if sha256(built(path)) == h:
+                images_ok += 1
+            else:
+                c.problem("%s: sha256 %s, recorded %s" % (path, sha256(built(path)) or "(missing)", h))
+    c.compared.append("%d summaries" % len(meta["runs"]))
+    c.compared.append("%d of %d run logs" % (logs, len(meta["runs"])))
+    c.compared.append("%d of %d program files (sha256)" % (images_ok, images))
+    # the cache model on the bus traces of the standard-memory runs
+    for m in meta["model"]:
+        argv = built_args(m["argv"])
+        if m["argv"][2] == "prep":
+            shutil.rmtree(argv[4], ignore_errors=True)
+        rc, out, dt = c.run(argv, m["id"])
+        want = m["output"].strip("\n").splitlines()
+        got = model_lines(out)
+        if got != want:
+            c.problem("the output of '%s' differs from the record" % show(argv), diff_lines(want, got))
+    c.compared.append("%d cache-model outputs" % len(meta["model"]))
 
 
 # ---- tests: every suite of docs/VERIFICATION.md ----------------------------------------------
@@ -817,6 +889,8 @@ CHECKS = [
     ("sha256", "sha256", "make bench-sha256 at -O2, -Os and -O0", "about 4 minutes"),
     ("crypto", "crypto", "the Zbkb, Zbkx and Zknh tests (asm, fuzz k, crypto probes, the app sha256)",
      "about 3 minutes"),
+    ("coremark", "coremark", "make coremark in the configurations of its record, the cache model on its traces",
+     "about 10 minutes"),
     ("bitmanip-long", "bitmanip", "make ext-exhaustive and campaign.py --set bitmanip --compare",
      "about an hour with --jobs 4"),
     ("freertos-campaign", "freertos-campaign", "campaign.py --suite sep2026 --wall-limit 0 --compare",
@@ -947,6 +1021,8 @@ def main():
                 check_sha256(c)
             elif c.name == "crypto":
                 check_crypto(c, a.jobs)
+            elif c.name == "coremark":
+                check_coremark(c)
             elif c.name == "bitmanip-long":
                 check_bitmanip_long(c, a.jobs)
             elif c.name == "freertos-campaign":

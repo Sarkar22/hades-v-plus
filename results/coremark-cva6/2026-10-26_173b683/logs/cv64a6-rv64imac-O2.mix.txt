@@ -1,0 +1,6 @@
+window instructions 3540217, compressed 50.5 %, taken control transfers 419504 (11.8 %)
+  c.mv            240091    6.8 %
+  c.ld            193200    5.5 %
+  slli            190262    5.4 %
+  beq             179327    5.1 %
+  c.addiw         178320    5.0 %

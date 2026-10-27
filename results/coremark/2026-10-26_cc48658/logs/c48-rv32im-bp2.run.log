@@ -1,0 +1,35 @@
+SCOREBOARD on: every answer from the RAM, addresses 0x00040000-0x00047fff, is checked
+CACHE I-cache 8192 bytes, 16-byte lines, 512 sets, direct-mapped; tag adr[29:11], index adr[10:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1; one memory port, data side first; RAM exempt from the interconnect timeout
+CACHE D-cache 4096 bytes, 16-byte lines, 256 sets, direct-mapped, write-through, no write-allocate; tag adr[29:10], index adr[9:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1
+SLOW MEMORY memory port: read latency 8..24, write latency 4..8, burst beats 0 (cache refill blocks only), seed 1
+2K performance run parameters for coremark.
+CoreMark Size    : 666
+Total ticks      : 4755979
+Total time (secs): 0
+ERROR! Must execute for at least 10 secs for a valid result!
+Iterations       : 10
+Compiler version : GCC12.2.0
+Compiler flags   : -O2 -march=rv32im -mabi=ilp32
+Memory location  : Static data in RAM (.bss)
+seedcrc          : 0xe9f5
+[0]crclist       : 0xe714
+[0]crcmatrix     : 0x1fd7
+[0]crcstate      : 0x8e3a
+[0]crcfinal      : 0xfcaf
+Errors detected
+HADES port: iterations=10 cycles=4755979 clock_hz=50000000
+HADES instret: window=3081452 start=12739 stop=3094191
+HADES note: simulation, not a CoreMark score. The 10 s rule is not met (the ERROR and Errors detected lines above say so); CoreMark/MHz is an estimate: iterations * 1000000 / cycles.
+- sim/top.sv:131: Verilog $finish
+[0;33m
+Inital test failed! (# Errors: 0)
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!! TEST DONE !!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[0m
+SCOREBOARD: PASS  4900591 fetches, 552369 loads, 152008 stores checked; the RAM equals the copy at the end
+RETIRED cycles=4912817 instructions=3166395 cpi=1.552
+CACHE_STATS cycles=4912817 i_hits=4900591 i_refills=538 i_done=538 i_beats=2152 i_abandoned=67 snoop_inval=0 i_refill_cycles=11688 wait_i_for_port=1010 wait_d_for_port=704 port_irefill=10678 port_data=1094073 d_loads=5756 d_stores=152008 i_inflight=0 i_inflight_beats=0 i_inflight_port=0 d_inflight=0 d_inflight_port=0 dc_lookup_hits=552369 dc_load_misses=1439 dc_done=1439 dc_beats=5756 dc_store_hits=148617 dc_store_misses=3391 dc_store_wait=913679 dc_refill_cycles=29090 dc_inflight=0 dc_inflight_beats=0 dc_inflight_port=0
+- S i m u l a t i o n   R e p o r t: Verilator 5.042 2025-11-02
+- Verilator: $finish at 98us; walltime 5.629 s; speed 17.450 us/s
+- Verilator: cpu 5.631 s on 1 threads; alloced 176 MB

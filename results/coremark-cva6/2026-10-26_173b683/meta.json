@@ -1,0 +1,407 @@
+{
+ "record": "results/coremark-cva6/2026-10-26_173b683",
+ "topic": "coremark-cva6",
+ "status": "historical",
+ "date": "2026-10-26",
+ "base_commit": "173b683a691b5e124e8b5848c1a53a7b9f194c74",
+ "measured_on": "upstream CVA6 at 742dc82a0c706e0a3bfb98b709fd3ee06d50d12a, outside this repository, with the CoreMark core files of third_party/coremark at 173b683 (eembc/coremark 1f483d5) and CVA6's own port files",
+ "provenance": "the comparison of 2026-10-26; every run's CoreMark output is in logs/, its exact command in meta.json",
+ "figures": [
+  {
+   "figure": "The 12 CVA6 rows of the table (cycles and CoreMark/MHz with -O2 and with CVA6's CI flags) and the CVA6 bars of docs/img/coremark-cva6.svg",
+   "value": "results.csv, rows cv32a65x-* and cv64a6-* (CoreMark's Total ticks)",
+   "quoted_in": [
+    "docs/PERFORMANCE.md:31",
+    "docs/PERFORMANCE.md:32",
+    "docs/PERFORMANCE.md:33",
+    "docs/PERFORMANCE.md:34",
+    "docs/PERFORMANCE.md:35",
+    "docs/PERFORMANCE.md:36",
+    "docs/PERFORMANCE.md:21"
+   ]
+  },
+  {
+   "figure": "Instructions of the timed window: 3,081,459 and 2,719,467 on cv32a65x (rv32im), 3,540,217 on cv64a6 (rv64im)",
+   "value": "results.csv: cv32a65x-rv32im-O2 3,081,459, cv32a65x-rv32im-ci 2,719,467, cv64a6-rv64im-O2 3,540,217 (the RVFI trace between the two reads of mcycle)",
+   "quoted_in": [
+    "docs/PERFORMANCE.md:46",
+    "docs/PERFORMANCE.md:50"
+   ]
+  },
+  {
+   "figure": "Instructions per cycle: 1.013 and 1.058 (cv32a65x), 0.745 to 0.772 (cv64a6)",
+   "value": "results.csv, column ipc",
+   "quoted_in": [
+    "docs/PERFORMANCE.md:50"
+   ]
+  },
+  {
+   "figure": "16 KiB caches: 1.5 % faster (2,994,922 cycles) and 4.5 % (2,403,579)",
+   "value": "cv32a65x-rv32im-O2 3,040,438 / cv32a65x-16k-rv32im-O2 2,994,922; cv32a65x-best-ci 2,511,386 / cv32a65x-16k-best-ci 2,403,579",
+   "quoted_in": [
+    "docs/PERFORMANCE.md:65"
+   ]
+  },
+  {
+   "figure": "C and the B extensions: 7.7 % at -O2; 56.1 % of the executed instructions 16 bits long; CoreMark's code 6,220 and 4,056 bytes; instructions per cycle 1.013 and 1.058",
+   "value": "cv32a65x-rv32im-O2 3,040,438 / cv32a65x-best-O2 2,822,829 cycles; logs/cv32a65x-best-O2.mix.txt: window instructions 2986231, compressed 56.1 %, taken control transfers 422924 (14.2 %); results.csv, column coremark_code_bytes",
+   "quoted_in": [
+    "docs/PERFORMANCE.md:67"
+   ]
+  },
+  {
+   "figure": "The CI flags: 40.2 % fewer taken branches and jumps (419,504 to 250,863), code about 2.7 times as large; cv32a65x gains 12.4 to 13.5 %, cv64a6 0.7 to 2.5 %",
+   "value": "logs/cv32a65x-rv32im-O2.mix.txt: window instructions 3081459, compressed 0.0 %, taken control transfers 419504 (13.6 %); logs/cv32a65x-rv32im-ci.mix.txt: window instructions 2719467, compressed 0.0 %, taken control transfers 250863 (9.2 %); code 6220 and 16656 bytes; the cycles of results.csv",
+   "quoted_in": [
+    "docs/PERFORMANCE.md:69"
+   ]
+  },
+  {
+   "figure": "What a miss costs in the testbench (the two rows of the memlat table) and 'about 4 to 6 cycles more than a hit'",
+   "value": "logs/memlat-cv32a65x.txt and logs/memlat-cv64a6.txt (per_load_x100, per_line_x100)",
+   "quoted_in": [
+    "docs/PERFORMANCE.md:87",
+    "docs/PERFORMANCE.md:88",
+    "docs/PERFORMANCE.md:90"
+   ]
+  },
+  {
+   "figure": "Both compilers give the same instructions (27 objects, both flag sets)",
+   "value": "logs/gcc-compare.txt: 27 of 27 identical",
+   "quoted_in": [
+    "docs/PERFORMANCE.md:95"
+   ]
+  },
+  {
+   "figure": "CVA6's own CoreMark copies: 2,510,685 cycles against 2,511,386, a change of 0.03 %",
+   "value": "cv32a65x-best-ci-shipped 2,510,685, cv32a65x-best-ci 2,511,386",
+   "quoted_in": [
+    "docs/PERFORMANCE.md:96",
+    "docs/PERFORMANCE.md:105"
+   ]
+  },
+  {
+   "figure": "Every run executes 10 iterations, 2.4 to 5.2 million cycles",
+   "value": "the shortest window cv32a65x-16k-best-ci 2,403,579 (this record), the longest c48-rv32im 5,153,890 (the HaDes-V+ record)",
+   "quoted_in": [
+    "docs/PERFORMANCE.md:8"
+   ]
+  },
+  {
+   "figure": "cv32a65x against HaDes-V+ with the 2-bit predictor: 22.9 % (rv32im, -O2), 24.5 % (CI flags), 29.0 % and 29.7 % (best instruction sets); HaDes-V+ against cv64a6: 15.5 % and 27.0 %; cv64a6 needs 14.9 % more instructions",
+   "value": "the cycles and instructions of this record and of the HaDes-V+ record (results/coremark/2026-10-26_cc48658)",
+   "quoted_in": [
+    "docs/PERFORMANCE.md:48"
+   ]
+  },
+  {
+   "figure": "CVA6 at 742dc82 of its master branch (2026-10-23), 259 commits after its release v5.3.0 of 2025-02-03, read-only since 2026-10-23",
+   "value": "the clone: git log -1 742dc82 gives 742dc82a0c706e0a3bfb98b709fd3ee06d50d12a, 2026-10-23, 'Note: master made read-only. (#3664)'; git describe --tags 742dc82 gives v5.3.0-259-g742dc82a0; v5.3.0 is 2ef1c1b1f of 2025-02-03",
+   "quoted_in": [
+    "docs/PERFORMANCE.md:6",
+    "docs/PERFORMANCE.md:94"
+   ]
+  }
+ ],
+ "commands": {
+  "cv32a65x-16k-best-ci": {
+   "run": {
+    "target": "hwconfig",
+    "march": "rv32imc_zba_zbb_zbs_zbc",
+    "mabi": "ilp32",
+    "flags": "CVA6 CI flags",
+    "sources": "CoreMark 1f483d5 (third_party/coremark)",
+    "iterations": 10
+   },
+   "commands": [
+    "python3 cva6.py --target hwconfig --hwconfig_opts=cv32a65x\\ IcacheByteSize=16384\\ DcacheByteSize=16384 --iss=veri-testharness --iss_yaml=cva6.yaml --c_tests $COREMARK/core_main.c --sv_seed 1 --gcc_opts $COREMARK/uart.c\\ $COREMARK/core_list_join.c\\ $COREMARK/core_matrix.c\\ $COREMARK/core_portme.c\\ $COREMARK/core_state.c\\ $COREMARK/core_util.c\\ ../tests/custom/common/syscalls.c\\ ../tests/custom/common/crt.S\\ -O3\\ -g\\ -fno-tree-loop-distribute-patterns\\ -static\\ -mcmodel=medany\\ -fvisibility=hidden\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -funroll-all-loops\\ -ffunction-sections\\ -fdata-sections\\ -Wl\\,-gc-sections\\ -falign-jumps=4\\ -falign-functions=16\\ -DCOMPILER_FLAGS=\\'\\\"-O3\\ -g\\ -fno-tree-loop-distribute-patterns\\ -static\\ -mcmodel=medany\\ -fvisibility=hidden\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -funroll-all-loops\\ -ffunction-sections\\ -fdata-sections\\ -Wl\\,-gc-sections\\ -falign-jumps=4\\ -falign-functions=16\\\"\\'\\ -DITERATIONS=10\\ -DPERFORMANCE_RUN\\ -DSKIP_TIME_CHECK\\ -I../tests/custom/env\\ -I../tests/custom/common\\ -DNOPRINT\\ -march=rv32imc_zba_zbb_zbs_zbc\\ -mabi=ilp32 --iss_timeout=40000 --issrun_opts=+debug_disable=1\\ +time_out=400000000 -o $OUT/cva6py --verbose"
+   ],
+   "hwconfig_opts": "cv32a65x IcacheByteSize=16384 DcacheByteSize=16384"
+  },
+  "cv32a65x-16k-rv32im-O2": {
+   "run": {
+    "target": "hwconfig",
+    "march": "rv32im",
+    "mabi": "ilp32",
+    "flags": "-O2",
+    "sources": "CoreMark 1f483d5 (third_party/coremark)",
+    "iterations": 10
+   },
+   "commands": [
+    "$RISCV_CC -c ../tests/custom/common/syscalls.c -O2 -ffunction-sections -fdata-sections -static -nostdlib -nostartfiles -lgcc -Wl,-gc-sections -fno-tree-loop-distribute-patterns -DNOPRINT -I../tests/custom/env -I../tests/custom/common -march=rv32im -mabi=ilp32 -o $OUT/syscalls.o",
+    "python3 cva6.py --target hwconfig --hwconfig_opts=cv32a65x\\ IcacheByteSize=16384\\ DcacheByteSize=16384 --iss=veri-testharness --iss_yaml=cva6.yaml --c_tests $COREMARK/core_main.c --sv_seed 1 --gcc_opts $COREMARK/uart.c\\ $COREMARK/core_list_join.c\\ $COREMARK/core_matrix.c\\ $COREMARK/core_portme.c\\ $COREMARK/core_state.c\\ $COREMARK/core_util.c\\ $OUT/syscalls.o\\ ../tests/custom/common/crt.S\\ -O2\\ -ffunction-sections\\ -fdata-sections\\ -static\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -Wl\\,-gc-sections\\ -DCOMPILER_FLAGS=\\'\\\"-O2\\ -ffunction-sections\\ -fdata-sections\\ -static\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -Wl\\,-gc-sections\\\"\\'\\ -DITERATIONS=10\\ -DPERFORMANCE_RUN\\ -DSKIP_TIME_CHECK\\ -I../tests/custom/env\\ -I../tests/custom/common\\ -DNOPRINT\\ -march=rv32im\\ -mabi=ilp32 --iss_timeout=40000 --issrun_opts=+debug_disable=1\\ +time_out=400000000 -o $OUT/cva6py --verbose"
+   ],
+   "hwconfig_opts": "cv32a65x IcacheByteSize=16384 DcacheByteSize=16384"
+  },
+  "cv32a65x-best-O2": {
+   "run": {
+    "target": "cv32a65x",
+    "march": "rv32imc_zba_zbb_zbs_zbc",
+    "mabi": "ilp32",
+    "flags": "-O2",
+    "sources": "CoreMark 1f483d5 (third_party/coremark)",
+    "iterations": 10
+   },
+   "commands": [
+    "$RISCV_CC -c ../tests/custom/common/syscalls.c -O2 -ffunction-sections -fdata-sections -static -nostdlib -nostartfiles -lgcc -Wl,-gc-sections -fno-tree-loop-distribute-patterns -DNOPRINT -I../tests/custom/env -I../tests/custom/common -march=rv32imc_zba_zbb_zbs_zbc -mabi=ilp32 -o $OUT/syscalls.o",
+    "python3 cva6.py --target cv32a65x --iss=veri-testharness --iss_yaml=cva6.yaml --c_tests $COREMARK/core_main.c --sv_seed 1 --gcc_opts $COREMARK/uart.c\\ $COREMARK/core_list_join.c\\ $COREMARK/core_matrix.c\\ $COREMARK/core_portme.c\\ $COREMARK/core_state.c\\ $COREMARK/core_util.c\\ $OUT/syscalls.o\\ ../tests/custom/common/crt.S\\ -O2\\ -ffunction-sections\\ -fdata-sections\\ -static\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -Wl\\,-gc-sections\\ -DCOMPILER_FLAGS=\\'\\\"-O2\\ -ffunction-sections\\ -fdata-sections\\ -static\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -Wl\\,-gc-sections\\\"\\'\\ -DITERATIONS=10\\ -DPERFORMANCE_RUN\\ -DSKIP_TIME_CHECK\\ -I../tests/custom/env\\ -I../tests/custom/common\\ -DNOPRINT\\ -march=rv32imc_zba_zbb_zbs_zbc\\ -mabi=ilp32 --iss_timeout=40000 --issrun_opts=+debug_disable=1\\ +time_out=400000000 -o $OUT/cva6py --verbose"
+   ],
+   "hwconfig_opts": null
+  },
+  "cv32a65x-best-ci": {
+   "run": {
+    "target": "cv32a65x",
+    "march": "rv32imc_zba_zbb_zbs_zbc",
+    "mabi": "ilp32",
+    "flags": "CVA6 CI flags",
+    "sources": "CoreMark 1f483d5 (third_party/coremark)",
+    "iterations": 10
+   },
+   "commands": [
+    "python3 cva6.py --target cv32a65x --iss=veri-testharness --iss_yaml=cva6.yaml --c_tests $COREMARK/core_main.c --sv_seed 1 --gcc_opts $COREMARK/uart.c\\ $COREMARK/core_list_join.c\\ $COREMARK/core_matrix.c\\ $COREMARK/core_portme.c\\ $COREMARK/core_state.c\\ $COREMARK/core_util.c\\ ../tests/custom/common/syscalls.c\\ ../tests/custom/common/crt.S\\ -O3\\ -g\\ -fno-tree-loop-distribute-patterns\\ -static\\ -mcmodel=medany\\ -fvisibility=hidden\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -funroll-all-loops\\ -ffunction-sections\\ -fdata-sections\\ -Wl\\,-gc-sections\\ -falign-jumps=4\\ -falign-functions=16\\ -DCOMPILER_FLAGS=\\'\\\"-O3\\ -g\\ -fno-tree-loop-distribute-patterns\\ -static\\ -mcmodel=medany\\ -fvisibility=hidden\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -funroll-all-loops\\ -ffunction-sections\\ -fdata-sections\\ -Wl\\,-gc-sections\\ -falign-jumps=4\\ -falign-functions=16\\\"\\'\\ -DITERATIONS=10\\ -DPERFORMANCE_RUN\\ -DSKIP_TIME_CHECK\\ -I../tests/custom/env\\ -I../tests/custom/common\\ -DNOPRINT\\ -march=rv32imc_zba_zbb_zbs_zbc\\ -mabi=ilp32 --iss_timeout=40000 --issrun_opts=+debug_disable=1\\ +time_out=400000000 -o $OUT/cva6py --verbose"
+   ],
+   "hwconfig_opts": null
+  },
+  "cv32a65x-best-ci-shipped": {
+   "run": {
+    "target": "cv32a65x",
+    "march": "rv32imc_zba_zbb_zbs_zbc",
+    "mabi": "ilp32",
+    "flags": "CVA6 CI flags",
+    "sources": "CVA6's copies",
+    "iterations": 10
+   },
+   "commands": [
+    "python3 cva6.py --target cv32a65x --iss=veri-testharness --iss_yaml=cva6.yaml --c_tests ../tests/custom/coremark/coremark_main.c --sv_seed 1 --gcc_opts ../tests/custom/coremark/uart.c\\ ../tests/custom/coremark/core_list_join.c\\ ../tests/custom/coremark/core_matrix.c\\ ../tests/custom/coremark/core_portme.c\\ ../tests/custom/coremark/core_state.c\\ ../tests/custom/coremark/core_util.c\\ ../tests/custom/common/syscalls.c\\ ../tests/custom/common/crt.S\\ -O3\\ -g\\ -fno-tree-loop-distribute-patterns\\ -static\\ -mcmodel=medany\\ -fvisibility=hidden\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -funroll-all-loops\\ -ffunction-sections\\ -fdata-sections\\ -Wl\\,-gc-sections\\ -falign-jumps=4\\ -falign-functions=16\\ -DCOMPILER_FLAGS=\\'\\\"-O3\\ -g\\ -fno-tree-loop-distribute-patterns\\ -static\\ -mcmodel=medany\\ -fvisibility=hidden\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -funroll-all-loops\\ -ffunction-sections\\ -fdata-sections\\ -Wl\\,-gc-sections\\ -falign-jumps=4\\ -falign-functions=16\\\"\\'\\ -DITERATIONS=10\\ -DPERFORMANCE_RUN\\ -DSKIP_TIME_CHECK\\ -I../tests/custom/env\\ -I../tests/custom/common\\ -DNOPRINT\\ -march=rv32imc_zba_zbb_zbs_zbc\\ -mabi=ilp32 --iss_timeout=40000 --issrun_opts=+debug_disable=1\\ +time_out=400000000 -o $OUT/cva6py --verbose"
+   ],
+   "hwconfig_opts": null
+  },
+  "cv32a65x-rv32im-O2": {
+   "run": {
+    "target": "cv32a65x",
+    "march": "rv32im",
+    "mabi": "ilp32",
+    "flags": "-O2",
+    "sources": "CoreMark 1f483d5 (third_party/coremark)",
+    "iterations": 10
+   },
+   "commands": [
+    "$RISCV_CC -c ../tests/custom/common/syscalls.c -O2 -ffunction-sections -fdata-sections -static -nostdlib -nostartfiles -lgcc -Wl,-gc-sections -fno-tree-loop-distribute-patterns -DNOPRINT -I../tests/custom/env -I../tests/custom/common -march=rv32im -mabi=ilp32 -o $OUT/syscalls.o",
+    "python3 cva6.py --target cv32a65x --iss=veri-testharness --iss_yaml=cva6.yaml --c_tests $COREMARK/core_main.c --sv_seed 1 --gcc_opts $COREMARK/uart.c\\ $COREMARK/core_list_join.c\\ $COREMARK/core_matrix.c\\ $COREMARK/core_portme.c\\ $COREMARK/core_state.c\\ $COREMARK/core_util.c\\ $OUT/syscalls.o\\ ../tests/custom/common/crt.S\\ -O2\\ -ffunction-sections\\ -fdata-sections\\ -static\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -Wl\\,-gc-sections\\ -DCOMPILER_FLAGS=\\'\\\"-O2\\ -ffunction-sections\\ -fdata-sections\\ -static\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -Wl\\,-gc-sections\\\"\\'\\ -DITERATIONS=10\\ -DPERFORMANCE_RUN\\ -DSKIP_TIME_CHECK\\ -I../tests/custom/env\\ -I../tests/custom/common\\ -DNOPRINT\\ -march=rv32im\\ -mabi=ilp32 --iss_timeout=40000 --issrun_opts=+debug_disable=1\\ +time_out=400000000 -o $OUT/cva6py --verbose"
+   ],
+   "hwconfig_opts": null
+  },
+  "cv32a65x-rv32im-ci": {
+   "run": {
+    "target": "cv32a65x",
+    "march": "rv32im",
+    "mabi": "ilp32",
+    "flags": "CVA6 CI flags",
+    "sources": "CoreMark 1f483d5 (third_party/coremark)",
+    "iterations": 10
+   },
+   "commands": [
+    "python3 cva6.py --target cv32a65x --iss=veri-testharness --iss_yaml=cva6.yaml --c_tests $COREMARK/core_main.c --sv_seed 1 --gcc_opts $COREMARK/uart.c\\ $COREMARK/core_list_join.c\\ $COREMARK/core_matrix.c\\ $COREMARK/core_portme.c\\ $COREMARK/core_state.c\\ $COREMARK/core_util.c\\ ../tests/custom/common/syscalls.c\\ ../tests/custom/common/crt.S\\ -O3\\ -g\\ -fno-tree-loop-distribute-patterns\\ -static\\ -mcmodel=medany\\ -fvisibility=hidden\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -funroll-all-loops\\ -ffunction-sections\\ -fdata-sections\\ -Wl\\,-gc-sections\\ -falign-jumps=4\\ -falign-functions=16\\ -DCOMPILER_FLAGS=\\'\\\"-O3\\ -g\\ -fno-tree-loop-distribute-patterns\\ -static\\ -mcmodel=medany\\ -fvisibility=hidden\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -funroll-all-loops\\ -ffunction-sections\\ -fdata-sections\\ -Wl\\,-gc-sections\\ -falign-jumps=4\\ -falign-functions=16\\\"\\'\\ -DITERATIONS=10\\ -DPERFORMANCE_RUN\\ -DSKIP_TIME_CHECK\\ -I../tests/custom/env\\ -I../tests/custom/common\\ -DNOPRINT\\ -march=rv32im\\ -mabi=ilp32 --iss_timeout=40000 --issrun_opts=+debug_disable=1\\ +time_out=400000000 -o $OUT/cva6py --verbose"
+   ],
+   "hwconfig_opts": null
+  },
+  "cv64a6-best-O2": {
+   "run": {
+    "target": "cv64a6_imafdc_sv39",
+    "march": "rv64gc_zba_zbb_zbs_zbc_zbkb_zbkx_zkne_zknd_zknh",
+    "mabi": "lp64d",
+    "flags": "-O2",
+    "sources": "CoreMark 1f483d5 (third_party/coremark)",
+    "iterations": 10
+   },
+   "commands": [
+    "$RISCV_CC -c ../tests/custom/common/syscalls.c -O2 -ffunction-sections -fdata-sections -static -nostdlib -nostartfiles -lgcc -Wl,-gc-sections -mcmodel=medany -fno-tree-loop-distribute-patterns -DNOPRINT -I../tests/custom/env -I../tests/custom/common -march=rv64gc_zba_zbb_zbs_zbc_zbkb_zbkx_zkne_zknd_zknh -mabi=lp64d -o $OUT/syscalls.o",
+    "python3 cva6.py --target cv64a6_imafdc_sv39 --iss=veri-testharness --iss_yaml=cva6.yaml --c_tests $COREMARK/core_main.c --sv_seed 1 --gcc_opts $COREMARK/uart.c\\ $COREMARK/core_list_join.c\\ $COREMARK/core_matrix.c\\ $COREMARK/core_portme.c\\ $COREMARK/core_state.c\\ $COREMARK/core_util.c\\ $OUT/syscalls.o\\ ../tests/custom/common/crt.S\\ -O2\\ -ffunction-sections\\ -fdata-sections\\ -static\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -Wl\\,-gc-sections\\ -mcmodel=medany\\ -DCOMPILER_FLAGS=\\'\\\"-O2\\ -ffunction-sections\\ -fdata-sections\\ -static\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -Wl\\,-gc-sections\\ -mcmodel=medany\\\"\\'\\ -DITERATIONS=10\\ -DPERFORMANCE_RUN\\ -DSKIP_TIME_CHECK\\ -I../tests/custom/env\\ -I../tests/custom/common\\ -DNOPRINT\\ -march=rv64gc_zba_zbb_zbs_zbc_zbkb_zbkx_zkne_zknd_zknh\\ -mabi=lp64d --iss_timeout=40000 --issrun_opts=+debug_disable=1\\ +time_out=400000000 -o $OUT/cva6py --verbose"
+   ],
+   "hwconfig_opts": null
+  },
+  "cv64a6-best-ci": {
+   "run": {
+    "target": "cv64a6_imafdc_sv39",
+    "march": "rv64gc_zba_zbb_zbs_zbc_zbkb_zbkx_zkne_zknd_zknh",
+    "mabi": "lp64d",
+    "flags": "CVA6 CI flags",
+    "sources": "CoreMark 1f483d5 (third_party/coremark)",
+    "iterations": 10
+   },
+   "commands": [
+    "python3 cva6.py --target cv64a6_imafdc_sv39 --iss=veri-testharness --iss_yaml=cva6.yaml --c_tests $COREMARK/core_main.c --sv_seed 1 --gcc_opts $COREMARK/uart.c\\ $COREMARK/core_list_join.c\\ $COREMARK/core_matrix.c\\ $COREMARK/core_portme.c\\ $COREMARK/core_state.c\\ $COREMARK/core_util.c\\ ../tests/custom/common/syscalls.c\\ ../tests/custom/common/crt.S\\ -O3\\ -g\\ -fno-tree-loop-distribute-patterns\\ -static\\ -mcmodel=medany\\ -fvisibility=hidden\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -funroll-all-loops\\ -ffunction-sections\\ -fdata-sections\\ -Wl\\,-gc-sections\\ -falign-jumps=4\\ -falign-functions=16\\ -DCOMPILER_FLAGS=\\'\\\"-O3\\ -g\\ -fno-tree-loop-distribute-patterns\\ -static\\ -mcmodel=medany\\ -fvisibility=hidden\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -funroll-all-loops\\ -ffunction-sections\\ -fdata-sections\\ -Wl\\,-gc-sections\\ -falign-jumps=4\\ -falign-functions=16\\\"\\'\\ -DITERATIONS=10\\ -DPERFORMANCE_RUN\\ -DSKIP_TIME_CHECK\\ -I../tests/custom/env\\ -I../tests/custom/common\\ -DNOPRINT\\ -march=rv64gc_zba_zbb_zbs_zbc_zbkb_zbkx_zkne_zknd_zknh\\ -mabi=lp64d --iss_timeout=40000 --issrun_opts=+debug_disable=1\\ +time_out=400000000 -o $OUT/cva6py --verbose"
+   ],
+   "hwconfig_opts": null
+  },
+  "cv64a6-rv64gc-O2": {
+   "run": {
+    "target": "cv64a6_imafdc_sv39",
+    "march": "rv64gc",
+    "mabi": "lp64d",
+    "flags": "-O2",
+    "sources": "CoreMark 1f483d5 (third_party/coremark)",
+    "iterations": 10
+   },
+   "commands": [
+    "$RISCV_CC -c ../tests/custom/common/syscalls.c -O2 -ffunction-sections -fdata-sections -static -nostdlib -nostartfiles -lgcc -Wl,-gc-sections -mcmodel=medany -fno-tree-loop-distribute-patterns -DNOPRINT -I../tests/custom/env -I../tests/custom/common -march=rv64gc -mabi=lp64d -o $OUT/syscalls.o",
+    "python3 cva6.py --target cv64a6_imafdc_sv39 --iss=veri-testharness --iss_yaml=cva6.yaml --c_tests $COREMARK/core_main.c --sv_seed 1 --gcc_opts $COREMARK/uart.c\\ $COREMARK/core_list_join.c\\ $COREMARK/core_matrix.c\\ $COREMARK/core_portme.c\\ $COREMARK/core_state.c\\ $COREMARK/core_util.c\\ $OUT/syscalls.o\\ ../tests/custom/common/crt.S\\ -O2\\ -ffunction-sections\\ -fdata-sections\\ -static\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -Wl\\,-gc-sections\\ -mcmodel=medany\\ -DCOMPILER_FLAGS=\\'\\\"-O2\\ -ffunction-sections\\ -fdata-sections\\ -static\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -Wl\\,-gc-sections\\ -mcmodel=medany\\\"\\'\\ -DITERATIONS=10\\ -DPERFORMANCE_RUN\\ -DSKIP_TIME_CHECK\\ -I../tests/custom/env\\ -I../tests/custom/common\\ -DNOPRINT\\ -march=rv64gc\\ -mabi=lp64d --iss_timeout=40000 --issrun_opts=+debug_disable=1\\ +time_out=400000000 -o $OUT/cva6py --verbose"
+   ],
+   "hwconfig_opts": null
+  },
+  "cv64a6-rv64gc-ci": {
+   "run": {
+    "target": "cv64a6_imafdc_sv39",
+    "march": "rv64gc",
+    "mabi": "lp64d",
+    "flags": "CVA6 CI flags",
+    "sources": "CoreMark 1f483d5 (third_party/coremark)",
+    "iterations": 10
+   },
+   "commands": [
+    "python3 cva6.py --target cv64a6_imafdc_sv39 --iss=veri-testharness --iss_yaml=cva6.yaml --c_tests $COREMARK/core_main.c --sv_seed 1 --gcc_opts $COREMARK/uart.c\\ $COREMARK/core_list_join.c\\ $COREMARK/core_matrix.c\\ $COREMARK/core_portme.c\\ $COREMARK/core_state.c\\ $COREMARK/core_util.c\\ ../tests/custom/common/syscalls.c\\ ../tests/custom/common/crt.S\\ -O3\\ -g\\ -fno-tree-loop-distribute-patterns\\ -static\\ -mcmodel=medany\\ -fvisibility=hidden\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -funroll-all-loops\\ -ffunction-sections\\ -fdata-sections\\ -Wl\\,-gc-sections\\ -falign-jumps=4\\ -falign-functions=16\\ -DCOMPILER_FLAGS=\\'\\\"-O3\\ -g\\ -fno-tree-loop-distribute-patterns\\ -static\\ -mcmodel=medany\\ -fvisibility=hidden\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -funroll-all-loops\\ -ffunction-sections\\ -fdata-sections\\ -Wl\\,-gc-sections\\ -falign-jumps=4\\ -falign-functions=16\\\"\\'\\ -DITERATIONS=10\\ -DPERFORMANCE_RUN\\ -DSKIP_TIME_CHECK\\ -I../tests/custom/env\\ -I../tests/custom/common\\ -DNOPRINT\\ -march=rv64gc\\ -mabi=lp64d --iss_timeout=40000 --issrun_opts=+debug_disable=1\\ +time_out=400000000 -o $OUT/cva6py --verbose"
+   ],
+   "hwconfig_opts": null
+  },
+  "cv64a6-rv64im-O2": {
+   "run": {
+    "target": "cv64a6_imafdc_sv39",
+    "march": "rv64im_zicsr_zifencei",
+    "mabi": "lp64",
+    "flags": "-O2",
+    "sources": "CoreMark 1f483d5 (third_party/coremark)",
+    "iterations": 10
+   },
+   "commands": [
+    "$RISCV_CC -c ../tests/custom/common/syscalls.c -O2 -ffunction-sections -fdata-sections -static -nostdlib -nostartfiles -lgcc -Wl,-gc-sections -mcmodel=medany -fno-tree-loop-distribute-patterns -DNOPRINT -I../tests/custom/env -I../tests/custom/common -march=rv64im_zicsr_zifencei -mabi=lp64 -o $OUT/syscalls.o",
+    "python3 cva6.py --target cv64a6_imafdc_sv39 --iss=veri-testharness --iss_yaml=cva6.yaml --c_tests $COREMARK/core_main.c --sv_seed 1 --gcc_opts $COREMARK/uart.c\\ $COREMARK/core_list_join.c\\ $COREMARK/core_matrix.c\\ $COREMARK/core_portme.c\\ $COREMARK/core_state.c\\ $COREMARK/core_util.c\\ $OUT/syscalls.o\\ ../tests/custom/common/crt.S\\ -O2\\ -ffunction-sections\\ -fdata-sections\\ -static\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -Wl\\,-gc-sections\\ -mcmodel=medany\\ -DCOMPILER_FLAGS=\\'\\\"-O2\\ -ffunction-sections\\ -fdata-sections\\ -static\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -Wl\\,-gc-sections\\ -mcmodel=medany\\\"\\'\\ -DITERATIONS=10\\ -DPERFORMANCE_RUN\\ -DSKIP_TIME_CHECK\\ -I../tests/custom/env\\ -I../tests/custom/common\\ -DNOPRINT\\ -march=rv64im_zicsr_zifencei\\ -mabi=lp64 --iss_timeout=40000 --issrun_opts=+debug_disable=1\\ +time_out=400000000 -o $OUT/cva6py --verbose"
+   ],
+   "hwconfig_opts": null
+  },
+  "cv64a6-rv64im-ci": {
+   "run": {
+    "target": "cv64a6_imafdc_sv39",
+    "march": "rv64im_zicsr_zifencei",
+    "mabi": "lp64",
+    "flags": "CVA6 CI flags",
+    "sources": "CoreMark 1f483d5 (third_party/coremark)",
+    "iterations": 10
+   },
+   "commands": [
+    "python3 cva6.py --target cv64a6_imafdc_sv39 --iss=veri-testharness --iss_yaml=cva6.yaml --c_tests $COREMARK/core_main.c --sv_seed 1 --gcc_opts $COREMARK/uart.c\\ $COREMARK/core_list_join.c\\ $COREMARK/core_matrix.c\\ $COREMARK/core_portme.c\\ $COREMARK/core_state.c\\ $COREMARK/core_util.c\\ ../tests/custom/common/syscalls.c\\ ../tests/custom/common/crt.S\\ -O3\\ -g\\ -fno-tree-loop-distribute-patterns\\ -static\\ -mcmodel=medany\\ -fvisibility=hidden\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -funroll-all-loops\\ -ffunction-sections\\ -fdata-sections\\ -Wl\\,-gc-sections\\ -falign-jumps=4\\ -falign-functions=16\\ -DCOMPILER_FLAGS=\\'\\\"-O3\\ -g\\ -fno-tree-loop-distribute-patterns\\ -static\\ -mcmodel=medany\\ -fvisibility=hidden\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -funroll-all-loops\\ -ffunction-sections\\ -fdata-sections\\ -Wl\\,-gc-sections\\ -falign-jumps=4\\ -falign-functions=16\\\"\\'\\ -DITERATIONS=10\\ -DPERFORMANCE_RUN\\ -DSKIP_TIME_CHECK\\ -I../tests/custom/env\\ -I../tests/custom/common\\ -DNOPRINT\\ -march=rv64im_zicsr_zifencei\\ -mabi=lp64 --iss_timeout=40000 --issrun_opts=+debug_disable=1\\ +time_out=400000000 -o $OUT/cva6py --verbose"
+   ],
+   "hwconfig_opts": null
+  },
+  "cv64a6-rv64imac-O2": {
+   "run": {
+    "target": "cv64a6_imafdc_sv39",
+    "march": "rv64imac_zicsr_zifencei",
+    "mabi": "lp64",
+    "flags": "-O2",
+    "sources": "CoreMark 1f483d5 (third_party/coremark)",
+    "iterations": 10
+   },
+   "commands": [
+    "$RISCV_CC -c ../tests/custom/common/syscalls.c -O2 -ffunction-sections -fdata-sections -static -nostdlib -nostartfiles -lgcc -Wl,-gc-sections -mcmodel=medany -fno-tree-loop-distribute-patterns -DNOPRINT -I../tests/custom/env -I../tests/custom/common -march=rv64imac_zicsr_zifencei -mabi=lp64 -o $OUT/syscalls.o",
+    "python3 cva6.py --target cv64a6_imafdc_sv39 --iss=veri-testharness --iss_yaml=cva6.yaml --c_tests $COREMARK/core_main.c --sv_seed 1 --gcc_opts $COREMARK/uart.c\\ $COREMARK/core_list_join.c\\ $COREMARK/core_matrix.c\\ $COREMARK/core_portme.c\\ $COREMARK/core_state.c\\ $COREMARK/core_util.c\\ $OUT/syscalls.o\\ ../tests/custom/common/crt.S\\ -O2\\ -ffunction-sections\\ -fdata-sections\\ -static\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -Wl\\,-gc-sections\\ -mcmodel=medany\\ -DCOMPILER_FLAGS=\\'\\\"-O2\\ -ffunction-sections\\ -fdata-sections\\ -static\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -Wl\\,-gc-sections\\ -mcmodel=medany\\\"\\'\\ -DITERATIONS=10\\ -DPERFORMANCE_RUN\\ -DSKIP_TIME_CHECK\\ -I../tests/custom/env\\ -I../tests/custom/common\\ -DNOPRINT\\ -march=rv64imac_zicsr_zifencei\\ -mabi=lp64 --iss_timeout=40000 --issrun_opts=+debug_disable=1\\ +time_out=400000000 -o $OUT/cva6py --verbose"
+   ],
+   "hwconfig_opts": null
+  },
+  "cv64a6-rv64imac-ci": {
+   "run": {
+    "target": "cv64a6_imafdc_sv39",
+    "march": "rv64imac_zicsr_zifencei",
+    "mabi": "lp64",
+    "flags": "CVA6 CI flags",
+    "sources": "CoreMark 1f483d5 (third_party/coremark)",
+    "iterations": 10
+   },
+   "commands": [
+    "python3 cva6.py --target cv64a6_imafdc_sv39 --iss=veri-testharness --iss_yaml=cva6.yaml --c_tests $COREMARK/core_main.c --sv_seed 1 --gcc_opts $COREMARK/uart.c\\ $COREMARK/core_list_join.c\\ $COREMARK/core_matrix.c\\ $COREMARK/core_portme.c\\ $COREMARK/core_state.c\\ $COREMARK/core_util.c\\ ../tests/custom/common/syscalls.c\\ ../tests/custom/common/crt.S\\ -O3\\ -g\\ -fno-tree-loop-distribute-patterns\\ -static\\ -mcmodel=medany\\ -fvisibility=hidden\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -funroll-all-loops\\ -ffunction-sections\\ -fdata-sections\\ -Wl\\,-gc-sections\\ -falign-jumps=4\\ -falign-functions=16\\ -DCOMPILER_FLAGS=\\'\\\"-O3\\ -g\\ -fno-tree-loop-distribute-patterns\\ -static\\ -mcmodel=medany\\ -fvisibility=hidden\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -funroll-all-loops\\ -ffunction-sections\\ -fdata-sections\\ -Wl\\,-gc-sections\\ -falign-jumps=4\\ -falign-functions=16\\\"\\'\\ -DITERATIONS=10\\ -DPERFORMANCE_RUN\\ -DSKIP_TIME_CHECK\\ -I../tests/custom/env\\ -I../tests/custom/common\\ -DNOPRINT\\ -march=rv64imac_zicsr_zifencei\\ -mabi=lp64 --iss_timeout=40000 --issrun_opts=+debug_disable=1\\ +time_out=400000000 -o $OUT/cva6py --verbose"
+   ],
+   "hwconfig_opts": null
+  },
+  "memlat-cv32a65x": {
+   "run": {
+    "target": "cv32a65x",
+    "march": "rv32im",
+    "mabi": "ilp32",
+    "flags": "-O2",
+    "sources": "memlat.c",
+    "iterations": 10
+   },
+   "commands": [
+    "python3 cva6.py --target cv32a65x --iss=veri-testharness --iss_yaml=cva6.yaml --c_tests $MEMLAT/memlat.c --sv_seed 1 --gcc_opts ../tests/custom/coremark/uart.c\\ ../tests/custom/common/syscalls.c\\ ../tests/custom/common/crt.S\\ -I../tests/custom/coremark\\ -O2\\ -ffunction-sections\\ -fdata-sections\\ -static\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -Wl\\,-gc-sections\\ -DCOMPILER_FLAGS=\\'\\\"-O2\\ -ffunction-sections\\ -fdata-sections\\ -static\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -Wl\\,-gc-sections\\\"\\'\\ -DITERATIONS=10\\ -DPERFORMANCE_RUN\\ -DSKIP_TIME_CHECK\\ -I../tests/custom/env\\ -I../tests/custom/common\\ -DNOPRINT\\ -march=rv32im\\ -mabi=ilp32 --iss_timeout=40000 --issrun_opts=+debug_disable=1\\ +time_out=400000000 -o $OUT/cva6py --verbose"
+   ],
+   "hwconfig_opts": null
+  },
+  "memlat-cv64a6": {
+   "run": {
+    "target": "cv64a6_imafdc_sv39",
+    "march": "rv64im_zicsr_zifencei",
+    "mabi": "lp64",
+    "flags": "-O2",
+    "sources": "memlat.c",
+    "iterations": 10
+   },
+   "commands": [
+    "$RISCV_CC -c ../tests/custom/common/syscalls.c -O2 -ffunction-sections -fdata-sections -static -nostdlib -nostartfiles -lgcc -Wl,-gc-sections -mcmodel=medany -fno-tree-loop-distribute-patterns -DNOPRINT -I../tests/custom/env -I../tests/custom/common -march=rv64im_zicsr_zifencei -mabi=lp64 -o $OUT/syscalls.o",
+    "python3 cva6.py --target cv64a6_imafdc_sv39 --iss=veri-testharness --iss_yaml=cva6.yaml --c_tests $MEMLAT/memlat.c --sv_seed 1 --gcc_opts ../tests/custom/coremark/uart.c\\ $OUT/syscalls.o\\ ../tests/custom/common/crt.S\\ -I../tests/custom/coremark\\ -O2\\ -ffunction-sections\\ -fdata-sections\\ -static\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -Wl\\,-gc-sections\\ -mcmodel=medany\\ -DCOMPILER_FLAGS=\\'\\\"-O2\\ -ffunction-sections\\ -fdata-sections\\ -static\\ -nostdlib\\ -nostartfiles\\ -lgcc\\ -Wl\\,-gc-sections\\ -mcmodel=medany\\\"\\'\\ -DITERATIONS=10\\ -DPERFORMANCE_RUN\\ -DSKIP_TIME_CHECK\\ -I../tests/custom/env\\ -I../tests/custom/common\\ -DNOPRINT\\ -march=rv64im_zicsr_zifencei\\ -mabi=lp64 --iss_timeout=40000 --issrun_opts=+debug_disable=1\\ +time_out=400000000 -o $OUT/cva6py --verbose"
+   ],
+   "hwconfig_opts": null
+  }
+ },
+ "inputs": {
+  "cva6": {
+   "repository": "https://github.com/openhwgroup/cva6",
+   "commit": "742dc82a0c706e0a3bfb98b709fd3ee06d50d12a",
+   "describe": "v5.3.0-259-g742dc82a0",
+   "submodules": {
+    "core/cache_subsystem/hpdcache": "e8f072e1",
+    "core/cvfpu": "3eb6afea",
+    "verif/core-v-verif": "b3149ab0",
+    "verif/sim/dv": "7e54b678"
+   },
+   "port_files_git_blob": {
+    "verif/tests/custom/coremark/core_portme.c": "844be020b111918123b091f3165cbeec79fb3f0a",
+    "verif/tests/custom/coremark/core_portme.h": "0e08dbcf1533bcaeb5a12282845cc6948351d3b2",
+    "verif/tests/custom/coremark/uart.c": "b6ab19b7b3544655ef577dec7cc8a7a7f58bf3d7",
+    "verif/tests/custom/coremark/uart.h": "03045ec20b9fc3e76e17ccf0b898ba62228f6776",
+    "verif/tests/custom/common/syscalls.c": "045f35c4d1b77ccda9b94527c1051694d12ea88d",
+    "verif/tests/custom/common/crt.S": "d808114d2130e5692cb01827fa84b1d5a832c096"
+   }
+  },
+  "coremark": "third_party/coremark at 173b683: the six core files, sha256 as in its MANIFEST",
+  "memlat.c": {
+   "sha256_as_run": "b83e114ff3c66c9e1debf169f7db0eb1ebfd8db4db92a32001ca668bd60debaa",
+   "sha256_as_committed": "31e9feb6df21fab0e1dcfb6f88b70d60f5e9a6574f8b845d700e0629bad5567d",
+   "note": "only its first comment line differs: an SPDX line and the wording of the description"
+  }
+ },
+ "host": {
+  "cpu": "Intel Core Ultra 7 165H",
+  "threads": 22,
+  "os": "Linux (Ubuntu 24.04)"
+ },
+ "tools": {
+  "verilator": "Verilator 5.008 2023-03-04 rev v5.008 (mod): v5.008 with CVA6's verif/regress/verilator-v5.patch",
+  "spike": "1.1.1-dev, the riscv-isa-sim of verif/core-v-verif at b3149ab0",
+  "gcc_rv32": "riscv32-unknown-elf-gcc 12.2.0, GNU Binutils 2.39",
+  "gcc_rv64": "xPack GNU RISC-V Embedded GCC 12.2.0-3 (riscv-none-elf-gcc 12.2.0, binutils 2.38), archive sha256 0bb5f0c6a36f5197888fcd176e3734ec5b74167b5a631883f72ae3cbd47a97c3",
+  "python": "Python 3.12.3"
+ },
+ "environment": {
+  "RISCV_CC": "riscv32-unknown-elf-gcc for cv32a65x; for cv64a6 a wrapper that answers --version for cva6.py and passes everything else to riscv-none-elf-gcc",
+  "VERILATOR_INSTALL_DIR": "the Verilator 5.008 above",
+  "SPIKE_INSTALL_DIR": "the Spike above",
+  "NUM_JOBS": "2",
+  "cwd": "verif/sim of the CVA6 clone, after source setup-env.sh"
+ },
+ "caveats": [
+  "CoreMark/MHz is iterations x 10^6 / cycles of CoreMark's timed window: an estimate, not a CoreMark score.",
+  "The instructions of the window are counted in the testbench's RVFI trace between the two reads of mcycle in setStats(), because CVA6's CI build (NOPRINT) does not print its counters.",
+  "The testbench memory is nearly ideal (logs/memlat-*.txt); a DRAM or a slower interconnect would cost more.",
+  "GCC 12.2 emits neither Zcb nor Zicond; the best instruction sets of the runs leave them out.",
+  "Runs at -O2 compile CVA6's syscalls.c with -fno-tree-loop-distribute-patterns: without it GCC turns its memset loop into a call of memset itself."
+ ]
+}

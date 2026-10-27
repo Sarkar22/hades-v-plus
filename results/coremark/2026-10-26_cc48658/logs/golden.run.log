@@ -1,0 +1,28 @@
+[0;31m
+REFERENCE IMPLEMENTATION OF "cpu.sv" USED!
+[0m
+2K performance run parameters for coremark.
+CoreMark Size    : 666
+Total ticks      : 10702662
+Total time (secs): 0
+ERROR! Must execute for at least 10 secs for a valid result!
+Iterations       : 10
+Compiler version : GCC12.2.0
+Compiler flags   : -O2 -march=rv32i -mabi=ilp32
+Memory location  : Static data in RAM (.bss)
+seedcrc          : 0xe9f5
+[0]crclist       : 0xe714
+[0]crcmatrix     : 0x1fd7
+[0]crcstate      : 0x8e3a
+[0]crcfinal      : 0xfcaf
+Errors detected
+HADES port: iterations=10 cycles=10702662 clock_hz=50000000
+HADES instret: n/a
+HADES note: simulation, not a CoreMark score. The 10 s rule is not met (the ERROR and Errors detected lines above say so); CoreMark/MHz is an estimate: iterations * 1000000 / cycles.
+- sim/top.sv:131: Verilog $finish
+[0;33m
+Inital test failed! (# Errors: 0)
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!! TEST DONE !!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[0m

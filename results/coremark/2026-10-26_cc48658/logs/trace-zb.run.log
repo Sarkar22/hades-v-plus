@@ -1,0 +1,28 @@
+2K performance run parameters for coremark.
+CoreMark Size    : 666
+Total ticks      : 4131302
+Total time (secs): 0
+ERROR! Must execute for at least 10 secs for a valid result!
+Iterations       : 10
+Compiler version : GCC12.2.0
+Compiler flags   : -O2 -march=rv32im_zba_zbb_zbs -mabi=ilp32
+Memory location  : Static data in RAM (.bss)
+seedcrc          : 0xe9f5
+[0]crclist       : 0xe714
+[0]crcmatrix     : 0x1fd7
+[0]crcstate      : 0x8e3a
+[0]crcfinal      : 0xfcaf
+Errors detected
+HADES port: iterations=10 cycles=4131302 clock_hz=50000000
+HADES instret: window=2986224 start=12026 stop=2998250
+HADES note: simulation, not a CoreMark score. The 10 s rule is not met (the ERROR and Errors detected lines above say so); CoreMark/MHz is an estimate: iterations * 1000000 / cycles.
+- sim/top.sv:131: Verilog $finish
+[0;33m
+Inital test failed! (# Errors: 0)
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!! TEST DONE !!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[0m
+- S i m u l a t i o n   R e p o r t: Verilator 5.042 2025-11-02
+- Verilator: $finish at 86us; walltime 5.952 s; speed 14.381 us/s
+- Verilator: cpu 5.948 s on 1 threads; alloced 175 MB

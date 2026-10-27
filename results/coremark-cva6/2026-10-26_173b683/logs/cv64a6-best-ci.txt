@@ -1,0 +1,18 @@
+<program>: core_main.o *** SUCCESS *** (tohost = 0) after 4176983 cycles
+2K performance run parameters for coremark.
+CoreMark Size    : 666
+Total ticks      : 4138860
+Total time (secs): 4
+Iterations/Sec   : 2
+ERROR! Must execute for at least 10 secs for a valid result!
+Iterations       : 10
+Compiler version : GCC12.2.0
+Compiler flags   : -O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-sections -falign-jumps=4 -falign-functions=16
+Memory location  :
+seedcrc          : 0xe9f5
+[0]crclist       : 0xe714
+[0]crcmatrix     : 0x1fd7
+[0]crcstate      : 0x8e3a
+[0]crcfinal      : 0xfcaf
+Errors detected
+*** [rvfi_tracer] INFO: Simulation terminated after    4176971 cycles!

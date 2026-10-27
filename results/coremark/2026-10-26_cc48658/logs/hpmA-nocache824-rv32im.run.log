@@ -1,0 +1,43 @@
+SCOREBOARD on: every answer from the RAM, addresses 0x00040000-0x00047fff, is checked
+SLOW MEMORY fetch port: read latency 8..24, write latency 8..24, burst beats off, seed 1
+SLOW MEMORY data  port: read latency 8..24, write latency 8..24, burst beats off, seed 1
+2K performance run parameters for coremark.
+CoreMark Size    : 666
+Total ticks      : 54181122
+Total time (secs): 1
+Iterations/Sec   : 10
+ERROR! Must execute for at least 10 secs for a valid result!
+Iterations       : 10
+Compiler version : GCC12.2.0
+Compiler flags   : -O2 -march=rv32im -mabi=ilp32
+Memory location  : Static data in RAM (.bss)
+seedcrc          : 0xe9f5
+[0]crclist       : 0xe714
+[0]crcmatrix     : 0x1fd7
+[0]crcstate      : 0x8e3a
+[0]crcfinal      : 0xfcaf
+Errors detected
+HADES port: iterations=10 cycles=54181122 clock_hz=50000000
+HADES instret: window=3081467 start=12751 stop=3094218
+HADES hpm3: 39816935
+HADES hpm4: 2648490
+HADES hpm5: 809
+HADES hpm6: 93960
+HADES hpm7: 11201068
+HADES hpm8: 419503
+HADES hpm9: 321965
+HADES note: simulation, not a CoreMark score. The 10 s rule is not met (the ERROR and Errors detected lines above say so); CoreMark/MHz is an estimate: iterations * 1000000 / cycles.
+- sim/top.sv:131: Verilog $finish
+[0;33m
+Inital test failed! (# Errors: 0)
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!! TEST DONE !!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[0m
+SCOREBOARD: PASS  3149708 fetches, 552708 loads, 152222 stores checked; the RAM equals the copy at the end
+RETIRED cycles=54674440 instructions=3109446 cpi=17.583
+HPM CYCLE=54674440 INSTRET=3109446 LOAD=553702 STORE=153145 BRANCH=629857 BRANCH_TAKEN=325333 JUMP=98131 MUL=94057 DIV=262 CSR=18 BITMANIP=0 CRYPTO=0 MRET=0 FENCE_I=0 REPLAY=0 BR_MISPREDICT=325333 BP_NN=304524 BP_NT=325333 BP_TN=0 BP_TT=0 EXCEPTION=0 EXC_ECALL=0 EXC_OTHER=0 INTERRUPT=0 INT_TIMER=0 INT_EXT=0 FETCH_WAIT=40189633 FRONT_OK=2673063 HAZARD=811 MSTALL_ANY=102703 MEMWAIT_ANY=11284766 REDIRECT_ANY=423464 HAZARD_LOAD=811 MSTALL_MUL=94057 MSTALL_DIV=8646 MEMWAIT_LOAD=8847014 MEMWAIT_STORE=2437752 MEMWAIT_IO=1916 REDIRECT_BRANCH=325333 REDIRECT_JUMP=98131 REDIRECT_WB=0 FETCH_DELIVER=3111096 FETCH_DISCARD=38612 IO_ACCESS=1917 x_irq_pending=0 x_mret_irq=0 x_fencei_j=0
+HPM_CHECK ok: 54674440 comparisons of 7 counters, 7 selectors, mcountinhibit, minstret and mcycle
+- S i m u l a t i o n   R e p o r t: Verilator 5.042 2025-11-02
+- Verilator: $finish at 1ms; walltime 87.846 s; speed 12.450 us/s
+- Verilator: cpu 87.830 s on 1 threads; alloced 175 MB

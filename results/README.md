@@ -55,12 +55,14 @@ log itself is not part of the repository.
 
 ## Status
 
-| Status | Meaning | Re-run with |
-|---|---|---|
-| repeatable | A command reproduces the figure exactly. Wall times and simulation speeds quoted with it are recorded too, but they depend on the host and its load and are never compared. | `make check-results` |
-| needs formal tools | Repeatable once the formal tools of [formal/README.md](../formal/README.md#tools) are installed. They were not installed where the record was written, so the record keeps the earlier run of record. | `make check-results CHECK_ARGS=formal` |
-| needs Vivado | Repeatable with Vivado 2024.2 from a checkout of the record's commit; not repeated for the record. | `make synthesis` at that commit |
-| historical | Cannot be re-run: the program, the tree or the report no longer exists, or the result was made outside the repository. This includes a build that could be repeated (with Vivado, for example) but whose original output was not kept, or kept only in part: the figure is that of the original build, and a rebuild would make a new record. The record keeps what is known and where it comes from. | — |
+The status says whether a figure can be produced again, with which tools, and how `make check-results` treats it.
+
+| Status | Meaning | Tools and versions | Re-run with |
+|---|---|---|---|
+| repeatable | A command reproduces the figure exactly. Wall times and simulation speeds quoted with it are recorded too, but they depend on the host and its load and are never compared. | Those of [docs/BUILDING.md](../docs/BUILDING.md#tools-and-dependencies): Verilator 5.042, `riscv32-unknown-elf-gcc` 12.2.0 with binutils 2.39, Python 3.12, GNU Make 4.3; each record lists the versions it was made with | `make check-results` |
+| needs formal tools | Repeatable once the formal tools of [formal/README.md](../formal/README.md#tools) are installed. They were not installed where the record was written, so the record keeps the earlier run of record. | The tested combination of [formal/README.md](../formal/README.md#tools): YoWASP Yosys 0.69 with SBY and yosys-smtbmc, bitwuzla 0.9.1, Yices 2.7.0, z3 5.1.0, sv2v 0.0.13 and Verilator 5.042 | `make check-results CHECK_ARGS=formal` |
+| needs Vivado | Repeatable with Vivado 2024.2 from a checkout of the record's commit; not repeated for the record. | Vivado 2024.2 | `make synthesis` at that commit |
+| historical | Cannot be re-run: the program, the tree or the report no longer exists, or the result was made outside the repository. This includes a build that could be repeated (with Vivado, for example) but whose original output was not kept, or kept only in part: the figure is that of the original build, and a rebuild would make a new record. The record keeps what is known and where it comes from. | Those the record names; for the CVA6 runs of [coremark-cva6](coremark-cva6/2026-10-26_173b683/RECORD.md), CVA6 at commit `742dc82` with the Verilator 5.008 and Spike it pins, and GCC 12.2.0 | — |
 
 Four topics have both a historical record of the first measurement and a repeatable record
 that reproduces exactly everything that survives of it: `zba`, `m-unit-cycles`,
@@ -75,6 +77,7 @@ make check-results CHECK_ARGS=--list                  # the checks and the recor
 make check-results CHECK_ARGS='zba trapsweep'         # only these checks
 make check-results CHECK_ARGS='--campaign --jobs 12'  # also the 794-run campaign, about 80 minutes
 make check-results CHECK_ARGS=bitmanip-long           # ext-exhaustive and the bitmanip campaign, about an hour
+make check-results CHECK_ARGS=coremark                # CoreMark in 42 configurations and the cache model, about 10 minutes
 sh results/check.sh --jobs 12 freertos-campaign       # the script itself, without make
 ```
 
@@ -96,6 +99,7 @@ they depend on its load.
 | `bitmanip` | the 11 commands of the bitmanip record: the five assembly tests, `test_ext_execute`, `make ext-check`, fuzz variant b (1,000 programs), the `ext` probe family, and the loader's `session-ext.txt` on both CPUs | the recorded output lines and exit status of each command, and the per-program tables of the fuzz set (1,000 programs) and the probe family (3) |
 | `sha256` | `make bench-sha256` at `-O2`, `-Os` and `-O0` | the three summaries, the 23 run logs and the sha256 of the 46 program files |
 | `crypto` | the 7 commands of the crypto record: the assembly tests of Zbkb, Zbkx and Zknh, fuzz variant k (1,000 programs), the `crypto` probe family, and the loader's `session-crypto.txt` on both CPUs | the recorded output lines and exit status of each command, the per-program tables of the fuzz set (1,000 programs) and the probe family (3), and the Zbkb, Zbkx and Zknh instructions in the two builds of the app `sha256` |
+| `coremark` | only by name: the 42 `make coremark` commands and the 14 cache-model commands of the coremark record | the 42 summaries and run logs, the sha256 of the 84 program files, the output of the 14 cache-model commands |
 | `bitmanip-long` | only by name: `make ext-exhaustive` and `campaign.py --set bitmanip --seeds 8`, with `--compare` | the 48 lines of `ext-exhaustive`; every deterministic column of the 120 campaign runs |
 | `freertos-campaign` | only with `--campaign` or by name: `--suite sep2026 --wall-limit 0`, with `--compare` | every deterministic column of the 1317 runs |
 | `formal` | only with `--formal` or by name: `make formal` | the summary lines of the run of record; without the tools, the check reports `NOT RUN` |
@@ -144,6 +148,8 @@ with its date, in `rechecked.sha256`; check the fingerprints again just before a
 | [sha256/2026-10-02_8aac4f0](sha256/2026-10-02_8aac4f0/RECORD.md) | repeatable | `make bench-sha256` at `-O2`, `-Os` and `-O0`: SHA-256 for RV32I, with Zba, Zbb and Zbs, and with Zknh; the 17 Zbkb, Zbkx and Zknh forms against RV32I code |
 | [crypto/2026-10-02_8aac4f0](crypto/2026-10-02_8aac4f0/RECORD.md) | repeatable | The tests of Zbkb, Zbkx and Zknh: assembly tests, random programs, the `crypto` probe family, the app `sha256` in the loader's session; historical: the mutation campaigns, the decode of all 2^32 words |
 | [bitmanip/2026-10-02_1b8a2f7](bitmanip/2026-10-02_1b8a2f7/RECORD.md) | repeatable | The tests of Zbb, Zbs and Zicond: assembly tests, the Execute bench, the RTL against the C model (quick, and over all 2^32 inputs of the one-operand instructions), random programs, the `ext` probe family, the app `bitmanip`, the campaign set `bitmanip`; and, historical, the mutation testing |
+| [coremark/2026-10-26_cc48658](coremark/2026-10-26_cc48658/RECORD.md) | repeatable | `make coremark` in 42 configurations (memories, instruction sets, predictor modes, counter presets, CVA6's CI flags) and the cache model on two bus traces: every figure of test/coremark/README.md and the HaDes-V+ figures of docs/PERFORMANCE.md |
+| [coremark-cva6/2026-10-26_173b683](coremark-cva6/2026-10-26_173b683/RECORD.md) | historical | CoreMark on upstream CVA6 (cv32a65x and cv64a6_imafdc_sv39) in its Verilator testbench, made outside the repository: the CVA6 figures of docs/PERFORMANCE.md |
 | [zba/2026-08-18_33d20a6](zba/2026-08-18_33d20a6/RECORD.md) | historical | The first measurement of the Zba figures |
 | [m-unit-cycles/2026-10-01_eac5646](m-unit-cycles/2026-10-01_eac5646/RECORD.md) | repeatable | `make bench-mcost`: the cycles of each M instruction |
 | [m-unit-cycles/2026-08-18_ef2d49e](m-unit-cycles/2026-08-18_ef2d49e/RECORD.md) | historical | The first measurement of those cycles |
@@ -260,6 +266,17 @@ example commands.
 | The app `sha256`: self-test 4 of 4 in both builds on HaDes-V+ and in the RV32I build on the golden CPU, which refuses the Zknh build; its digests and cycles; the four `sha256` forms in its Zknh build; the `cpu:` lines of the loader's `version`; `LOADER COMPARE` with `session-crypto.txt` | README.md [Programs Built on the PC](../README.md#programs-built-on-the-pc-loaded-and-run); APPS.md [The example apps](../docs/APPS.md#the-example-apps), [The tests](../docs/APPS.md#the-tests); VERIFICATION.md [System Level](../docs/VERIFICATION.md#system-level); EXTENSIONS.md Zbkb, Zbkx and Zknh [Verification](../docs/EXTENSIONS.md#verification-7) | [crypto](crypto/2026-10-02_8aac4f0/RECORD.md) (the `LOADER COMPARE` line itself is in [Figures without a record](#figures-without-a-record)) | repeatable |
 | Mutation testing of the decoder and of the cryptography half of Execute: 22 and 46 faults, every one that changes a result or the timing caught, three equivalent; every one of the 2^32 instruction words decoded as before outside the 17 forms; the images of the FreeRTOS programs identical with the new `-march` | EXTENSIONS.md Zbkb, Zbkx and Zknh [Using them from C](../docs/EXTENSIONS.md#design-the-cryptography-half-of-the-ext-unit), [Verification](../docs/EXTENSIONS.md#verification-7); VERIFICATION.md [Mutation Testing](../docs/VERIFICATION.md#mutation-testing) | [crypto](crypto/2026-10-02_8aac4f0/RECORD.md) ([Mutation testing](crypto/2026-10-02_8aac4f0/RECORD.md#mutation-testing), [Checks made once](crypto/2026-10-02_8aac4f0/RECORD.md#checks-made-once)) | historical |
 | The evidence of the claims: `hints.s` 57 assertions and the sweep's `HINTS:` line (Zihintpause, Zihintntl); the M tests and `make bench-mcost` (Zmmul); `zkt.s` 304 assertions over 51 instructions, `test_ext_execute` and `ext-exhaustive` with `violations=0`, the formal property X3 (Zkt) | EXTENSIONS.md [Hints, Zmmul and Zkt](../docs/EXTENSIONS.md#hints-zmmul-and-zkt) | [bitmanip](bitmanip/2026-10-02_1b8a2f7/RECORD.md), [tests](tests/2026-10-01_eac5646/RECORD.md), [m-unit-cycles](m-unit-cycles/2026-10-01_eac5646/RECORD.md), [formal](formal/2026-10-02_8aac4f0/RECORD.md) | repeatable (X3: needs formal tools) |
+
+### CoreMark
+
+| Figure as quoted | Quoted in | Record | Status |
+|---|---|---|---|
+| The 13 rows of the table: cycles, instructions, CPI, cycles per iteration, CoreMark/MHz | test/coremark/README.md [Figures measured so far](../test/coremark/README.md#figures-measured-so-far) | [coremark](coremark/2026-10-26_cc48658/RECORD.md) | repeatable |
+| 198 cycles between the rv32i rows; 521,381 cycles for one iteration against 515,028 per iteration over 20, about 0.1 %; the cycle classes of six memories; the stores and loads waiting (8.1, 17.5, 36.1 %; 0.6, 0.5, 0.4 %); 152,008 stores, 97.8 % hits, 1,438 load misses, 538 refills; store waits of 7.95, 17.20 and 35.61 %; 65.6 % without the data cache | test/coremark/README.md [Figures measured so far](../test/coremark/README.md#figures-measured-so-far), [The cycle breakdown](../test/coremark/README.md#the-cycle-breakdown) | [coremark](coremark/2026-10-26_cc48658/RECORD.md) | repeatable |
+| The cache model against the RTL: the trace of 4,361,915 cycles and 3,150,817 instructions, the three rows and their differences, +0.07, +0.06 and +0.12 % with Zba, Zbb and Zbs, `RTLCHECK: AGREE` | test/coremark/README.md [A bus trace for the cache model](../test/coremark/README.md#a-bus-trace-for-the-cache-model), [Figures measured so far](../test/coremark/README.md#figures-measured-so-far) | [coremark](coremark/2026-10-26_cc48658/RECORD.md) | repeatable |
+| `BPRED=2` and `BPRED=3`: 3,820,054 and 3,735,652 cycles, cached 4,755,979 and 4,671,532; an image of about 9 KiB of code, 1.8 KiB of read-only data and 2.1 KiB of `.bss` | test/coremark/README.md [Notes and limits](../test/coremark/README.md#notes-and-limits), [The port](../test/coremark/README.md#the-port) | [coremark](coremark/2026-10-26_cc48658/RECORD.md) | repeatable |
+| The HaDes-V+ side of the CVA6 comparison: its 16 rows and bars, the instructions of the window, the single-issue bounds 3.245 and 3.677, 82.5 %, the cycle classes of both predictor modes, the redirects and jumps, the refills, and the percentages between HaDes-V+ runs | PERFORMANCE.md [Results](../docs/PERFORMANCE.md#results), [What the Numbers Show](../docs/PERFORMANCE.md#what-the-numbers-show) | [coremark](coremark/2026-10-26_cc48658/RECORD.md) | repeatable |
+| The CVA6 side: its 12 rows and bars, instructions and instructions per cycle, the 16 KiB caches, CVA6's own CoreMark copies, the compressed and taken-branch counts, the miss costs, the two compilers' identical code, the percentages against HaDes-V+, and 2.4 to 5.2 million cycles per run | PERFORMANCE.md [Results](../docs/PERFORMANCE.md#results), [What the Numbers Show](../docs/PERFORMANCE.md#what-the-numbers-show), [The Cores and Their Memories](../docs/PERFORMANCE.md#the-cores-and-their-memories), [How It Was Measured](../docs/PERFORMANCE.md#how-it-was-measured), [What Is Not Compared](../docs/PERFORMANCE.md#what-is-not-compared) | [coremark-cva6](coremark-cva6/2026-10-26_173b683/RECORD.md) | historical |
 
 ### Formal proof
 

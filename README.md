@@ -89,7 +89,7 @@ Build output goes to `build/`; to put it elsewhere, for example when the reposit
 |---|---|
 | Get started | [Quick Start](#quick-start), [BUILDING.md](docs/BUILDING.md) (tools, targets, synthesis), [FREERTOS.md](docs/FREERTOS.md) (running FreeRTOS) |
 | Use it | [SHELL.md](docs/SHELL.md) (the interactive shell), [APPS.md](docs/APPS.md) (building, loading and running apps) |
-| Understand it | [ARCHITECTURE.md](docs/ARCHITECTURE.md) (the core and the microcontroller), [EXTENSIONS.md](docs/EXTENSIONS.md) (what HaDes-V+ adds), [SPEC.md](test/freertos/loader/SPEC.md) (the app loader) |
+| Understand it | [ARCHITECTURE.md](docs/ARCHITECTURE.md) (the core and the microcontroller), [EXTENSIONS.md](docs/EXTENSIONS.md) (what HaDes-V+ adds), [PERFORMANCE.md](docs/PERFORMANCE.md) (CoreMark against CVA6), [SPEC.md](test/freertos/loader/SPEC.md) (the app loader) |
 | Check the evidence | [VERIFICATION.md](docs/VERIFICATION.md) (methods and results), [results/](results/README.md) (the record of each figure), [formal/README.md](formal/README.md) (the proofs) |
 | Find any document | [docs/README.md](docs/README.md): every document, with what it covers |
 

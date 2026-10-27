@@ -1,0 +1,37 @@
+2K performance run parameters for coremark.
+CoreMark Size    : 666
+Total ticks      : 4217916
+Total time (secs): 0
+ERROR! Must execute for at least 10 secs for a valid result!
+Iterations       : 10
+Compiler version : GCC12.2.0
+Compiler flags   : -O2 -march=rv32im -mabi=ilp32
+Memory location  : Static data in RAM (.bss)
+seedcrc          : 0xe9f5
+[0]crclist       : 0xe714
+[0]crcmatrix     : 0x1fd7
+[0]crcstate      : 0x8e3a
+[0]crcfinal      : 0xfcaf
+Errors detected
+HADES port: iterations=10 cycles=4217916 clock_hz=50000000
+HADES instret: window=3081467 start=12751 stop=3094218
+HADES hpm3: 0
+HADES hpm4: 3500970
+HADES hpm5: 203447
+HADES hpm6: 93960
+HADES hpm7: 0
+HADES hpm8: 419503
+HADES hpm9: 321965
+HADES note: simulation, not a CoreMark score. The 10 s rule is not met (the ERROR and Errors detected lines above say so); CoreMark/MHz is an estimate: iterations * 1000000 / cycles.
+- sim/top.sv:131: Verilog $finish
+[0;33m
+Inital test failed! (# Errors: 0)
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!! TEST DONE !!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[0m
+HPM CYCLE=4383271 INSTRET=3159973 LOAD=570670 STORE=153078 BRANCH=646782 BRANCH_TAKEN=342315 JUMP=98121 MUL=94056 DIV=230 CSR=18 BITMANIP=0 CRYPTO=0 MRET=0 FENCE_I=0 REPLAY=0 BR_MISPREDICT=342315 BP_NN=304467 BP_NT=342315 BP_TN=0 BP_TT=0 EXCEPTION=0 EXC_ECALL=0 EXC_OTHER=0 INTERRUPT=0 INT_TIMER=0 INT_EXT=0 FETCH_WAIT=0 FRONT_OK=3600412 HAZARD=221875 MSTALL_ANY=101646 MEMWAIT_ANY=18901 REDIRECT_ANY=440437 HAZARD_LOAD=221841 MSTALL_MUL=94056 MSTALL_DIV=7590 MEMWAIT_LOAD=18014 MEMWAIT_STORE=887 MEMWAIT_IO=18901 REDIRECT_BRANCH=342315 REDIRECT_JUMP=98122 REDIRECT_WB=0 FETCH_DELIVER=3600412 FETCH_DISCARD=782859 IO_ACCESS=18902 x_irq_pending=0 x_mret_irq=0 x_fencei_j=0
+HPM_CHECK ok: 4383271 comparisons of 7 counters, 7 selectors, mcountinhibit, minstret and mcycle
+- S i m u l a t i o n   R e p o r t: Verilator 5.042 2025-11-02
+- Verilator: $finish at 88us; walltime 7.290 s; speed 12.028 us/s
+- Verilator: cpu 7.288 s on 1 threads; alloced 175 MB

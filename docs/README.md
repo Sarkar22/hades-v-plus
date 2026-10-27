@@ -1,4 +1,4 @@
-[HaDes-V+](../README.md) · **Docs** · [Building](BUILDING.md) · [FreeRTOS](FREERTOS.md) · [Shell](SHELL.md) · [Apps](APPS.md) · [Architecture](ARCHITECTURE.md) · [Extensions](EXTENSIONS.md) · [Verification](VERIFICATION.md) · [Caches](CACHES.md)
+[HaDes-V+](../README.md) · **Docs** · [Building](BUILDING.md) · [FreeRTOS](FREERTOS.md) · [Shell](SHELL.md) · [Apps](APPS.md) · [Architecture](ARCHITECTURE.md) · [Extensions](EXTENSIONS.md) · [Verification](VERIFICATION.md) · [Caches](CACHES.md) · [Performance](PERFORMANCE.md)
 
 # Documentation
 
@@ -52,6 +52,7 @@ make help                            # the main targets and their settings
 | [docs/ARCHITECTURE.md](ARCHITECTURE.md) | The core: instruction set, pipeline, hazards; memory map, Wishbone fabric, peripherals, clocks; software runtime; the reference-library flow and the upstream course material |
 | [docs/EXTENSIONS.md](EXTENSIONS.md) | M, Zba, Zicntr, Zifencei, the branch predictor, Zbb and Zbs (with Zba the B extension), Zicond, Zbkb, Zbkx and Zknh, and the claims of Zihintpause, Zihintntl, Zmmul and Zkt: design, verification, implementation notes; at the top, an overview of what HaDes-V+ adds and of its fixes to the upstream design |
 | [docs/CACHES.md](CACHES.md) | The instruction cache and the write-through data cache that exist only in the simulators: the design, their coherence with stores, the shared memory port, building and running a cached simulator, the events and the statistics line, how they are checked, what is not built, and the rules for later use; the standard build and the Basys 3 bitstream have no cache |
+| [docs/PERFORMANCE.md](PERFORMANCE.md) | CoreMark against CVA6 in simulation: the same CoreMark, compiler and instructions on HaDes-V+, cv32a65x and cv64a6, the cycles per MHz of each, where the cycles of HaDes-V+ go, what is not compared, and how to run it again |
 | [test/freertos/loader/SPEC.md](../test/freertos/loader/SPEC.md) | The specification of the app loader: image format, load protocol, console pacing, run semantics, test plan |
 | [test/freertos/README.md](../test/freertos/README.md) | The FreeRTOS programs and the differential campaign in depth |
 | [third_party/freertos/README.md](../third_party/freertos/README.md) | Provenance and licence of the vendored FreeRTOS sources |

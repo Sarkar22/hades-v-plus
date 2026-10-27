@@ -1,0 +1,29 @@
+RTLCHECK build/cfg-mem8_24-beat0-i8k-d4k-l16/test/coremark/dut-rv32im_zba_zbb_zbs-O2-performance-i10/run.log
+  against the trace zb (4276502 cycles, 3055622 instructions), model --isize 8192 --dsize 4096 --line 16 --mem burst --beat-cycles 1 --rd-lat 8:24 --wr-lat 8:24 (# s)
+  model: a refill was running or waiting at the end of the trace and was completed (running); RTL: i_inflight=1 d_inflight=0
+  field                                                   rtl      model  verdict
+  refills started (i_refills / model)                     523        523  equal
+  refills completed (i_done + i_inflight / model)         523        523  equal
+  snoop_inval                                               0          0  equal
+  dc_lookup_hits (model: d_loads)                      552381     552381  equal
+  dc_load_misses (model: d_load_misses)                  2928       2928  equal
+  dc_store_hits (model: d_store_hits)                  150595     150595  equal
+  dc_store_misses (model: d_stores - d_store_hits)       1413       1413  equal
+  d_stores                                             152008     152008  equal
+  i_refills = i_done + i_inflight                         523        523  equal
+  i_beats = 4 * i_done + i_inflight_beats                2088       2088  equal
+  i_refill_cycles = wait_i_for_port + port_irefill      12911      12911  equal
+  dc_load_misses = dc_done + dc_inflight                 2928       2928  equal
+  dc_beats = 4 * dc_done + dc_inflight_beats            11712      11712  equal
+  d_loads = dc_beats                                    11712      11712  equal
+  dc_store_hits + dc_store_misses = d_stores           152008     152008  equal
+  cycles = RETIRED cycles                             6773629    6773629  equal
+  cycles (model: the cycles of the trace replay)      6773629    6781476  reported
+  wait_i_for_port                                        2532       1240  reported
+  wait_d_for_port                                         866         67  reported
+  i_abandoned (model: i_left)                              86         86  reported
+  port_irefill                                          10379      10384  reported
+  port_data (model: port_store + port_drefill)        2641845    2643377  reported
+  instructions (RETIRED / trace)                      3053372    3055622  reported
+  (random latencies: the simulator and the model draw them from different generators, so the model fields are informative only)
+RTLCHECK: AGREE (random latencies: informative only)

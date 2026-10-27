@@ -1,0 +1,35 @@
+SCOREBOARD on: every answer from the RAM, addresses 0x00040000-0x00047fff, is checked
+CACHE I-cache 8192 bytes, 16-byte lines, 512 sets, direct-mapped; tag adr[29:11], index adr[10:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1; one memory port, data side first; RAM exempt from the interconnect timeout
+CACHE D-cache 4096 bytes, 16-byte lines, 256 sets, direct-mapped, write-through, no write-allocate; tag adr[29:10], index adr[9:2], word adr[1:0]; window 0x00040000-0x00047fff; random initial arrays, seed 1
+SLOW MEMORY memory port: read latency 8..24, write latency 4..8, burst beats 0 (cache refill blocks only), seed 1
+2K performance run parameters for coremark.
+CoreMark Size    : 666
+Total ticks      : 4495884
+Total time (secs): 0
+ERROR! Must execute for at least 10 secs for a valid result!
+Iterations       : 10
+Compiler version : GCC12.2.0
+Compiler flags   : -O3 -g -fno-tree-loop-distribute-patterns -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -lgcc -funroll-all-loops -ffunction-sections -fdata-sections -Wl,-gc-sections -falign-jumps=4 -falign-functions=16 -march=rv32im -mabi=ilp32
+Memory location  : Static data in RAM (.bss)
+seedcrc          : 0xe9f5
+[0]crclist       : 0xe714
+[0]crcmatrix     : 0x1fd7
+[0]crcstate      : 0x8e3a
+[0]crcfinal      : 0xfcaf
+Errors detected
+HADES port: iterations=10 cycles=4495884 clock_hz=50000000
+HADES instret: window=2719460 start=10646 stop=2730106
+HADES note: simulation, not a CoreMark score. The 10 s rule is not met (the ERROR and Errors detected lines above say so); CoreMark/MHz is an estimate: iterations * 1000000 / cycles.
+- sim/top.sv:131: Verilog $finish
+[0;33m
+Inital test failed! (# Errors: 0)
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!! TEST DONE !!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[0m
+SCOREBOARD: PASS  4387269 fetches, 549096 loads, 148536 stores checked; the RAM equals the copy at the end
+RETIRED cycles=4685948 instructions=2822220 cpi=1.660
+CACHE_STATS cycles=4685948 i_hits=4387269 i_refills=13855 i_done=13854 i_beats=55416 i_abandoned=2011 snoop_inval=0 i_refill_cycles=284824 wait_i_for_port=8412 wait_d_for_port=6716 port_irefill=276412 port_data=1045157 d_loads=912 d_stores=148536 i_inflight=1 i_inflight_beats=0 i_inflight_port=1 d_inflight=0 d_inflight_port=0 dc_lookup_hits=549096 dc_load_misses=228 dc_done=228 dc_beats=912 dc_store_hits=147435 dc_store_misses=1101 dc_store_wait=898087 dc_refill_cycles=5250 dc_inflight=0 dc_inflight_beats=0 dc_inflight_port=0
+- S i m u l a t i o n   R e p o r t: Verilator 5.042 2025-11-02
+- Verilator: $finish at 94us; walltime 6.110 s; speed 15.348 us/s
+- Verilator: cpu 6.106 s on 1 threads; alloced 176 MB
