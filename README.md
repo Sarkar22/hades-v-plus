@@ -111,10 +111,11 @@ HaDes-V originates as the lab project for [Microcontroller Design, Lab][lvref] a
 
 This repository is a derivative work. The HaDes-V core, its build system, the Wishbone peripheral fabric, the reference models in [`ref/`](ref), and the original documentation were created by **Tobias Scheipel, David Beikircher, and Florian Riedl** (Embedded Architectures & Systems Group, Graz University of Technology) and published as an Open Educational Resource. Their copyright notices are retained in every file they authored, and both upstream licences apply unchanged — see [License](#license) below. If you use this work academically, please cite the upstream authors' publication linked under [Publication](#publication--risc-v-summit-europe-2025).
 
+The branch predictor ([`rtl/branch_predictor.sv`](rtl/branch_predictor.sv)) was designed by **Charles Manning**.
+
 The following are original contributions by **Emon Sarkar**, added after completing the upstream lab:
 
 - The **M**, **Zba**, **Zbb**, **Zbs**, **Zicond**, **Zbkb**, **Zbkx**, **Zknh** and **Zicntr** extensions, the substantiation of **Zifencei**, and the evidence for **Zihintpause**, **Zihintntl**, **Zmmul** and **Zkt**
-- The **bimodal branch predictor** and its performance-counter CSRs
 - Nine correctness fixes to the upstream design: decoder `rd` handling for S/B-type instructions, `FENCE` forwarding suppression in the Memory stage, six trap/interrupt defects found by running FreeRTOS and the trap sweep, and the UART's transmit-interrupt enable
 - The formal proofs of the multiply/divide unit and of the Zbb, Zbs, Zicond, Zbkb, Zbkx and Zknh unit ([`formal/`](formal))
 - FreeRTOS support ([`test/freertos/`](test/freertos), [docs/FREERTOS.md](docs/FREERTOS.md)), including the interactive shell and its app loader, and the independent trap-sweep model ([`test/trapsweep/`](test/trapsweep))
